@@ -1,0 +1,21 @@
+== a cold home — this is what a user actually starts with ==
+nav rows=1
+  [info] (no workspace open)
+selected=
+tabs=0
+-> New Project: created proj-1 Project 1
+== a workspace and a project now exist, and the browser is live ==
+nav rows=2
+  [info] Workspace: workspace
+  [project] * Project 1
+selected=
+tabs=0
+project dir created=true
+project dir leaf=project-1
+-> New Project again: created proj-2 Project 2
+nav rows=3
+  [info] Workspace: workspace
+  [project]   Project 1
+  [project] * Project 2
+selected=
+tabs=0

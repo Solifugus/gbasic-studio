@@ -1,0 +1,17 @@
+-> row 0 (the workspace header): none
+-> row -1: out-of-range
+-> row 9999: out-of-range
+-> row count(rows): out-of-range
+== model untouched by every one of them ==
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=
+tabs=0
+tab rows=0
+-> select tab 0 with nothing open: out-of-range
+-> select tab -1: out-of-range

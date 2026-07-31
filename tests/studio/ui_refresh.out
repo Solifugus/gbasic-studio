@@ -1,0 +1,29 @@
+== two tabs open ==
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=README.md
+tabs=2
+    doc-1 main.bas
+  * doc-2 README.md
+-> Refresh: refreshed reloaded=doc-1 conflicts=doc-2 deleted=
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=README.md
+tabs=2
+    doc-1 main.bas
+  * doc-2 * README.md
+doc-1 content=changed on disk while Studio was clean
+
+doc-2 content=my unsaved edits
+
+doc-2 external=changed

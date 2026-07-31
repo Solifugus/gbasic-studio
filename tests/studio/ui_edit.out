@@ -1,0 +1,57 @@
+== opened clean ==
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=main.bas
+tabs=1
+  * doc-1 main.bas
+-> apply_edit (new text): dirty doc-1
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=main.bas
+tabs=1
+  * doc-1 * main.bas
+-> apply_edit (identical text, a redundant signal): dirty doc-1
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=main.bas
+tabs=1
+  * doc-1 * main.bas
+-> apply_edit (typed back to the saved text): clean doc-1
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=main.bas
+tabs=1
+  * doc-1 main.bas
+-> apply_edit (empty — the mid-set_text fire): dirty doc-1
+-> apply_edit (the settled text): clean doc-1
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=main.bas
+tabs=1
+  * doc-1 main.bas
+-> apply_edit on a closed document: unknown doc-999

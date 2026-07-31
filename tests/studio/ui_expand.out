@@ -1,0 +1,25 @@
+src is row 3
+-> activate src: expand src
+== expanded ==
+nav rows=8
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   v src
+  [file]       a.bas
+  [file]       b.bas
+  [file]     README.md
+  [file]     main.bas
+selected=src
+tabs=0
+== collapse it again ==
+-> activate src again: collapse src
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=src
+tabs=0

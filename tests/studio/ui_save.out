@@ -1,0 +1,26 @@
+-> save with nothing open: none
+-> edit: dirty doc-1
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=main.bas
+tabs=1
+  * doc-1 * main.bas
+-> save: saved doc-1
+== clean again, and the tab marker is gone ==
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=main.bas
+tabs=1
+  * doc-1 main.bas
+on disk: saved through the Save button
+

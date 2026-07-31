@@ -1,0 +1,36 @@
+== two tabs, the second active ==
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=README.md
+tabs=2
+    doc-1 main.bas
+  * doc-2 README.md
+-> select page 0: select doc-1
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=README.md
+tabs=2
+  * doc-1 main.bas
+    doc-2 README.md
+-> select page 1: select doc-2
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=README.md
+tabs=2
+    doc-1 main.bas
+  * doc-2 README.md

@@ -1,0 +1,49 @@
+== before: no tabs ==
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=
+tabs=0
+main.bas is row 5
+-> activate main.bas: open opened doc-1
+== after: one tab, active ==
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=main.bas
+tabs=1
+  * doc-1 main.bas
+== a second file opens a second tab and takes activation ==
+-> activate README.md: open opened doc-2
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=README.md
+tabs=2
+    doc-1 main.bas
+  * doc-2 README.md
+== re-activating an open file reuses its tab rather than duplicating it ==
+-> activate main.bas again: open reused doc-1
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=main.bas
+tabs=2
+  * doc-1 main.bas
+    doc-2 README.md
