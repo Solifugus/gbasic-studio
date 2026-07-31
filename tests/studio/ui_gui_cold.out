@@ -1,0 +1,14 @@
+-- a cold home --
+nav rows=1
+  [info] (no workspace open)
+selected=
+tabs=0
+clicking New Project on a cold home
+action=created
+-- after New Project --
+nav rows=2
+  [info] Workspace: workspace
+  [project] * Project 1
+selected=
+tabs=0
+app-exited

@@ -59,6 +59,18 @@ mkproj() { # dir — a deterministic project tree for the browser cases
     printf x > "$d/src/a.bas"; printf x > "$d/src/b.bas"; printf x > "$d/docs/guide.md"
 }
 
+mkproj_ui() { # dir — the STU-2B interaction fixture: a nested tree with two
+              # files at the top level, so a click can open one, expand a
+              # directory, and open one from inside it.
+    local d="$1"
+    mkdir -p "$d/src" "$d/docs"
+    printf 'print "main"\n' > "$d/main.bas"
+    printf '# readme\n'     > "$d/README.md"
+    printf 'x\n'            > "$d/src/a.bas"
+    printf 'y\n'            > "$d/src/b.bas"
+    printf 'z\n'            > "$d/docs/guide.md"
+}
+
 mkproj2() { # dir — deterministic source files for the document cases
     local d="$1"
     mkdir -p "$d/sub"
@@ -615,6 +627,118 @@ if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
     fi
 else
     printf 'SKIP results_gui (no display)\n'
+fi
+
+# ---- STU-2B: interaction (studio_ui + the wired shell) ----------------------
+#
+# The shell had no signal handlers at all before this phase, so nothing it drew
+# responded to a click. What is asserted here is split in two, and the split is
+# the architecture rather than a testing convenience:
+#
+#   ui_*      — headless, GI-independent, path-free. Every interaction's MEANING,
+#               decided by a studio_ui function the driver calls directly. This is
+#               the primary evidence and it runs everywhere.
+#   ui_gui*   — display-only, SKIPs without GTK 4 or a display. The two inches a
+#               headless test cannot reach: that the handler is connected, that
+#               the index it reads off the widget is the row the user hit, and
+#               that rebuilding a pane from inside that pane's own handler is
+#               safe. Real signals are synthesised (GtkListBoxRow.activate,
+#               GtkNotebook.set_current_page, GtkTextBuffer.set_text,
+#               GtkButton.activate) — there is no gi.emit, but those methods emit
+#               the signal we want as their documented effect.
+UI=tests/drivers/ui.bas
+run_ui() { # mode
+    local mode="$1" home proj
+    home="$tmproot/ui_$mode"
+    proj="$tmproot/ui_${mode}_proj"
+    rm -rf "$home" "$proj"; mkdir -p "$home"
+    mkproj_ui "$proj"
+    : >"$stdout_file"
+    if ! timeout 60 "$GBASIC" "$UI" "$mode" "$home" "$proj" >"$stdout_file" 2>&1; then
+        cat "$stdout_file"; fail "ui_$mode (nonzero exit)"
+    fi
+    if diff -u "tests/studio/ui_$mode.out" "$stdout_file"; then
+        printf 'PASS ui_%s\n' "$mode"
+    else
+        fail "ui_$mode (output diff)"
+    fi
+}
+
+for m in rows open expand project bounds tabs edit save newproj refresh; do
+    run_ui "$m"
+done
+
+# STU-2B memory: the interaction paths under valgrind. Redraw churn allocates a
+# fresh row model on every mutation, so a leak here would grow with clicks.
+if command -v valgrind >/dev/null 2>&1; then
+    vg_log="$(mktemp)"
+    ui_ok=1
+    for m in open expand tabs edit refresh; do
+        ui_home="$tmproot/ui_vg_$m"; ui_proj="$tmproot/ui_vg_${m}_proj"
+        rm -rf "$ui_home" "$ui_proj"; mkdir -p "$ui_home"; mkproj_ui "$ui_proj"
+        : >"$stdout_file"
+        if ! timeout 300 valgrind --error-exitcode=99 --leak-check=full --errors-for-leak-kinds=definite \
+                "$GBASIC" "$UI" "$m" "$ui_home" "$ui_proj" >"$stdout_file" 2>"$vg_log"; then
+            printf 'FAIL ui_memory (%s, valgrind)\n' "$m"
+            grep -E 'definitely lost|ERROR SUMMARY|Invalid ' "$vg_log" || tail -20 "$vg_log"
+            ui_ok=0; rm -f "$vg_log"; exit 1
+        fi
+    done
+    rm -f "$vg_log"
+    [ "$ui_ok" -eq 1 ] && printf 'PASS ui_memory (valgrind clean: open/expand/tabs/edit/refresh)\n'
+else
+    printf 'SKIP ui_memory (valgrind not installed)\n'
+fi
+
+# STU-2B display tier (OPTIONAL; SKIPs, never fails, without GTK 4 or a display).
+# stderr is discarded like the other loop-running tiers: GTK emits allocation
+# warnings that vary by version and theme, and baking those into a byte-exact
+# golden would make the suite fail on someone else's desktop. G_DEBUG makes a real
+# GTK CRITICAL abort instead, which surfaces as a nonzero exit.
+if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
+    ui_home="$tmproot/ui_gui"; ui_proj="$tmproot/ui_gui_proj"
+    mkdir -p "$ui_home"; mkproj_ui "$ui_proj"
+    : >"$stdout_file"
+    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
+            "$GBASIC" "$APP" stu2b_smoke "$ui_home" "$ui_proj" \
+            >"$stdout_file" 2>/dev/null; then
+        if diff -u tests/studio/ui_gui.out "$stdout_file"; then
+            printf 'PASS ui_gui (synthesised clicks through the real handlers)\n'
+        else
+            fail "ui_gui (output diff)"
+        fi
+    else
+        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
+            printf 'SKIP ui_gui (GTK 4 typelib not available)\n'
+        else
+            cat "$stdout_file"; fail "ui_gui (nonzero exit)"
+        fi
+    fi
+
+    # The cold-home path: an empty home is what a new user actually starts with,
+    # and New Project is the only control that can move it. If this one button is
+    # not wired there is no way into Studio at all.
+    cold_home="$tmproot/ui_gui_cold"
+    mkdir -p "$cold_home"
+    : >"$stdout_file"
+    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
+            "$GBASIC" "$APP" stu2b_cold "$cold_home" \
+            >"$stdout_file" 2>/dev/null; then
+        if diff -u tests/studio/ui_gui_cold.out "$stdout_file"; then
+            printf 'PASS ui_gui_cold (New Project on an empty home)\n'
+        else
+            fail "ui_gui_cold (output diff)"
+        fi
+    else
+        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
+            printf 'SKIP ui_gui_cold (GTK 4 typelib not available)\n'
+        else
+            cat "$stdout_file"; fail "ui_gui_cold (nonzero exit)"
+        fi
+    fi
+else
+    printf 'SKIP ui_gui (no display)\n'
+    printf 'SKIP ui_gui_cold (no display)\n'
 fi
 
 printf 'run_studio: all cases passed\n'

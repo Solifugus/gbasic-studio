@@ -1,0 +1,130 @@
+-- as built --
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=
+tabs=0
+clicking browser row 5 (main.bas)
+action=open
+-- after the click --
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=main.bas
+tabs=1
+  * doc-1 main.bas
+clicking browser row 3 (src)
+action=expand
+-- after expanding src --
+nav rows=8
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   v src
+  [file]       a.bas
+  [file]       b.bas
+  [file]     README.md
+  [file]     main.bas
+selected=src
+tabs=1
+  * doc-1 main.bas
+clicking browser row 4 (src/a.bas)
+action=open
+-- two tabs --
+nav rows=8
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   v src
+  [file]       a.bas
+  [file]       b.bas
+  [file]     README.md
+  [file]     main.bas
+selected=a.bas
+tabs=2
+    doc-1 main.bas
+  * doc-2 a.bas
+set_current_page(0)
+action=select
+-- after switching to page 0 --
+nav rows=8
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   v src
+  [file]       a.bas
+  [file]       b.bas
+  [file]     README.md
+  [file]     main.bas
+selected=a.bas
+tabs=2
+  * doc-1 main.bas
+    doc-2 a.bas
+typing into page 0's buffer
+action=synced
+-- after typing --
+nav rows=8
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   v src
+  [file]       a.bas
+  [file]       b.bas
+  [file]     README.md
+  [file]     main.bas
+selected=a.bas
+tabs=2
+  * doc-1 * main.bas
+    doc-2 a.bas
+clicking Save
+action=saved
+-- after Save --
+nav rows=8
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   v src
+  [file]       a.bas
+  [file]       b.bas
+  [file]     README.md
+  [file]     main.bas
+selected=a.bas
+tabs=2
+  * doc-1 main.bas
+    doc-2 a.bas
+clicking Refresh
+action=refreshed
+-- after Refresh --
+nav rows=8
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   v src
+  [file]       a.bas
+  [file]       b.bas
+  [file]     README.md
+  [file]     main.bas
+selected=a.bas
+tabs=2
+  * doc-1 main.bas
+    doc-2 a.bas
+clicking New Project
+action=created
+-- after New Project --
+nav rows=3
+  [info] Workspace: ws
+  [project]   Alpha
+  [project] * Project 2
+selected=a.bas
+tabs=2
+  * doc-1 main.bas
+    doc-2 a.bas
+app-exited
