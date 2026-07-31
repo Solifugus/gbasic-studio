@@ -9,12 +9,11 @@ from the language, which lives at `~/development/gbasic`. Studio depends on
 gBASIC the way any application depends on its runtime; nothing in gBASIC depends
 on Studio.
 
-**Read `README.md` first for status — it is not what it looks like.** The model
-and persistence layers are built and tested (90 headless cases, phases STU-0
-through STU-5A). The interactive shell is not: what renders is a *view* over
-model state with **no signal handlers at all**, so buttons and tree rows do not
-respond to clicks. That is the next work and the largest untested surface in the
-project.
+**Read `README.md` first for status.** The model and persistence layers are built
+and tested (phases STU-0 through STU-5A), and STU-2B wired the shell's first
+input handlers on top of them: browser rows, tabs, editor edits, and the
+Save / Refresh / New Project buttons all respond. Most of the window still does
+not — see README for the list.
 
 ## Build & run
 
@@ -29,23 +28,25 @@ checkout:
 GBASIC=/usr/local/bin/gbasic GBASIC_STDLIB=/usr/local/share/gbasic/stdlib ./studio
 ```
 
-An empty home renders `(no workspace open)`, and "New Project" is not wired, so
-there is no way to create one from the UI. `./studio build <home>` writes a
-canned workspace headlessly; open that home with `gui` to see the shell with
-content in it.
+An empty home renders `(no workspace open)`; **New Project** creates a workspace
+and a project directory under `<home>/projects/`. `./studio build <home>` still
+writes a canned workspace headlessly if you want content without clicking.
 
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 90 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 103 cases, headless; honours GBASIC / GBASIC_STDLIB
 ```
 
 Golden-file based: a driver plus a `.out` of expected stdout, compared
 byte-for-byte, so update the `.out` when output changes *intentionally* and say
 so. The suite builds the sibling gBASIC first when `GBASIC` points into a source
 tree, so an interpreter change is what gets tested rather than a stale binary.
-Display tiers (`sections_gui`, `sessions_gui`, `results_gui`) SKIP cleanly
-without GTK 4 or a display. Valgrind tiers SKIP if valgrind is absent.
+Display tiers (`sections_gui`, `sessions_gui`, `results_gui`, `ui_gui`,
+`ui_gui_cold`) SKIP cleanly without GTK 4 or a display. Valgrind tiers SKIP if
+valgrind is absent. The `ui_gui*` tiers discard stderr like the other
+loop-running tiers: GTK's allocation warnings vary by version and theme, and
+`G_DEBUG=fatal-criticals` turns a real GTK critical into a nonzero exit anyway.
 
 Before a release, also run against what users actually have:
 
@@ -65,8 +66,29 @@ lib/studio_docs.bas     document manager: open, dirty, save, close, external cha
 lib/studio_sections.bas execution sections over source_outline, with stable ids
 lib/studio_session.bas  replay-first execution in a child interpreter, 8 states
 lib/studio_results.bas  durable per-run results, retention, truncation, standing
-lib/studio_shell.bas    the GTK view — a pure renderer of model state
+lib/studio_ui.bas       what an interaction MEANS — the browser/tab row models and
+                        one function per interaction, over plain data, no GTK
+lib/studio_shell.bas    the GTK view — renders model state and reconciles on
+                        redraw; holds no decisions
 ```
+
+**The interaction rule (STU-2B), which later phases must follow.** A signal
+handler is an ADAPTER: read one plain value off the widget, call one
+`studio_ui` function, ask for a redraw. Nothing else. Every decision lives in
+`studio_ui` as an ordinary function over plain data that `tests/drivers/ui.bas`
+calls directly, so the untestable surface is only the widget-to-value read —
+which the `ui_gui` display tier covers by synthesising real signals. **Logic in a
+handler is a design failure, not a testing inconvenience.**
+
+Two consequences worth knowing before you touch the shell:
+
+- `studio_ui.nav_rows` produces the browser rows ONCE, and the renderer and the
+  click dispatcher consume that same array. Deriving rows twice desynchronises
+  the moment the filesystem changes between a render and a click.
+- Redraw REBUILDS the nav pane but RECONCILES the notebook by document id. A
+  notebook page holds a live buffer with unsaved text; rebuilding it would
+  destroy what the user is typing. `app/studio.bas`'s `G.redrawing` guard exists
+  because our own `set_current_page`/`set_text` echo back as signals.
 
 Libraries resolve through `GBASIC_PATH="lib:$GBASIC_STDLIB"`. **The entry point
 lives in `app/` on purpose**: gBASIC searches the importing file's directory
