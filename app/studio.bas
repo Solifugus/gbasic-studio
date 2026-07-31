@@ -53,10 +53,288 @@ function build_stu1(app, projdir)
     return app
 end function
 
+' ============================================================================
+' STU-2B — input handlers.
+'
+' Every function in this block is an ADAPTER, and the shape is always the same:
+'   1. pull ONE plain value out of the widget (an index, a page number, a string)
+'   2. call ONE studio_ui function with it
+'   3. store the returned app and ask for a redraw
+'
+' There are no decisions here. What a click MEANS is decided in studio_ui, which
+' is ordinary gBASIC a headless test calls directly (tests/drivers/ui.bas). That
+' split is the point: what is left in a handler is too small to hide a bug in.
+' If logic ever appears below, it has escaped its test coverage.
+'
+' Handlers mutate FIELDS of the global G rather than rebinding it, because a
+' callback cannot rebind a top-level scalar.
+' ============================================================================
+
+' The single redraw path. Every handler ends here.
+'
+' `G.redrawing` guards re-entry, and it is not optional: refreshing the notebook
+' calls set_current_page, which synchronously emits "switch-page", which would
+' re-enter the tab handler and mutate the model mid-redraw. Reloading a document
+' from disk likewise sets buffer text, which emits "changed". Both are OUR writes
+' being echoed back, not user input, and must not be mistaken for it.
+function redraw()
+    if G.redrawing then
+        return nothing
+    end if
+    G.redrawing = true
+    r = studio_shell.refresh(G.shell, G.app)
+    G.shell = r.shell
+    ' A redraw can create pages, and a new page's buffer has never been wired.
+    ' This is the only place editors are connected, so no page can exist unwired.
+    for each ne in r.new_editors
+        ed = ne.editor
+        gi.connect(ed.buffer, "changed", on_buffer_changed)
+    end for
+    G.redrawing = false
+    return nothing
+end function
+
+' A browser row was activated (single click — GtkListBox activates on single
+' click by default). Extract the row's index; the rows the view rendered decide
+' what that index means.
+function on_nav_row_activated(box, row)
+    idx = row.get_index()
+    r = studio_ui.activate_row(G.app, G.shell.rows, idx)
+    G.app = r.app
+    G.last_action = r.action
+    redraw()
+    return nothing
+end function
+
+' The notebook switched page — either the user clicked a tab, or we just called
+' set_current_page during a redraw. The guard tells the two apart.
+function on_tab_switched(book, page, num)
+    if G.redrawing then
+        return nothing
+    end if
+    r = studio_ui.select_tab(G.app, studio_ui.tab_rows(G.app), num)
+    G.app = r.app
+    G.last_action = r.action
+    redraw()
+    return nothing
+end function
+
+' An editor buffer changed. Hand every open page's text over; studio_ui decides
+' which documents actually moved.
+function on_buffer_changed(buffer)
+    if G.redrawing then
+        return nothing
+    end if
+    buffers = []
+    for each pg in G.shell.pages
+        ed = pg.editor
+        buffers = append(buffers, { doc_id: pg.doc_id, text: ed.get_text() })
+    end for
+    r = studio_ui.sync_buffers(G.app, buffers)
+    G.app = r.app
+    G.last_action = r.action
+    redraw()
+    return nothing
+end function
+
+function on_new_project()
+    r = studio_ui.new_project(G.app, G.home)
+    G.app = r.app
+    G.last_action = r.action
+    redraw()
+    return nothing
+end function
+
+function on_save()
+    r = studio_ui.save_active(G.app)
+    G.app = r.app
+    G.last_action = r.action
+    redraw()
+    return nothing
+end function
+
+function on_refresh()
+    r = studio_ui.refresh(G.app)
+    G.app = r.app
+    G.last_action = r.action
+    redraw()
+    return nothing
+end function
+
+' Connect every widget the shell exposed. This is the ONLY gi.connect over
+' widgets in the program, so the wiring is one readable list rather than a thing
+' scattered through the view.
+function wire_shell()
+    sh = G.shell
+    gi.connect(sh.nav, "row-activated", on_nav_row_activated)
+    gi.connect(sh.notebook, "switch-page", on_tab_switched)
+    gi.connect(sh.new_btn, "clicked", on_new_project)
+    gi.connect(sh.save_btn, "clicked", on_save)
+    gi.connect(sh.refresh_btn, "clicked", on_refresh)
+    return nothing
+end function
+
+' ---- STU-2B display tier ---------------------------------------------------
+'
+' The headless suite proves what an interaction MEANS. What it cannot reach is
+' the two inches between a GTK signal and a studio_ui call: that the handler is
+' connected at all, that the row index it reads is the row the user hit, and that
+' rebuilding the pane from inside the pane's own handler does not blow up.
+'
+' So this tier synthesises REAL signals rather than calling handlers directly.
+' There is no gi.emit (the bridge has no such entry point), but several
+' introspected GTK methods emit the signal we want as their documented effect:
+'   * GtkListBoxRow.activate()     -> "row-activated" on the parent listbox
+'   * GtkNotebook.set_current_page -> "switch-page"
+'   * GtkTextBuffer.set_text       -> "changed"
+' all synchronous, and
+'   * GtkButton.activate()         -> "clicked", ~250 ms later via GtkButton's
+'                                     own activate timeout
+' which is why the button half runs on a timer instead of in a straight line.
+'
+' Output is model state, printed path-free, so it is a golden like every other.
+
+function find_row(kind, name)
+    rows = G.shell.rows
+    i = 0
+    while i < count(rows)
+        r = rows[i]
+        if r.kind = kind then
+            lab = r.label
+            tail = mid(lab, len(lab) - len(name), len(name))
+            if tail = name then
+                return i
+            end if
+        end if
+        i = i + 1
+    end while
+    return -1
+end function
+
+' Synthesise a click on browser row `idx` — the real signal, through the real
+' handler, on the row the listbox actually holds at that index.
+function click_row(idx)
+    row = G.shell.nav.get_row_at_index(idx)
+    if row = nothing then
+        print "  (no widget row at " + idx + ")"
+        return nothing
+    end if
+    row.activate()
+    return nothing
+end function
+
+function state(label)
+    print "-- " + label + " --"
+    print studio_ui.summary(G.app)
+    return nothing
+end function
+
+' Phase A: the signals that are delivered synchronously.
+function run_stu2b_probe()
+    state("as built")
+
+    ' THE VERTICAL SLICE: click a browser row -> the document opens -> a tab
+    ' appears -> that tab is the active document in the model.
+    i = find_row("file", "main.bas")
+    print "clicking browser row " + i + " (main.bas)"
+    click_row(i)
+    print "action=" + G.last_action
+    state("after the click")
+
+    ' The pane rebuilt itself from inside its own handler; it must still be
+    ' clickable, with rows that still line up with the model.
+    j = find_row("dir", "src")
+    print "clicking browser row " + j + " (src)"
+    click_row(j)
+    print "action=" + G.last_action
+    state("after expanding src")
+
+    ' A second document, so there is something to switch between.
+    k = find_row("file", "a.bas")
+    print "clicking browser row " + k + " (src/a.bas)"
+    click_row(k)
+    print "action=" + G.last_action
+    state("two tabs")
+
+    ' Tab switching, through a real "switch-page".
+    print "set_current_page(0)"
+    G.shell.notebook.set_current_page(0)
+    print "action=" + G.last_action
+    state("after switching to page 0")
+
+    ' Typing, through a real "changed" on the live buffer.
+    pg = G.shell.pages[0]
+    ed = pg.editor
+    print "typing into page 0's buffer"
+    ed.set_text("typed into the editor by hand\n")
+    print "action=" + G.last_action
+    state("after typing")
+    return nothing
+end function
+
+' Phase B: the buttons, whose "clicked" arrives on GtkButton's own timer.
+function stu2b_button_step()
+    G.phase = G.phase + 1
+    if G.phase = 1 then
+        print "clicking Save"
+        G.shell.save_btn.activate()
+        return true
+    end if
+    if G.phase = 2 then
+        print "action=" + G.last_action
+        state("after Save")
+        print "clicking Refresh"
+        G.shell.refresh_btn.activate()
+        return true
+    end if
+    if G.phase = 3 then
+        print "action=" + G.last_action
+        state("after Refresh")
+        print "clicking New Project"
+        G.shell.new_btn.activate()
+        return true
+    end if
+    print "action=" + G.last_action
+    state("after New Project")
+    G.app_ref.quit()
+    return false
+end function
+
+' The cold-home path: an empty home renders "(no workspace open)", and New
+' Project is the only thing that can move it. If this button does not work, a
+' new user has no way into Studio at all.
+function stu2b_cold_step()
+    G.phase = G.phase + 1
+    if G.phase = 1 then
+        print "clicking New Project on a cold home"
+        G.shell.new_btn.activate()
+        return true
+    end if
+    print "action=" + G.last_action
+    state("after New Project")
+    G.app_ref.quit()
+    return false
+end function
+
 ' GTK activate handler (display modes only). Reads the global G assembled in main.
 function on_activate(gtkapp)
     shell = studio_shell.build(gtkapp, G.app)
     G.shell = shell
+    wire_shell()
+    redraw()
+    studio_shell.present(shell)
+    if G.stu2b then
+        run_stu2b_probe()
+        ' The button half cannot run inline: GtkButton turns activate() into
+        ' "clicked" on a ~250 ms timer, so the loop has to be given back.
+        gi.timeout(400, stu2b_button_step)
+        return nothing
+    end if
+    if G.stu2b_cold then
+        state("a cold home")
+        gi.timeout(400, stu2b_cold_step)
+        return nothing
+    end if
     if G.smoke then
         ws = G.app.model.workspace
         print "shell-built"
@@ -498,6 +776,30 @@ program main(args)
     G.store = nothing
     G.rpane = nothing
     G.sid = ""
+    ' STU-2B: input wiring state. `redrawing` is the re-entrancy guard that tells
+    ' our own writes (set_current_page, set_text) apart from user input.
+    G.redrawing = false
+    G.last_action = ""
+    G.stu2b = false
+    G.stu2b_cold = false
+    G.phase = 0
+
+    ' STU-2B display tier: a fixture workspace over a real project directory, then
+    ' a sweep of synthesised clicks (see run_stu2b_probe).
+    if mode = "stu2b_smoke" then
+        G.stu2b = true
+        projdir = args[2]
+        G.app = studio.create_registered_workspace(G.app, "ws")
+        ws = G.app.model.workspace
+        ws = studio_model.add_project(ws, "Alpha", projdir)
+        G.app = studio.set_workspace(G.app, ws)
+    end if
+
+    ' STU-2B cold home: nothing at all, and New Project as the only way in.
+    if mode = "stu2b_cold" then
+        G.stu2b_cold = true
+    end if
+
     if mode = "smoke" then
         G.smoke = true
         G.app = build_canned(G.app)
@@ -575,6 +877,7 @@ program main(args)
     load gi
     load gtk
     load sourceeditor
+    load studio_ui
     load studio_shell
     gi.require("Gtk", "4.0")
 
