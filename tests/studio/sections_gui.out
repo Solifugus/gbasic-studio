@@ -1,0 +1,12 @@
+shell-built
+workspace=ws
+projects=0
+open-docs=1
+active-tab=! live.bas
+valid=true revision=1 next_sec=4 sections=3 stale=0
+sec-1 statements name=- status=active [0,5) ord=0 kinds=statement
+sec-2 function name=add status=active [7,53) ord=0 kinds=function
+sec-3 statements name=- status=active [55,70) ord=1 kinds=statement
+cursor line=4 col=3 -> sec-2
+persisted docs=1
+app-exited

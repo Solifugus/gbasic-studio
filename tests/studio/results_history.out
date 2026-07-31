@@ -1,0 +1,16 @@
+total=4
+-- all results, newest first
+  res-4 section=sec-3 at=1300
+  res-3 section=sec-3 at=1200
+  res-2 section=sec-1 at=1100
+  res-1 section=sec-3 at=1000
+-- history for the target section
+  res-4 at=1300
+  res-3 at=1200
+  res-1 at=1000
+latest=res-4
+-- after restart
+  res-4 section=sec-3 at=1300
+  res-3 section=sec-3 at=1200
+  res-2 section=sec-1 at=1100
+  res-1 section=sec-3 at=1000

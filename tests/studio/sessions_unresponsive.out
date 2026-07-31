@@ -1,0 +1,4 @@
+state-after-polite-stop=stopping
+state-after-grace=unresponsive
+state=finished signal=9
+transitions: idle>materializing materializing>running running>stopping stopping>unresponsive unresponsive>finished

@@ -1,0 +1,17 @@
+open a=opened id=doc-1
+dup a=reused id=doc-1
+open b=opened
+open dir=is_directory
+open missing=opened_missing
+-- after edit --
+active=doc-3
+- doc-1 a.bas dirty cur=0:0
+- doc-2 b.bas clean cur=0:0
+* doc-3 ghost.bas clean missing cur=0:0
+revert clean=true
+save=saved
+-- final --
+active=doc-3
+- doc-1 a.bas clean cur=0:0
+- doc-2 b.bas clean cur=0:0
+* doc-3 ghost.bas clean missing cur=0:0

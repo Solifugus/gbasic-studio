@@ -1,0 +1,8 @@
+-- error in the target section
+state=finished section=sec-3 run=1 split=out:marked err:unavailable
+exit_code=1 signal=0 success=false
+out_prefix=<one
+>
+out_target=<>
+! target section=sec-3 7:9 division by zero
+transitions: idle>materializing materializing>running running>finished

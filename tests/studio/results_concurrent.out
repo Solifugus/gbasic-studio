@@ -1,0 +1,11 @@
+both_active=true
+distinct_files=true
+distinct_tmp=true
+b_untouched_by_a_write=true
+a_grew=true
+a_results=2 a_out=<5
+>
+b_results=1 b_out=<6
+>
+a_doc_path_kept=true
+b_doc_path_kept=true

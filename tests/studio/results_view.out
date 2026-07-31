@@ -1,0 +1,18 @@
+-- no results yet
+Results — sec-2
+(no runs yet)
+-- current
+Results — sec-2  (2 run(s))
+latest: res-2  finished exit 0  at 1100  0s
+history:
+  res-1  finished exit 0  at 1000  0s
+-- after editing the section
+Results — sec-2  (2 run(s))
+latest: res-2  finished exit 0  at 1100  0s  [section edited since this run]
+history:
+  res-1  finished exit 0  at 1000  0s  [section edited since this run]
+-- after removing the section
+Results — sec-2  (2 run(s))
+latest: res-2  finished exit 0  at 1100  0s  [section no longer exists]
+history:
+  res-1  finished exit 0  at 1000  0s  [section no longer exists]

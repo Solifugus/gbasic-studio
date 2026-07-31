@@ -1,0 +1,4 @@
+-- relaunch --
+active=doc-1
+* doc-1 a.bas clean cur=2:5
+- doc-2 b.bas clean cur=1:3

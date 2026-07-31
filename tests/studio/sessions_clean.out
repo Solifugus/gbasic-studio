@@ -1,0 +1,22 @@
+sections=3
+-- initial
+state=idle section= run=0 split=out:none err:none
+out_prefix=<>
+out_target=<>
+transitions: 
+-- run section 1
+state=finished section=sec-1 run=1 split=out:exact err:exact
+exit_code=0 signal=0 success=true
+out_prefix=<>
+out_target=<one
+>
+transitions: idle>materializing materializing>running running>finished
+-- run last section
+state=finished section=sec-3 run=2 split=out:marked err:unavailable
+exit_code=0 signal=0 success=true
+out_prefix=<one
+>
+out_target=<5
+last
+>
+transitions: idle>materializing materializing>running running>finished finished>materializing materializing>running running>finished

@@ -1,0 +1,6 @@
+file_exists_during_run=true
+prefix_path_after_finish=<>
+files_left_after_run=0
+orphans_before_sweep=2
+swept=2
+files_after_sweep=0

@@ -1,0 +1,9 @@
+-- error in the replayed prefix
+state=finished section=sec-3 run=1 split=out:combined err:unavailable
+split_reason=marker-absent
+exit_code=1 signal=0 success=false
+out_prefix=<before
+>
+out_target=<>
+! prefix section=sec-1 2:9 division by zero
+transitions: idle>materializing materializing>running running>finished

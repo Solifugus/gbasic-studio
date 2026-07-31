@@ -1,0 +1,9 @@
+active-before-restart=true
+run_seq-after-restart=2
+-- restarted mid-run
+state=finished section=sec-1 run=2 split=out:exact err:exact
+exit_code=0 signal=0 success=true
+out_prefix=<>
+out_target=<one
+>
+transitions: idle>materializing materializing>running running>stopping stopping>finished finished>materializing materializing>running running>finished

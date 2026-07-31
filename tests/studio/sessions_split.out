@@ -1,0 +1,11 @@
+-- separated stdout
+state=finished section=sec-3 run=1 split=out:marked err:unavailable
+exit_code=0 signal=0 success=true
+out_prefix=<PREFIX-OUT
+>
+out_target=<TARGET-OUT
+>
+transitions: idle>materializing materializing>running running>finished
+split_out=marked split_err=unavailable
+split_reason=<>
+marker_in_display=false

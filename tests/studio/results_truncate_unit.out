@@ -1,0 +1,13 @@
+input_bytes=112000
+over_cap=true
+truncated=out_target,err_target
+out_target_bytes=65579
+err_target_bytes=65579
+out_prefix_untouched=true
+notice_present=true
+json_encodable=true
+restored_bytes=65579
+restored_truncated=out_target,err_target
+wide_bytes=80000
+wide_cut=true
+wide_codepoints_whole=true

@@ -1,0 +1,7 @@
+conflicts=doc-2
+reloaded=doc-1
+deleted=doc-3
+active=doc-3
+- doc-1 a.bas clean cur=0:0
+- doc-2 b.bas dirty ext:changed cur=0:0
+* doc-3 c.bas clean missing ext:deleted cur=0:0

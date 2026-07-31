@@ -1,0 +1,12 @@
+-- stdout separated, stderr not
+state=finished section=sec-3 run=1 split=out:marked err:unavailable
+exit_code=1 signal=0 success=false
+out_prefix=<PREFIX-OUT
+>
+out_target=<TARGET-OUT
+>
+! target section=sec-3 8:9 division by zero
+transitions: idle>materializing materializing>running running>finished
+split_out=marked split_err=unavailable
+err_prefix=<>
+err_target=<>

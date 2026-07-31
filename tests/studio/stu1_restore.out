@@ -1,0 +1,16 @@
+workspace=ws-1:myws
+active_project=proj-1
+projects=2
+  proj-1 Alpha
+  proj-2 Beta
+selected=main.bas
+expanded=1
+registry=myws
+recent=ws-1
+browser:
+> docs
+v src
+    a.bas
+    b.bas
+  README.md
+  main.bas

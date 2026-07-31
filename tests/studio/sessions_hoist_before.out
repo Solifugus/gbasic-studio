@@ -1,0 +1,9 @@
+target_kind=statements ancestry=program:main
+-- helper declared above the block
+state=finished section=sec-2 run=1 split=out:marked err:unavailable
+exit_code=0 signal=0 success=true
+out_prefix=<>
+out_target=<5
+>
+transitions: idle>materializing materializing>running running>finished
+hoisted=0

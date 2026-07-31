@@ -1,0 +1,11 @@
+sections=5
+target_kind=statements ancestry=program:main
+-- run body section calling a helper declared below
+state=finished section=sec-1 run=1 split=out:exact err:exact
+hoisted=2
+exit_code=0 signal=0 success=true
+out_prefix=<>
+out_target=<5
+>
+transitions: idle>materializing materializing>running running>finished
+hoisted=2

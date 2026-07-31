@@ -1,0 +1,14 @@
+shell-built
+workspace=ws
+projects=0
+open-docs=1
+active-tab=! live.bas
+cursor-section=sec-3
+run: running [sec-3]
+run: finished [sec-3] — exit 0
+prefix-pane=<first
+>
+target-pane=<5
+>
+transitions: idle>materializing materializing>running running>finished
+app-exited

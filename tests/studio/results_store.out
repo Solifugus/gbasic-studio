@@ -1,0 +1,37 @@
+status=loaded
+schema_version=1
+doc_path=/proj/a.bas
+next_result=2
+results=1
+-- record keys
+  attribution
+  captures
+  duration_seconds
+  exit_code
+  finished_epoch
+  message
+  outcome
+  reason
+  result_id
+  run_seq
+  section_fingerprint
+  section_id
+  section_kind
+  section_name
+  signal
+  split_err
+  split_out
+  split_reason
+  started_epoch
+  success
+  truncated
+-- store keys
+  doc_path
+  next_result
+  results
+  schema_version
+separate_from_workspace=true
+-- on disk
+index_bytes_under_1k=true
+capture_files=res-1.out_prefix,res-1.out_target
+index_holds_no_text=true

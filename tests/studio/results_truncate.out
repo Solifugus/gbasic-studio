@@ -1,0 +1,10 @@
+live_bytes=83890
+cap=65536
+stored_bytes=65579
+index_bytes=65579
+truncated=out_target
+over_cap=true
+notice_present=true
+starts_with_head=true
+restored_bytes=65579
+restored_truncated=out_target

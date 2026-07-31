@@ -1,0 +1,13 @@
+-- user program prints the nonce
+state=finished section=sec-3 run=1 split=out:combined err:unavailable
+split_reason=marker-ambiguous
+exit_code=0 signal=0 success=true
+out_prefix=<PREFIX-OUT
+@@studio-boundary-TESTNONCE@@
+@@studio-boundary-TESTNONCE@@
+TARGET-OUT
+>
+out_target=<>
+transitions: idle>materializing materializing>running running>finished
+split_out=combined split_err=unavailable
+split_reason=<marker-ambiguous>

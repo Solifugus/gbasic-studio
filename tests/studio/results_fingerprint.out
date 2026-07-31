@@ -1,0 +1,8 @@
+ran section=sec-2 kind=function
+-- against the source it ran
+  res-1 section=sec-2 name=add -> current
+id_survived_edit=true
+-- against the edited source
+  res-1 section=sec-2 name=add -> stale-content
+-- against the original source again
+  res-1 section=sec-2 name=add -> current

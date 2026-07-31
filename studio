@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Launch gBASIC Studio.
+#
+# Studio is written in gBASIC but is not the gBASIC project, so it has to be told
+# where the interpreter and its standard library are. Both default to a sibling
+# checkout and both are overridable:
+#
+#   GBASIC=/usr/local/bin/gbasic GBASIC_STDLIB=/usr/local/share/gbasic/stdlib ./studio
+#
+# Usage:  ./studio [mode] [home]
+#   mode  defaults to `gui` (opens a window; needs GTK 4 and a display)
+#   home  where Studio keeps its workspace, session and settings
+#         (defaults to ~/.gbasic-studio, created on first run)
+set -u
+cd "$(dirname "$0")"
+
+GBASIC="${GBASIC:-../gbasic/gbasic}"
+GBASIC_STDLIB="${GBASIC_STDLIB:-../gbasic/stdlib}"
+
+if [ ! -x "$GBASIC" ]; then
+    printf 'no gbasic interpreter at %s\n' "$GBASIC" >&2
+    printf 'set GBASIC=/path/to/gbasic (and GBASIC_STDLIB=/path/to/stdlib)\n' >&2
+    exit 1
+fi
+if [ ! -d "$GBASIC_STDLIB" ]; then
+    printf 'no gBASIC stdlib at %s\n' "$GBASIC_STDLIB" >&2
+    printf 'Studio needs persist, filetree, gtk, sourceeditor and gi from it\n' >&2
+    exit 1
+fi
+
+mode="${1:-gui}"
+home="${2:-$HOME/.gbasic-studio}"
+
+export GBASIC
+export GBASIC_PATH="lib:$GBASIC_STDLIB"
+exec "$GBASIC" app/studio.bas "$mode" "$home"

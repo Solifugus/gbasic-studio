@@ -1,0 +1,13 @@
+-- v1
+valid=true revision=1 next_sec=5 sections=4 stale=0
+sec-1 statements name=- status=active [0,11) ord=0 kinds=statement,statement
+sec-2 function name=add status=active [13,59) ord=0 kinds=function
+sec-3 statements name=- status=active [61,76) ord=1 kinds=statement
+sec-4 function name=mul status=active [78,124) ord=1 kinds=function
+-- v2 (sub inserted before add)
+valid=true revision=2 next_sec=6 sections=5 stale=0
+sec-1 statements name=- status=active [0,11) ord=0 kinds=statement,statement
+sec-5 function name=sub status=active [13,59) ord=0 kinds=function
+sec-2 function name=add status=active [61,107) ord=1 kinds=function
+sec-3 statements name=- status=active [109,124) ord=1 kinds=statement
+sec-4 function name=mul status=active [126,172) ord=2 kinds=function

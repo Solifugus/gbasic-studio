@@ -1,0 +1,12 @@
+appended=newline+end-program
+materialized=<program main(args)
+  print "in-program"
+end program
+>
+-- run inside a program block
+state=finished section=sec-1 run=1 split=out:exact err:exact
+exit_code=0 signal=0 success=true
+out_prefix=<>
+out_target=<in-program
+>
+transitions: idle>materializing materializing>running running>finished

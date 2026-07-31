@@ -1,0 +1,7 @@
+-- force-stopped
+state=finished section=sec-1 run=1 split=out:exact err:exact
+exit_code=-1 signal=15 success=false
+out_prefix=<>
+out_target=<started
+>
+transitions: idle>materializing materializing>running running>stopping stopping>finished

@@ -1,0 +1,9 @@
+-- error inside a hoisted declaration
+state=finished section=sec-1 run=1 split=out:exact err:exact
+hoisted=1
+exit_code=1 signal=0 success=false
+out_prefix=<>
+out_target=<>
+! prefix section=sec-4 12:12 division by zero
+transitions: idle>materializing materializing>running running>finished
+raw_child_line=5

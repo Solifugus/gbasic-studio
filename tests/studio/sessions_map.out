@@ -1,0 +1,29 @@
+-- marker + generated + hoist map
+marker_line=8
+segments=6
+seg document child=1..7 delta=0
+seg marker child=8..8 delta=0
+seg document child=9..9 delta=-1
+seg generated child=10..10 delta=0
+seg hoisted child=11..13 delta=0
+seg hoisted child=14..16 delta=1
+child 1 -> document 1
+child 2 -> document 2
+child 3 -> document 3
+child 4 -> document 4
+child 5 -> document 5
+child 6 -> document 6
+child 7 -> document 7
+child 8 -> marker 0
+child 9 -> document 8
+child 10 -> generated 0
+child 11 -> hoisted 11
+child 12 -> hoisted 12
+child 13 -> hoisted 13
+child 14 -> hoisted 15
+child 15 -> hoisted 16
+child 16 -> hoisted 17
+-- no marker (section 1), no hoist
+marker_line=0
+segments=1
+child 1 -> document 1

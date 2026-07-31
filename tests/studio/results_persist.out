@@ -1,0 +1,14 @@
+loaded_empty=true
+recorded=1
+-- after restart
+restored=1
+  res-1 section=sec-3 outcome=finished exit=0 signal=0
+    fp=771125435:771125435 kind=statements name=nothing
+    at=1000..1000 duration=0s
+    split=out:marked err:unavailable reason=<>
+    out_prefix=<one
+>
+    out_target=<5
+>
+    capture_bytes out_prefix=4 out_target=2
+identical_to_live=true

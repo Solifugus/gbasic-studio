@@ -1,0 +1,11 @@
+-- doc-1
+valid=true revision=1 next_sec=5 sections=4 stale=0
+sec-1 statements name=- status=active [0,11) ord=0 kinds=statement,statement
+sec-2 function name=add status=active [13,59) ord=0 kinds=function
+sec-3 statements name=- status=active [61,76) ord=1 kinds=statement
+sec-4 function name=mul status=active [78,124) ord=1 kinds=function
+-- doc-2
+valid=true revision=1 next_sec=4 sections=3 stale=0
+sec-1 statements name=- status=active [0,11) ord=0 kinds=statement,statement
+sec-2 function name=add status=active [13,59) ord=0 kinds=function
+sec-3 statements name=- status=active [61,76) ord=1 kinds=statement

@@ -1,0 +1,20 @@
+-- base
+valid=true revision=1 next_sec=5 sections=4 stale=0
+sec-1 statements name=- status=active [0,11) ord=0 kinds=statement,statement
+sec-2 function name=add status=active [13,59) ord=0 kinds=function
+sec-3 statements name=- status=active [61,76) ord=1 kinds=statement
+sec-4 function name=mul status=active [78,124) ord=1 kinds=function
+line 1 col 1 -> off 0 -> sec-1
+line 2 col 3 -> off 8 -> sec-1
+line 4 col 1 -> off 13 -> sec-2
+line 5 col 10 -> off 41 -> sec-2
+line 6 col 12 -> off 58 -> sec-2
+line 8 col 1 -> off 61 -> sec-3
+line 11 col 5 -> off 101 -> sec-4
+line 99 col 1 -> off 125 -> nothing
+line 1 col 500 -> off 125 -> nothing
+unicode bytes=63
+u line 1 col 1 -> off 0 -> sec-1
+u line 1 col 13 -> off 12 -> sec-1
+u line 1 col 21 -> off 20 -> nothing
+u line 3 col 1 -> off 21 -> sec-2

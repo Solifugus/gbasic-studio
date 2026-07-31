@@ -1,0 +1,4 @@
+-- program-scope
+valid=true revision=1 next_sec=3 sections=2 stale=0
+sec-1 statements name=- status=active [21,36) ord=0 kinds=statement,statement
+sec-2 function name=helper status=active [40,86) ord=0 kinds=function

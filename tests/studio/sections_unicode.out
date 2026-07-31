@@ -1,0 +1,7 @@
+-- unicode
+valid=true revision=1 next_sec=3 sections=2 stale=0
+sec-1 statements name=- status=active [0,19) ord=0 kinds=statement
+sec-2 function name=shout status=active [21,62) ord=0 kinds=function
+offset 0 -> sec-1
+offset 10 -> sec-1
+offset 20 -> nothing

@@ -1,0 +1,12 @@
+target_kind=function name=inner
+-- target is itself a declaration
+state=finished section=sec-2 run=1 split=out:marked err:unavailable
+hoisted=2
+exit_code=0 signal=0 success=true
+out_prefix=<5
+>
+out_target=<>
+transitions: idle>materializing materializing>running running>finished
+hoisted=2
+hoist function add
+hoist function unused

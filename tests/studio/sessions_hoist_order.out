@@ -1,0 +1,14 @@
+appended=newline+end-program+hoist
+hoisted=2
+hoist function add doc_line=11 child_line=4 lines=3
+hoist function unused doc_line=15 child_line=7 lines=3
+materialized=<program main(args)
+  print add(2, 3)
+end program
+function add(a, b)
+  return a + b
+end function
+function unused()
+  return 0
+end function
+>

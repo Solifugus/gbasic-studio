@@ -1,0 +1,3 @@
+# Studio's own runtime home, if created inside the checkout
+.gbasic-studio/
+*.tmp

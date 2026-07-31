@@ -1,0 +1,19 @@
+-- refuse: source does not parse
+state=refused section=sec-1 run=0 split=out:none err:none
+reason=source-invalid message=the document does not parse; fix the errors first
+out_prefix=<>
+out_target=<>
+transitions: idle>refused
+found-ambiguous=true
+-- refuse: ambiguous section
+state=refused section=sec-5 run=0 split=out:none err:none
+reason=section-ambiguous message=that section is ambiguous after the last edit; disambiguate it first
+out_prefix=<>
+out_target=<>
+transitions: idle>refused
+-- refuse: stale section
+state=refused section=sec-3 run=0 split=out:none err:none
+reason=section-stale message=that section no longer exists in the current source
+out_prefix=<>
+out_target=<>
+transitions: idle>refused

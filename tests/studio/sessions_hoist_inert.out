@@ -1,0 +1,9 @@
+-- top-level statement below the block stays inert
+state=finished section=sec-1 run=1 split=out:exact err:exact
+hoisted=1
+exit_code=0 signal=0 success=true
+out_prefix=<>
+out_target=<2
+>
+transitions: idle>materializing materializing>running running>finished
+top_level_ran=false

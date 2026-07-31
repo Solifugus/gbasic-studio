@@ -1,0 +1,13 @@
+settings.theme=system
+settings.restore_last_session=true
+settings.recent_limit=10
+session.active_workspace=ws-1
+session.window=1024x768 max=true
+session.recent=/home/u/analytics/load.bas
+workspace=ws-1:member-analytics
+workspace.active_project=proj-1
+projects=1
+  proj-1 Analytics docs=2
+tabs.order=doc-1,doc-2
+tabs.active=doc-2
+diagnostics=settings:loaded;session:loaded;workspace:loaded

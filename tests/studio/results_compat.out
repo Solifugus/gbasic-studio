@@ -1,0 +1,11 @@
+-- pre-STU-5A home (no results directory)
+status=empty
+results=0
+doc_path_kept=true
+after_write=1
+-- corrupt store
+status=corrupt
+results=0
+-- future schema
+status=future
+results=0

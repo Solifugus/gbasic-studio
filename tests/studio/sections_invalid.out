@@ -1,0 +1,19 @@
+-- v1 valid
+valid=true revision=1 next_sec=5 sections=4 stale=0
+sec-1 statements name=- status=active [0,11) ord=0 kinds=statement,statement
+sec-2 function name=add status=active [13,59) ord=0 kinds=function
+sec-3 statements name=- status=active [61,76) ord=1 kinds=statement
+sec-4 function name=mul status=active [78,124) ord=1 kinds=function
+-- v2 broken (last-known-good retained)
+valid=false revision=1 next_sec=5 sections=4 stale=0
+sec-1 statements name=- status=active [0,11) ord=0 kinds=statement,statement
+sec-2 function name=add status=active [13,59) ord=0 kinds=function
+sec-3 statements name=- status=active [61,76) ord=1 kinds=statement
+sec-4 function name=mul status=active [78,124) ord=1 kinds=function
+! error syntax error, unexpected NEWLINE
+-- v3 restored (reattached)
+valid=true revision=2 next_sec=5 sections=4 stale=0
+sec-1 statements name=- status=active [0,11) ord=0 kinds=statement,statement
+sec-2 function name=add status=active [13,59) ord=0 kinds=function
+sec-3 statements name=- status=active [61,76) ord=1 kinds=statement
+sec-4 function name=mul status=active [78,124) ord=1 kinds=function

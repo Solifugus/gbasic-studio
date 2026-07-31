@@ -1,0 +1,21 @@
+run1_prefix_bytes=91
+-- run 1
+state=finished section=sec-3 run=1 split=out:marked err:unavailable
+exit_code=0 signal=0 success=true
+out_prefix=<one
+>
+out_target=<5
+last
+>
+transitions: idle>materializing materializing>running running>finished
+run2_prefix_bytes=94
+same_section_id=true
+-- run 2 after edit
+state=finished section=sec-3 run=2 split=out:marked err:unavailable
+exit_code=0 signal=0 success=true
+out_prefix=<one
+>
+out_target=<5
+CHANGED
+>
+transitions: idle>materializing materializing>running running>finished finished>materializing materializing>running running>finished

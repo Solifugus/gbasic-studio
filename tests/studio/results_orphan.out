@@ -1,0 +1,22 @@
+recorded=1
+stale_ids=sec-1,sec-2,sec-3
+-- section removed
+  res-1 section=sec-2 name=add -> section-gone
+valid=true revision=2 next_sec=6 sections=3 stale=2
+sec-1 statements name=- status=active [0,11) ord=0 kinds=statement
+sec-4 function name=add status=ambiguous [13,59) ord=0 kinds=function
+sec-5 function name=add status=ambiguous [61,107) ord=1 kinds=function
+stale_ids=sec-2,sec-3
+-- section ambiguous
+  res-1 section=sec-2 name=add -> section-gone
+run_ambiguous state=refused reason=section-ambiguous
+-- with a refusal against the ambiguous section
+  res-2 section=sec-4 name=add -> section-ambiguous
+  res-1 section=sec-2 name=add -> section-gone
+valid=false
+-- source invalid
+  res-2 section=sec-4 name=add -> source-invalid
+  res-1 section=sec-2 name=add -> source-invalid
+-- survived every state
+still_stored=1
+still_section=sec-2

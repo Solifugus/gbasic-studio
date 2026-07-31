@@ -1,0 +1,11 @@
+retain_per_section=20
+target_kept=20
+other_kept=1
+total=21
+newest=1022
+oldest=1003
+restored_total=21
+capture_files=41
+orphan_capture_files=0
+stray_written=true
+stray_swept=true
