@@ -19,50 +19,193 @@ library studio_shell
     ' another must load it: relying on the caller to have done so turns a
     ' missing load into a runtime failure deep inside a call, and it stops
     ' working entirely once these libraries live in separate projects.
+    load gi
     load gtk
     load sourceeditor
     load filetree
     load studio_docs
     load studio_model
     load studio_results
-    ' Render the navigation pane contents into a listbox from the model + filesystem.
+    load studio_ui
+    ' ---- STU-2B: redraw ------------------------------------------------------
+    '
+    ' A mutation redraws by calling `refresh` — there is one such function, and it
+    ' brings every region of the window back into agreement with the model. Making
+    ' it one function rather than a per-region set is deliberate: an interaction
+    ' that forgot to redraw region X would be a bug that only shows on screen, and
+    ' the headless suite could never catch it.
+    '
+    ' The navigation pane REBUILDS and the notebook RECONCILES, and the asymmetry
+    ' is forced rather than chosen. A nav row is a label with no state a user can
+    ' lose, and rebuilding it keeps the widget list and the row model identical by
+    ' construction — the property `activate_row` depends on. A notebook page holds
+    ' a live GtkSourceBuffer containing UNSAVED TEXT and a cursor; rebuilding one
+    ' would destroy exactly the thing the user is in the middle of. So pages are
+    ' matched by document id and created once.
+    '
+    ' Returns { shell, new_editors: [ { doc_id, editor } ] }. The editors are
+    ' handed back rather than connected here because `gi.connect` lives only in the
+    ' entry program (see this file's header) — a page created during a redraw still
+    ' needs its buffer wired, and this is how the caller learns it exists.
+
+    ' Rebuild the navigation listbox from the shared row model. The rows used are
+    ' stored on the shell, so a later click resolves its index against the array
+    ' that produced the widgets rather than a freshly-scanned one.
     function _fill_nav(nav, app)
-        ws = app.model.workspace
-        if ws = nothing then
-            nav.append(gtk.label("(no workspace open)"))
-            return nothing
-        end if
-        nav.append(gtk.label("Workspace: " + ws.name))
-        for each pr in ws.projects
-            marker = "  "
-            if pr.id = ws.active_project then
-                marker = "* "
-            end if
-            nav.append(gtk.label(marker + pr.name))
+        rows = studio_ui.nav_rows(app)
+        studio_shell._clear_listbox(nav)
+        for each r in rows
+            nav.append(gtk.label(r.label))
         end for
-        ' Browser tree for the active project (files as files; no parsing).
-        proj = studio_model.project_by_id(ws, ws.active_project)
-        if proj = nothing then
-            return nothing
-        end if
-        nodes = filetree.scan(proj.path, ws.nav.expanded)
-        for each r in filetree.flatten(nodes)
-            indent = "  "
-            i = 0
-            while i < r.depth
-                indent = indent + "  "
-                i = i + 1
-            end while
-            glyph = "  "
-            if r.kind = "dir" then
-                if r.expanded then
-                    glyph = "v "
-                else
-                    glyph = "> "
-                end if
+        return rows
+    end function
+
+    ' Empty a GtkListBox by repeatedly removing row 0. `remove_all` would be one
+    ' call but is GTK 4.12+; this form has no version floor.
+    function _clear_listbox(lb)
+        row = lb.get_row_at_index(0)
+        while row != nothing
+            lb.remove(row)
+            row = lb.get_row_at_index(0)
+        end while
+        return nothing
+    end function
+
+    ' Bring the whole window back into agreement with the model.
+    function refresh(shell, app)
+        shell.rows = studio_shell._fill_nav(shell.nav, app)
+        rec = studio_shell._reconcile_tabs(shell, app)
+        shell = rec.shell
+        shell.status.label = studio_shell.status_text(app)
+        return { shell: shell, new_editors: rec.new_editors }
+    end function
+
+    ' Match notebook pages to open documents by document id: drop pages whose
+    ' document is gone, create pages for documents that have none, refresh every
+    ' label, and select the active document's page.
+    function _reconcile_tabs(shell, app)
+        book = shell.notebook
+        want = studio_ui.tab_rows(app)
+        new_editors = []
+
+        ' Drop the welcome placeholder as soon as there is a real document, and
+        ' put it back when the last one closes, so the notebook is never empty.
+        if count(want) = 0 then
+            if count(shell.pages) > 0 or shell.welcome = false then
+                studio_shell._clear_pages(shell)
+                shell.pages = []
             end if
-            nav.append(gtk.label(indent + glyph + r.name))
+            if shell.welcome = false then
+                book.append_page(gtk.label("(no document open)"), gtk.label("Welcome"))
+                shell.welcome = true
+            end if
+            return { shell: shell, new_editors: new_editors }
+        end if
+        if shell.welcome then
+            studio_shell._clear_pages(shell)
+            shell.welcome = false
+        end if
+
+        ' Remove pages whose document has closed (back to front, so the indexes
+        ' ahead of the one being removed stay valid).
+        kept = []
+        i = count(shell.pages) - 1
+        while i >= 0
+            pg = shell.pages[i]
+            if studio_shell._wanted(want, pg.doc_id) then
+                kept = append(kept, pg)
+            else
+                book.remove_page(i)
+            end if
+            i = i - 1
+        end while
+        shell.pages = studio_shell._reverse(kept)
+
+        ' Create a page for every document that does not have one yet.
+        for each t in want
+            have = studio_shell._page_index(shell.pages, t.doc_id)
+            if have < 0 then
+                doc = studio_docs.doc_by_id(app.dm, t.doc_id)
+                ed = sourceeditor.create()
+                ed.set_text(doc.content)
+                ed.set_language("gbasic")
+                sc = gtk.scrolled(ed.view())
+                sc.vexpand = true
+                sc.hexpand = true
+                book.append_page(sc, gtk.label(t.label))
+                shell.pages = append(shell.pages, { doc_id: t.doc_id, editor: ed, child: sc })
+                new_editors = append(new_editors, { doc_id: t.doc_id, editor: ed })
+            end if
         end for
+
+        ' Labels change without the page doing so (a dirty marker appearing), and
+        ' a document's CONTENT can change underneath a live buffer when Refresh
+        ' reloads a file from disk. Push text only when it actually differs: an
+        ' unconditional set_text would fire "changed" on every redraw and re-dirty
+        ' every tab in the window.
+        idx = 0
+        active_page = 0
+        while idx < count(shell.pages)
+            pg = shell.pages[idx]
+            t = want[idx]
+            book.set_tab_label(pg.child, gtk.label(t.label))
+            doc = studio_docs.doc_by_id(app.dm, pg.doc_id)
+            ed = pg.editor
+            shown = ed.get_text()
+            if shown != doc.content then
+                ed.set_text(doc.content)
+            end if
+            if pg.doc_id = app.dm.active then
+                active_page = idx
+            end if
+            idx = idx + 1
+        end while
+        book.set_current_page(active_page)
+
+        return { shell: shell, new_editors: new_editors }
+    end function
+
+    function _wanted(want, doc_id)
+        for each t in want
+            if t.doc_id = doc_id then
+                return true
+            end if
+        end for
+        return false
+    end function
+
+    function _page_index(pages, doc_id)
+        i = 0
+        while i < count(pages)
+            pg = pages[i]
+            if pg.doc_id = doc_id then
+                return i
+            end if
+            i = i + 1
+        end while
+        return -1
+    end function
+
+    function _reverse(arr)
+        out = []
+        i = count(arr) - 1
+        while i >= 0
+            out = append(out, arr[i])
+            i = i - 1
+        end while
+        return out
+    end function
+
+    ' Remove every page from the notebook (used only when swapping the welcome
+    ' placeholder in or out; live document pages are never cleared wholesale).
+    function _clear_pages(shell)
+        book = shell.notebook
+        n = book.get_n_pages()
+        i = n - 1
+        while i >= 0
+            book.remove_page(i)
+            i = i - 1
+        end while
         return nothing
     end function
 
@@ -83,12 +226,17 @@ library studio_shell
 
         outer = gtk.box("v", 0)
 
-        ' --- header / menu strip (placeholder; real actions wired in later) ---
+        ' --- header / menu strip ---
+        ' The buttons are returned, not connected: `gi.connect` lives only in the
+        ' entry program (see this file's header).
         header = gtk.box("h", 6)
         header.append(gtk.label("gBASIC Studio"))
-        header.append(gtk.button("Workspace"))
-        header.append(gtk.button("New Project"))
-        header.append(gtk.button("Refresh"))
+        new_btn = gtk.button("New Project")
+        save_btn = gtk.button("Save")
+        refresh_btn = gtk.button("Refresh")
+        header.append(new_btn)
+        header.append(save_btn)
+        header.append(refresh_btn)
         outer.append(header)
 
         ' --- main split: project browser | editor tab notebook ---
@@ -96,12 +244,11 @@ library studio_shell
         split.vexpand = true
 
         nav = gtk.listbox()
-        studio_shell._fill_nav(nav, app)
         nav_scroll = gtk.scrolled(nav)
         split.set_start_child(nav_scroll)
         split.position = 260
 
-        book = studio_shell._editor_tabs(app)
+        book = gtk.notebook()
         split.set_end_child(book)
 
         outer.append(split)
@@ -111,53 +258,32 @@ library studio_shell
         outer.append(status)
 
         win.set_child(outer)
-        win.present()
 
-        return { window: win, status: status, nav: nav, notebook: book }
+        ' The window is built EMPTY and then filled by the ONE redraw path, so the
+        ' first paint and every later one are produced by the same code. A separate
+        ' initial-population path is how a view starts disagreeing with its
+        ' refresh.
+        '
+        ' It is deliberately NOT presented here. Presenting an empty window makes
+        ' GTK allocate scrolled windows that have no child yet, and it complains
+        ' ("GtkGizmo (slider) reported min width -2"). The caller presents after
+        ' the first refresh — see `present` below.
+        return { window: win, status: status, nav: nav, notebook: book,
+                 new_btn: new_btn, save_btn: save_btn, refresh_btn: refresh_btn,
+                 rows: [], pages: [], welcome: false }
     end function
 
-    ' Build the editor-tab notebook from the document manager. One page per open
-    ' document: a SourceEditor over its content with gBASIC highlighting; the tab
-    ' label carries a dirty (*) / missing (!) marker. The active document's page is
-    ' selected. (A view is a mirror of a document — the manager stays authoritative.)
-    function _editor_tabs(app)
-        book = gtk.notebook()
-        dm = app.dm
-        if count(dm.docs) = 0 then
-            book.append_page(gtk.label("(no document open)"), gtk.label("Welcome"))
-            return book
-        end if
-        activeidx = 0
-        i = 0
-        for each d in dm.docs
-            ed = sourceeditor.create()
-            ed.set_text(d.content)
-            ed.set_language("gbasic")
-            view = ed.view()
-            sc = gtk.scrolled(view)
-            sc.vexpand = true
-            sc.hexpand = true
-            book.append_page(sc, gtk.label(studio_shell.tab_label(d)))
-            if d.id = dm.active then
-                activeidx = i
-            end if
-            i = i + 1
-        end for
-        book.set_current_page(activeidx)
-        return book
+    ' Show the window. Call it after the first refresh, never before.
+    function present(shell)
+        shell.window.present()
+        return nothing
     end function
 
     ' A tab label with markers: "! " missing, "* " dirty (unsaved), then the name.
+    ' Defined in studio_ui so the headless goldens and the notebook cannot render a
+    ' tab differently; kept here under its established name for existing callers.
     function tab_label(doc)
-        marker = ""
-        if doc.missing then
-            marker = "! "
-        else
-            if studio_docs.is_dirty(doc) then
-                marker = "* "
-            end if
-        end if
-        return marker + doc.display_name
+        return studio_ui.tab_label(doc)
     end function
 
     ' ---- STU-4: execution strip + output pane ------------------------------
