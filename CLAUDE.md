@@ -19,8 +19,9 @@ STU-2D added the name field, Rename, Delete and Close — the last two behind a
 two-click confirmation — plus a status line that reports every outcome. STU-2E
 mounted the run strip and the results pane that STU-4/STU-5A had built but
 nothing displayed: Run / Stop / Force Stop drive a real child interpreter and
-every finished run becomes a durable result. STU-5's gutter, inspector and
-cursor-following results pane still do not exist; see README.
+every finished run becomes a durable result. STU-5A′ pointed the run strip and
+the results pane at the CARET rather than at the last run. STU-5's gutter and
+variable inspector still do not exist; see README.
 
 ## Build & run
 
@@ -46,7 +47,7 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 118 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 120 cases, headless; honours GBASIC / GBASIC_STDLIB
 ```
 
 Golden-file based: a driver plus a `.out` of expected stdout, compared
@@ -54,8 +55,8 @@ byte-for-byte, so update the `.out` when output changes *intentionally* and say
 so. The suite builds the sibling gBASIC first when `GBASIC` points into a source
 tree, so an interpreter change is what gets tested rather than a stale binary.
 Display tiers (`sections_gui`, `sessions_gui`, `results_gui`, `ui_gui`,
-`ui_gui_cold`, `ui_gui_new`, `ui_gui_name`, `ui_gui_solo`, `ui_gui_run`) SKIP
-cleanly without GTK 4 or a display.
+`ui_gui_cold`, `ui_gui_new`, `ui_gui_name`, `ui_gui_solo`, `ui_gui_run`,
+`ui_gui_cursor`) SKIP cleanly without GTK 4 or a display.
 `ui_gui_new` is the only case that spans two processes: the GUI builds a project
 from nothing and closes, and a second interpreter run reopens the same home —
 because a process asserting its own memory cannot show that anything reached
@@ -127,6 +128,14 @@ Two consequences worth knowing before you touch the shell:
   for their own file tree; only the FINAL tick does a full redraw, because that
   is when the status line and the results pane change. `on_run_poll` returns the
   `active` flag, so the timer removes itself the moment the run ends.
+- The panes read through `studio_ui.view_for`, which CACHES the section outline on
+  `app.view` — so `refresh_run` and `refresh` return the app, and a caller that
+  drops it re-parses the document on every render, at cursor-move rate. Cache
+  invalidation is on document id AND content, checked separately: blanking the
+  cached source to mark it stale silently fails for an empty document.
+- Typing and caret moves take `pane_redraw`, not `redraw`. `sync_buffers` returns
+  `moved`, which is true only when a document's dirty state actually changed —
+  the one thing typing alters that needs a full redraw (the tab marker).
 - `studio_ui.run_line` / `prefix_text` / `target_text` live in studio_ui, not the
   shell, so the headless suite can assert what a run reports. `studio_shell`
   keeps the old names as delegates only because the STU-4/5A display goldens

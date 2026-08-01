@@ -11,7 +11,8 @@ library — and nothing in gBASIC depends on Studio.
 **The model and persistence layer are built and tested, and the shell now
 responds to input.** Phases STU-0 through STU-5A are complete as libraries;
 STU-2B wired the first interactions on top of them, STU-2C made a cold start go
-all the way through, STU-2D made the browser editable, and STU-2E made Run work.
+all the way through, STU-2D made the browser editable, STU-2E made Run work, and
+STU-5A′ pointed the panes at the caret.
 
 What works when you click it: a browser row (a file opens into a tab, a
 directory expands, a project becomes active), a notebook tab, typing in the
@@ -49,13 +50,20 @@ history behind it and a mark on any result whose section has been edited since.
 A caret outside every section — the blank last line of a file, where it very
 often sits — resolves to the nearest section rather than refusing.
 
-What still does not respond: the results pane follows the section that last ran
-rather than the section at the cursor, nothing shows section boundaries in the
-gutter, and there is no inspector or table view (all STU-5). A conflicting
-external change shows as an ordinary dirty marker — the tab does not distinguish
-it from your own unsaved edits. Closing the window saves *which* documents were
-open, not what was typed into them: Studio has no draft store, so unsaved buffers
-are lost and it says so on stderr as it exits.
+**The panes follow the caret.** The run strip names the section you are in before
+you press Run, and the results pane shows that section's history — move the caret
+and both change. A caret in the whitespace between sections belongs to the section
+above it; on a file's trailing blank line, to the last one.
+
+What still does not respond: nothing shows section boundaries in the gutter, and
+there is no variable inspector or table view (STU-5 proper). The inspector is
+blocked on the execution engine rather than on the UI — a run captures output
+streams only, and the child interpreter's variables die with the process.
+
+A conflicting external change shows as an ordinary dirty marker — the tab does
+not distinguish it from your own unsaved edits. Closing the window saves *which*
+documents were open, not what was typed into them: Studio has no draft store, so
+unsaved buffers are lost and it says so on stderr as it exits.
 
 Interaction is covered by tests rather than by hand. The rule STU-2B established
 is that a signal handler is an *adapter* — read one value off the widget, call
@@ -98,15 +106,15 @@ button yet. To start from a canned workspace instead:
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 118 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 120 cases, headless; honours GBASIC / GBASIC_STDLIB
 ```
 
 Golden-file based: a driver plus a `.out` holding expected stdout, compared
 byte-for-byte. The suite builds the sibling gBASIC first if `GBASIC` points into
 a source tree, so an interpreter change is what gets tested rather than a stale
 binary. Display tiers (`sections_gui`, `sessions_gui`, `results_gui`, `ui_gui`,
-`ui_gui_cold`, `ui_gui_new`, `ui_gui_name`, `ui_gui_solo`, `ui_gui_run`) SKIP
-cleanly without GTK 4 or a display.
+`ui_gui_cold`, `ui_gui_new`, `ui_gui_name`, `ui_gui_solo`, `ui_gui_run`,
+`ui_gui_cursor`) SKIP cleanly without GTK 4 or a display.
 
 ## Layout
 
