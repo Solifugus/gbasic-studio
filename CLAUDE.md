@@ -47,7 +47,7 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 120 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 121 cases, headless; honours GBASIC / GBASIC_STDLIB
 ```
 
 Golden-file based: a driver plus a `.out` of expected stdout, compared
@@ -118,6 +118,12 @@ Two consequences worth knowing before you touch the shell:
 - Every outcome gets a status line via `studio_ui.action_notice`. A refusal that
   says nothing is indistinguishable from a dead button, which is how the whole
   window felt before STU-2B.
+- A run's materialized prefix ends with a VARIABLE EPILOGUE (STU-4C) that reports
+  what the target section left behind, via `reflect`. It must be injected before
+  any appended `end program`: code after `end program` does not execute, so an
+  epilogue at the end of the file would report nothing, silently, and only for
+  program-body sections. `reflect.inspect` is shallow, so a section that built a
+  huge array reports its count and nothing more.
 - A run lives in `app.exec` — beside `app.dm`, live state the shutdown pipeline
   does not write, because a half-finished child process is not something to
   restore into. The section and the SOURCE are fixed when Run is pressed and kept

@@ -130,6 +130,15 @@ library studio_session
             marker: "",
             ' Test seam: a fixed nonce, so a fixture can print the marker itself.
             nonce_fixed: "",
+            ' STU-4C: the variables the target section left behind.
+            '   vars_status: none | captured | absent | ambiguous | unreadable
+            ' `absent` is the ORDINARY outcome for a run that raised or was
+            ' stopped — the epilogue never got to run — and is not an error.
+            vars_marker: "",
+            vars_fixed: "",
+            vars_raw: "",
+            vars_status: "none",
+            vars: [],
             ' STU-5A timing. The runtime's clock is whole seconds (`epoch()`), so a
             ' run shorter than a second records a duration of 0 -- reported as it is
             ' rather than dressed up with a millisecond figure the platform cannot
@@ -268,6 +277,53 @@ library studio_session
         return "@@gbstudio-" + epoch() + "-" + session.run_seq + "-" + a + "-" + b + "@@"
     end function
 
+    ' The marker that separates the variable dump from the program's own output.
+    ' Deliberately NOT derived from `marker` by appending to it: the prefix/target
+    ' split searches for `marker`, and a vars marker containing it would be found
+    ' by that search and cut the stream in the wrong place.
+    function _vars_marker(session)
+        if session.vars_fixed != "" then
+            return session.vars_fixed
+        end if
+        a = floor(random() * 1000000000)
+        b = floor(random() * 1000000000)
+        return "@@gbstudiovars-" + epoch() + "-" + session.run_seq + "-" + a + "-" + b + "@@"
+    end function
+
+    ' The name prefix the epilogue's own working variables carry, so it can leave
+    ' itself out of what it reports. A user variable that happens to start with
+    ' this is hidden from its own inspector, which is a better failure than an
+    ' inspector that always lists three variables the user never wrote.
+    function vars_prefix()
+        return "__gbstudio"
+    end function
+
+    ' The code appended after the target section to report what it left behind.
+    '
+    ' `reflect.inspect` is SHALLOW by design — kind, type, category, serializable
+    ' and a count — so this never walks into a value. A section that built a
+    ' million-row array reports the count and nothing else; anything deeper is a
+    ' later, deliberate request, not a side effect of having run.
+    '
+    ' It must be injected INSIDE an open program block. Code after `end program`
+    ' does not execute at all, so an epilogue appended at the end of the file for a
+    ' program-body section would report nothing, silently, and only for those
+    ' documents.
+    function _vars_epilogue(marker)
+        p = studio_session.vars_prefix()
+        lines = []
+        lines = append(lines, "print \"" + marker + "\"")
+        lines = append(lines, p + "_o = []")
+        lines = append(lines, "for each " + p + "_n in reflect.variables()")
+        lines = append(lines, "  if left(" + p + "_n, " + len(p) + ") != \"" + p + "\" then")
+        lines = append(lines, "    " + p + "_d = reflect.inspect(reflect.get(" + p + "_n))")
+        lines = append(lines, "    " + p + "_o = append(" + p + "_o, { name: " + p + "_n, kind: " + p + "_d.kind, type: " + p + "_d.type, category: " + p + "_d.category, serializable: " + p + "_d.serializable, count: " + p + "_d.count })")
+        lines = append(lines, "  end if")
+        lines = append(lines, "end for")
+        lines = append(lines, "print json_encode(" + p + "_o)")
+        return join(lines, "\n") + "\n"
+    end function
+
     ' Declarations whose meaning does not depend on where in the file they sit --
     ' see the hoisting rule in materialize_text.
     function _hoistable_kind(kind)
@@ -319,7 +375,7 @@ library studio_session
     '      so replayed output can be told from the target's. gBASIC has no statement
     '      separator (Step 0), so a zero-line-shift marker is impossible; this is the
     '      single-injection fallback, and the map carries its single -1 offset.
-    function materialize_text(source, section, sections, nonce)
+    function materialize_text(source, section, sections, nonce, vars_marker)
         prefix_end = section.end_offset
 
         ' Will the prefix execute a program block? Any section with `program:`
@@ -368,6 +424,18 @@ library studio_session
         else
             if prefix_lines > 0 then
                 segs = append(segs, { kind: "document", c_start: 1, c_end: prefix_lines, delta: 0 })
+            end if
+        end if
+
+        ' STU-4C: the variable epilogue goes here — after every line of the
+        ' document is accounted for (so the map's document segments are already
+        ' fixed) and BEFORE any `end program`, because nothing after that runs.
+        if vars_marker != "" then
+            body = body + studio_session._vars_epilogue(vars_marker)
+            if appended = "" then
+                appended = "vars"
+            else
+                appended = appended + "+vars"
             end if
         end if
 
@@ -549,9 +617,17 @@ library studio_session
             session.marker = studio_session._nonce(session)
         end if
 
+        ' STU-4C: every run reports what the target section left behind. Unlike the
+        ' boundary marker this is minted for section 1 too — a first section has no
+        ' prefix to be told apart from, but it still has variables.
+        session.vars_marker = studio_session._vars_marker(session)
+        session.vars_raw = ""
+        session.vars = []
+        session.vars_status = "none"
+
         session = studio_session._to(session, "materializing")
 
-        m = studio_session.materialize_text(source, target, sections, session.marker)
+        m = studio_session.materialize_text(source, target, sections, session.marker, session.vars_marker)
         session.appended = m.appended
         session.map = m.map
         session.hoisted = m.hoisted
@@ -648,7 +724,51 @@ library studio_session
     ' which occurrence is the boundary, so the run does NOT guess -- it reports
     ' combined and says why (the STU-3 ambiguity principle). Nothing is discarded in
     ' any case, and nothing that might be the prefix's is shown as the target's.
+    ' Take the variable dump off the tail of stdout before anything else looks at
+    ' the stream, so the prefix/target split sees only the program's own output.
+    '
+    ' Same discipline as the boundary marker: exactly one occurrence or nothing is
+    ' claimed. Zero is the ORDINARY outcome for a run that raised or was stopped —
+    ' the epilogue never executed — and more than one means the program printed
+    ' the marker itself, where guessing would be worse than declining.
+    function _peel_vars(session)
+        if session.vars_marker = "" then
+            session.vars_status = "none"
+            return session
+        end if
+        parts = split(session.out_raw, session.vars_marker)
+        occurrences = count(parts) - 1
+        if occurrences = 0 then
+            session.vars_status = "absent"
+            return session
+        end if
+        if occurrences > 1 then
+            session.vars_status = "ambiguous"
+            return session
+        end if
+        session.out_raw = parts[0]
+        tail = parts[1]
+        ' The marker statement printed marker + newline.
+        if byte_count(tail) > 0 then
+            if byte_at(tail, 0) = 10 then
+                tail = mid(tail, 1, len(tail) - 1)
+            end if
+        end if
+        session.vars_raw = tail
+        r = try_decode(tail)
+        if r.ok then
+            if is_array(r.value) then
+                session.vars = r.value
+                session.vars_status = "captured"
+                return session
+            end if
+        end if
+        session.vars_status = "unreadable"
+        return session
+    end function
+
     function _resolve_split(session)
+        session = studio_session._peel_vars(session)
         if session.split_out = "exact" then
             session.out_target = session.out_raw
             session.out_prefix = ""

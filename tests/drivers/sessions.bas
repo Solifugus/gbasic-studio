@@ -129,6 +129,32 @@ function show(label, sess)
   print "transitions: " + studio_session.transitions(sess)
 end function
 
+' ---- STU-4C fixtures -------------------------------------------------------
+
+function vars_src()
+  ' A scalar, a string, an array and a record, spread across three sections so
+  ' the capture reports the whole scope and not just the target's own names.
+  return "x = 41 + 1\nname = \"studio\"\n\nfunction add(a, b)\n  return a + b\nend function\n\nitems = [1, 2, 3]\nrec = { a: 1, b: \"two\" }\nprint add(2, 3)\n"
+end function
+
+function vars_prog_src()
+  return "program main(args)\n  inside = 7\n  print \"in-program\"\n\n  function helper(n)\n    return n\n  end function\n\n  tail = \"last\"\n  print helper(3)\nend program\n"
+end function
+
+function show_vars(sess)
+  print "vars_status=" + sess.vars_status
+  for each v in sess.vars
+    line = "  " + v.name + " " + v.kind + "/" + v.category
+    if v.category = "container" then
+      line = line + " count=" + v.count
+    end if
+    if v.serializable = false then
+      line = line + " (not serializable)"
+    end if
+    print line
+  end for
+end function
+
 function run_and_show(label, sess, secs, src, sid)
   sess = studio_session.run(sess, secs, src, sid)
   sess = drain(sess)
@@ -201,7 +227,7 @@ program main(args)
     src = prog_src()
     secs = sections_for(src)
     first = secs.sections[0]
-    m = studio_session.materialize_text(src, first, secs, "")
+    m = studio_session.materialize_text(src, first, secs, "", "")
     print "appended=" + m.appended
     print "materialized=<" + m.text + ">"
     sess = studio_session.create("doc-1", scratch)
@@ -399,14 +425,14 @@ program main(args)
     secs1 = sections_for(src1)
     sess = studio_session.create("doc-1", scratch)
     last1 = secs1.sections[count(secs1.sections) - 1]
-    m1 = studio_session.materialize_text(src1, last1, secs1, "")
+    m1 = studio_session.materialize_text(src1, last1, secs1, "", "")
     print "run1_prefix_bytes=" + byte_count(m1.text)
     sess = run_and_show("run 1", sess, secs1, src1, last1.id)
 
     src2 = "print \"one\"\n\nfunction add(a, b)\n  return a + b\nend function\n\nprint add(2, 3)\n\nprint \"CHANGED\"\n"
     secs2 = studio_sections.refresh(secs1, src2)
     last2 = secs2.sections[count(secs2.sections) - 1]
-    m2 = studio_session.materialize_text(src2, last2, secs2, "")
+    m2 = studio_session.materialize_text(src2, last2, secs2, "", "")
     print "run2_prefix_bytes=" + byte_count(m2.text)
     print "same_section_id=" + (last1.id = last2.id)
     sess = run_and_show("run 2 after edit", sess, secs2, src2, last2.id)
@@ -473,7 +499,7 @@ program main(args)
     src = hoist_after_src()
     secs = sections_for(src)
     first = secs.sections[0]
-    m = studio_session.materialize_text(src, first, secs, "")
+    m = studio_session.materialize_text(src, first, secs, "", "")
     print "appended=" + m.appended
     print "hoisted=" + count(m.hoisted)
     for each h in m.hoisted
@@ -592,7 +618,7 @@ program main(args)
     src = hoist_after_src()
     secs = sections_for(src)
     target = secs.sections[2]
-    m = studio_session.materialize_text(src, target, secs, "@@nonce@@")
+    m = studio_session.materialize_text(src, target, secs, "@@nonce@@", "")
     print "-- marker + generated + hoist map"
     print "marker_line=" + m.map.marker_line
     print "segments=" + count(m.map.segments)
@@ -610,7 +636,7 @@ program main(args)
     print "-- no marker (section 1), no hoist"
     src2 = split_src()
     secs2 = sections_for(src2)
-    m2 = studio_session.materialize_text(src2, secs2.sections[0], secs2, "")
+    m2 = studio_session.materialize_text(src2, secs2.sections[0], secs2, "", "")
     print "marker_line=" + m2.map.marker_line
     print "segments=" + count(m2.map.segments)
     r = studio_session.map_line(m2.map, 1)
@@ -644,5 +670,49 @@ program main(args)
     sess = studio_session.force_stop(sess, 2)
     sess = studio_session.finalize(sess, secs, src)
     print "final_state=" + sess.state
+  end if
+
+  ' ---- STU-4C: what the target section left behind -------------------------
+  if mode = "vars" then
+    src = vars_src()
+    secs = sections_for(src)
+    sess = studio_session.create("doc-1", scratch)
+    last = secs.sections[count(secs.sections) - 1]
+    sess = run_and_show("the last section, with a prefix above it", sess, secs, src, last.id)
+    show_vars(sess)
+
+    ' Section 1 has no prefix and no boundary marker, but it still has variables.
+    sess2 = studio_session.create("doc-1", scratch)
+    sess2 = run_and_show("section 1 — no prefix, no marker", sess2, secs, src, secs.sections[0].id)
+    show_vars(sess2)
+
+    ' A program BODY. The epilogue has to go INSIDE the block: nothing after
+    ' `end program` executes, so an epilogue appended at the end of the file
+    ' would report nothing at all, silently, and only for these documents.
+    psrc = vars_prog_src()
+    psecs = sections_for(psrc)
+    sess3 = studio_session.create("doc-2", scratch)
+    plast = psecs.sections[count(psecs.sections) - 1]
+    sess3 = run_and_show("inside a program block", sess3, psecs, psrc, plast.id)
+    show_vars(sess3)
+
+    ' A section that RAISES never reaches the epilogue. "absent" is the ordinary
+    ' answer, not an error.
+    esrc = "x = 1\n\nfunction f(n)\n  return n\nend function\n\nprint 1 / 0\n"
+    esecs = sections_for(esrc)
+    sess4 = studio_session.create("doc-3", scratch)
+    elast = esecs.sections[count(esecs.sections) - 1]
+    sess4 = run_and_show("a section that raises", sess4, esecs, esrc, elast.id)
+    show_vars(sess4)
+
+    ' A program that prints the marker itself: the run declines to guess which
+    ' occurrence is ours, exactly as the boundary marker does.
+    sess5 = studio_session.create("doc-4", scratch)
+    sess5.vars_fixed = "@@vars@@"
+    msrc = "print \"@@vars@@\"\n\nfunction g(n)\n  return n\nend function\n\nk = 5\n"
+    msecs = sections_for(msrc)
+    mlast = msecs.sections[count(msecs.sections) - 1]
+    sess5 = run_and_show("a program that prints the marker itself", sess5, msecs, msrc, mlast.id)
+    show_vars(sess5)
   end if
 end program

@@ -1,0 +1,51 @@
+-- the last section, with a prefix above it
+state=finished section=sec-3 run=1 split=out:marked err:unavailable
+exit_code=0 signal=0 success=true
+out_prefix=<>
+out_target=<5
+>
+transitions: idle>materializing materializing>running running>finished
+vars_status=captured
+  items array/container count=3
+  name string/scalar
+  rec record/container count=2
+  x number/scalar
+-- section 1 — no prefix, no marker
+state=finished section=sec-1 run=1 split=out:exact err:exact
+exit_code=0 signal=0 success=true
+out_prefix=<>
+out_target=<>
+transitions: idle>materializing materializing>running running>finished
+vars_status=captured
+  name string/scalar
+  x number/scalar
+-- inside a program block
+state=finished section=sec-3 run=1 split=out:marked err:unavailable
+exit_code=0 signal=0 success=true
+out_prefix=<in-program
+>
+out_target=<3
+>
+transitions: idle>materializing materializing>running running>finished
+vars_status=captured
+  args array/container count=0
+  inside number/scalar
+  tail string/scalar
+-- a section that raises
+state=finished section=sec-3 run=1 split=out:marked err:unavailable
+exit_code=1 signal=0 success=false
+out_prefix=<>
+out_target=<>
+! target section=sec-3 7:9 division by zero
+transitions: idle>materializing materializing>running running>finished
+vars_status=absent
+-- a program that prints the marker itself
+state=finished section=sec-3 run=1 split=out:marked err:unavailable
+exit_code=0 signal=0 success=true
+out_prefix=<@@vars@@
+>
+out_target=<@@vars@@
+[{"name":"k","kind":"number","type":"number","category":"scalar","serializable":true,"count":0}]
+>
+transitions: idle>materializing materializing>running running>finished
+vars_status=ambiguous

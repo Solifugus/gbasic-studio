@@ -443,7 +443,7 @@ run_session() { # mode
     fi
 }
 for m in clean err_target err_prefix outside prog stop force unresponsive restart \
-         refuse signal big edited scratch; do
+         refuse signal big edited scratch vars; do
     run_session "$m"
 done
 

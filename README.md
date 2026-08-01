@@ -55,10 +55,17 @@ you press Run, and the results pane shows that section's history — move the ca
 and both change. A caret in the whitespace between sections belongs to the section
 above it; on a file's trailing blank line, to the last one.
 
+**A run now reports its variables.** The materialized prefix ends with an
+epilogue that asks `reflect` what the target section left behind — name, kind,
+type, category, whether it can be serialized, and a count — so the data an
+inspector needs exists. It is shallow on purpose: a section that built a
+million-row array reports the count and nothing else until something asks for
+more. A section that raised never reaches the epilogue, and that is reported as
+`absent` rather than as an error.
+
 What still does not respond: nothing shows section boundaries in the gutter, and
-there is no variable inspector or table view (STU-5 proper). The inspector is
-blocked on the execution engine rather than on the UI — a run captures output
-streams only, and the child interpreter's variables die with the process.
+nothing DISPLAYS those variables yet — the inspector pane, and persisting the
+capture into a result, are the next two steps.
 
 A conflicting external change shows as an ordinary dirty marker — the tab does
 not distinguish it from your own unsaved edits. Closing the window saves *which*
@@ -106,7 +113,7 @@ button yet. To start from a canned workspace instead:
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 120 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 121 cases, headless; honours GBASIC / GBASIC_STDLIB
 ```
 
 Golden-file based: a driver plus a `.out` holding expected stdout, compared
