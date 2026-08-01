@@ -666,7 +666,8 @@ run_ui() { # mode
 
 for m in rows open expand project bounds tabs edit save newproj refresh \
          newfile newfolder adopt exit \
-         names rename delete closetab notice; do
+         names rename delete closetab notice \
+         run runstop; do
     run_ui "$m"
 done
 
@@ -789,6 +790,32 @@ if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
             cat "$stdout_file"; fail "ui_gui_name (nonzero exit)"
         fi
     fi
+    # STU-2E: Run Section, clicked for real. Nothing in the test advances the
+    # run — the button's handler starts a child interpreter and installs a GTK
+    # timer, and the case waits for the window to drive itself to a finished
+    # state. That the poll is installed and that it STOPS is the part no headless
+    # loop can show.
+    e5_home="$tmproot/ui_gui_run"; e5_proj="$tmproot/ui_gui_run_proj"
+    mkdir -p "$e5_home" "$e5_proj"
+    printf 'print "one"\n\nfunction add(a, b)\n  return a + b\nend function\n\nprint add(2, 3)\n' \
+        > "$e5_proj/runme.bas"
+    : >"$stdout_file"
+    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
+            "$GBASIC" "$APP" stu2e_smoke "$e5_home" "$e5_proj" \
+            >"$stdout_file" 2>/dev/null; then
+        if diff -u tests/studio/ui_gui_run.out "$stdout_file"; then
+            printf 'PASS ui_gui_run (a section run from a click, polled by the window)\n'
+        else
+            fail "ui_gui_run (output diff)"
+        fi
+    else
+        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
+            printf 'SKIP ui_gui_run (GTK 4 typelib not available)\n'
+        else
+            cat "$stdout_file"; fail "ui_gui_run (nonzero exit)"
+        fi
+    fi
+
     # Two Studio windows at once. This is a regression test for a real defect,
     # not a stress test: `gtk.application(id)` defaults to SINGLE-INSTANCE, so a
     # second Studio used to print nothing and quietly hand its "activate" to the
@@ -824,6 +851,7 @@ else
     printf 'SKIP ui_gui_new (no display)\n'
     printf 'SKIP ui_gui_name (no display)\n'
     printf 'SKIP ui_gui_solo (no display)\n'
+    printf 'SKIP ui_gui_run (no display)\n'
 fi
 
 printf 'run_studio: all cases passed\n'

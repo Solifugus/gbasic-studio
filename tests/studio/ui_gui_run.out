@@ -1,0 +1,12 @@
+exec: (none)
+clicking Run Section
+strip=run: finished [sec-1] — exit 0
+status=finished sec-1
+prefix=<(none)>
+target=<one
+>
+Results — sec-1  (1 run(s))
+latest: res-1  finished exit 0  at 1000  0s
+  output: <one
+>
+app-exited

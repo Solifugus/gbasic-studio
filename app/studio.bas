@@ -234,6 +234,72 @@ function on_refresh()
     return nothing
 end function
 
+' ---- STU-2E: running a section ---------------------------------------------
+'
+' Run is the first interaction that does not finish when the click does, so it
+' has one thing the others do not: a poll. The handler starts it, the timer
+' advances it, and studio_ui decides everything either of them means.
+'
+' The cursor is read off the EDITOR here rather than tracked continuously,
+' because "which section" is only asked once — when Run is pressed. That is the
+' adapter's whole job: one value off one widget, in the widget's own units.
+function on_run()
+    line = 0
+    col = 0
+    ed = studio_shell.editor_for(G.shell, G.app.dm.active)
+    if ed != nothing then
+        c = ed.cursor()
+        line = c.line
+        col = c.column
+    end if
+    r = studio_ui.run_section(G.app, line, col)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    redraw()
+    if r.active then
+        gi.timeout(60, on_run_poll)
+    end if
+    return nothing
+end function
+
+' One poll. Returning `active` is what keeps the timer alive, so the run stops
+' being polled the moment it stops running — there is no idle timer left over.
+'
+' A tick refreshes only the run widgets. Rebuilding the browser sixteen times a
+' second would fight the user for their own file tree; the FINAL tick does a full
+' redraw, because that is when the status line and the results pane change.
+function on_run_poll()
+    r = studio_ui.tick_run(G.app)
+    G.app = r.app
+    if r.active then
+        studio_shell.refresh_run(G.shell, G.app)
+        return true
+    end if
+    G.last_action = r.action
+    G.last_detail = r.detail
+    redraw()
+    return false
+end function
+
+function on_stop()
+    r = studio_ui.stop_run(G.app)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    redraw()
+    return nothing
+end function
+
+function on_force_stop()
+    r = studio_ui.force_stop_run(G.app)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    redraw()
+    return nothing
+end function
+
 ' Connect every widget the shell exposed. This is the ONLY gi.connect over
 ' widgets in the program, so the wiring is one readable list rather than a thing
 ' scattered through the view.
@@ -249,6 +315,9 @@ function wire_shell()
     gi.connect(sh.close_btn, "clicked", on_close_tab)
     gi.connect(sh.save_btn, "clicked", on_save)
     gi.connect(sh.refresh_btn, "clicked", on_refresh)
+    gi.connect(sh.bar.run, "clicked", on_run)
+    gi.connect(sh.bar.halt, "clicked", on_stop)
+    gi.connect(sh.bar.force, "clicked", on_force_stop)
     return nothing
 end function
 
@@ -482,6 +551,44 @@ function stu2d_step()
     return false
 end function
 
+' ---- STU-2E display tier ---------------------------------------------------
+'
+' Click Run and let the window drive itself: the button's handler starts a real
+' child interpreter and a real GTK timer, and nothing here advances the run. What
+' this proves that the headless case cannot is that the poll is actually
+' installed and actually stops — that a run started from a click reaches a
+' finished state and lands in the panes, without the test ticking it along.
+function stu2e_step()
+    G.phase = G.phase + 1
+    if G.phase = 1 then
+        print "clicking Run Section"
+        G.shell.bar.run.activate()
+        return true
+    end if
+    ' Wait for the run the WINDOW is driving. Bounded, so a hung child fails the
+    ' case instead of hanging the suite.
+    sess = studio_ui.exec_session(G.app)
+    settled = false
+    if sess != nothing then
+        if studio_session.is_active(sess) = false then
+            settled = true
+        end if
+    end if
+    if settled = false then
+        if G.phase < 40 then
+            return true
+        end if
+        print "run did not settle"
+    end if
+    print "strip=" + G.shell.bar.state.label
+    print "status=" + G.shell.status.label
+    print "prefix=<" + G.shell.pane.prefix.label + ">"
+    print "target=<" + G.shell.pane.target.label + ">"
+    print G.shell.rpane.body.label
+    G.app_ref.quit()
+    return false
+end function
+
 ' The cold-home path: an empty home renders "(no workspace open)", and New
 ' Project is the only thing that can move it. If this button does not work, a
 ' new user has no way into Studio at all.
@@ -525,6 +632,11 @@ function on_activate(gtkapp)
     if G.stu2d then
         state("as built")
         gi.timeout(400, stu2d_step)
+        return nothing
+    end if
+    if G.stu2e then
+        print studio_ui.exec_summary(G.app)
+        gi.timeout(200, stu2e_step)
         return nothing
     end if
     if G.smoke then
@@ -986,6 +1098,7 @@ program main(args)
     ' grow a "saved=" line each.
     G.stu2c = false
     G.stu2d = false
+    G.stu2e = false
     G.save_on_exit = false
     if mode = "gui" then
         G.save_on_exit = true
@@ -1024,6 +1137,25 @@ program main(args)
         ws = G.app.model.workspace
         ws = studio_model.add_project(ws, "Alpha", projdir)
         G.app = studio.set_workspace(G.app, ws)
+    end if
+
+    ' STU-2E: Run Section, clicked for real, with a document open and its cursor
+    ' in the last section so the run has a prefix to replay.
+    if mode = "stu2e_smoke" then
+        G.stu2e = true
+        projdir = args[2]
+        G.app = studio.create_registered_workspace(G.app, "ws")
+        ws = G.app.model.workspace
+        ws = studio_model.add_project(ws, "Alpha", projdir)
+        G.app = studio.set_workspace(G.app, ws)
+        ro = studio.open_from_browser(G.app, "proj-1", projdir + "/runme.bas")
+        G.app = ro.app
+        ' The editor's caret is where on_run reads from, and the shell puts it at
+        ' the top of a freshly opened buffer, so move the DOCUMENT's cursor is not
+        ' enough — stu2e_step clicks Run with the caret wherever the editor has it,
+        ' which is line 0. Section 1 it is: a run with no prefix is still a run,
+        ' and the prefix pane saying so is part of what this checks.
+        G.app.clock_fixed = 1000
     end if
 
     if mode = "smoke" then

@@ -81,6 +81,7 @@ library studio_shell
         shell.rows = studio_shell._fill_nav(shell.nav, app)
         rec = studio_shell._reconcile_tabs(shell, app)
         shell = rec.shell
+        studio_shell.refresh_run(shell, app)
         line = studio_shell.status_text(app)
         if notice != "" then
             line = notice
@@ -90,6 +91,34 @@ library studio_shell
             shell.name_entry.text = ""
         end if
         return { shell: shell, new_editors: rec.new_editors }
+    end function
+
+    ' The run strip and its two output panes and the results pane — everything a
+    ' run moves, and nothing else.
+    '
+    ' This is separate from `refresh` on purpose. A run is polled about sixteen
+    ' times a second, and a full redraw rebuilds the whole browser pane; doing that
+    ' on every tick would fight the user for their own file tree while a program
+    ' ran. `refresh` calls it too, so an ordinary redraw never leaves the strip
+    ' behind.
+    function refresh_run(shell, app)
+        sess = studio_ui.exec_session(app)
+        shell.bar.state.label = studio_ui.run_line(sess)
+        shell.pane.prefix.label = studio_ui.prefix_text(sess)
+        shell.pane.target.label = studio_ui.target_text(sess)
+        shell.rpane.body.label = studio_ui.results_body(app)
+        return shell
+    end function
+
+    ' The live editor behind a document id, or nothing. The handler that starts a
+    ' run needs it to read where the caret actually is.
+    function editor_for(shell, doc_id)
+        for each pg in shell.pages
+            if pg.doc_id = doc_id then
+                return pg.editor
+            end if
+        end for
+        return nothing
     end function
 
     ' Match notebook pages to open documents by document id: drop pages whose
@@ -141,6 +170,12 @@ library studio_shell
                 ed = sourceeditor.create()
                 ed.set_text(doc.content)
                 ed.set_language("gbasic")
+                ' Setting a buffer's text leaves the caret at the END of it, so a
+                ' just-opened file starts scrolled to the bottom with the cursor
+                ' past the last line. Every editor puts it at the top instead —
+                ' and STU-2E made it matter, because Run reads the caret to decide
+                ' which section to run.
+                ed.set_cursor(0, 0)
                 sc = gtk.scrolled(ed.view())
                 sc.vexpand = true
                 sc.hexpand = true
@@ -283,7 +318,29 @@ library studio_shell
         split.position = 260
 
         book = gtk.notebook()
-        split.set_end_child(book)
+
+        ' STU-2E mounts what STU-4 and STU-5A built. Both were only ever
+        ' constructed by the smoke modes: `run_bar` and `output_pane` and
+        ' `results_pane` existed as builders that nothing in the real window
+        ' called, which is why the run strip has been listed as "built but does not
+        ' respond" since STU-4.
+        '
+        ' Editor on top, run below, split so the user decides how much of each they
+        ' want. The panes go in a scrolled window because a section's output is
+        ' unbounded and a label that grows without one drags the whole window wider.
+        bar = studio_shell.run_bar()
+        pane = studio_shell.output_pane()
+        rpane = studio_shell.results_pane()
+        under = gtk.box("v", 4)
+        under.append(bar.box)
+        under.append(pane.box)
+        under.append(rpane.box)
+
+        vsplit = gtk.paned("v")
+        vsplit.set_start_child(book)
+        vsplit.set_end_child(gtk.scrolled(under))
+        vsplit.position = 420
+        split.set_end_child(vsplit)
 
         outer.append(split)
 
@@ -307,6 +364,7 @@ library studio_shell
                  name_entry: name_entry, rename_btn: rename_btn,
                  delete_btn: delete_btn, close_btn: close_btn,
                  save_btn: save_btn, refresh_btn: refresh_btn,
+                 bar: bar, pane: pane, rpane: rpane,
                  rows: [], pages: [], welcome: false }
     end function
 
@@ -347,29 +405,13 @@ library studio_shell
         return { box: bar, run: run_btn, halt: halt_btn, force: force_btn, state: state }
     end function
 
-    ' One line of session state for the strip: what is happening, to which section,
-    ' and -- when Studio refused or the child is gone -- why.
+    ' These three moved to studio_ui in STU-2E and stayed here as delegates. They
+    ' were always pure functions over a session record, but they lived in a file
+    ' that loads GTK, so the headless suite could not call them — and the run
+    ' strip's text is the only feedback a run gives. The names are kept because the
+    ' STU-4/5A display goldens print through them.
     function session_text(session)
-        if session = nothing then
-            return "run: (no session)"
-        end if
-        line = "run: " + session.state
-        if session.section_id != "" then
-            line = line + " [" + session.section_id + "]"
-        end if
-        if session.state = "refused" then
-            return line + " — " + session.message
-        end if
-        if session.state = "failed" then
-            return line + " — " + session.message
-        end if
-        if session.state = "finished" then
-            if session.signal != 0 then
-                return line + " — killed by signal " + session.signal
-            end if
-            return line + " — exit " + session.exit_code
-        end if
-        return line
+        return studio_ui.run_line(session)
     end function
 
     function output_pane()
@@ -385,51 +427,12 @@ library studio_shell
         return { box: box, prefix: prefix_body, target: target_body }
     end function
 
-    ' The two panes' text. Prefix output is ALWAYS shown, never folded away: it is
-    ' the only way a user can see that the replay re-issued the prefix's side
-    ' effects.
-    '
-    ' While a run is in flight the split is not yet decided, so BOTH panes show the
-    ' raw stream under the prefix heading rather than guessing at a boundary that
-    ' may not have been printed yet. Once the run ends the panes show whichever
-    ' answer the marker actually supports (STU-4B), and when it supports none they
-    ' say so instead of pretending a boundary exists.
     function output_prefix_text(session)
-        if session = nothing then
-            return "(none)"
-        end if
-        if session.split_out = "pending" then
-            if session.out_raw = "" then
-                return "(running — no output yet)"
-            end if
-            return session.out_raw
-        end if
-        if session.split_out = "combined" then
-            if session.out_prefix = "" then
-                return "(none — sections 1..N combined)"
-            end if
-            return session.out_prefix
-        end if
-        if session.out_prefix = "" then
-            return "(none)"
-        end if
-        return session.out_prefix
+        return studio_ui.prefix_text(session)
     end function
 
     function output_target_text(session)
-        if session = nothing then
-            return "(none)"
-        end if
-        if session.split_out = "pending" then
-            return "(running — not separated yet)"
-        end if
-        if session.split_out = "combined" then
-            return "(not separable from the prefix in this run)"
-        end if
-        if session.out_target = "" then
-            return "(none)"
-        end if
-        return session.out_target
+        return studio_ui.target_text(session)
     end function
 
     ' ---- STU-5A: the results pane ------------------------------------------
