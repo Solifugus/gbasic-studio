@@ -81,7 +81,9 @@ library studio_shell
         shell.rows = studio_shell._fill_nav(shell.nav, app)
         rec = studio_shell._reconcile_tabs(shell, app)
         shell = rec.shell
-        studio_shell.refresh_run(shell, app)
+        rr = studio_shell.refresh_run(shell, app)
+        shell = rr.shell
+        app = rr.app
         line = studio_shell.status_text(app)
         if notice != "" then
             line = notice
@@ -90,7 +92,7 @@ library studio_shell
         if clear_name then
             shell.name_entry.text = ""
         end if
-        return { shell: shell, new_editors: rec.new_editors }
+        return { shell: shell, app: app, new_editors: rec.new_editors }
     end function
 
     ' The run strip and its two output panes and the results pane — everything a
@@ -101,13 +103,20 @@ library studio_shell
     ' on every tick would fight the user for their own file tree while a program
     ' ran. `refresh` calls it too, so an ordinary redraw never leaves the strip
     ' behind.
+    ' Returns { shell, app }, and the app matters: what the panes show is derived
+    ' through `studio_ui.view_for`, which CACHES the section outline on the app
+    ' record. Dropping the returned app would re-parse the document on every
+    ' render — and this renders on every cursor move.
     function refresh_run(shell, app)
+        v = studio_ui.view_for(app)
+        app = v.app
         sess = studio_ui.exec_session(app)
         shell.bar.state.label = studio_ui.run_line(sess)
+        shell.bar.section.label = studio_ui.section_label(app)
         shell.pane.prefix.label = studio_ui.prefix_text(sess)
         shell.pane.target.label = studio_ui.target_text(sess)
         shell.rpane.body.label = studio_ui.results_body(app)
-        return shell
+        return { shell: shell, app: app }
     end function
 
     ' The live editor behind a document id, or nothing. The handler that starts a
@@ -397,12 +406,17 @@ library studio_shell
         halt_btn = gtk.button("Stop")
         force_btn = gtk.button("Force Stop")
         state = gtk.label("run: idle")
+        ' STU-5A′: which section Run would run, shown BEFORE you press it rather
+        ' than after. It follows the caret.
+        section = gtk.label("section: (none)")
         bar.append(run_btn)
         bar.append(halt_btn)
         bar.append(force_btn)
         bar.append(state)
+        bar.append(section)
         ' `stop` is a gBASIC keyword and cannot be a record key, hence `halt`.
-        return { box: bar, run: run_btn, halt: halt_btn, force: force_btn, state: state }
+        return { box: bar, run: run_btn, halt: halt_btn, force: force_btn,
+                 state: state, section: section }
     end function
 
     ' These three moved to studio_ui in STU-2E and stayed here as delegates. They

@@ -667,7 +667,7 @@ run_ui() { # mode
 for m in rows open expand project bounds tabs edit save newproj refresh \
          newfile newfolder adopt exit \
          names rename delete closetab notice \
-         run runstop; do
+         run runstop cursor; do
     run_ui "$m"
 done
 
@@ -676,7 +676,7 @@ done
 if command -v valgrind >/dev/null 2>&1; then
     vg_log="$(mktemp)"
     ui_ok=1
-    for m in open expand tabs edit refresh newfile newfolder adopt rename delete closetab; do
+    for m in open expand tabs edit refresh newfile newfolder adopt rename delete closetab cursor; do
         ui_home="$tmproot/ui_vg_$m"; ui_proj="$tmproot/ui_vg_${m}_proj"
         rm -rf "$ui_home" "$ui_proj"; mkdir -p "$ui_home"; mkproj_ui "$ui_proj"
         : >"$stdout_file"
@@ -688,7 +688,7 @@ if command -v valgrind >/dev/null 2>&1; then
         fi
     done
     rm -f "$vg_log"
-    [ "$ui_ok" -eq 1 ] && printf 'PASS ui_memory (valgrind clean: open/expand/tabs/edit/refresh/newfile/newfolder/adopt/rename/delete/closetab)\n'
+    [ "$ui_ok" -eq 1 ] && printf 'PASS ui_memory (valgrind clean: open/expand/tabs/edit/refresh/newfile/newfolder/adopt/rename/delete/closetab/cursor)\n'
 else
     printf 'SKIP ui_memory (valgrind not installed)\n'
 fi
@@ -816,6 +816,30 @@ if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
         fi
     fi
 
+    # STU-5A': the caret drives the panes. Moving a caret is not a click, so no
+    # other tier would notice a disconnected cursor handler; `set_cursor` moves
+    # the real caret and GTK emits the real "notify::cursor-position".
+    f5_home="$tmproot/ui_gui_cursor"; f5_proj="$tmproot/ui_gui_cursor_proj"
+    mkdir -p "$f5_home" "$f5_proj"
+    printf 'print "one"\n\nfunction add(a, b)\n  return a + b\nend function\n\nprint add(2, 3)\n' \
+        > "$f5_proj/runme.bas"
+    : >"$stdout_file"
+    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
+            "$GBASIC" "$APP" stu2f_smoke "$f5_home" "$f5_proj" \
+            >"$stdout_file" 2>/dev/null; then
+        if diff -u tests/studio/ui_gui_cursor.out "$stdout_file"; then
+            printf 'PASS ui_gui_cursor (the panes follow the real caret)\n'
+        else
+            fail "ui_gui_cursor (output diff)"
+        fi
+    else
+        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
+            printf 'SKIP ui_gui_cursor (GTK 4 typelib not available)\n'
+        else
+            cat "$stdout_file"; fail "ui_gui_cursor (nonzero exit)"
+        fi
+    fi
+
     # Two Studio windows at once. This is a regression test for a real defect,
     # not a stress test: `gtk.application(id)` defaults to SINGLE-INSTANCE, so a
     # second Studio used to print nothing and quietly hand its "activate" to the
@@ -852,6 +876,7 @@ else
     printf 'SKIP ui_gui_name (no display)\n'
     printf 'SKIP ui_gui_solo (no display)\n'
     printf 'SKIP ui_gui_run (no display)\n'
+    printf 'SKIP ui_gui_cursor (no display)\n'
 fi
 
 printf 'run_studio: all cases passed\n'

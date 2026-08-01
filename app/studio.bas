@@ -98,11 +98,17 @@ function redraw()
     end if
     r = studio_shell.refresh(G.shell, G.app, notice, clear_name)
     G.shell = r.shell
+    ' The app comes back because rendering the panes populates a cache on it
+    ' (studio_ui.view_for). Dropping it would re-parse the document every render.
+    G.app = r.app
     ' A redraw can create pages, and a new page's buffer has never been wired.
     ' This is the only place editors are connected, so no page can exist unwired.
     for each ne in r.new_editors
         ed = ne.editor
         gi.connect(ed.buffer, "changed", on_buffer_changed)
+        ' "notify::cursor-position" fires ONCE per caret move; "mark-set" fires
+        ' twice (insert and selection_bound), which would double every refresh.
+        gi.connect(ed.buffer, "notify::cursor-position", on_cursor_moved)
     end for
     G.redrawing = false
     return nothing
@@ -150,7 +156,46 @@ function on_buffer_changed(buffer)
     G.app = r.app
     G.last_action = r.action
     G.last_detail = r.detail
-    redraw()
+    ' A full redraw only when a document's DIRTY state actually moved — that is
+    ' the one thing typing changes which a full redraw is needed to show (the
+    ' tab's marker). Every other keystroke gets the cheap path, because rebuilding
+    ' the browser pane on each one would fight the user for their own file tree.
+    if r.moved then
+        redraw()
+    else
+        pane_redraw()
+    end if
+    return nothing
+end function
+
+' The caret moved. The panes are keyed to the section it is in, so this is a
+' pane refresh and never a full redraw: it fires on every arrow key.
+function on_cursor_moved(buffer, pspec)
+    if G.redrawing then
+        return nothing
+    end if
+    ed = studio_shell.editor_for(G.shell, G.app.dm.active)
+    if ed = nothing then
+        return nothing
+    end if
+    c = ed.cursor()
+    r = studio_ui.sync_cursor(G.app, G.app.dm.active, c.line, c.column)
+    G.app = r.app
+    pane_redraw()
+    return nothing
+end function
+
+' Everything a run or a caret move can change, and nothing a click can. Cheap
+' enough to call at keystroke rate.
+function pane_redraw()
+    if G.redrawing then
+        return nothing
+    end if
+    G.redrawing = true
+    rr = studio_shell.refresh_run(G.shell, G.app)
+    G.shell = rr.shell
+    G.app = rr.app
+    G.redrawing = false
     return nothing
 end function
 
@@ -273,7 +318,9 @@ function on_run_poll()
     r = studio_ui.tick_run(G.app)
     G.app = r.app
     if r.active then
-        studio_shell.refresh_run(G.shell, G.app)
+        rr = studio_shell.refresh_run(G.shell, G.app)
+        G.shell = rr.shell
+        G.app = rr.app
         return true
     end if
     G.last_action = r.action
@@ -589,6 +636,58 @@ function stu2e_step()
     return false
 end function
 
+' ---- STU-5A′ display tier --------------------------------------------------
+'
+' Moving the caret is not a click, so nothing the other tiers do would notice a
+' disconnected cursor handler. `set_cursor` moves the real caret and GTK emits
+' the real "notify::cursor-position", so the strip and the results pane here are
+' being driven by the signal and not by the test.
+function stu2f_step()
+    G.phase = G.phase + 1
+    if G.phase = 1 then
+        print "caret at the top"
+        print "  " + G.shell.bar.section.label
+        print "moving the caret into the function"
+        G.shell.pages[0].editor.set_cursor(3, 2)
+        return true
+    end if
+    if G.phase = 2 then
+        print "  " + G.shell.bar.section.label
+        print "moving the caret to the last line"
+        G.shell.pages[0].editor.set_cursor(6, 0)
+        return true
+    end if
+    if G.phase = 3 then
+        print "  " + G.shell.bar.section.label
+        print "clicking Run Section there"
+        G.shell.bar.run.activate()
+        return true
+    end if
+    sess = studio_ui.exec_session(G.app)
+    settled = false
+    if sess != nothing then
+        if studio_session.is_active(sess) = false then
+            settled = true
+        end if
+    end if
+    if settled = false then
+        if G.phase < 40 then
+            return true
+        end if
+        print "run did not settle"
+    end if
+    print "  " + G.shell.bar.state.label
+    print "results pane, caret still on the section that ran:"
+    print G.shell.rpane.body.label
+    print "moving the caret back to the first section"
+    G.shell.pages[0].editor.set_cursor(0, 0)
+    print "  " + G.shell.bar.section.label
+    print "results pane, following the caret:"
+    print G.shell.rpane.body.label
+    G.app_ref.quit()
+    return false
+end function
+
 ' The cold-home path: an empty home renders "(no workspace open)", and New
 ' Project is the only thing that can move it. If this button does not work, a
 ' new user has no way into Studio at all.
@@ -637,6 +736,10 @@ function on_activate(gtkapp)
     if G.stu2e then
         print studio_ui.exec_summary(G.app)
         gi.timeout(200, stu2e_step)
+        return nothing
+    end if
+    if G.stu2f then
+        gi.timeout(200, stu2f_step)
         return nothing
     end if
     if G.smoke then
@@ -1099,6 +1202,7 @@ program main(args)
     G.stu2c = false
     G.stu2d = false
     G.stu2e = false
+    G.stu2f = false
     G.save_on_exit = false
     if mode = "gui" then
         G.save_on_exit = true
@@ -1155,6 +1259,20 @@ program main(args)
         ' enough — stu2e_step clicks Run with the caret wherever the editor has it,
         ' which is line 0. Section 1 it is: a run with no prefix is still a run,
         ' and the prefix pane saying so is part of what this checks.
+        G.app.clock_fixed = 1000
+    end if
+
+    ' STU-5A′: the caret drives the panes. Same fixture as stu2e_smoke, but
+    ' nothing is clicked until the caret has been moved twice.
+    if mode = "stu2f_smoke" then
+        G.stu2f = true
+        projdir = args[2]
+        G.app = studio.create_registered_workspace(G.app, "ws")
+        ws = G.app.model.workspace
+        ws = studio_model.add_project(ws, "Alpha", projdir)
+        G.app = studio.set_workspace(G.app, ws)
+        ro = studio.open_from_browser(G.app, "proj-1", projdir + "/runme.bas")
+        G.app = ro.app
         G.app.clock_fixed = 1000
     end if
 

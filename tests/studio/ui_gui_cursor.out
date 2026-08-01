@@ -1,0 +1,19 @@
+caret at the top
+  section: sec-1 statements
+moving the caret into the function
+  section: sec-2 function add
+moving the caret to the last line
+  section: sec-3 statements
+clicking Run Section there
+  run: finished [sec-3] — exit 0
+results pane, caret still on the section that ran:
+Results — sec-3  (1 run(s))
+latest: res-1  finished exit 0  at 1000  0s
+  output: <5
+>
+moving the caret back to the first section
+  section: sec-1 statements
+results pane, following the caret:
+Results — sec-1
+(no runs yet)
+app-exited
