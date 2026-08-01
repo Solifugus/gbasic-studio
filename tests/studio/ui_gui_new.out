@@ -1,0 +1,58 @@
+-- a cold home --
+nav rows=1
+  [info] (no workspace open)
+selected=
+tabs=0
+clicking New Project on a cold home
+action=created
+-- after New Project — an empty project, which is where STU-2B stopped --
+nav rows=2
+  [info] Workspace: workspace
+  [project] * Project 1
+selected=
+tabs=0
+clicking New File
+action=created
+-- after New File --
+nav rows=3
+  [info] Workspace: workspace
+  [project] * Project 1
+  [file]     untitled-1.bas
+selected=untitled-1.bas
+tabs=1
+  * doc-1 untitled-1.bas
+typing into it
+action=synced
+clicking Save
+action=saved
+-- after Save --
+nav rows=3
+  [info] Workspace: workspace
+  [project] * Project 1
+  [file]     untitled-1.bas
+selected=untitled-1.bas
+tabs=1
+  * doc-1 untitled-1.bas
+clicking New Folder
+action=created
+-- after New Folder --
+nav rows=4
+  [info] Workspace: workspace
+  [project] * Project 1
+  [dir]   > new-folder-1
+  [file]     untitled-1.bas
+selected=untitled-1.bas
+tabs=1
+  * doc-1 untitled-1.bas
+closing the window
+saved=settings,session,workspace:ws-1,registry
+app-exited
+-- reopening the home in a new process --
+nav rows=4
+  [info] Workspace: workspace
+  [project] * Project 1
+  [dir]   > new-folder-1
+  [file]     untitled-1.bas
+selected=untitled-1.bas
+tabs=1
+  * doc-1 untitled-1.bas

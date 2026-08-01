@@ -145,6 +145,22 @@ function on_new_project()
     return nothing
 end function
 
+function on_new_file()
+    r = studio_ui.new_file(G.app)
+    G.app = r.app
+    G.last_action = r.action
+    redraw()
+    return nothing
+end function
+
+function on_new_folder()
+    r = studio_ui.new_folder(G.app)
+    G.app = r.app
+    G.last_action = r.action
+    redraw()
+    return nothing
+end function
+
 function on_save()
     r = studio_ui.save_active(G.app)
     G.app = r.app
@@ -169,6 +185,8 @@ function wire_shell()
     gi.connect(sh.nav, "row-activated", on_nav_row_activated)
     gi.connect(sh.notebook, "switch-page", on_tab_switched)
     gi.connect(sh.new_btn, "clicked", on_new_project)
+    gi.connect(sh.file_btn, "clicked", on_new_file)
+    gi.connect(sh.folder_btn, "clicked", on_new_folder)
     gi.connect(sh.save_btn, "clicked", on_save)
     gi.connect(sh.refresh_btn, "clicked", on_refresh)
     return nothing
@@ -300,6 +318,57 @@ function stu2b_button_step()
     return false
 end function
 
+' ---- STU-2C display tier ---------------------------------------------------
+'
+' The whole complaint STU-2C answers, driven end to end through real signals:
+' start with nothing, and build a project, a file, its contents and a folder
+' using only the window. STU-2B stopped after the first of those — New Project
+' made an empty directory, an empty directory has no rows, and every other
+' control needs a row.
+'
+' It finishes by closing the window, because the GTK loop returning is what now
+' persists the session, and the harness reopens the same home afterwards.
+function stu2c_step()
+    G.phase = G.phase + 1
+    if G.phase = 1 then
+        print "clicking New Project on a cold home"
+        G.shell.new_btn.activate()
+        return true
+    end if
+    if G.phase = 2 then
+        print "action=" + G.last_action
+        state("after New Project — an empty project, which is where STU-2B stopped")
+        print "clicking New File"
+        G.shell.file_btn.activate()
+        return true
+    end if
+    if G.phase = 3 then
+        print "action=" + G.last_action
+        state("after New File")
+        ' The new file opened into a tab, so it can be typed into immediately.
+        pg = G.shell.pages[0]
+        ed = pg.editor
+        print "typing into it"
+        ed.set_text("print \"made entirely from the window\"\n")
+        print "action=" + G.last_action
+        print "clicking Save"
+        G.shell.save_btn.activate()
+        return true
+    end if
+    if G.phase = 4 then
+        print "action=" + G.last_action
+        state("after Save")
+        print "clicking New Folder"
+        G.shell.folder_btn.activate()
+        return true
+    end if
+    print "action=" + G.last_action
+    state("after New Folder")
+    print "closing the window"
+    G.app_ref.quit()
+    return false
+end function
+
 ' The cold-home path: an empty home renders "(no workspace open)", and New
 ' Project is the only thing that can move it. If this button does not work, a
 ' new user has no way into Studio at all.
@@ -333,6 +402,11 @@ function on_activate(gtkapp)
     if G.stu2b_cold then
         state("a cold home")
         gi.timeout(400, stu2b_cold_step)
+        return nothing
+    end if
+    if G.stu2c then
+        state("a cold home")
+        gi.timeout(400, stu2c_step)
         return nothing
     end if
     if G.smoke then
@@ -783,6 +857,15 @@ program main(args)
     G.stu2b = false
     G.stu2b_cold = false
     G.phase = 0
+    ' STU-2C: closing the window saves the session. Only the modes that mean to
+    ' write a home do it — the smoke tiers assert their own output and must not
+    ' grow a "saved=" line each.
+    G.stu2c = false
+    G.save_on_exit = false
+    if mode = "gui" then
+        G.save_on_exit = true
+    end if
+
 
     ' STU-2B display tier: a fixture workspace over a real project directory, then
     ' a sweep of synthesised clicks (see run_stu2b_probe).
@@ -798,6 +881,13 @@ program main(args)
     ' STU-2B cold home: nothing at all, and New Project as the only way in.
     if mode = "stu2b_cold" then
         G.stu2b_cold = true
+    end if
+
+    ' STU-2C: cold home to a working project using only the window, then close it
+    ' and let the exit path write the home the harness reopens.
+    if mode = "stu2c_smoke" then
+        G.stu2c = true
+        G.save_on_exit = true
     end if
 
     if mode = "smoke" then
@@ -881,9 +971,45 @@ program main(args)
     load studio_shell
     gi.require("Gtk", "4.0")
 
+    ' STU-2C: an existing directory can be opened as a project from the command
+    ' line — `./studio gui <home> <folder>`. There is no button for it, because a
+    ' folder chooser is an async GTK dialog with no signal a test can synthesise,
+    ' and smuggling one in as a handler callback is exactly the design failure the
+    ' interaction rule forbids. The DECISION is a plain function either way, so
+    ' the phase that adds a dialog only has to add the adapter in front of it.
+    if mode = "gui" then
+        if count(args) > 2 then
+            folder = args[2]
+            if folder != "" then
+                ad = studio_ui.adopt_folder(G.app, folder)
+                G.app = ad.app
+                if ad.action = "missing" then
+                    print to error "no such directory: " + folder
+                end if
+            end if
+        end if
+    end if
+
     gtkapp = gtk.application("org.gbasic.Studio")
     G.app_ref = gtkapp
     gi.connect(gtkapp, "activate", on_activate)
     gi.call(gtkapp, "run", 0, nothing)
+
+    ' STU-2C: the loop has returned, so the window is gone — save the session.
+    ' STU-2B left this out and nothing a user did in the GUI survived closing it:
+    ' the restore path existed and was tested, but was never called from here.
+    '
+    ' What is saved is the workspace, session and settings — which projects and
+    ' documents were open, not what was typed into them. Studio has no draft
+    ' store, so unsaved buffers are lost, and saying so is better than letting
+    ' them vanish quietly.
+    if G.save_on_exit then
+        unsaved = studio_ui.dirty_count(G.app)
+        if unsaved > 0 then
+            print to error "warning: " + unsaved + " document(s) had unsaved changes; Studio does not keep drafts"
+        end if
+        saved = studio.persist(G.app)
+        print "saved=" + join(saved, ",")
+    end if
     print "app-exited"
 end program

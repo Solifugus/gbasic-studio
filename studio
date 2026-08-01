@@ -7,11 +7,16 @@
 #
 #   GBASIC=/usr/local/bin/gbasic GBASIC_STDLIB=/usr/local/share/gbasic/stdlib ./studio
 #
-# Usage:  ./studio [mode] [home]
-#   mode  defaults to `gui` (opens a window; needs GTK 4 and a display)
-#   home  where Studio keeps its workspace, session and settings
-#         (defaults to ~/.gbasic-studio, created on first run)
+# Usage:  ./studio [mode] [home] [folder]
+#   mode    defaults to `gui` (opens a window; needs GTK 4 and a display)
+#   home    where Studio keeps its workspace, session and settings
+#           (defaults to ~/.gbasic-studio, created on first run)
+#   folder  gui mode only: an existing directory to open as a project, e.g.
+#             ./studio gui ~/.gbasic-studio ~/development/myproject
 set -u
+# Remembered before the cd, because a folder argument the user typed is relative
+# to where THEY are, not to where Studio lives.
+orig_pwd="$PWD"
 cd "$(dirname "$0")"
 
 GBASIC="${GBASIC:-../gbasic/gbasic}"
@@ -30,7 +35,18 @@ fi
 
 mode="${1:-gui}"
 home="${2:-$HOME/.gbasic-studio}"
+folder="${3:-}"
+case "$folder" in
+    ""|/*) ;;
+    *) folder="$orig_pwd/$folder" ;;
+esac
 
 export GBASIC
 export GBASIC_PATH="lib:$GBASIC_STDLIB"
+# Only pass a third argument when there is one: several modes read args[2] as
+# their own parameter, and handing them an empty string is not the same as
+# handing them nothing.
+if [ -n "$folder" ]; then
+    exec "$GBASIC" app/studio.bas "$mode" "$home" "$folder"
+fi
 exec "$GBASIC" app/studio.bas "$mode" "$home"

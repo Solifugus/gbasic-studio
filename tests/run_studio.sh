@@ -664,7 +664,8 @@ run_ui() { # mode
     fi
 }
 
-for m in rows open expand project bounds tabs edit save newproj refresh; do
+for m in rows open expand project bounds tabs edit save newproj refresh \
+         newfile newfolder adopt exit; do
     run_ui "$m"
 done
 
@@ -673,7 +674,7 @@ done
 if command -v valgrind >/dev/null 2>&1; then
     vg_log="$(mktemp)"
     ui_ok=1
-    for m in open expand tabs edit refresh; do
+    for m in open expand tabs edit refresh newfile newfolder adopt; do
         ui_home="$tmproot/ui_vg_$m"; ui_proj="$tmproot/ui_vg_${m}_proj"
         rm -rf "$ui_home" "$ui_proj"; mkdir -p "$ui_home"; mkproj_ui "$ui_proj"
         : >"$stdout_file"
@@ -685,7 +686,7 @@ if command -v valgrind >/dev/null 2>&1; then
         fi
     done
     rm -f "$vg_log"
-    [ "$ui_ok" -eq 1 ] && printf 'PASS ui_memory (valgrind clean: open/expand/tabs/edit/refresh)\n'
+    [ "$ui_ok" -eq 1 ] && printf 'PASS ui_memory (valgrind clean: open/expand/tabs/edit/refresh/newfile/newfolder/adopt)\n'
 else
     printf 'SKIP ui_memory (valgrind not installed)\n'
 fi
@@ -736,9 +737,38 @@ if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
             cat "$stdout_file"; fail "ui_gui_cold (nonzero exit)"
         fi
     fi
+
+    # STU-2C, the whole complaint end to end: from an empty home, build a
+    # project, a file, its contents and a folder using nothing but the window,
+    # then CLOSE it — and reopen the same home in a second process to prove that
+    # closing saved it. The reopen is a separate interpreter run on purpose: a
+    # process asserting its own in-memory state cannot show anything reached disk.
+    c2_home="$tmproot/ui_gui_new"
+    mkdir -p "$c2_home"
+    : >"$stdout_file"
+    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
+            "$GBASIC" "$APP" stu2c_smoke "$c2_home" \
+            >"$stdout_file" 2>/dev/null; then
+        printf -- '-- reopening the home in a new process --\n' >>"$stdout_file"
+        if ! timeout 60 "$GBASIC" "$UI" show "$c2_home" >>"$stdout_file" 2>&1; then
+            cat "$stdout_file"; fail "ui_gui_new (reopen exited nonzero)"
+        fi
+        if diff -u tests/studio/ui_gui_new.out "$stdout_file"; then
+            printf 'PASS ui_gui_new (cold home to a saved project, all from the window)\n'
+        else
+            fail "ui_gui_new (output diff)"
+        fi
+    else
+        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
+            printf 'SKIP ui_gui_new (GTK 4 typelib not available)\n'
+        else
+            cat "$stdout_file"; fail "ui_gui_new (nonzero exit)"
+        fi
+    fi
 else
     printf 'SKIP ui_gui (no display)\n'
     printf 'SKIP ui_gui_cold (no display)\n'
+    printf 'SKIP ui_gui_new (no display)\n'
 fi
 
 printf 'run_studio: all cases passed\n'

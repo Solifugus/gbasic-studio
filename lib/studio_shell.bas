@@ -229,9 +229,13 @@ library studio_shell
         header = gtk.box("h", 6)
         header.append(gtk.label("gBASIC Studio"))
         new_btn = gtk.button("New Project")
+        file_btn = gtk.button("New File")
+        folder_btn = gtk.button("New Folder")
         save_btn = gtk.button("Save")
         refresh_btn = gtk.button("Refresh")
         header.append(new_btn)
+        header.append(file_btn)
+        header.append(folder_btn)
         header.append(save_btn)
         header.append(refresh_btn)
         outer.append(header)
@@ -266,7 +270,8 @@ library studio_shell
         ' ("GtkGizmo (slider) reported min width -2"). The caller presents after
         ' the first refresh — see `present` below.
         return { window: win, status: status, nav: nav, notebook: book,
-                 new_btn: new_btn, save_btn: save_btn, refresh_btn: refresh_btn,
+                 new_btn: new_btn, file_btn: file_btn, folder_btn: folder_btn,
+                 save_btn: save_btn, refresh_btn: refresh_btn,
                  rows: [], pages: [], welcome: false }
     end function
 
