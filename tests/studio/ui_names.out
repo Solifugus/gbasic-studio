@@ -1,0 +1,33 @@
+empty     -> empty
+hello.bas -> []
+a/b.bas   -> separator
+..        -> dots
+.         -> dots
+  spaces  -> empty
+-> New File named notes.bas: created notes.bas doc-1
+nav rows=7
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+  [file]     notes.bas
+selected=notes.bas
+tabs=1
+  * doc-1 notes.bas
+-> New File named notes.bas again: exists notes.bas
+-> New File named a/b.bas: invalid separator
+-> New Folder named vendor: created vendor
+nav rows=8
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [dir]   > vendor
+  [file]     README.md
+  [file]     main.bas
+  [file]     notes.bas
+selected=notes.bas
+tabs=1
+  * doc-1 notes.bas

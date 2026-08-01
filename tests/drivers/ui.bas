@@ -321,12 +321,12 @@ program main(args)
     banner("before")
     show(app)
 
-    r = studio_ui.new_file(app)
+    r = studio_ui.new_file(app, "")
     app = act("New File", r)
     banner("created at the project root, selected, and already open to type in")
     show(app)
 
-    r = studio_ui.new_file(app)
+    r = studio_ui.new_file(app, "")
     app = act("New File again — the name does not collide", r)
     show(app)
 
@@ -335,7 +335,7 @@ program main(args)
     rows = studio_ui.nav_rows(app)
     r = studio_ui.activate_row(app, rows, row_index(rows, "dir", "src"))
     app = act("activate src", r)
-    r = studio_ui.new_file(app)
+    r = studio_ui.new_file(app, "")
     app = act("New File", r)
     banner("inside src, which the creation expanded so the row is visible")
     show(app)
@@ -344,34 +344,34 @@ program main(args)
     rows = studio_ui.nav_rows(app)
     r = studio_ui.activate_row(app, rows, row_index(rows, "file", "a.bas"))
     app = act("activate src/a.bas", r)
-    r = studio_ui.new_file(app)
+    r = studio_ui.new_file(app, "")
     app = act("New File with a file selected", r)
     show(app)
 
     ' With nothing open there is nowhere to create, and saying so beats writing
     ' a file into whatever directory happened to be current.
     cold = studio.launch(home + "/cold")
-    rc = studio_ui.new_file(cold)
+    rc = studio_ui.new_file(cold, "")
     print "-> New File with no workspace: " + rc.action
   end if
 
   ' ---- newfolder -----------------------------------------------------------
   if mode = "newfolder" then
-    r = studio_ui.new_folder(app)
+    r = studio_ui.new_folder(app, "")
     app = act("New Folder", r)
     banner("a sibling of the project's own files, and the selection has not moved")
     show(app)
 
     ' Because the selection did not move, a second click makes a SIBLING. A new
     ' folder that stole the selection would nest each click inside the last.
-    r = studio_ui.new_folder(app)
+    r = studio_ui.new_folder(app, "")
     app = act("New Folder again", r)
     show(app)
 
     rows = studio_ui.nav_rows(app)
     r = studio_ui.activate_row(app, rows, row_index(rows, "dir", "new-folder-1"))
     app = act("activate new-folder-1", r)
-    r = studio_ui.new_file(app)
+    r = studio_ui.new_file(app, "")
     app = act("New File", r)
     banner("clicking the folder first is what puts the file inside it")
     show(app)
@@ -409,6 +409,191 @@ program main(args)
     app = act("Open Folder on an empty path", r)
     banner("untouched by all three")
     show(app)
+  end if
+
+  ' ---- names: the header's name field feeding creation ---------------------
+  if mode = "names" then
+    print "empty     -> " + studio_ui.name_problem("")
+    print "hello.bas -> [" + studio_ui.name_problem("hello.bas") + "]"
+    print "a/b.bas   -> " + studio_ui.name_problem("a/b.bas")
+    print "..        -> " + studio_ui.name_problem("..")
+    print ".         -> " + studio_ui.name_problem(".")
+    print "  spaces  -> " + studio_ui.name_problem("  ")
+
+    r = studio_ui.new_file(app, "notes.bas")
+    app = act("New File named notes.bas", r)
+    show(app)
+
+    ' A name already on disk is refused rather than truncating what is there.
+    r = studio_ui.new_file(app, "notes.bas")
+    app = act("New File named notes.bas again", r)
+    r = studio_ui.new_file(app, "a/b.bas")
+    app = act("New File named a/b.bas", r)
+    r = studio_ui.new_folder(app, "vendor")
+    app = act("New Folder named vendor", r)
+    show(app)
+  end if
+
+  ' ---- rename --------------------------------------------------------------
+  if mode = "rename" then
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "main.bas"))
+    app = act("activate main.bas", r)
+
+    r = studio_ui.rename_selected(app, "")
+    app = act("Rename to nothing", r)
+    r = studio_ui.rename_selected(app, "sub/dir.bas")
+    app = act("Rename with a separator in it", r)
+    r = studio_ui.rename_selected(app, "README.md")
+    app = act("Rename onto a name already taken", r)
+    r = studio_ui.rename_selected(app, "main.bas")
+    app = act("Rename to what it is already called", r)
+    banner("nothing moved")
+    show(app)
+
+    r = studio_ui.rename_selected(app, "entry.bas")
+    app = act("Rename to entry.bas", r)
+    banner("the row, the selection AND the open tab follow it")
+    show(app)
+
+    ' An unsaved buffer is refused: renaming means closing and reopening the
+    ' document, and that would throw the edits away.
+    d = studio_docs.active_doc(app.dm)
+    app = studio.edit_document(app, d.id, "half-typed\n")
+    r = studio_ui.rename_selected(app, "renamed-while-dirty.bas")
+    app = act("Rename an unsaved document", r)
+    show(app)
+
+    ' A directory renames too, and the expansion state comes with it.
+    sv = studio_ui.save_active(app)
+    app = sv.app
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "dir", "src"))
+    app = act("activate src (expanding it)", r)
+    r = studio_ui.rename_selected(app, "source")
+    app = act("Rename src to source", r)
+    banner("still expanded, under its new name")
+    show(app)
+
+    ' ...unless something inside it is open, which a rename would strand.
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "a.bas"))
+    app = r.app
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "dir", "source"))
+    app = r.app
+    r = studio_ui.rename_selected(app, "src")
+    app = act("Rename a directory with an open document inside it", r)
+
+    r = studio_ui.rename_selected(app, "docs")
+    app = act("Rename onto a directory that exists", r)
+  end if
+
+  ' ---- delete: two clicks, never one --------------------------------------
+  if mode = "delete" then
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "README.md"))
+    app = r.app
+
+    armed = ""
+    r = studio_ui.delete_selected(app, armed)
+    app = act("Delete (first click)", r)
+    armed = r.armed
+    print "armed=" + studio_ui._leaf(armed)
+    banner("nothing is gone yet")
+    show(app)
+
+    r = studio_ui.delete_selected(app, armed)
+    app = act("Delete (second click)", r)
+    armed = r.armed
+    print "armed=[" + studio_ui._leaf(armed) + "]"
+    banner("gone, and its tab with it")
+    show(app)
+
+    ' Arming is keyed to the path, so moving the selection between the two
+    ' clicks re-arms on the new row instead of deleting it.
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "main.bas"))
+    app = r.app
+    r = studio_ui.delete_selected(app, armed)
+    app = act("Delete main.bas (first click)", r)
+    armed = r.armed
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "dir", "docs"))
+    app = r.app
+    r = studio_ui.delete_selected(app, armed)
+    app = act("Delete after clicking a different row", r)
+    armed = r.armed
+    banner("main.bas is still here")
+    show(app)
+
+    ' A directory with anything in it is refused: recursive deletion needs a real
+    ' confirmation, not a second click on the same button.
+    r = studio_ui.delete_selected(app, armed)
+    app = act("Delete docs (confirmed)", r)
+    armed = r.armed
+
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "dir", "docs"))
+    app = r.app
+    e(file) = projdir + "/docs/guide.md"
+    delete(e)
+    r = studio_ui.delete_selected(app, "")
+    app = act("Delete the now-empty docs (first click)", r)
+    r = studio_ui.delete_selected(app, r.armed)
+    app = act("Delete the now-empty docs (second click)", r)
+    show(app)
+  end if
+
+  ' ---- closetab ------------------------------------------------------------
+  if mode = "closetab" then
+    r = studio_ui.close_active(app, "")
+    app = act("Close with nothing open", r)
+
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "main.bas"))
+    app = r.app
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "README.md"))
+    app = r.app
+    banner("two tabs")
+    show(app)
+
+    r = studio_ui.close_active(app, "")
+    app = act("Close a clean tab", r)
+    banner("closed on the first click, because nothing was at stake")
+    show(app)
+
+    d = studio_docs.active_doc(app.dm)
+    app = studio.edit_document(app, d.id, "typed and not saved\n")
+    r = studio_ui.close_active(app, "")
+    app = act("Close an unsaved tab (first click)", r)
+    armed = r.armed
+    banner("still open")
+    show(app)
+
+    r = studio_ui.close_active(app, armed)
+    app = act("Close an unsaved tab (second click)", r)
+    banner("discarded")
+    show(app)
+  end if
+
+  ' ---- notice: what the status bar says about each outcome -----------------
+  ' Every action the shell can produce has to say something, or a refusal looks
+  ' exactly like a button that is not wired.
+  if mode = "notice" then
+    ' An array literal may span lines; `+` on two arrays raises, so this is one
+    ' literal rather than a few concatenated groups.
+    actions = ["open", "expand", "collapse", "project", "none", "out-of-range",
+               "created", "renamed", "deleted", "closed", "saved", "error",
+               "armed", "armed-close", "invalid", "exists", "unchanged",
+               "missing", "not-empty", "dirty", "in-use", "adopted",
+               "activated", "refreshed", "select", "synced", "unknown"]
+    for each a in actions
+      print a + " | " + studio_ui.action_notice(a, "thing.bas")
+    end for
+    print "arm kinds: " + studio_ui.arm_kind("armed") + " " + studio_ui.arm_kind("armed-close") + " [" + studio_ui.arm_kind("open") + "]"
+    print "clears the name field: " + studio_ui.clears_name("created") + " " + studio_ui.clears_name("renamed") + " " + studio_ui.clears_name("open")
   end if
 
   ' ---- exit: what gui mode now does when the window closes -----------------

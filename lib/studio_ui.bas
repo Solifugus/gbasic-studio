@@ -385,6 +385,27 @@ library studio_ui
         return parent
     end function
 
+    ' Why a name is unusable, or "" when it is fine. Names arrive from the
+    ' header's name field, so this is the only guard between a user's typing and
+    ' `move`/`write` — "a/b" would relocate rather than rename, and ".."/"."
+    ' would target the parent or the directory itself.
+    function name_problem(name)
+        if trim(name) = "" then
+            return "empty"
+        end if
+        hit = find(name, "/")
+        if hit != nothing then
+            return "separator"
+        end if
+        if name = "." then
+            return "dots"
+        end if
+        if name = ".." then
+            return "dots"
+        end if
+        return ""
+    end function
+
     ' The first "untitled-N.bas" that does not already exist in `dir`. Minting a
     ' name that is free rather than one that is next means a New File can never
     ' silently truncate a file the user made outside Studio.
@@ -394,6 +415,30 @@ library studio_ui
 
     function next_folder_name(dir)
         return studio_ui._free_name(dir, "new-folder-", "")
+    end function
+
+    ' Resolve "what should this be called" once for both creators: a typed name
+    ' is validated and must not already exist; an empty one is minted, and a
+    ' minted name is free by construction. Returns { name, action, detail } where
+    ' a non-empty `action` means refuse and report it.
+    function _chosen_name(dir, name, kind)
+        if trim(name) = "" then
+            if kind = "folder" then
+                return { name: studio_ui.next_folder_name(dir), action: "", detail: "" }
+            end if
+            return { name: studio_ui.next_untitled(dir), action: "", detail: "" }
+        end if
+        wanted = trim(name)
+        problem = studio_ui.name_problem(wanted)
+        if problem != "" then
+            return { name: "", action: "invalid", detail: problem }
+        end if
+        probe(file) = dir + "/" + wanted
+        taken = exists(probe)
+        if taken then
+            return { name: "", action: "exists", detail: dir + "/" + wanted }
+        end if
+        return { name: wanted, action: "", detail: "" }
     end function
 
     function _free_name(dir, prefix, suffix)
@@ -412,10 +457,13 @@ library studio_ui
     end function
 
     ' "New File": create an empty file in the target directory, make it visible,
-    ' select it, and open it into a tab so the user can type immediately. Returns
-    ' { app, action, detail } with action "created" | "none" (nothing open) and
-    ' detail "<path> <doc-id>".
-    function new_file(app)
+    ' select it, and open it into a tab so the user can type immediately.
+    '
+    ' `name` is whatever the header's name field held. Empty means "mint one", so
+    ' the button still works with the field untouched — which is how STU-2C left
+    ' it and what a first-time click does. Returns { app, action, detail } with
+    ' action "created" | "none" (nothing open) | "invalid" | "exists".
+    function new_file(app, name)
         ws = app.model.workspace
         if ws = nothing then
             return { app: app, action: "none", detail: "" }
@@ -425,7 +473,11 @@ library studio_ui
             return { app: app, action: "none", detail: "" }
         end if
         dir = studio_ui.target_dir(app)
-        path = dir + "/" + studio_ui.next_untitled(dir)
+        chosen = studio_ui._chosen_name(dir, name, "file")
+        if chosen.action != "" then
+            return { app: app, action: chosen.action, detail: chosen.detail }
+        end if
+        path = dir + "/" + chosen.name
         persist.write_text_atomic(path, "")
         ' A file created inside a collapsed directory would exist and not be on
         ' screen, which reads as the button having done nothing.
@@ -445,7 +497,7 @@ library studio_ui
     ' would create a folder inside the first and a third inside the second, which
     ' is not what "New Folder" twice means anywhere else. Clicking the folder is
     ' how you go into it — the same gesture as every other file browser.
-    function new_folder(app)
+    function new_folder(app, name)
         ws = app.model.workspace
         if ws = nothing then
             return { app: app, action: "none", detail: "" }
@@ -455,13 +507,350 @@ library studio_ui
             return { app: app, action: "none", detail: "" }
         end if
         dir = studio_ui.target_dir(app)
-        path = dir + "/" + studio_ui.next_folder_name(dir)
+        chosen = studio_ui._chosen_name(dir, name, "folder")
+        if chosen.action != "" then
+            return { app: app, action: chosen.action, detail: chosen.detail }
+        end if
+        path = dir + "/" + chosen.name
         persist.ensure_dir(path)
         if dir != proj.path then
             ws = studio_model.expand_path(ws, dir)
         end if
         app = studio.set_workspace(app, ws)
         return { app: app, action: "created", detail: path }
+    end function
+
+    ' ---- rename (STU-2D) -----------------------------------------------------
+
+    ' Rename whatever the browser has selected to `name` (a bare name, not a
+    ' path). Returns { app, action, detail }, action one of:
+    '   "renamed"   — moved; the selection, the expansion set and any open tab
+    '                 followed it
+    '   "none"      — nothing selected
+    '   "invalid"   — the name is empty, has a separator, or is "."/".."
+    '   "missing"   — the selected path is no longer there
+    '   "exists"    — something already has that name here
+    '   "unchanged" — it is already called that
+    '   "dirty"     — the file is open with unsaved text (see below)
+    '   "in-use"    — a directory with an open document somewhere inside it
+    '
+    ' The two refusals are about documents, not files. A document is bound to its
+    ' path, so renaming one means closing and reopening it, and doing that to a
+    ' buffer with unsaved text would throw the text away — a rename must not be a
+    ' way to lose work. The directory case is the same hazard one level up.
+    function rename_selected(app, name)
+        ws = app.model.workspace
+        if ws = nothing then
+            return { app: app, action: "none", detail: "" }
+        end if
+        sel = ws.nav.selected_path
+        if sel = "" then
+            return { app: app, action: "none", detail: "" }
+        end if
+        problem = studio_ui.name_problem(name)
+        if problem != "" then
+            return { app: app, action: "invalid", detail: problem }
+        end if
+        wanted = trim(name)
+        src(file) = sel
+        there = exists(src)
+        if there = false then
+            return { app: app, action: "missing", detail: sel }
+        end if
+        parent = studio_docs._dirname(sel)
+        dest = parent + "/" + wanted
+        if dest = sel then
+            return { app: app, action: "unchanged", detail: sel }
+        end if
+        dst(file) = dest
+        taken = exists(dst)
+        if taken then
+            return { app: app, action: "exists", detail: dest }
+        end if
+
+        isdir = studio_docs._is_dir(sel)
+        if isdir then
+            for each d in app.dm.docs
+                inside = studio_ui._under(d.path, sel)
+                if inside then
+                    return { app: app, action: "in-use", detail: d.id }
+                end if
+            end for
+        end if
+        doc = studio_ui._doc_by_path(app.dm, sel)
+        if doc != nothing then
+            dirty = studio_docs.is_dirty(doc)
+            if dirty then
+                return { app: app, action: "dirty", detail: doc.id }
+            end if
+        end if
+
+        move(src, dest)
+
+        ' The expansion set holds absolute paths, so a renamed directory takes
+        ' its whole subtree's expansion state with it or the tree silently
+        ' collapses under the new name.
+        ws = studio_ui._remap_expanded(ws, sel, dest)
+        ws = studio_model.set_selected_path(ws, dest)
+        app = studio.set_workspace(app, ws)
+
+        if doc != nothing then
+            was_active = doc.id = app.dm.active
+            c = studio.close_document(app, doc.id, "discard")
+            app = c.app
+            proj = studio_model.project_by_id(ws, ws.active_project)
+            pid = ""
+            if proj != nothing then
+                pid = proj.id
+            end if
+            opened = studio.open_from_browser(app, pid, dest)
+            app = opened.app
+            if was_active then
+                app = studio.set_active_document(app, opened.id)
+            end if
+        end if
+        return { app: app, action: "renamed", detail: sel + " " + dest }
+    end function
+
+    ' Every expanded path at or under `old_path`, rewritten to sit under
+    ' `new_path` — or dropped entirely when `new_path` is "" (a deletion).
+    ' (`to` and `from` are reserved words in gBASIC, hence the longer names.)
+    function _remap_expanded(ws, old_path, new_path)
+        nav = ws.nav
+        moved = []
+        for each p in nav.expanded
+            keep = p
+            if p = old_path then
+                keep = new_path
+            else
+                under = studio_ui._under(p, old_path)
+                if under then
+                    if new_path = "" then
+                        keep = ""
+                    else
+                        keep = new_path + mid(p, len(old_path), len(p) - len(old_path))
+                    end if
+                end if
+            end if
+            if keep != "" then
+                moved = append(moved, keep)
+            end if
+        end for
+        nav.expanded = moved
+        ws.nav = nav
+        return ws
+    end function
+
+    ' Is `path` inside directory `dir`? A prefix match alone would call
+    ' "/a/srcery" a child of "/a/src", so the separator has to be part of it.
+    function _under(path, dir)
+        pre = dir + "/"
+        if len(path) <= len(pre) then
+            return false
+        end if
+        return mid(path, 0, len(pre)) = pre
+    end function
+
+    function _doc_by_path(dm, path)
+        for each d in dm.docs
+            if d.path = path then
+                return d
+            end if
+        end for
+        return nothing
+    end function
+
+    ' ---- delete (STU-2D) -----------------------------------------------------
+
+    ' Delete the selected file or empty directory — but only on the SECOND click.
+    ' `armed` is the path a previous click armed; the caller stores whatever comes
+    ' back in `armed` and hands it in next time.
+    '
+    ' Arming is keyed to the path rather than to a flag, so clicking a different
+    ' row between the two presses re-arms on the new row instead of deleting it.
+    ' There is no confirmation dialog for the same reason there is no name dialog:
+    ' it would be an async surface no test can drive. Two clicks is a
+    ' confirmation the whole suite can press.
+    '
+    ' Returns { app, action, detail, armed }, action one of "armed" | "deleted" |
+    ' "none" | "missing" | "not-empty".
+    function delete_selected(app, armed)
+        ws = app.model.workspace
+        if ws = nothing then
+            return { app: app, action: "none", detail: "", armed: "" }
+        end if
+        sel = ws.nav.selected_path
+        if sel = "" then
+            return { app: app, action: "none", detail: "", armed: "" }
+        end if
+        if armed != sel then
+            return { app: app, action: "armed", detail: sel, armed: sel }
+        end if
+
+        ref(file) = sel
+        there = exists(ref)
+        if there = false then
+            ws = studio_model.set_selected_path(ws, "")
+            app = studio.set_workspace(app, ws)
+            return { app: app, action: "missing", detail: sel, armed: "" }
+        end if
+
+        isdir = studio_docs._is_dir(sel)
+        if isdir then
+            d(dir) = sel
+            if count(list(d)) > 0 then
+                ' Recursive deletion is a different promise from "delete this",
+                ' and it deserves a confirmation that names what goes with it.
+                return { app: app, action: "not-empty", detail: sel, armed: "" }
+            end if
+            remove_dir(sel)
+        else
+            doc = studio_ui._doc_by_path(app.dm, sel)
+            if doc != nothing then
+                ' The user confirmed the file; the buffer goes with it.
+                c = studio.close_document(app, doc.id, "discard")
+                app = c.app
+            end if
+            delete(ref)
+        end if
+
+        ws = app.model.workspace
+        ws = studio_ui._remap_expanded(ws, sel, "")
+        ws = studio_model.set_selected_path(ws, "")
+        app = studio.set_workspace(app, ws)
+        return { app: app, action: "deleted", detail: sel, armed: "" }
+    end function
+
+    ' ---- closing a tab (STU-2D) ---------------------------------------------
+
+    ' Close the active document. A clean one closes on the first click; an unsaved
+    ' one arms exactly like Delete, so discarding work always takes two presses.
+    ' Returns { app, action, detail, armed }, action "closed" | "armed-close" |
+    ' "none".
+    function close_active(app, armed)
+        doc = studio_docs.active_doc(app.dm)
+        if doc = nothing then
+            return { app: app, action: "none", detail: "", armed: "" }
+        end if
+        dirty = studio_docs.is_dirty(doc)
+        if dirty then
+            if armed != doc.id then
+                return { app: app, action: "armed-close", detail: doc.id, armed: doc.id }
+            end if
+        end if
+        c = studio.close_document(app, doc.id, "discard")
+        return { app: c.app, action: "closed", detail: doc.id, armed: "" }
+    end function
+
+    ' ---- what the window says back (STU-2D) ---------------------------------
+
+    ' The status-bar line for an outcome. Every action gets one: a refusal that
+    ' says nothing is indistinguishable from a button that is not wired, which is
+    ' precisely how STU-2B's window felt before it had any handlers at all.
+    ' Returns "" for the outcomes that are their own feedback — a row opening, a
+    ' tab switching, a keystroke landing — where a status line would just be
+    ' noise over something the user can already see.
+    function action_notice(action, detail)
+        leaf = studio_ui._leaf(detail)
+        if action = "created" then
+            ' "<path> <doc-id>" — the status line wants the file, not the id.
+            return "created " + studio_ui._token_leaf(detail, 0)
+        end if
+        if action = "renamed" then
+            ' "<from> <to>" — and what the user wants confirmed is the `to`.
+            return "renamed to " + studio_ui._token_leaf(detail, 1)
+        end if
+        if action = "deleted" then
+            return "deleted " + leaf
+        end if
+        if action = "closed" then
+            return "closed " + leaf
+        end if
+        if action = "saved" then
+            return "saved " + leaf
+        end if
+        if action = "error" then
+            return "could not save " + leaf
+        end if
+        if action = "armed" then
+            return "delete " + leaf + "? — click Delete again to confirm"
+        end if
+        if action = "armed-close" then
+            return leaf + " has unsaved changes — click Close again to discard them"
+        end if
+        if action = "invalid" then
+            return "that name will not do (" + detail + ")"
+        end if
+        if action = "exists" then
+            return leaf + " already exists"
+        end if
+        if action = "unchanged" then
+            return "already called " + leaf
+        end if
+        if action = "missing" then
+            return leaf + " is not there"
+        end if
+        if action = "not-empty" then
+            return leaf + " is not empty — empty it first"
+        end if
+        if action = "dirty" then
+            return "save " + leaf + " first"
+        end if
+        if action = "in-use" then
+            return "something inside it is open (" + leaf + ")"
+        end if
+        if action = "adopted" then
+            return "opened " + leaf
+        end if
+        if action = "activated" then
+            return "switched to " + leaf
+        end if
+        if action = "refreshed" then
+            return "refreshed"
+        end if
+        if action = "none" then
+            return "nothing selected"
+        end if
+        if action = "unknown" then
+            return ""
+        end if
+        return ""
+    end function
+
+    ' The last path segment of whitespace-token `i` of a detail, for the details
+    ' that carry two things.
+    function _token_leaf(detail, i)
+        parts = split(detail, " ")
+        if i >= count(parts) then
+            return studio_ui._leaf(detail)
+        end if
+        return studio_ui._leaf(parts[i])
+    end function
+
+    ' Which arm, if any, an outcome keeps alive. Anything else clears BOTH, so an
+    ' arm cannot survive an unrelated click and fire much later against a
+    ' selection the user has long since moved.
+    function arm_kind(action)
+        if action = "armed" then
+            return "path"
+        end if
+        if action = "armed-close" then
+            return "doc"
+        end if
+        return ""
+    end function
+
+    ' After these, the header's name field has been consumed and should empty —
+    ' otherwise the next click reuses the same name and is refused as "exists",
+    ' which reads as the button having broken.
+    function clears_name(action)
+        if action = "created" then
+            return true
+        end if
+        if action = "renamed" then
+            return true
+        end if
+        return false
     end function
 
     ' ---- opening an existing directory --------------------------------------

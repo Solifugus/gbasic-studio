@@ -1,0 +1,48 @@
+-> Close with nothing open: none
+== two tabs ==
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=README.md
+tabs=2
+    doc-1 main.bas
+  * doc-2 README.md
+-> Close a clean tab: closed doc-2
+== closed on the first click, because nothing was at stake ==
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=README.md
+tabs=1
+  * doc-1 main.bas
+-> Close an unsaved tab (first click): armed-close doc-1
+== still open ==
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=README.md
+tabs=1
+  * doc-1 * main.bas
+-> Close an unsaved tab (second click): closed doc-1
+== discarded ==
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=README.md
+tabs=0

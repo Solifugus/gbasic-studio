@@ -1,0 +1,29 @@
+open | 
+expand | 
+collapse | 
+project | 
+none | nothing selected
+out-of-range | 
+created | created thing.bas
+renamed | renamed to thing.bas
+deleted | deleted thing.bas
+closed | closed thing.bas
+saved | saved thing.bas
+error | could not save thing.bas
+armed | delete thing.bas? — click Delete again to confirm
+armed-close | thing.bas has unsaved changes — click Close again to discard them
+invalid | that name will not do (thing.bas)
+exists | thing.bas already exists
+unchanged | already called thing.bas
+missing | thing.bas is not there
+not-empty | thing.bas is not empty — empty it first
+dirty | save thing.bas first
+in-use | something inside it is open (thing.bas)
+adopted | opened thing.bas
+activated | switched to thing.bas
+refreshed | refreshed
+select | 
+synced | 
+unknown | 
+arm kinds: path doc []
+clears the name field: true true false

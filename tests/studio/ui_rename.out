@@ -1,0 +1,56 @@
+-> activate main.bas: open opened doc-1
+-> Rename to nothing: invalid empty
+-> Rename with a separator in it: invalid separator
+-> Rename onto a name already taken: exists README.md
+-> Rename to what it is already called: unchanged main.bas
+== nothing moved ==
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=main.bas
+tabs=1
+  * doc-1 main.bas
+-> Rename to entry.bas: renamed main.bas entry.bas
+== the row, the selection AND the open tab follow it ==
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     entry.bas
+selected=entry.bas
+tabs=1
+  * doc-2 entry.bas
+-> Rename an unsaved document: dirty doc-2
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     entry.bas
+selected=entry.bas
+tabs=1
+  * doc-2 * entry.bas
+-> activate src (expanding it): expand src
+-> Rename src to source: renamed src source
+== still expanded, under its new name ==
+nav rows=8
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   v source
+  [file]       a.bas
+  [file]       b.bas
+  [file]     README.md
+  [file]     entry.bas
+selected=source
+tabs=1
+  * doc-2 entry.bas
+-> Rename a directory with an open document inside it: in-use doc-3
+-> Rename onto a directory that exists: exists docs

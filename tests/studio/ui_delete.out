@@ -1,0 +1,48 @@
+-> Delete (first click): armed README.md
+armed=README.md
+== nothing is gone yet ==
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=README.md
+tabs=1
+  * doc-1 README.md
+-> Delete (second click): deleted README.md
+armed=[]
+== gone, and its tab with it ==
+nav rows=5
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     main.bas
+selected=
+tabs=0
+-> Delete main.bas (first click): armed main.bas
+-> Delete after clicking a different row: armed docs
+== main.bas is still here ==
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   v docs
+  [file]       guide.md
+  [dir]   > src
+  [file]     main.bas
+selected=docs
+tabs=1
+  * doc-2 main.bas
+-> Delete docs (confirmed): not-empty docs
+-> Delete the now-empty docs (first click): armed docs
+-> Delete the now-empty docs (second click): deleted docs
+nav rows=4
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > src
+  [file]     main.bas
+selected=
+tabs=1
+  * doc-2 main.bas
