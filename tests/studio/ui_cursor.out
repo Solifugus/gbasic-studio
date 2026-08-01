@@ -1,0 +1,31 @@
+== which section each caret position is in (editor 0-based lines) ==
+  line 0 -> sec-1   | section: sec-1 statements
+  line 1 -> sec-1   | section: sec-1 statements
+  line 2 -> sec-2   | section: sec-2 function add
+  line 3 -> sec-2   | section: sec-2 function add
+  line 4 -> sec-2   | section: sec-2 function add
+  line 5 -> sec-2   | section: sec-2 function add
+  line 6 -> sec-3   | section: sec-3 statements
+  line 7 -> sec-3   | section: sec-3 statements
+== nothing has run, so every section says so ==
+Results — sec-1
+(no runs yet)
+== run the LAST section, with the caret in it ==
+   exec: run: finished [sec-3] — exit 0
+== the caret has not moved, so the pane shows that section's result ==
+Results — sec-3  (1 run(s))
+latest: res-1  finished exit 0  at 1000  0s
+  output: <5
+>
+== move the caret up to the first section — the pane follows ==
+Results — sec-1
+(no runs yet)
+== edit the run section; its id survives but its fingerprint does not ==
+Results — sec-3  (1 run(s))
+latest: res-1  finished exit 0  at 1000  0s  [section edited since this run]
+  output: <5
+>
+== an empty document ==
+section: (none)
+Results
+(no section at the cursor)

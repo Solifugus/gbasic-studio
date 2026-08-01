@@ -607,13 +607,21 @@ program main(args)
     ' Pinning the clock is what lets a result's timestamps sit in a golden.
     app.clock_fixed = 1000
 
+    ' The caret is synced first because that is what the window does: Run READS
+    ' the caret, and the panes are keyed to it. A run without a caret there would
+    ' assert a state a user can never be in.
+    id = studio_docs.active_doc(app.dm).id
     print "-> Run with the cursor at the top (line 0)"
+    r = studio_ui.sync_cursor(app, id, 0, 0)
+    app = r.app
     r = studio_ui.run_section(app, 0, 0)
     app = r.app
     print "   action=" + r.action + " active=" + r.active
     app = drive(app)
 
     print "-> Run with the cursor in the last section"
+    r = studio_ui.sync_cursor(app, id, 6, 0)
+    app = r.app
     r = studio_ui.run_section(app, 6, 0)
     app = r.app
     print "   action=" + r.action + " active=" + r.active
@@ -627,9 +635,71 @@ program main(args)
     print studio_ui.results_body(app)
 
     ' A second run of the same section adds to the history rather than replacing it.
+    r = studio_ui.sync_cursor(app, id, 6, 0)
+    app = r.app
     r = studio_ui.run_section(app, 6, 0)
     app = r.app
     app = drive(app)
+    print studio_ui.results_body(app)
+  end if
+
+  ' ---- cursor: the panes follow the caret, not the last run ----------------
+  if mode = "cursor" then
+    cf(file) = projdir + "/three.bas"
+    write(cf, "print \"one\"\n\nfunction add(a, b)\n  return a + b\nend function\n\nprint add(2, 3)\n")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "three.bas"))
+    app = r.app
+    app.clock_fixed = 1000
+    id = studio_docs.active_doc(app.dm).id
+
+    banner("which section each caret position is in (editor 0-based lines)")
+    l = 0
+    while l < 8
+      r = studio_ui.sync_cursor(app, id, l, 0)
+      app = r.app
+      print "  line " + l + " -> " + r.detail + "   | " + studio_ui.section_label(app)
+      l = l + 1
+    end while
+
+    banner("nothing has run, so every section says so")
+    r = studio_ui.sync_cursor(app, id, 0, 0)
+    app = r.app
+    print studio_ui.results_body(app)
+
+    ' Put the caret where the run is going to happen, which is what pressing Run
+    ' in the window means — Run reads the caret and does not move it.
+    banner("run the LAST section, with the caret in it")
+    r = studio_ui.sync_cursor(app, id, 6, 0)
+    app = r.app
+    r = studio_ui.run_section(app, 6, 0)
+    app = r.app
+    app = drive(app)
+
+    banner("the caret has not moved, so the pane shows that section's result")
+    print studio_ui.results_body(app)
+
+    banner("move the caret up to the first section — the pane follows")
+    r = studio_ui.sync_cursor(app, id, 0, 0)
+    app = r.app
+    print studio_ui.results_body(app)
+
+    ' Editing the section a result describes must show up as a mark, and that
+    ' means the pane's section model has to be re-derived from the new text.
+    banner("edit the run section; its id survives but its fingerprint does not")
+    app = studio.edit_document(app, id, "print \"one\"\n\nfunction add(a, b)\n  return a + b\nend function\n\nprint add(2, 4)\n")
+    r = studio_ui.sync_cursor(app, id, 6, 0)
+    app = r.app
+    print studio_ui.results_body(app)
+
+    ' A caret in a document with nothing runnable in it at all.
+    banner("an empty document")
+    ef(file) = projdir + "/empty.bas"
+    write(ef, "")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "empty.bas"))
+    app = r.app
+    print studio_ui.section_label(app)
     print studio_ui.results_body(app)
   end if
 

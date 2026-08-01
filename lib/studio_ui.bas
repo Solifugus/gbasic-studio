@@ -226,6 +226,10 @@ library studio_ui
     '
     ' `buffers` is [ { doc_id, text } ]. Returns { app, action, detail } where
     ' detail names the documents whose dirty state actually moved.
+    ' `moved` tells the caller whether anything a full redraw would show actually
+    ' changed. Typing fires this on every keystroke, and a full redraw rebuilds
+    ' the browser pane — so the common case (text changed, dirty state did not)
+    ' must not cost one.
     function sync_buffers(app, buffers)
         moved = []
         for each b in buffers
@@ -246,7 +250,7 @@ library studio_ui
                 end if
             end if
         end for
-        return { app: app, action: "synced", detail: join(moved, ",") }
+        return { app: app, action: "synced", detail: join(moved, ","), moved: count(moved) > 0 }
     end function
 
     ' Save the active document. Returns { app, action, detail } with action
@@ -1007,10 +1011,18 @@ library studio_ui
     ' common place for a user to leave it. Refusing there would make Run look
     ' broken for the most ordinary click there is.
     '
-    ' So a position outside every section resolves to the NEAREST one: the first
-    ' if it is above them all, the last if below. Only a document with no sections
-    ' at all has no answer.
+    ' So a position outside every section resolves to the section it is at or
+    ' after — the blank line between two sections belongs to the one above it,
+    ' and a file's trailing blank line to the last section. Above them all, it is
+    ' the first. Only a document with no sections at all has no answer.
+    '
+    ' "The last section" as a blanket fallback was wrong and looked right: an
+    ' interior gap is far more common than a trailing one, and it would have sent
+    ' every blank line in the file to the bottom of it.
     function section_for(st, source, line1, column1)
+        if st = nothing then
+            return ""
+        end if
         off = studio_sections.offset_of(source, line1, column1)
         hit = studio_sections.section_at(st, off)
         if hit != nothing then
@@ -1018,15 +1030,27 @@ library studio_ui
                 return hit
             end if
         end if
-        n = count(st.sections)
-        if n = 0 then
-            return ""
+        best = ""
+        best_start = -1
+        for each s in st.sections
+            if s.status != "stale" then
+                if s.start_offset <= off then
+                    if s.start_offset >= best_start then
+                        best = s.id
+                        best_start = s.start_offset
+                    end if
+                end if
+            end if
+        end for
+        if best != "" then
+            return best
         end if
-        first = st.sections[0]
-        if off < first.start_offset then
-            return first.id
-        end if
-        return st.sections[n - 1].id
+        for each s in st.sections
+            if s.status != "stale" then
+                return s.id
+            end if
+        end for
+        return ""
     end function
 
     ' Start a run for the active document's section at (line0, column0).
@@ -1115,6 +1139,18 @@ library studio_ui
         ex.store = studio_results.add_result(home, ex.store, studio_session.to_result(ex.session, ex.secs))
         studio_results.save(home, ex.store)
         app.exec = ex
+        ' The panes read through app.view's cached store, and that store has just
+        ' gained a result. Handing over the one we already have in memory beats
+        ' re-reading the file we only just wrote.
+        v = app["view"]
+        if v != unknown then
+            if v != nothing then
+                if v.doc_path = ex.doc_path then
+                    v.store = ex.store
+                    app.view = v
+                end if
+            end if
+        end if
         return { app: app, action: "ran", detail: ex.sid + " " + ex.session.state, active: false }
     end function
 
@@ -1244,21 +1280,115 @@ library studio_ui
         return ex.session
     end function
 
-    ' The results pane's body: the history for the section that last ran, judged
-    ' against the sections as they were when it ran. Before anything has run there
-    ' is nothing to key it on, and saying so beats an empty box.
+    ' ---- what the panes are looking at (STU-5A′) ----------------------------
+    '
+    ' Until now the results pane followed the section that last RAN, which is
+    ' wrong in the ordinary case: you run something, read the result, move the
+    ' caret to the next section — and the pane still describes the previous one.
+    ' Section ids are stable across edits precisely so a pane can be keyed to
+    ' where you ARE, so that is what it is keyed to now.
+    '
+    ' The cost is that the panes need a section model for the active document
+    ' continuously, not just at Run. `app.view` is that, cached: re-deriving the
+    ' outline is not free, and the cursor moves on every keystroke.
+    '
+    '   app.view = { doc_id, src, st, doc_path, store }
+    '
+    ' Invalidated by content (a new outline) and by path (a different results
+    ' file) independently, because typing changes one and switching tabs the
+    ' other.
+    function view_for(app)
+        doc = studio_docs.active_doc(app.dm)
+        if doc = nothing then
+            return { app: app, st: nothing, sid: "", store: nothing }
+        end if
+        v = app["view"]
+        if v = unknown then
+            v = { doc_id: "", src: "", st: nothing, doc_path: "", store: nothing }
+        end if
+        if v = nothing then
+            v = { doc_id: "", src: "", st: nothing, doc_path: "", store: nothing }
+        end if
+        ' Both conditions, explicitly. Marking the cache stale by blanking `src`
+        ' silently fails for an EMPTY document, whose content is already "" — and
+        ' the pane then describes the file you were looking at before.
+        stale = false
+        if v.doc_id != doc.id then
+            stale = true
+        end if
+        if v.src != doc.content then
+            stale = true
+        end if
+        if v.st = nothing then
+            stale = true
+        end if
+        if stale then
+            st = studio_sections.create(doc.id)
+            v.st = studio_sections.refresh(st, doc.content)
+            v.src = doc.content
+            v.doc_id = doc.id
+        end if
+        if v.doc_path != doc.path then
+            v.store = studio_results.open(app.paths.home, doc.path)
+            v.doc_path = doc.path
+        end if
+        cur = doc.cursor
+        sid = studio_ui.section_for(v.st, doc.content, cur.line, cur.column)
+        app.view = v
+        return { app: app, st: v.st, sid: sid, store: v.store }
+    end function
+
+    ' Record where the caret is. The position arrives in the EDITOR's 0-based
+    ' units and is stored 1-based, which is what the section engine and the
+    ' persisted document both use — so this conversion happens once, here.
+    '
+    ' Storing it in the document is not incidental: the cursor is already part of
+    ' what a workspace saves, so following the caret also means a reopened file
+    ' comes back to the section you left it in.
+    function sync_cursor(app, doc_id, line0, column0)
+        doc = studio_docs.doc_by_id(app.dm, doc_id)
+        if doc = nothing then
+            return { app: app, action: "unknown", detail: doc_id }
+        end if
+        app.dm = studio_docs.set_cursor(app.dm, doc_id, line0 + 1, column0 + 1)
+        v = studio_ui.view_for(app)
+        return { app: v.app, action: "cursor", detail: v.sid }
+    end function
+
+    ' The section the caret is in, for the strip — so it is visible WHICH section
+    ' Run would run before you press it, rather than after.
+    function section_label(app)
+        v = studio_ui.view_for(app)
+        if v.sid = "" then
+            return "section: (none)"
+        end if
+        sec = studio_sections.section_by_id(v.st, v.sid)
+        if sec = nothing then
+            return "section: " + v.sid
+        end if
+        line = "section: " + v.sid + " " + sec.kind
+        ' A statements section has no name at all, and `nothing` renders as the
+        ' word "nothing" if it is concatenated.
+        if sec.name != nothing then
+            if sec.name != "" then
+                line = line + " " + sec.name
+            end if
+        end if
+        return line
+    end function
+
+    ' The results pane's body: the history for the section AT THE CURSOR, judged
+    ' against the sections as they are now — so a result recorded before an edit
+    ' is marked as describing text that has since changed.
     function results_body(app)
-        ex = app["exec"]
-        if ex = unknown then
-            return "Results\n(nothing has run yet)"
+        v = studio_ui.view_for(app)
+        if v.store = nothing then
+            return "Results\n(no document open)"
         end if
-        if ex = nothing then
-            return "Results\n(nothing has run yet)"
+        if v.sid = "" then
+            return "Results\n(no section at the cursor)"
         end if
-        if ex.store = nothing then
-            return "Results\n(no results store)"
-        end if
-        return studio_results.view_text(app.paths.home, ex.store, ex.secs, ex.sid)
+        return studio_results.view_text(app.paths.home, v.store, v.st, v.sid)
     end function
 
     ' A path-free, clock-free line for the headless goldens.
