@@ -16,8 +16,11 @@ Save / Refresh / New Project buttons all respond. STU-2C added New File and
 New Folder (a cold start now reaches a file you can type in), opening an existing
 directory from the command line, and saving the session when the window closes.
 STU-2D added the name field, Rename, Delete and Close — the last two behind a
-two-click confirmation — plus a status line that reports every outcome. The
-run/stop strip and everything STU-5 onward still do not respond; see README.
+two-click confirmation — plus a status line that reports every outcome. STU-2E
+mounted the run strip and the results pane that STU-4/STU-5A had built but
+nothing displayed: Run / Stop / Force Stop drive a real child interpreter and
+every finished run becomes a durable result. STU-5's gutter, inspector and
+cursor-following results pane still do not exist; see README.
 
 ## Build & run
 
@@ -43,7 +46,7 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 115 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 118 cases, headless; honours GBASIC / GBASIC_STDLIB
 ```
 
 Golden-file based: a driver plus a `.out` of expected stdout, compared
@@ -51,8 +54,8 @@ byte-for-byte, so update the `.out` when output changes *intentionally* and say
 so. The suite builds the sibling gBASIC first when `GBASIC` points into a source
 tree, so an interpreter change is what gets tested rather than a stale binary.
 Display tiers (`sections_gui`, `sessions_gui`, `results_gui`, `ui_gui`,
-`ui_gui_cold`, `ui_gui_new`, `ui_gui_name`, `ui_gui_solo`) SKIP cleanly without
-GTK 4 or a display.
+`ui_gui_cold`, `ui_gui_new`, `ui_gui_name`, `ui_gui_solo`, `ui_gui_run`) SKIP
+cleanly without GTK 4 or a display.
 `ui_gui_new` is the only case that spans two processes: the GUI builds a project
 from nothing and closes, and a second interpreter run reopens the same home —
 because a process asserting its own memory cannot show that anything reached
@@ -114,6 +117,20 @@ Two consequences worth knowing before you touch the shell:
 - Every outcome gets a status line via `studio_ui.action_notice`. A refusal that
   says nothing is indistinguishable from a dead button, which is how the whole
   window felt before STU-2B.
+- A run lives in `app.exec` — beside `app.dm`, live state the shutdown pipeline
+  does not write, because a half-finished child process is not something to
+  restore into. The section and the SOURCE are fixed when Run is pressed and kept
+  for the whole run: a result is a statement about the text that ran, not about
+  what has been typed since.
+- Polling calls `studio_shell.refresh_run`, not `refresh`. A full redraw rebuilds
+  the browser pane, and doing that sixteen times a second would fight the user
+  for their own file tree; only the FINAL tick does a full redraw, because that
+  is when the status line and the results pane change. `on_run_poll` returns the
+  `active` flag, so the timer removes itself the moment the run ends.
+- `studio_ui.run_line` / `prefix_text` / `target_text` live in studio_ui, not the
+  shell, so the headless suite can assert what a run reports. `studio_shell`
+  keeps the old names as delegates only because the STU-4/5A display goldens
+  print through them.
 - The GtkApplication is built with `NON_UNIQUE` flags in `app/studio.bas` rather
   than via `gtk.application`, which defaults to single-instance. Reverting that
   does not just stop a second window opening — the *running* instance gets an
