@@ -1,0 +1,16 @@
+dirty documents: 0
+dirty documents after typing: 1
+saved=settings,session,workspace:ws-1,registry
+== relaunching the same home ==
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=main.bas
+tabs=1
+  * doc-1 main.bas
+doc-1 content after restart=print "main"
+

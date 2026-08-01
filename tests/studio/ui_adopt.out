@@ -1,0 +1,43 @@
+== a cold home ==
+nav rows=1
+  [info] (no workspace open)
+selected=
+tabs=0
+-> Open Folder: adopted proj-1 ui_adopt_proj
+== the folder is a project now, named after itself, and browsable ==
+nav rows=6
+  [info] Workspace: workspace
+  [project] * ui_adopt_proj
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=
+tabs=0
+-> Open Folder on the folder already open: activated proj-1 ui_adopt_proj
+== activated rather than duplicated ==
+nav rows=6
+  [info] Workspace: workspace
+  [project] * ui_adopt_proj
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=
+tabs=0
+-> Open Folder, trailing slash: activated proj-1 ui_adopt_proj
+-> Open Folder, by way of a subdirectory: activated proj-1 ui_adopt_proj
+projects=1
+-> Open Folder on a path that is not there: missing nowhere
+-> Open Folder on a file: missing main.bas
+-> Open Folder on an empty path: none
+== untouched by all three ==
+nav rows=6
+  [info] Workspace: workspace
+  [project] * ui_adopt_proj
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=
+tabs=0

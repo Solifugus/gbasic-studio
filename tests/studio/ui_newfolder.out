@@ -1,0 +1,40 @@
+-> New Folder: created new-folder-1
+== a sibling of the project's own files, and the selection has not moved ==
+nav rows=7
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > new-folder-1
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=
+tabs=0
+-> New Folder again: created new-folder-2
+nav rows=8
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > new-folder-1
+  [dir]   > new-folder-2
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=
+tabs=0
+-> activate new-folder-1: expand new-folder-1
+-> New File: created untitled-1.bas doc-1
+== clicking the folder first is what puts the file inside it ==
+nav rows=9
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   v new-folder-1
+  [file]       untitled-1.bas
+  [dir]   > new-folder-2
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=untitled-1.bas
+tabs=1
+  * doc-1 untitled-1.bas

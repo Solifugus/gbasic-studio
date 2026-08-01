@@ -82,7 +82,19 @@ program main(args)
   end if
 
   ' ---- the standard fixture: one workspace, one project over projdir --------
-  if mode != "newproj" then
+  ' The cold-start modes build their own state, because what they are testing IS
+  ' what happens with no workspace open.
+  fixture = true
+  if mode = "newproj" then
+    fixture = false
+  end if
+  if mode = "adopt" then
+    fixture = false
+  end if
+  if mode = "show" then
+    fixture = false
+  end if
+  if fixture then
     app = studio.launch(home)
     app = studio.create_registered_workspace(app, "ws")
     ws = app.model.workspace
@@ -292,6 +304,136 @@ program main(args)
     r = studio_ui.new_project(app, home)
     app = act("New Project again", r)
     show(app)
+  end if
+
+  ' ---- show: open a home and print what is in it ---------------------------
+  ' Used by the display tier to reopen the home the GUI just closed, which is the
+  ' only way to prove from outside the process that closing the window saved it.
+  if mode = "show" then
+    app = studio.launch(home)
+    show(app)
+  end if
+
+  ' ---- newfile: STU-2C's reason for existing -------------------------------
+  ' New Project made an empty directory and there was no way to put anything in
+  ' it, so a cold start dead-ended after one click. This is the way out.
+  if mode = "newfile" then
+    banner("before")
+    show(app)
+
+    r = studio_ui.new_file(app)
+    app = act("New File", r)
+    banner("created at the project root, selected, and already open to type in")
+    show(app)
+
+    r = studio_ui.new_file(app)
+    app = act("New File again — the name does not collide", r)
+    show(app)
+
+    ' The target follows the browser selection, so clicking a directory first is
+    ' how you choose where the file goes.
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "dir", "src"))
+    app = act("activate src", r)
+    r = studio_ui.new_file(app)
+    app = act("New File", r)
+    banner("inside src, which the creation expanded so the row is visible")
+    show(app)
+
+    ' A FILE selection targets the directory holding it, not the file.
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "a.bas"))
+    app = act("activate src/a.bas", r)
+    r = studio_ui.new_file(app)
+    app = act("New File with a file selected", r)
+    show(app)
+
+    ' With nothing open there is nowhere to create, and saying so beats writing
+    ' a file into whatever directory happened to be current.
+    cold = studio.launch(home + "/cold")
+    rc = studio_ui.new_file(cold)
+    print "-> New File with no workspace: " + rc.action
+  end if
+
+  ' ---- newfolder -----------------------------------------------------------
+  if mode = "newfolder" then
+    r = studio_ui.new_folder(app)
+    app = act("New Folder", r)
+    banner("a sibling of the project's own files, and the selection has not moved")
+    show(app)
+
+    ' Because the selection did not move, a second click makes a SIBLING. A new
+    ' folder that stole the selection would nest each click inside the last.
+    r = studio_ui.new_folder(app)
+    app = act("New Folder again", r)
+    show(app)
+
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "dir", "new-folder-1"))
+    app = act("activate new-folder-1", r)
+    r = studio_ui.new_file(app)
+    app = act("New File", r)
+    banner("clicking the folder first is what puts the file inside it")
+    show(app)
+  end if
+
+  ' ---- adopt: an existing directory becomes a project ----------------------
+  if mode = "adopt" then
+    app = studio.launch(home)
+    banner("a cold home")
+    show(app)
+
+    r = studio_ui.adopt_folder(app, projdir)
+    app = act("Open Folder", r)
+    banner("the folder is a project now, named after itself, and browsable")
+    show(app)
+
+    r = studio_ui.adopt_folder(app, projdir)
+    app = act("Open Folder on the folder already open", r)
+    banner("activated rather than duplicated")
+    show(app)
+
+    ' The path arrives however it was typed at a shell, and two spellings of one
+    ' directory must not become two projects.
+    r = studio_ui.adopt_folder(app, projdir + "/")
+    app = act("Open Folder, trailing slash", r)
+    r = studio_ui.adopt_folder(app, projdir + "/src/..")
+    app = act("Open Folder, by way of a subdirectory", r)
+    print "projects=" + count(app.model.workspace.projects)
+
+    r = studio_ui.adopt_folder(app, projdir + "/nowhere")
+    app = act("Open Folder on a path that is not there", r)
+    r = studio_ui.adopt_folder(app, projdir + "/main.bas")
+    app = act("Open Folder on a file", r)
+    r = studio_ui.adopt_folder(app, "")
+    app = act("Open Folder on an empty path", r)
+    banner("untouched by all three")
+    show(app)
+  end if
+
+  ' ---- exit: what gui mode now does when the window closes -----------------
+  ' The GTK loop returning is not a test hook, but everything it triggers is an
+  ' ordinary function call, so the sequence is asserted here and the display tier
+  ' only has to prove the loop actually reaches it.
+  if mode = "exit" then
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "main.bas"))
+    app = r.app
+    print "dirty documents: " + studio_ui.dirty_count(app)
+    app = studio.edit_document(app, "doc-1", "unsaved when the window closed\n")
+    print "dirty documents after typing: " + studio_ui.dirty_count(app)
+
+    saved = studio.persist(app)
+    print "saved=" + join(saved, ",")
+
+    banner("relaunching the same home")
+    again = studio.launch(home)
+    show(again)
+    ' The KNOWN limitation, pinned rather than hidden: the tab comes back, the
+    ' unsaved text does not. Studio has no draft store, so what closing preserves
+    ' is which documents were open, not what was typed into them.
+    d = studio_docs.doc_by_id(again.dm, "doc-1")
+    print "doc-1 content after restart=" + d.content
   end if
 
   ' ---- refresh -------------------------------------------------------------

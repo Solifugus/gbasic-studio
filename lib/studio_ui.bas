@@ -338,6 +338,202 @@ library studio_ui
         return { app: app, action: "created", detail: proj.id + " " + name }
     end function
 
+    ' ---- file and folder creation (STU-2C) ---------------------------------
+    '
+    ' STU-2B left New Project creating an EMPTY directory and no way to put
+    ' anything into it, so a cold start dead-ended after one click: an empty
+    ' project scans to zero browser rows, and opening, expanding, editing and
+    ' saving are all reachable only through a file row. These two functions are
+    ' the way out.
+    '
+    ' Neither asks for a name, for the same reason New Project does not: a modal
+    ' text dialog is an async GTK surface with no synthesisable signal behind it,
+    ' and the phase that adds one should be the phase that designs how such a
+    ' dialog is covered. A deterministic minted name is renameable later and is
+    ' assertable now.
+
+    ' Where a creation lands: the selected directory, the directory holding the
+    ' selected file, or the active project's root when nothing is selected. This
+    ' is the whole of "where does it go", so a test can pin it without creating
+    ' anything. Returns "" when no project is open.
+    function target_dir(app)
+        ws = app.model.workspace
+        if ws = nothing then
+            return ""
+        end if
+        proj = studio_model.project_by_id(ws, ws.active_project)
+        if proj = nothing then
+            return ""
+        end if
+        sel = ws.nav.selected_path
+        if sel = "" then
+            return proj.path
+        end if
+        ' `studio_docs._is_dir` rather than a second copy of the rule: there is no
+        ' is_dir builtin, `read`/`file_size` RAISE on a directory (uncatchable in
+        ' gBASIC), and `list` returns empty for a plain file AND for an empty
+        ' directory — so the answer has to come from the PARENT's entry type, and
+        ' that subtlety should exist in exactly one place.
+        isdir = studio_docs._is_dir(sel)
+        if isdir then
+            return sel
+        end if
+        parent = studio_docs._dirname(sel)
+        if parent = "" then
+            return proj.path
+        end if
+        return parent
+    end function
+
+    ' The first "untitled-N.bas" that does not already exist in `dir`. Minting a
+    ' name that is free rather than one that is next means a New File can never
+    ' silently truncate a file the user made outside Studio.
+    function next_untitled(dir)
+        return studio_ui._free_name(dir, "untitled-", ".bas")
+    end function
+
+    function next_folder_name(dir)
+        return studio_ui._free_name(dir, "new-folder-", "")
+    end function
+
+    function _free_name(dir, prefix, suffix)
+        n = 1
+        while n < 1000
+            cand = prefix + n + suffix
+            probe(file) = dir + "/" + cand
+            taken = exists(probe)
+            if taken then
+                n = n + 1
+            else
+                return cand
+            end if
+        end while
+        return prefix + "x" + suffix
+    end function
+
+    ' "New File": create an empty file in the target directory, make it visible,
+    ' select it, and open it into a tab so the user can type immediately. Returns
+    ' { app, action, detail } with action "created" | "none" (nothing open) and
+    ' detail "<path> <doc-id>".
+    function new_file(app)
+        ws = app.model.workspace
+        if ws = nothing then
+            return { app: app, action: "none", detail: "" }
+        end if
+        proj = studio_model.project_by_id(ws, ws.active_project)
+        if proj = nothing then
+            return { app: app, action: "none", detail: "" }
+        end if
+        dir = studio_ui.target_dir(app)
+        path = dir + "/" + studio_ui.next_untitled(dir)
+        persist.write_text_atomic(path, "")
+        ' A file created inside a collapsed directory would exist and not be on
+        ' screen, which reads as the button having done nothing.
+        if dir != proj.path then
+            ws = studio_model.expand_path(ws, dir)
+        end if
+        ws = studio_model.set_selected_path(ws, path)
+        app = studio.set_workspace(app, ws)
+        opened = studio.open_from_browser(app, proj.id, path)
+        return { app: opened.app, action: "created", detail: path + " " + opened.id }
+    end function
+
+    ' "New Folder": create a directory in the target directory and expand the
+    ' target so the new row is visible.
+    '
+    ' The selection deliberately does NOT move into it. If it did, a second click
+    ' would create a folder inside the first and a third inside the second, which
+    ' is not what "New Folder" twice means anywhere else. Clicking the folder is
+    ' how you go into it — the same gesture as every other file browser.
+    function new_folder(app)
+        ws = app.model.workspace
+        if ws = nothing then
+            return { app: app, action: "none", detail: "" }
+        end if
+        proj = studio_model.project_by_id(ws, ws.active_project)
+        if proj = nothing then
+            return { app: app, action: "none", detail: "" }
+        end if
+        dir = studio_ui.target_dir(app)
+        path = dir + "/" + studio_ui.next_folder_name(dir)
+        persist.ensure_dir(path)
+        if dir != proj.path then
+            ws = studio_model.expand_path(ws, dir)
+        end if
+        app = studio.set_workspace(app, ws)
+        return { app: app, action: "created", detail: path }
+    end function
+
+    ' ---- opening an existing directory --------------------------------------
+
+    ' Adopt `path` as a project, creating a workspace if none is open — so this,
+    ' like New Project, works from a cold start. Studio is otherwise only usable
+    ' on directories it made itself, which is the wrong way round for an IDE.
+    '
+    ' Returns { app, action, detail }, action one of:
+    '   "adopted"   — a new project over that directory, named after its last
+    '                 segment, and active
+    '   "activated" — the directory was already a project here; it was made
+    '                 active rather than added twice
+    '   "missing"   — no such directory (a plain file counts as missing: a
+    '                 project root has to be somewhere files can live)
+    '   "none"      — an empty path
+    function adopt_folder(app, raw)
+        if raw = "" then
+            return { app: app, action: "none", detail: "" }
+        end if
+        ' The path comes off a command line, so it arrives however it was typed:
+        ' a trailing slash from tab-completion, a "." or a "..". Canonicalise
+        ' first or the same directory adopts twice under two spellings.
+        path = studio_docs._canonical(raw)
+        if path = "" then
+            return { app: app, action: "none", detail: "" }
+        end if
+        probe(file) = path
+        there = exists(probe)
+        isdir = false
+        if there then
+            isdir = studio_docs._is_dir(path)
+        end if
+        if isdir = false then
+            return { app: app, action: "missing", detail: path }
+        end if
+        ws = app.model.workspace
+        if ws = nothing then
+            app = studio.create_registered_workspace(app, "workspace")
+            ws = app.model.workspace
+        end if
+        for each pr in ws.projects
+            if pr.path = path then
+                ws = studio_model.set_active_project(ws, pr.id)
+                app = studio.set_workspace(app, ws)
+                return { app: app, action: "activated", detail: pr.id + " " + pr.name }
+            end if
+        end for
+        name = studio_ui._leaf(path)
+        ws = studio_model.add_project(ws, name, path)
+        proj = studio_model.last_project(ws)
+        ws = studio_model.set_active_project(ws, proj.id)
+        app = studio.set_workspace(app, ws)
+        return { app: app, action: "adopted", detail: proj.id + " " + name }
+    end function
+
+    ' ---- closing ------------------------------------------------------------
+
+    ' How many open documents hold unsaved text. Closing the window persists the
+    ' workspace (which documents were open) but NOT their buffers, so the caller
+    ' can say so instead of letting the edits disappear quietly.
+    function dirty_count(app)
+        n = 0
+        for each d in app.dm.docs
+            dirty = studio_docs.is_dirty(d)
+            if dirty then
+                n = n + 1
+            end if
+        end for
+        return n
+    end function
+
     ' ---- refresh ------------------------------------------------------------
 
     ' "Refresh" = re-read the world. The browser rescans on every render already

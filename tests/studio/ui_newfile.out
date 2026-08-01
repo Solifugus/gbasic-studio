@@ -1,0 +1,80 @@
+== before ==
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=
+tabs=0
+-> New File: created untitled-1.bas doc-1
+== created at the project root, selected, and already open to type in ==
+nav rows=7
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+  [file]     untitled-1.bas
+selected=untitled-1.bas
+tabs=1
+  * doc-1 untitled-1.bas
+-> New File again — the name does not collide: created untitled-2.bas doc-2
+nav rows=8
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+  [file]     untitled-1.bas
+  [file]     untitled-2.bas
+selected=untitled-2.bas
+tabs=2
+    doc-1 untitled-1.bas
+  * doc-2 untitled-2.bas
+-> activate src: expand src
+-> New File: created untitled-1.bas doc-3
+== inside src, which the creation expanded so the row is visible ==
+nav rows=11
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   v src
+  [file]       a.bas
+  [file]       b.bas
+  [file]       untitled-1.bas
+  [file]     README.md
+  [file]     main.bas
+  [file]     untitled-1.bas
+  [file]     untitled-2.bas
+selected=untitled-1.bas
+tabs=3
+    doc-1 untitled-1.bas
+    doc-2 untitled-2.bas
+  * doc-3 untitled-1.bas
+-> activate src/a.bas: open opened doc-4
+-> New File with a file selected: created untitled-2.bas doc-5
+nav rows=12
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   v src
+  [file]       a.bas
+  [file]       b.bas
+  [file]       untitled-1.bas
+  [file]       untitled-2.bas
+  [file]     README.md
+  [file]     main.bas
+  [file]     untitled-1.bas
+  [file]     untitled-2.bas
+selected=untitled-2.bas
+tabs=5
+    doc-1 untitled-1.bas
+    doc-2 untitled-2.bas
+    doc-3 untitled-1.bas
+    doc-4 a.bas
+  * doc-5 untitled-2.bas
+-> New File with no workspace: none
