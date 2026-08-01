@@ -12,8 +12,10 @@ on Studio.
 **Read `README.md` first for status.** The model and persistence layers are built
 and tested (phases STU-0 through STU-5A), and STU-2B wired the shell's first
 input handlers on top of them: browser rows, tabs, editor edits, and the
-Save / Refresh / New Project buttons all respond. Most of the window still does
-not — see README for the list.
+Save / Refresh / New Project buttons all respond. STU-2C added New File and
+New Folder (a cold start now reaches a file you can type in), opening an existing
+directory from the command line, and saving the session when the window closes.
+Most of the window still does not respond — see README for the list.
 
 ## Build & run
 
@@ -24,18 +26,22 @@ checkout:
 ```sh
 ./studio                       # gui mode, home at ~/.gbasic-studio
 ./studio gui /tmp/demo-home    # explicit mode + home
+./studio gui /tmp/demo-home ~/src/proj   # gui + an existing folder as a project
 ./studio startup /tmp/probe    # a headless mode; prints the model summary
 GBASIC=/usr/local/bin/gbasic GBASIC_STDLIB=/usr/local/share/gbasic/stdlib ./studio
 ```
 
 An empty home renders `(no workspace open)`; **New Project** creates a workspace
-and a project directory under `<home>/projects/`. `./studio build <home>` still
-writes a canned workspace headlessly if you want content without clicking.
+and a project directory under `<home>/projects/`, and **New File** puts something
+in it. Closing the gui window runs `studio.persist`, so the home is written on
+exit — unsaved *buffers* are not (there is no draft store; the exit path warns on
+stderr). `./studio build <home>` still writes a canned workspace headlessly if
+you want content without clicking.
 
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 103 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 108 cases, headless; honours GBASIC / GBASIC_STDLIB
 ```
 
 Golden-file based: a driver plus a `.out` of expected stdout, compared
@@ -43,7 +49,11 @@ byte-for-byte, so update the `.out` when output changes *intentionally* and say
 so. The suite builds the sibling gBASIC first when `GBASIC` points into a source
 tree, so an interpreter change is what gets tested rather than a stale binary.
 Display tiers (`sections_gui`, `sessions_gui`, `results_gui`, `ui_gui`,
-`ui_gui_cold`) SKIP cleanly without GTK 4 or a display. Valgrind tiers SKIP if
+`ui_gui_cold`, `ui_gui_new`) SKIP cleanly without GTK 4 or a display.
+`ui_gui_new` is the only case that spans two processes: the GUI builds a project
+from nothing and closes, and a second interpreter run reopens the same home —
+because a process asserting its own memory cannot show that anything reached
+disk. Valgrind tiers SKIP if
 valgrind is absent. The `ui_gui*` tiers discard stderr like the other
 loop-running tiers: GTK's allocation warnings vary by version and theme, and
 `G_DEBUG=fatal-criticals` turns a real GTK critical into a nonzero exit anyway.
@@ -85,6 +95,12 @@ Two consequences worth knowing before you touch the shell:
 - `studio_ui.nav_rows` produces the browser rows ONCE, and the renderer and the
   click dispatcher consume that same array. Deriving rows twice desynchronises
   the moment the filesystem changes between a render and a click.
+- Anything that creates in the browser goes through `studio_ui.target_dir`, which
+  is the *whole* of "where does it land" — selected directory, the directory
+  holding the selected file, or the project root. Creating in a collapsed
+  directory also expands it: a file that exists and is not on screen reads as the
+  button having done nothing. `new_folder` deliberately does not move the
+  selection, or a second New Folder would nest inside the first.
 - Redraw REBUILDS the nav pane but RECONCILES the notebook by document id. A
   notebook page holds a live buffer with unsaved text; rebuilding it would
   destroy what the user is typing. `app/studio.bas`'s `G.redrawing` guard exists

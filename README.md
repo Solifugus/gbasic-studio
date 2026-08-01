@@ -10,18 +10,30 @@ library — and nothing in gBASIC depends on Studio.
 
 **The model and persistence layer are built and tested, and the shell now
 responds to input.** Phases STU-0 through STU-5A are complete as libraries;
-STU-2B wired the first interactions on top of them.
+STU-2B wired the first interactions on top of them and STU-2C made a cold start
+go all the way through.
 
 What works when you click it: a browser row (a file opens into a tab, a
 directory expands, a project becomes active), a notebook tab, typing in the
-editor (the tab's dirty marker follows), and the Save / Refresh / New Project
-buttons. New Project works on an empty home, so there is now a way into Studio
-from a cold start.
+editor (the tab's dirty marker follows), and the New Project / New File /
+New Folder / Save / Refresh buttons. From an empty home you can now make a
+project, make a file in it, type into it, save it, and close the window — and it
+is all still there next time, because closing now writes the session.
 
-What still does not respond: closing a tab, the run/stop strip (STU-4's widgets
-are built but only driven by the smoke modes), the results pane, and anything
-STU-5 onward. A conflicting external change shows as an ordinary dirty marker —
-the tab does not distinguish it from your own unsaved edits.
+New File and New Folder land in whatever the browser has selected: a directory,
+the directory holding the selected file, or the project root. Neither asks for a
+name; they mint `untitled-N.bas` / `new-folder-N`, for the same reason New
+Project does not ask — a modal dialog is an async GTK surface with no signal a
+test can synthesise, so it belongs to the phase that designs how such a dialog
+gets covered.
+
+What still does not respond: closing a tab, renaming or deleting anything, the
+run/stop strip (STU-4's widgets are built but only driven by the smoke modes),
+the results pane, and anything STU-5 onward. A conflicting external change shows
+as an ordinary dirty marker — the tab does not distinguish it from your own
+unsaved edits. Closing the window saves *which* documents were open, not what
+was typed into them: Studio has no draft store, so unsaved buffers are lost and
+it says so on stderr as it exits.
 
 Interaction is covered by tests rather than by hand. The rule STU-2B established
 is that a signal handler is an *adapter* — read one value off the widget, call
@@ -39,6 +51,7 @@ See `docs/gbasic_studio_design.md` for what Studio is meant to be, and
 ```sh
 ./studio                      # gui mode, home at ~/.gbasic-studio
 ./studio gui ~/my-studio-home # explicit
+./studio gui ~/.gbasic-studio ~/development/myproject   # open an existing folder
 ./studio startup /tmp/probe   # a headless mode, prints the model summary
 ```
 
@@ -51,7 +64,9 @@ GBASIC=/usr/local/bin/gbasic GBASIC_STDLIB=/usr/local/share/gbasic/stdlib ./stud
 
 An empty home renders `(no workspace open)`; click **New Project** and Studio
 creates a workspace plus a project directory under `<home>/projects/` and shows
-it. To start from a canned workspace instead:
+it, then **New File** gives you something to type in. To work on a directory you
+already have, pass it as the third argument (above) — there is no Open Folder
+button yet. To start from a canned workspace instead:
 
 ```sh
 ./studio build /tmp/demo-home
@@ -61,14 +76,14 @@ it. To start from a canned workspace instead:
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 103 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 108 cases, headless; honours GBASIC / GBASIC_STDLIB
 ```
 
 Golden-file based: a driver plus a `.out` holding expected stdout, compared
 byte-for-byte. The suite builds the sibling gBASIC first if `GBASIC` points into
 a source tree, so an interpreter change is what gets tested rather than a stale
 binary. Display tiers (`sections_gui`, `sessions_gui`, `results_gui`, `ui_gui`,
-`ui_gui_cold`) SKIP cleanly without GTK 4 or a display.
+`ui_gui_cold`, `ui_gui_new`) SKIP cleanly without GTK 4 or a display.
 
 ## Layout
 
