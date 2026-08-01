@@ -1,0 +1,10 @@
+-> Run with nothing open: none
+-> Stop with nothing running: idle
+-> Force Stop with nothing running: idle
+-> a tick with nothing running: idle
+-> Run: action=running active=true
+-> Run again while it is running: busy (running)
+-> Stop: action=stopping
+   exec: run: finished [sec-1] — killed by signal 15
+state=finished signalled=true
+exec: run: finished [sec-1] — killed by signal 15

@@ -47,6 +47,19 @@ function act(label, r)
   return r.app
 end function
 
+' Poll an in-flight run to completion, exactly as the GTK timer does — the only
+' difference is that nothing here waits between ticks.
+function drive(app)
+  r = studio_ui.tick_run(app)
+  app = r.app
+  while r.active
+    r = studio_ui.tick_run(app)
+    app = r.app
+  end while
+  print "   " + studio_ui.exec_summary(app)
+  return app
+end function
+
 ' Index of the first nav row whose kind matches and whose label ends with `suffix`.
 ' Tests address rows the way a user does — by what they see — so an index shift
 ' shows up as a changed action rather than a silently different row.
@@ -576,6 +589,84 @@ program main(args)
     app = act("Close an unsaved tab (second click)", r)
     banner("discarded")
     show(app)
+  end if
+
+  ' ---- run: the execution strip, driven exactly as the shell drives it ------
+  ' Run, then poll until the machine leaves an active state — the same loop the
+  ' GTK timer runs, minus the timer. A real child interpreter really runs.
+  if mode = "run" then
+    ' Written here rather than added to the shared fixture: a new file in
+    ' mkproj_ui would put a new row in every other ui_* golden.
+    ' Three sections, so a run of the last one replays the two before it.
+    rf(file) = projdir + "/runme.bas"
+    write(rf, "print \"one\"\n\nfunction add(a, b)\n  return a + b\nend function\n\nprint add(2, 3)\n")
+
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "runme.bas"))
+    app = r.app
+    ' Pinning the clock is what lets a result's timestamps sit in a golden.
+    app.clock_fixed = 1000
+
+    print "-> Run with the cursor at the top (line 0)"
+    r = studio_ui.run_section(app, 0, 0)
+    app = r.app
+    print "   action=" + r.action + " active=" + r.active
+    app = drive(app)
+
+    print "-> Run with the cursor in the last section"
+    r = studio_ui.run_section(app, 6, 0)
+    app = r.app
+    print "   action=" + r.action + " active=" + r.active
+    app = drive(app)
+
+    banner("prefix and target output are kept apart")
+    sess = studio_ui.exec_session(app)
+    print "prefix=<" + studio_ui.prefix_text(sess) + ">"
+    print "target=<" + studio_ui.target_text(sess) + ">"
+    banner("and the run is now a durable result")
+    print studio_ui.results_body(app)
+
+    ' A second run of the same section adds to the history rather than replacing it.
+    r = studio_ui.run_section(app, 6, 0)
+    app = r.app
+    app = drive(app)
+    print studio_ui.results_body(app)
+  end if
+
+  ' ---- runstop: refusal, stopping, and the states around a run -------------
+  if mode = "runstop" then
+    print "-> Run with nothing open: " + studio_ui.run_section(app, 0, 0).action
+    print "-> Stop with nothing running: " + studio_ui.stop_run(app).action
+    print "-> Force Stop with nothing running: " + studio_ui.force_stop_run(app).action
+    print "-> a tick with nothing running: " + studio_ui.tick_run(app).action
+
+    ' Never ends on its own, so only a stop can finish it.
+    lf(file) = projdir + "/loop.bas"
+    write(lf, "print \"started\"\n\nwhile true\n  sleep(0.05)\nend while\n")
+
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "loop.bas"))
+    app = r.app
+    app.clock_fixed = 1000
+
+    ' loop.bas never ends on its own, so only a stop can finish it.
+    r = studio_ui.run_section(app, 0, 0)
+    app = r.app
+    print "-> Run: action=" + r.action + " active=" + r.active
+
+    ' A second Run while one is in flight is refused rather than queued or
+    ' silently dropped — two children writing the same scratch prefix is not a
+    ' thing to find out about later.
+    r2 = studio_ui.run_section(app, 0, 0)
+    print "-> Run again while it is running: " + r2.action + " (" + r2.detail + ")"
+
+    r = studio_ui.stop_run(app)
+    app = r.app
+    print "-> Stop: action=" + r.action
+    app = drive(app)
+    sess = studio_ui.exec_session(app)
+    print "state=" + sess.state + " signalled=" + (sess.signal != 0)
+    print studio_ui.exec_summary(app)
   end if
 
   ' ---- notice: what the status bar says about each outcome -----------------

@@ -38,6 +38,9 @@ library studio_ui
     load studio_model
     load studio_docs
     load studio
+    load studio_sections
+    load studio_session
+    load studio_results
 
     ' ---- the browser row model ---------------------------------------------
 
@@ -808,6 +811,37 @@ library studio_ui
         if action = "refreshed" then
             return "refreshed"
         end if
+        if action = "running" then
+            return "running " + detail
+        end if
+        if action = "materializing" then
+            return "preparing " + detail
+        end if
+        if action = "ran" then
+            ' "<section-id> <final-state>" — the strip already shows the state.
+            return "finished " + studio_ui._token_leaf(detail, 0)
+        end if
+        if action = "refused" then
+            return "will not run it — " + detail
+        end if
+        if action = "failed" then
+            return "the run failed — " + detail
+        end if
+        if action = "busy" then
+            return "a run is already going (" + detail + ") — stop it first"
+        end if
+        if action = "no-section" then
+            return "the cursor is not inside a runnable section"
+        end if
+        if action = "stopping" then
+            return "stopping " + detail
+        end if
+        if action = "forced" then
+            return "forced " + detail + " to stop"
+        end if
+        if action = "idle" then
+            return "nothing is running"
+        end if
         if action = "none" then
             return "nothing selected"
         end if
@@ -937,6 +971,303 @@ library studio_ui
         cp = studio.checkpoint_documents(app)
         detail = "reloaded=" + join(cp.reloaded, ",") + " conflicts=" + join(cp.conflicts, ",") + " deleted=" + join(cp.deleted, ",")
         return { app: cp.app, action: "refreshed", detail: detail }
+    end function
+
+    ' ---- running a section (STU-2E) -----------------------------------------
+    '
+    ' STU-4 built the execution engine and STU-5A the durable results, and both
+    ' have been driven only by smoke modes since: the Run strip existed as a
+    ' builder nothing mounted. This is the wiring, and it is the first interaction
+    ' that is not instantaneous — a run starts, then continues across GTK timer
+    ' ticks — so it needs one thing the others did not: somewhere to keep the
+    ' in-flight run.
+    '
+    ' That is `app.exec`, alongside `app.dm`: live state the app carries and the
+    ' shutdown pipeline does not write, because a half-finished child process is
+    ' not something to restore into.
+    '
+    '   app.exec = { doc_id, doc_path, sid, secs, src, session, store }
+    '
+    ' The section is decided ONCE, when Run is pressed, from the cursor as it was
+    ' at that moment — together with the source as it was at that moment. Both are
+    ' kept for the rest of the run, because a result is a statement about the text
+    ' that ran, not about whatever the user has typed since.
+
+    ' How long a Force Stop gives the child between SIGTERM and giving up on a
+    ' polite exit.
+    function force_grace()
+        return 2
+    end function
+
+    ' Which section a 1-based position means, with the gaps filled in.
+    '
+    ' Section ranges cover the statements, not the whitespace between and after
+    ' them, so `section_at` returns nothing for a caret on a file's trailing blank
+    ' line — which is exactly where a caret sits after opening a file, and a very
+    ' common place for a user to leave it. Refusing there would make Run look
+    ' broken for the most ordinary click there is.
+    '
+    ' So a position outside every section resolves to the NEAREST one: the first
+    ' if it is above them all, the last if below. Only a document with no sections
+    ' at all has no answer.
+    function section_for(st, source, line1, column1)
+        off = studio_sections.offset_of(source, line1, column1)
+        hit = studio_sections.section_at(st, off)
+        if hit != nothing then
+            if hit != "" then
+                return hit
+            end if
+        end if
+        n = count(st.sections)
+        if n = 0 then
+            return ""
+        end if
+        first = st.sections[0]
+        if off < first.start_offset then
+            return first.id
+        end if
+        return st.sections[n - 1].id
+    end function
+
+    ' Start a run for the active document's section at (line0, column0).
+    '
+    ' The position arrives in the EDITOR's units — GtkSourceView counts lines and
+    ' columns from 0, the section engine counts from 1 — and the conversion lives
+    ' here rather than in the handler, so it is a tested line rather than a thing
+    ' someone has to remember at the widget boundary.
+    '
+    ' Returns { app, action, detail, active }, action one of:
+    '   "running"    — the child is up; the caller should start polling
+    '   "refused"    — Studio declined (an ambiguous or unparseable section)
+    '   "failed"     — materialize or launch failed
+    '   "busy"       — a run is already in flight; stop it first
+    '   "none"       — no document open
+    '   "no-section" — the cursor is not inside anything runnable
+    function run_section(app, line0, column0)
+        doc = studio_docs.active_doc(app.dm)
+        if doc = nothing then
+            return { app: app, action: "none", detail: "", active: false }
+        end if
+        ex = app["exec"]
+        if ex != unknown then
+            if ex != nothing then
+                busy = studio_session.is_active(ex.session)
+                if busy then
+                    return { app: app, action: "busy", detail: ex.session.state, active: false }
+                end if
+            end if
+        end if
+
+        st = studio_sections.create(doc.id)
+        st = studio_sections.refresh(st, doc.content)
+        sid = studio_ui.section_for(st, doc.content, line0 + 1, column0 + 1)
+        if sid = "" then
+            return { app: app, action: "no-section", detail: "", active: false }
+        end if
+
+        sess = studio_session.create(doc.id, app.paths.home + "/scratch")
+        ' The same test seam the headless session cases use: with the clock pinned,
+        ' a result's timestamps are reproducible and a golden can hold them.
+        fixed = app["clock_fixed"]
+        if fixed != unknown then
+            sess.clock_fixed = fixed
+        end if
+        sess = studio_session.run(sess, st, doc.content, sid)
+
+        app.exec = { doc_id: doc.id, doc_path: doc.path, sid: sid, secs: st,
+                     src: doc.content, session: sess,
+                     store: studio_results.open(app.paths.home, doc.path) }
+        act = sess.state
+        detail = sid
+        if sess.state = "refused" then
+            detail = sess.message
+        end if
+        if sess.state = "failed" then
+            detail = sess.message
+        end if
+        active = studio_session.is_active(sess)
+        return { app: app, action: act, detail: detail, active: active }
+    end function
+
+    ' Advance an in-flight run one step. The caller polls this on a timer and stops
+    ' when `active` comes back false.
+    '
+    ' The run becoming a durable RESULT happens here, on the one tick that sees it
+    ' end — not in the handler, and not on a later redraw, because "the run
+    ' finished" happens exactly once and recording it twice would be two rows in
+    ' the history for one execution.
+    function tick_run(app)
+        ex = app["exec"]
+        if ex = unknown then
+            return { app: app, action: "idle", detail: "", active: false }
+        end if
+        if ex = nothing then
+            return { app: app, action: "idle", detail: "", active: false }
+        end if
+        ex.session = studio_session.tick(ex.session)
+        still = studio_session.is_active(ex.session)
+        if still then
+            app.exec = ex
+            return { app: app, action: "running", detail: ex.sid, active: true }
+        end if
+        ex.session = studio_session.finalize(ex.session, ex.secs, ex.src)
+        home = app.paths.home
+        ex.store = studio_results.add_result(home, ex.store, studio_session.to_result(ex.session, ex.secs))
+        studio_results.save(home, ex.store)
+        app.exec = ex
+        return { app: app, action: "ran", detail: ex.sid + " " + ex.session.state, active: false }
+    end function
+
+    ' Ask the child to stop (SIGTERM). It may not go; polling continues either way
+    ' and `unresponsive` is a state the strip shows rather than hides.
+    function stop_run(app)
+        ex = app["exec"]
+        if ex = unknown then
+            return { app: app, action: "idle", detail: "", active: false }
+        end if
+        if ex = nothing then
+            return { app: app, action: "idle", detail: "", active: false }
+        end if
+        running = studio_session.is_active(ex.session)
+        if running = false then
+            return { app: app, action: "idle", detail: "", active: false }
+        end if
+        ex.session = studio_session.request_stop(ex.session)
+        app.exec = ex
+        return { app: app, action: "stopping", detail: ex.sid, active: studio_session.is_active(ex.session) }
+    end function
+
+    ' Stop it and do not take no for an answer.
+    function force_stop_run(app)
+        ex = app["exec"]
+        if ex = unknown then
+            return { app: app, action: "idle", detail: "", active: false }
+        end if
+        if ex = nothing then
+            return { app: app, action: "idle", detail: "", active: false }
+        end if
+        running = studio_session.is_active(ex.session)
+        if running = false then
+            return { app: app, action: "idle", detail: "", active: false }
+        end if
+        ex.session = studio_session.force_stop(ex.session, studio_ui.force_grace())
+        app.exec = ex
+        return { app: app, action: "forced", detail: ex.sid, active: studio_session.is_active(ex.session) }
+    end function
+
+    ' ---- what the run strip and its panes show ------------------------------
+    '
+    ' These moved out of studio_shell, where they were pure functions the headless
+    ' suite could not reach because the file loads GTK. They are the only feedback
+    ' a run gives, so they belong where they can be asserted; studio_shell keeps
+    ' the old names as one-line delegates, and the STU-4/5A display goldens do not
+    ' move.
+
+    ' One line of session state for the strip: what is happening, to which section,
+    ' and — when Studio refused or the child is gone — why.
+    function run_line(session)
+        if session = nothing then
+            return "run: (no session)"
+        end if
+        line = "run: " + session.state
+        if session.section_id != "" then
+            line = line + " [" + session.section_id + "]"
+        end if
+        if session.state = "refused" then
+            return line + " — " + session.message
+        end if
+        if session.state = "failed" then
+            return line + " — " + session.message
+        end if
+        if session.state = "finished" then
+            if session.signal != 0 then
+                return line + " — killed by signal " + session.signal
+            end if
+            return line + " — exit " + session.exit_code
+        end if
+        return line
+    end function
+
+    ' Prefix output is ALWAYS shown, never folded away: it is the only way a user
+    ' can see that the replay re-issued the prefix's side effects.
+    '
+    ' While a run is in flight the split is not yet decided, so BOTH panes show the
+    ' raw stream under the prefix heading rather than guessing at a boundary that
+    ' may not have been printed yet.
+    function prefix_text(session)
+        if session = nothing then
+            return "(none)"
+        end if
+        if session.split_out = "pending" then
+            if session.out_raw = "" then
+                return "(running — no output yet)"
+            end if
+            return session.out_raw
+        end if
+        if session.split_out = "combined" then
+            if session.out_prefix = "" then
+                return "(none — sections 1..N combined)"
+            end if
+            return session.out_prefix
+        end if
+        if session.out_prefix = "" then
+            return "(none)"
+        end if
+        return session.out_prefix
+    end function
+
+    function target_text(session)
+        if session = nothing then
+            return "(none)"
+        end if
+        if session.split_out = "pending" then
+            return "(running — not separated yet)"
+        end if
+        if session.split_out = "combined" then
+            return "(not separable from the prefix in this run)"
+        end if
+        if session.out_target = "" then
+            return "(none)"
+        end if
+        return session.out_target
+    end function
+
+    ' The session behind the strip, or nothing when nothing has run.
+    function exec_session(app)
+        ex = app["exec"]
+        if ex = unknown then
+            return nothing
+        end if
+        if ex = nothing then
+            return nothing
+        end if
+        return ex.session
+    end function
+
+    ' The results pane's body: the history for the section that last ran, judged
+    ' against the sections as they were when it ran. Before anything has run there
+    ' is nothing to key it on, and saying so beats an empty box.
+    function results_body(app)
+        ex = app["exec"]
+        if ex = unknown then
+            return "Results\n(nothing has run yet)"
+        end if
+        if ex = nothing then
+            return "Results\n(nothing has run yet)"
+        end if
+        if ex.store = nothing then
+            return "Results\n(no results store)"
+        end if
+        return studio_results.view_text(app.paths.home, ex.store, ex.secs, ex.sid)
+    end function
+
+    ' A path-free, clock-free line for the headless goldens.
+    function exec_summary(app)
+        sess = studio_ui.exec_session(app)
+        if sess = nothing then
+            return "exec: (none)"
+        end if
+        return "exec: " + studio_ui.run_line(sess)
     end function
 
     ' ---- deterministic summary (headless tests / diagnostics) --------------

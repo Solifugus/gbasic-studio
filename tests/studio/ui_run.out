@@ -1,0 +1,23 @@
+-> Run with the cursor at the top (line 0)
+   action=running active=true
+   exec: run: finished [sec-1] — exit 0
+-> Run with the cursor in the last section
+   action=running active=true
+   exec: run: finished [sec-3] — exit 0
+== prefix and target output are kept apart ==
+prefix=<one
+>
+target=<5
+>
+== and the run is now a durable result ==
+Results — sec-3  (1 run(s))
+latest: res-2  finished exit 0  at 1000  0s
+  output: <5
+>
+   exec: run: finished [sec-3] — exit 0
+Results — sec-3  (2 run(s))
+latest: res-3  finished exit 0  at 1000  0s
+  output: <5
+>
+history:
+  res-2  finished exit 0  at 1000  0s
