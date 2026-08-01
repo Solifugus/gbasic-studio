@@ -15,7 +15,9 @@ input handlers on top of them: browser rows, tabs, editor edits, and the
 Save / Refresh / New Project buttons all respond. STU-2C added New File and
 New Folder (a cold start now reaches a file you can type in), opening an existing
 directory from the command line, and saving the session when the window closes.
-Most of the window still does not respond — see README for the list.
+STU-2D added the name field, Rename, Delete and Close — the last two behind a
+two-click confirmation — plus a status line that reports every outcome. The
+run/stop strip and everything STU-5 onward still do not respond; see README.
 
 ## Build & run
 
@@ -41,7 +43,7 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 108 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 115 cases, headless; honours GBASIC / GBASIC_STDLIB
 ```
 
 Golden-file based: a driver plus a `.out` of expected stdout, compared
@@ -49,7 +51,8 @@ byte-for-byte, so update the `.out` when output changes *intentionally* and say
 so. The suite builds the sibling gBASIC first when `GBASIC` points into a source
 tree, so an interpreter change is what gets tested rather than a stale binary.
 Display tiers (`sections_gui`, `sessions_gui`, `results_gui`, `ui_gui`,
-`ui_gui_cold`, `ui_gui_new`) SKIP cleanly without GTK 4 or a display.
+`ui_gui_cold`, `ui_gui_new`, `ui_gui_name`, `ui_gui_solo`) SKIP cleanly without
+GTK 4 or a display.
 `ui_gui_new` is the only case that spans two processes: the GUI builds a project
 from nothing and closes, and a second interpreter run reopens the same home —
 because a process asserting its own memory cannot show that anything reached
@@ -101,6 +104,21 @@ Two consequences worth knowing before you touch the shell:
   directory also expands it: a file that exists and is not on screen reads as the
   button having done nothing. `new_folder` deliberately does not move the
   selection, or a second New Folder would nest inside the first.
+- Destructive actions arm before they fire, and the arm is keyed to the *thing*
+  (a path for Delete, a document id for Close) rather than to a flag — so moving
+  the selection between the two clicks re-arms on the new row instead of deleting
+  it. `redraw` expires an arm that the last action did not renew
+  (`studio_ui.arm_kind`), which is what stops one from outliving an unrelated
+  click. Do not reintroduce a confirmation dialog: it would be an async surface
+  no test can press, which is the same reason names come from a header field.
+- Every outcome gets a status line via `studio_ui.action_notice`. A refusal that
+  says nothing is indistinguishable from a dead button, which is how the whole
+  window felt before STU-2B.
+- The GtkApplication is built with `NON_UNIQUE` flags in `app/studio.bas` rather
+  than via `gtk.application`, which defaults to single-instance. Reverting that
+  does not just stop a second window opening — the *running* instance gets an
+  extra `activate`, builds a second shell over the same globals and doubles every
+  handler. `ui_gui_solo` is the regression test.
 - Redraw REBUILDS the nav pane but RECONCILES the notebook by document id. A
   notebook page holds a live buffer with unsaved text; rebuilding it would
   destroy what the user is typing. `app/studio.bas`'s `G.redrawing` guard exists

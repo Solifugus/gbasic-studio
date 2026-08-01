@@ -10,30 +10,39 @@ library — and nothing in gBASIC depends on Studio.
 
 **The model and persistence layer are built and tested, and the shell now
 responds to input.** Phases STU-0 through STU-5A are complete as libraries;
-STU-2B wired the first interactions on top of them and STU-2C made a cold start
-go all the way through.
+STU-2B wired the first interactions on top of them, STU-2C made a cold start go
+all the way through, and STU-2D made the browser editable.
 
 What works when you click it: a browser row (a file opens into a tab, a
 directory expands, a project becomes active), a notebook tab, typing in the
 editor (the tab's dirty marker follows), and the New Project / New File /
-New Folder / Save / Refresh buttons. From an empty home you can now make a
-project, make a file in it, type into it, save it, and close the window — and it
-is all still there next time, because closing now writes the session.
+New Folder / Rename / Delete / Close / Save / Refresh buttons. From an empty home
+you can make a project, make a file in it, name it, type into it, save it, rename
+it, delete it, and close the window — and what is left is still there next time,
+because closing now writes the session. The status bar says what each click did,
+including what it refused to do and why.
 
-New File and New Folder land in whatever the browser has selected: a directory,
-the directory holding the selected file, or the project root. Neither asks for a
-name; they mint `untitled-N.bas` / `new-folder-N`, for the same reason New
-Project does not ask — a modal dialog is an async GTK surface with no signal a
-test can synthesise, so it belongs to the phase that designs how such a dialog
-gets covered.
+New File, New Folder and Rename read the header's **name field**. Leave it empty
+and creation mints `untitled-N.bas` / `new-folder-N`; type into it and that is
+the name. It is a field rather than a dialog on purpose: a GtkEntry's text can be
+set programmatically, so the display tier types into it and clicks Rename for
+real, which no test could do to a modal dialog.
 
-What still does not respond: closing a tab, renaming or deleting anything, the
-run/stop strip (STU-4's widgets are built but only driven by the smoke modes),
-the results pane, and anything STU-5 onward. A conflicting external change shows
-as an ordinary dirty marker — the tab does not distinguish it from your own
-unsaved edits. Closing the window saves *which* documents were open, not what
-was typed into them: Studio has no draft store, so unsaved buffers are lost and
-it says so on stderr as it exits.
+Creation lands in whatever the browser has selected: a directory, the directory
+holding the selected file, or the project root.
+
+**Delete takes two clicks** — the first arms it and says so in the status bar,
+the second does it, and clicking anything else in between cancels. Closing a tab
+with unsaved text works the same way. A directory is only deleted when it is
+empty; recursive deletion is a different promise and does not belong behind a
+button that can be pressed twice by accident.
+
+What still does not respond: the run/stop strip (STU-4's widgets are built but
+only driven by the smoke modes), the results pane, and anything STU-5 onward. A
+conflicting external change shows as an ordinary dirty marker — the tab does not
+distinguish it from your own unsaved edits. Closing the window saves *which*
+documents were open, not what was typed into them: Studio has no draft store, so
+unsaved buffers are lost and it says so on stderr as it exits.
 
 Interaction is covered by tests rather than by hand. The rule STU-2B established
 is that a signal handler is an *adapter* — read one value off the widget, call
@@ -76,14 +85,15 @@ button yet. To start from a canned workspace instead:
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 108 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 115 cases, headless; honours GBASIC / GBASIC_STDLIB
 ```
 
 Golden-file based: a driver plus a `.out` holding expected stdout, compared
 byte-for-byte. The suite builds the sibling gBASIC first if `GBASIC` points into
 a source tree, so an interpreter change is what gets tested rather than a stale
 binary. Display tiers (`sections_gui`, `sessions_gui`, `results_gui`, `ui_gui`,
-`ui_gui_cold`, `ui_gui_new`) SKIP cleanly without GTK 4 or a display.
+`ui_gui_cold`, `ui_gui_new`, `ui_gui_name`, `ui_gui_solo`) SKIP cleanly without
+GTK 4 or a display.
 
 ## Layout
 
