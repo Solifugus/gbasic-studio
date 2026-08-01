@@ -19,6 +19,9 @@ library studio_shell
     ' another must load it: relying on the caller to have done so turns a
     ' missing load into a runtime failure deep inside a call, and it stops
     ' working entirely once these libraries live in separate projects.
+    ' `gi` is back (STU-2B dropped it as dead) for the one widget `gtk` does not
+    ' wrap — a GtkEntry. Note that gi.connect still lives ONLY in app/studio.bas.
+    load gi
     load gtk
     load sourceeditor
     load studio_docs
@@ -69,11 +72,23 @@ library studio_shell
     end function
 
     ' Bring the whole window back into agreement with the model.
-    function refresh(shell, app)
+    ' `notice` is what the last interaction had to say (STU-2D). It replaces the
+    ' standing status line when it is non-empty, so a refusal — a name already
+    ' taken, a directory that is not empty, a delete waiting for its second click
+    ' — is visible instead of looking like a dead button. `clear_name` empties the
+    ' header's name field once a creation or rename has consumed it.
+    function refresh(shell, app, notice, clear_name)
         shell.rows = studio_shell._fill_nav(shell.nav, app)
         rec = studio_shell._reconcile_tabs(shell, app)
         shell = rec.shell
-        shell.status.label = studio_shell.status_text(app)
+        line = studio_shell.status_text(app)
+        if notice != "" then
+            line = notice
+        end if
+        shell.status.label = line
+        if clear_name then
+            shell.name_entry.text = ""
+        end if
         return { shell: shell, new_editors: rec.new_editors }
     end function
 
@@ -231,11 +246,29 @@ library studio_shell
         new_btn = gtk.button("New Project")
         file_btn = gtk.button("New File")
         folder_btn = gtk.button("New Folder")
+        ' STU-2D's name field. `gtk` has no entry constructor, and that library
+        ' says so on purpose ("callers drop straight down to the raw gi bridge for
+        ' anything not wrapped here"), so this is one gi.new rather than a change
+        ' to somebody else's stdlib.
+        '
+        ' It is a field and not a dialog because a GtkEntry is an ordinary widget:
+        ' its text can be set programmatically, which means the display tier can
+        ' type into it and click Rename for real. A modal dialog could not be
+        ' driven by any test we can write.
+        name_entry = gi.new("Gtk.Entry")
+        name_entry.placeholder_text = "name"
+        rename_btn = gtk.button("Rename")
+        delete_btn = gtk.button("Delete")
+        close_btn = gtk.button("Close")
         save_btn = gtk.button("Save")
         refresh_btn = gtk.button("Refresh")
         header.append(new_btn)
         header.append(file_btn)
         header.append(folder_btn)
+        header.append(name_entry)
+        header.append(rename_btn)
+        header.append(delete_btn)
+        header.append(close_btn)
         header.append(save_btn)
         header.append(refresh_btn)
         outer.append(header)
@@ -271,6 +304,8 @@ library studio_shell
         ' the first refresh — see `present` below.
         return { window: win, status: status, nav: nav, notebook: book,
                  new_btn: new_btn, file_btn: file_btn, folder_btn: folder_btn,
+                 name_entry: name_entry, rename_btn: rename_btn,
+                 delete_btn: delete_btn, close_btn: close_btn,
                  save_btn: save_btn, refresh_btn: refresh_btn,
                  rows: [], pages: [], welcome: false }
     end function

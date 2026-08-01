@@ -1,0 +1,68 @@
+-- as built --
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=
+tabs=0
+typing "notes.bas" into the name field, then clicking New File
+action=created status=created notes.bas
+name field is now []
+-- after New File --
+nav rows=7
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+  [file]     notes.bas
+selected=notes.bas
+tabs=1
+  * doc-1 notes.bas
+typing "notes-2.bas" and clicking Rename
+action=renamed status=renamed to notes-2.bas
+-- after Rename --
+nav rows=7
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+  [file]     notes-2.bas
+selected=notes-2.bas
+tabs=1
+  * doc-2 notes-2.bas
+clicking Delete once
+action=armed status=delete notes-2.bas? — click Delete again to confirm
+-- armed, and still there --
+nav rows=7
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+  [file]     notes-2.bas
+selected=notes-2.bas
+tabs=1
+  * doc-2 notes-2.bas
+clicking Delete again
+action=deleted status=deleted notes-2.bas
+-- deleted --
+nav rows=6
+  [info] Workspace: ws
+  [project] * Alpha
+  [dir]   > docs
+  [dir]   > src
+  [file]     README.md
+  [file]     main.bas
+selected=
+tabs=0
+clicking Delete with nothing selected
+action=none status=nothing selected
+app-exited

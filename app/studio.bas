@@ -82,7 +82,21 @@ function redraw()
         return nothing
     end if
     G.redrawing = true
-    r = studio_shell.refresh(G.shell, G.app)
+    ' STU-2D. Three decisions, all of them studio_ui's: what the status bar says
+    ' about the last outcome, whether the name field has been consumed, and which
+    ' pending confirmation (if any) survives. Clearing the arms HERE rather than
+    ' in each handler is what stops one from outliving an unrelated click and
+    ' firing later against a selection the user has long since moved.
+    notice = studio_ui.action_notice(G.last_action, G.last_detail)
+    clear_name = studio_ui.clears_name(G.last_action)
+    kind = studio_ui.arm_kind(G.last_action)
+    if kind != "path" then
+        G.armed_path = ""
+    end if
+    if kind != "doc" then
+        G.armed_doc = ""
+    end if
+    r = studio_shell.refresh(G.shell, G.app, notice, clear_name)
     G.shell = r.shell
     ' A redraw can create pages, and a new page's buffer has never been wired.
     ' This is the only place editors are connected, so no page can exist unwired.
@@ -102,6 +116,7 @@ function on_nav_row_activated(box, row)
     r = studio_ui.activate_row(G.app, G.shell.rows, idx)
     G.app = r.app
     G.last_action = r.action
+    G.last_detail = r.detail
     redraw()
     return nothing
 end function
@@ -115,6 +130,7 @@ function on_tab_switched(book, page, num)
     r = studio_ui.select_tab(G.app, studio_ui.tab_rows(G.app), num)
     G.app = r.app
     G.last_action = r.action
+    G.last_detail = r.detail
     redraw()
     return nothing
 end function
@@ -133,6 +149,7 @@ function on_buffer_changed(buffer)
     r = studio_ui.sync_buffers(G.app, buffers)
     G.app = r.app
     G.last_action = r.action
+    G.last_detail = r.detail
     redraw()
     return nothing
 end function
@@ -141,22 +158,60 @@ function on_new_project()
     r = studio_ui.new_project(G.app, G.home)
     G.app = r.app
     G.last_action = r.action
+    G.last_detail = r.detail
     redraw()
     return nothing
 end function
 
+' The three below read the header's name field — one plain string off one widget,
+' which is exactly the value an adapter is allowed to extract. Empty means "you
+' decide", and studio_ui does.
 function on_new_file()
-    r = studio_ui.new_file(G.app)
+    r = studio_ui.new_file(G.app, G.shell.name_entry.text)
     G.app = r.app
     G.last_action = r.action
+    G.last_detail = r.detail
     redraw()
     return nothing
 end function
 
 function on_new_folder()
-    r = studio_ui.new_folder(G.app)
+    r = studio_ui.new_folder(G.app, G.shell.name_entry.text)
     G.app = r.app
     G.last_action = r.action
+    G.last_detail = r.detail
+    redraw()
+    return nothing
+end function
+
+function on_rename()
+    r = studio_ui.rename_selected(G.app, G.shell.name_entry.text)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    redraw()
+    return nothing
+end function
+
+' Delete and Close carry a pending confirmation between clicks. The handler only
+' hands the stored arm in and stores whatever comes back; whether that arms or
+' fires is studio_ui's call, and redraw is what expires it.
+function on_delete()
+    r = studio_ui.delete_selected(G.app, G.armed_path)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    G.armed_path = r.armed
+    redraw()
+    return nothing
+end function
+
+function on_close_tab()
+    r = studio_ui.close_active(G.app, G.armed_doc)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    G.armed_doc = r.armed
     redraw()
     return nothing
 end function
@@ -165,6 +220,7 @@ function on_save()
     r = studio_ui.save_active(G.app)
     G.app = r.app
     G.last_action = r.action
+    G.last_detail = r.detail
     redraw()
     return nothing
 end function
@@ -173,6 +229,7 @@ function on_refresh()
     r = studio_ui.refresh(G.app)
     G.app = r.app
     G.last_action = r.action
+    G.last_detail = r.detail
     redraw()
     return nothing
 end function
@@ -187,6 +244,9 @@ function wire_shell()
     gi.connect(sh.new_btn, "clicked", on_new_project)
     gi.connect(sh.file_btn, "clicked", on_new_file)
     gi.connect(sh.folder_btn, "clicked", on_new_folder)
+    gi.connect(sh.rename_btn, "clicked", on_rename)
+    gi.connect(sh.delete_btn, "clicked", on_delete)
+    gi.connect(sh.close_btn, "clicked", on_close_tab)
     gi.connect(sh.save_btn, "clicked", on_save)
     gi.connect(sh.refresh_btn, "clicked", on_refresh)
     return nothing
@@ -369,6 +429,59 @@ function stu2c_step()
     return false
 end function
 
+' ---- STU-2D display tier ---------------------------------------------------
+'
+' What the headless suite cannot reach here is the name FIELD: that Rename and
+' New File read the text a user typed into a GtkEntry, and that the field empties
+' once it has been consumed. GtkEntry's text is an ordinary property, so the test
+' types by setting it — the same trick as the editor buffer, and the reason the
+' name field is a field rather than a dialog.
+'
+' It also presses Delete twice for real, which is the only way to see that the
+' arm survives one redraw and not two.
+function stu2d_step()
+    G.phase = G.phase + 1
+    if G.phase = 1 then
+        print "typing \"notes.bas\" into the name field, then clicking New File"
+        G.shell.name_entry.text = "notes.bas"
+        G.shell.file_btn.activate()
+        return true
+    end if
+    if G.phase = 2 then
+        print "action=" + G.last_action + " status=" + G.shell.status.label
+        print "name field is now [" + G.shell.name_entry.text + "]"
+        state("after New File")
+        print "typing \"notes-2.bas\" and clicking Rename"
+        G.shell.name_entry.text = "notes-2.bas"
+        G.shell.rename_btn.activate()
+        return true
+    end if
+    if G.phase = 3 then
+        print "action=" + G.last_action + " status=" + G.shell.status.label
+        state("after Rename")
+        print "clicking Delete once"
+        G.shell.delete_btn.activate()
+        return true
+    end if
+    if G.phase = 4 then
+        print "action=" + G.last_action + " status=" + G.shell.status.label
+        state("armed, and still there")
+        print "clicking Delete again"
+        G.shell.delete_btn.activate()
+        return true
+    end if
+    if G.phase = 5 then
+        print "action=" + G.last_action + " status=" + G.shell.status.label
+        state("deleted")
+        print "clicking Delete with nothing selected"
+        G.shell.delete_btn.activate()
+        return true
+    end if
+    print "action=" + G.last_action + " status=" + G.shell.status.label
+    G.app_ref.quit()
+    return false
+end function
+
 ' The cold-home path: an empty home renders "(no workspace open)", and New
 ' Project is the only thing that can move it. If this button does not work, a
 ' new user has no way into Studio at all.
@@ -407,6 +520,11 @@ function on_activate(gtkapp)
     if G.stu2c then
         state("a cold home")
         gi.timeout(400, stu2c_step)
+        return nothing
+    end if
+    if G.stu2d then
+        state("as built")
+        gi.timeout(400, stu2d_step)
         return nothing
     end if
     if G.smoke then
@@ -854,6 +972,12 @@ program main(args)
     ' our own writes (set_current_page, set_text) apart from user input.
     G.redrawing = false
     G.last_action = ""
+    ' STU-2D: the detail behind the last action (what the status line names), and
+    ' the two pending confirmations — a path waiting on a second Delete, a
+    ' document waiting on a second Close.
+    G.last_detail = ""
+    G.armed_path = ""
+    G.armed_doc = ""
     G.stu2b = false
     G.stu2b_cold = false
     G.phase = 0
@@ -861,6 +985,7 @@ program main(args)
     ' write a home do it — the smoke tiers assert their own output and must not
     ' grow a "saved=" line each.
     G.stu2c = false
+    G.stu2d = false
     G.save_on_exit = false
     if mode = "gui" then
         G.save_on_exit = true
@@ -888,6 +1013,17 @@ program main(args)
     if mode = "stu2c_smoke" then
         G.stu2c = true
         G.save_on_exit = true
+    end if
+
+    ' STU-2D: the name field, Rename, and Delete's two clicks, over a real
+    ' project directory.
+    if mode = "stu2d_smoke" then
+        G.stu2d = true
+        projdir = args[2]
+        G.app = studio.create_registered_workspace(G.app, "ws")
+        ws = G.app.model.workspace
+        ws = studio_model.add_project(ws, "Alpha", projdir)
+        G.app = studio.set_workspace(G.app, ws)
     end if
 
     if mode = "smoke" then
@@ -990,7 +1126,21 @@ program main(args)
         end if
     end if
 
-    gtkapp = gtk.application("org.gbasic.Studio")
+    ' NON_UNIQUE, deliberately. `gtk.application(id)` builds a GtkApplication with
+    ' default flags, which makes it SINGLE-INSTANCE: a second `./studio` does not
+    ' open a second window at all — it registers as a remote, forwards "activate"
+    ' to the first process and exits. That is wrong twice over. A user with two
+    ' projects gets one window and no explanation, and the process that IS running
+    ' receives an extra "activate", builds a SECOND shell over the same globals and
+    ' ends up with two of every handler — which is how it first showed itself here,
+    ' as a display tier that occasionally saw one click land twice.
+    '
+    ' `gtk` has no flags parameter (it wraps GTK, it does not replace it — its
+    ' header says to drop to `gi` for anything unwrapped), so this is the one place
+    ' the application object is built by hand.
+    gi.require("Gio", "2.0")
+    solo = gi.enum("Gio.ApplicationFlags.NON_UNIQUE")
+    gtkapp = gi.new("Gtk.Application", "application-id", "org.gbasic.Studio", "flags", solo)
     G.app_ref = gtkapp
     gi.connect(gtkapp, "activate", on_activate)
     gi.call(gtkapp, "run", 0, nothing)

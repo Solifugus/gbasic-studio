@@ -665,7 +665,8 @@ run_ui() { # mode
 }
 
 for m in rows open expand project bounds tabs edit save newproj refresh \
-         newfile newfolder adopt exit; do
+         newfile newfolder adopt exit \
+         names rename delete closetab notice; do
     run_ui "$m"
 done
 
@@ -674,7 +675,7 @@ done
 if command -v valgrind >/dev/null 2>&1; then
     vg_log="$(mktemp)"
     ui_ok=1
-    for m in open expand tabs edit refresh newfile newfolder adopt; do
+    for m in open expand tabs edit refresh newfile newfolder adopt rename delete closetab; do
         ui_home="$tmproot/ui_vg_$m"; ui_proj="$tmproot/ui_vg_${m}_proj"
         rm -rf "$ui_home" "$ui_proj"; mkdir -p "$ui_home"; mkproj_ui "$ui_proj"
         : >"$stdout_file"
@@ -686,7 +687,7 @@ if command -v valgrind >/dev/null 2>&1; then
         fi
     done
     rm -f "$vg_log"
-    [ "$ui_ok" -eq 1 ] && printf 'PASS ui_memory (valgrind clean: open/expand/tabs/edit/refresh/newfile/newfolder/adopt)\n'
+    [ "$ui_ok" -eq 1 ] && printf 'PASS ui_memory (valgrind clean: open/expand/tabs/edit/refresh/newfile/newfolder/adopt/rename/delete/closetab)\n'
 else
     printf 'SKIP ui_memory (valgrind not installed)\n'
 fi
@@ -765,10 +766,64 @@ if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
             cat "$stdout_file"; fail "ui_gui_new (nonzero exit)"
         fi
     fi
+    # STU-2D: the name FIELD, which no headless test can reach — that Rename and
+    # New File read what was typed into a GtkEntry, that the field empties once
+    # consumed, and that Delete's arm survives exactly one redraw. GtkEntry text
+    # is an ordinary property, which is why the name is a field and not a dialog:
+    # a test can type into it.
+    d2_home="$tmproot/ui_gui_name"; d2_proj="$tmproot/ui_gui_name_proj"
+    mkdir -p "$d2_home"; mkproj_ui "$d2_proj"
+    : >"$stdout_file"
+    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
+            "$GBASIC" "$APP" stu2d_smoke "$d2_home" "$d2_proj" \
+            >"$stdout_file" 2>/dev/null; then
+        if diff -u tests/studio/ui_gui_name.out "$stdout_file"; then
+            printf 'PASS ui_gui_name (typed names, rename, and delete confirmed twice)\n'
+        else
+            fail "ui_gui_name (output diff)"
+        fi
+    else
+        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
+            printf 'SKIP ui_gui_name (GTK 4 typelib not available)\n'
+        else
+            cat "$stdout_file"; fail "ui_gui_name (nonzero exit)"
+        fi
+    fi
+    # Two Studio windows at once. This is a regression test for a real defect,
+    # not a stress test: `gtk.application(id)` defaults to SINGLE-INSTANCE, so a
+    # second Studio used to print nothing and quietly hand its "activate" to the
+    # first — which then built a second shell over the same globals and wired
+    # every handler twice. It showed up here as a display tier that occasionally
+    # saw one click land twice. Both processes must now produce, byte for byte,
+    # what one alone produces.
+    solo_a="$tmproot/ui_gui_solo_a"; solo_b="$tmproot/ui_gui_solo_b"
+    mkdir -p "$solo_a" "$solo_b"
+    solo_out_a="$tmproot/solo_a.out"; solo_out_b="$tmproot/solo_b.out"
+    timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
+            "$GBASIC" "$APP" stu2b_cold "$solo_a" >"$solo_out_a" 2>/dev/null &
+    solo_pid=$!
+    timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
+            "$GBASIC" "$APP" stu2b_cold "$solo_b" >"$solo_out_b" 2>/dev/null
+    solo_rc_b=$?
+    wait "$solo_pid"; solo_rc_a=$?
+    if [ "$solo_rc_a" -ne 0 ] || [ "$solo_rc_b" -ne 0 ]; then
+        if grep -q 'gi.require: could not load namespace' "$solo_out_a" "$solo_out_b"; then
+            printf 'SKIP ui_gui_solo (GTK 4 typelib not available)\n'
+        else
+            cat "$solo_out_a" "$solo_out_b"; fail "ui_gui_solo (nonzero exit)"
+        fi
+    elif diff -u tests/studio/ui_gui_cold.out "$solo_out_a" \
+         && diff -u tests/studio/ui_gui_cold.out "$solo_out_b"; then
+        printf 'PASS ui_gui_solo (two instances at once, neither disturbing the other)\n'
+    else
+        fail "ui_gui_solo (a concurrent instance changed what the other did)"
+    fi
 else
     printf 'SKIP ui_gui (no display)\n'
     printf 'SKIP ui_gui_cold (no display)\n'
     printf 'SKIP ui_gui_new (no display)\n'
+    printf 'SKIP ui_gui_name (no display)\n'
+    printf 'SKIP ui_gui_solo (no display)\n'
 fi
 
 printf 'run_studio: all cases passed\n'
