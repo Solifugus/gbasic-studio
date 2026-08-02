@@ -257,8 +257,17 @@ library studio_shell
         active_page = 0
         while idx < count(shell.pages)
             pg = shell.pages[idx]
-            t = want[idx]
-            book.set_tab_label(pg.child, gtk.label(t.label))
+            ' By DOCUMENT ID, not by position. These two arrays are built
+            ' differently — `want` follows the document manager's order, pages
+            ' follow creation order with survivors compacted and new ones
+            ' appended — and pairing them by index is only correct while those
+            ' happen to agree. When they did not, a tab would carry one
+            ' document's label over another document's buffer: the window would
+            ' say you were editing one file while showing you another.
+            t = studio_shell._want_for(want, pg.doc_id)
+            if t != nothing then
+                book.set_tab_label(pg.child, gtk.label(t.label))
+            end if
             doc = studio_docs.doc_by_id(app.dm, pg.doc_id)
             ed = pg.editor
             shown = ed.get_text()
@@ -273,6 +282,16 @@ library studio_shell
         book.set_current_page(active_page)
 
         return { shell: shell, new_editors: new_editors }
+    end function
+
+    ' The wanted-tab row for a document id, or nothing.
+    function _want_for(want, doc_id)
+        for each t in want
+            if t.doc_id = doc_id then
+                return t
+            end if
+        end for
+        return nothing
     end function
 
     function _wanted(want, doc_id)
