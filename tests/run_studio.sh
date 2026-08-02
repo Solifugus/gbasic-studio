@@ -484,7 +484,7 @@ run_results() { # mode
     fi
 }
 for m in persist history fingerprint orphan refused signal truncate truncate_unit \
-         evict concurrent compat store view; do
+         evict concurrent compat store view preview; do
     run_results "$m"
 done
 printf 'PASS results_scratch_clean (no materialized prefix left by any case)\n'

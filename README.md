@@ -63,15 +63,21 @@ million-row array reports the count and nothing else until something asks for
 more. A section that raised never reaches the epilogue, and that is reported as
 `absent` rather than as an error.
 
-They are stored with the run, as a fifth capture beside the four output streams,
-and the results pane lists them under the output. A results file written by an
-older Studio still loads: its results simply have no variable capture.
+They are stored with the run and shown under its output, **changed first** —
+`~` for a variable the section altered, `+` for one it created — because a second
+dump is taken before the section runs and the two are diffed.
 
-What still does not respond: nothing shows section boundaries in the gutter, and
-there is no expandable inspector — the pane lists names, kinds and counts, but
-opening a record or an array to look inside is still to come. Nor is there a
-changed-variables view: a run reports the whole scope it left, not the delta,
-which would need a second capture taken before the target ran.
+Each variable comes with a **bounded preview**: a scalar shows its value, a record
+its fields, an array of records a table with the element's fields as columns. The
+bound is the point — a 500-element array is sampled to 50 and says `... 450 more`,
+so inspecting never copies a large structure. A results file written by an older
+Studio still loads; its results simply have no variable capture.
+
+What is not there: expansion beyond the preview's bound. Looking deeper than the
+sample means re-running the section, because the child that held the values is
+gone — that is the replay model, not an oversight, and Studio says `... N more`
+rather than pretending otherwise. There is also no interactive table widget; the
+table is rendered as text in the results pane.
 
 A conflicting external change shows as an ordinary dirty marker — the tab does
 not distinguish it from your own unsaved edits. Closing the window saves *which*
@@ -119,7 +125,7 @@ button yet. To start from a canned workspace instead:
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 121 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 122 cases, headless; honours GBASIC / GBASIC_STDLIB
 ```
 
 Golden-file based: a driver plus a `.out` holding expected stdout, compared

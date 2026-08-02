@@ -1,0 +1,41 @@
+-- viewer dispatch
+before_count=2
+  big -> list
+  i -> scalar
+  n -> scalar
+  name -> scalar
+  nums -> list
+  rec -> record
+  rows -> table
+-- the pane
+Results — sec-3  (1 run(s))
+latest: res-1  finished exit 0  at 1000  0s
+  variables (7, 5 changed):
+    + big array[500]
+        0
+        1
+        2
+        3
+        4
+        5
+        6
+        7
+        ... 492 more
+    + i number = 500
+    + nums array[3]
+        10
+        20
+        30
+    + rec record[2]
+        field | value
+        a | 1
+        b | two
+    + rows array[2]
+        id | who
+        1 | ada
+        2 | bob
+      n number = 42
+      name string = studio
+-- bounds
+  captured rows=50 more=450 count=500
+  capture bytes=true

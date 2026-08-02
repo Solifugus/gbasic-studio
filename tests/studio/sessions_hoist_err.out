@@ -6,4 +6,4 @@ out_prefix=<>
 out_target=<>
 ! prefix section=sec-4 12:12 division by zero
 transitions: idle>materializing materializing>running running>finished
-raw_child_line=14
+raw_child_line=80

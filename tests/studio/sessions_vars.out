@@ -54,7 +54,7 @@ exit_code=0 signal=0 success=true
 out_prefix=<@@vars@@
 >
 out_target=<@@vars@@
-[{"name":"k","kind":"number","type":"number","category":"scalar","serializable":true,"count":0}]
+[{"name":"k","kind":"number","type":"number","category":"scalar","serializable":true,"count":0,"preview":{"cols":[],"rows":[],"text":"5","more":0}}]
 >
 transitions: idle>materializing materializing>running running>finished
 vars_before_status=captured

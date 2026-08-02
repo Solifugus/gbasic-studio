@@ -136,6 +136,13 @@ function show_classified(store, secs, label)
   return nothing
 end function
 
+' ---- STU-5: values worth previewing ---------------------------------------
+function preview_src()
+  ' One of each shape the viewer dispatches on: a scalar, a flat list, an array
+  ' of records (tabular), a record, and an array long enough to be sampled.
+  return "n = 42\nname = \"studio\"\n\nfunction f(q)\n  return q\nend function\n\nnums = [10, 20, 30]\nrows = [{ id: 1, who: \"ada\" }, { id: 2, who: \"bob\" }]\nrec = { a: 1, b: \"two\" }\nbig = []\ni = 0\nwhile i < 500\n  big = append(big, i)\n  i = i + 1\nend while\n"
+end function
+
 program main(args)
   load persist
   load studio_sections
@@ -153,6 +160,37 @@ program main(args)
   home = "/tmp/gbasic_stu5a_home"
   if count(args) > 2 then
     home = args[2]
+  end if
+
+  ' ---- previews: what a variable's value looks like in a result ----------
+  if mode = "preview" then
+    src = preview_src()
+    secs = sections_for(src)
+    last = secs.sections[count(secs.sections) - 1]
+    store = studio_results.open(home, "/proj/p.bas")
+    store = run_and_record(home, store, pinned_session("doc-1", scratch, 1000), secs, src, last.id)
+    studio_results.save(home, store)
+
+    r = studio_results.latest_for(store, last.id)
+    print "-- viewer dispatch"
+    vs = studio_results._before_vars(home, store, r)
+    print "before_count=" + count(vs)
+    after = try_decode(studio_results.capture(home, store, r.result_id, "vars"))
+    for each v in after.value
+      print "  " + v.name + " -> " + studio_results.viewer_for(v)
+    end for
+
+    print "-- the pane"
+    print studio_results.view_text(home, store, secs, last.id)
+
+    ' The bound is the point: a 500-element array is SAMPLED, never copied.
+    print "-- bounds"
+    for each v in after.value
+      if v.name = "big" then
+        print "  captured rows=" + count(v.preview.rows) + " more=" + v.preview.more + " count=" + v.count
+      end if
+    end for
+    print "  capture bytes=" + (studio_results.capture_bytes(r, "vars") < 8000)
   end if
 
   ' ---- a result persisted and restored across a simulated restart --------

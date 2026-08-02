@@ -103,11 +103,13 @@ library studio_results
         return 20
     end function
 
-    ' SIZE CAP, per capture (the four output streams plus `vars`).
+    ' SIZE CAP, per capture (the four output streams plus `vars`/`vars_before`).
     ' 64 KB is one pipe buffer's worth — comfortably more than any output a human
     ' reads in a results pane, and small enough that the hard ceiling
-    ' (20 results x 5 captures x 64 KB) stays under 7 MB per document. A `vars`
-    ' capture is a shallow descriptor per variable, so 64 KB is thousands of them.
+    ' (20 results x 6 captures x 64 KB) stays under 8 MB per document. A variable
+    ' capture is one bounded descriptor per variable, so 64 KB is a lot of them —
+    ' and the sampling in studio_session's epilogue is what keeps a single huge
+    ' value from filling it.
     function capture_cap()
         return 65536
     end function
@@ -624,7 +626,74 @@ library studio_results
         out = append(out, head)
         for each v in marked
             out = append(out, "    " + studio_results.var_line(v))
+            for each pl in studio_results.preview_lines(v)
+                out = append(out, pl)
+            end for
         end for
+        return out
+    end function
+
+    ' How many preview rows the PANE shows. The capture holds up to
+    ' `studio_session.preview_rows()`; this is the smaller number a reader can
+    ' take in without scrolling past everything else in the result.
+    function view_rows()
+        return 8
+    end function
+
+    ' Which viewer a captured variable calls for (STU-5 §6.2 dispatch), decided
+    ' from its shape rather than from its declared type:
+    '   scalar  a single value — shown inline on its own line
+    '   list    a flat array — one column
+    '   table   an array of records — the columns are the first element's fields
+    '   record  a single record — field/value pairs
+    '   opaque  no preview was captured (an older result, or a live handle)
+    function viewer_for(v)
+        if not has(v, "preview") then
+            return "opaque"
+        end if
+        p = v.preview
+        if count(p.cols) = 0 then
+            return "scalar"
+        end if
+        if v.kind = "record" then
+            return "record"
+        end if
+        if count(p.cols) = 1 then
+            if p.cols[0] = "value" then
+                return "list"
+            end if
+        end if
+        return "table"
+    end function
+
+    ' The preview rows for a container, as display lines. Bounded twice over: the
+    ' capture already sampled, and this shows fewer still, saying how many it did
+    ' not show. A truncation that does not announce itself is the same error as a
+    ' truncated capture presented as whole.
+    function preview_lines(v)
+        out = []
+        kindv = studio_results.viewer_for(v)
+        if kindv = "scalar" then
+            return out
+        end if
+        if kindv = "opaque" then
+            return out
+        end if
+        p = v.preview
+        if kindv != "list" then
+            out = append(out, "        " + join(p.cols, " | "))
+        end if
+        shown = 0
+        for each row in p.rows
+            if shown < studio_results.view_rows() then
+                out = append(out, "        " + join(row, " | "))
+                shown = shown + 1
+            end if
+        end for
+        hidden = count(p.rows) - shown + p.more
+        if hidden > 0 then
+            out = append(out, "        ... " + hidden + " more")
+        end if
         return out
     end function
 
@@ -647,6 +716,13 @@ library studio_results
         end if
         if v.serializable = false then
             line = line + " (live)"
+        end if
+        ' A scalar's value belongs on its own line; a container's goes in the rows
+        ' below it.
+        if studio_results.viewer_for(v) = "scalar" then
+            if v.preview.text != "" then
+                line = line + " = " + v.preview.text
+            end if
         end if
         return line
     end function

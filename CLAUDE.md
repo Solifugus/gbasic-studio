@@ -47,7 +47,7 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 121 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 122 cases, headless; honours GBASIC / GBASIC_STDLIB
 ```
 
 Golden-file based: a driver plus a `.out` of expected stdout, compared
@@ -123,7 +123,9 @@ Two consequences worth knowing before you touch the shell:
   any appended `end program`: code after `end program` does not execute, so an
   epilogue at the end of the file would report nothing, silently, and only for
   program-body sections. `reflect.inspect` is shallow, so a section that built a
-  huge array reports its count and nothing more. The capture is persisted as a
+  huge array reports its count and a BOUNDED sample of it — the row loop stops at
+  the limit rather than walking the container, which is what keeps a preview from
+  becoming a copy. The capture is persisted as a
   fifth `studio_results` capture (schema 2); a version-1 store still loads, and
   `capture_bytes` answers 0 for a capture a stored result does not have, because
   a caller comparing `unknown > 0` raises.

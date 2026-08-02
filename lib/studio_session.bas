@@ -328,15 +328,115 @@ library studio_session
     ' does not execute at all, so an epilogue appended at the end of the file for a
     ' program-body section would report nothing, silently, and only for those
     ' documents.
+    ' How much of a value a preview may carry. The 64 KB per-capture cap is the
+    ' hard stop, but these are the honest limits: a preview is a SAMPLE, and one
+    ' that silently became a full copy of a large structure would defeat the whole
+    ' point of inspecting shallowly.
+    function preview_rows()
+        return 50
+    end function
+
+    function preview_cell()
+        return 200
+    end function
+
     function _vars_epilogue(marker)
+        return studio_session._vars_epilogue_opt(marker, false)
+    end function
+
+    ' `with_preview` adds a BOUNDED sample of each value: scalars whole (to a cell
+    ' limit), containers as up to `preview_rows()` rows. Only the after-scope asks
+    ' for it — the before-scope exists to be diffed by name and shape, and
+    ' sampling it too would double the cost for nothing.
+    '
+    ' The row loop is bounded at the LIMIT, not at the container's length: walking
+    ' a million-element array to keep fifty of them would be exactly the
+    ' auto-materialization `reflect.inspect` is shallow to avoid.
+    function _vars_epilogue_opt(marker, with_preview)
         p = studio_session.vars_prefix()
+        cell = studio_session.preview_cell()
+        rows = studio_session.preview_rows()
         lines = []
+        if with_preview then
+            lines = append(lines, "function " + p + "_txt(v)")
+            lines = append(lines, "  if reflect.category(v) = \"foreign\" then")
+            lines = append(lines, "    return \"(live)\"")
+            lines = append(lines, "  end if")
+            lines = append(lines, "  s = string(v)")
+            lines = append(lines, "  if len(s) > " + cell + " then")
+            lines = append(lines, "    return mid(s, 0, " + cell + ") + \"...\"")
+            lines = append(lines, "  end if")
+            lines = append(lines, "  return s")
+            lines = append(lines, "end function")
+            lines = append(lines, "function " + p + "_prev(v)")
+            lines = append(lines, "  if reflect.category(v) != \"container\" then")
+            lines = append(lines, "    return { cols: [], rows: [], text: " + p + "_txt(v), more: 0 }")
+            lines = append(lines, "  end if")
+            lines = append(lines, "  if reflect.kind(v) = \"record\" then")
+            lines = append(lines, "    fs = reflect.fields(v)")
+            lines = append(lines, "    rr = []")
+            lines = append(lines, "    i = 0")
+            lines = append(lines, "    while i < count(fs)")
+            lines = append(lines, "      if i >= " + rows + " then")
+            lines = append(lines, "        break")
+            lines = append(lines, "      end if")
+            lines = append(lines, "      rr = append(rr, [fs[i], " + p + "_txt(reflect.field(v, fs[i]))])")
+            lines = append(lines, "      i = i + 1")
+            lines = append(lines, "    end while")
+            lines = append(lines, "    return { cols: [\"field\", \"value\"], rows: rr, text: \"\", more: count(fs) - count(rr) }")
+            lines = append(lines, "  end if")
+            lines = append(lines, "  n = reflect.count(v)")
+            lines = append(lines, "  if n = 0 then")
+            lines = append(lines, "    return { cols: [], rows: [], text: \"(empty)\", more: 0 }")
+            lines = append(lines, "  end if")
+            lines = append(lines, "  lim = n")
+            lines = append(lines, "  if lim > " + rows + " then")
+            lines = append(lines, "    lim = " + rows)
+            lines = append(lines, "  end if")
+            lines = append(lines, "  e0 = reflect.element(v, 0)")
+            lines = append(lines, "  cs = [\"value\"]")
+            lines = append(lines, "  tabular = false")
+            lines = append(lines, "  if reflect.kind(e0) = \"record\" then")
+            lines = append(lines, "    cs = reflect.fields(e0)")
+            lines = append(lines, "    tabular = true")
+            lines = append(lines, "  end if")
+            lines = append(lines, "  rr = []")
+            lines = append(lines, "  i = 0")
+            lines = append(lines, "  while i < lim")
+            lines = append(lines, "    e = reflect.element(v, i)")
+            lines = append(lines, "    if tabular then")
+            lines = append(lines, "      row = []")
+            lines = append(lines, "      for each c in cs")
+            lines = append(lines, "        cv = \"\"")
+            ' A heterogeneous array of records is not an error: a row simply has
+            ' no cell under a column it does not carry.
+            lines = append(lines, "        if is_record(e) then")
+            lines = append(lines, "          if has(e, c) then")
+            lines = append(lines, "            cv = " + p + "_txt(reflect.field(e, c))")
+            lines = append(lines, "          end if")
+            lines = append(lines, "        end if")
+            lines = append(lines, "        row = append(row, cv)")
+            lines = append(lines, "      end for")
+            lines = append(lines, "      rr = append(rr, row)")
+            lines = append(lines, "    else")
+            lines = append(lines, "      rr = append(rr, [" + p + "_txt(e)])")
+            lines = append(lines, "    end if")
+            lines = append(lines, "    i = i + 1")
+            lines = append(lines, "  end while")
+            lines = append(lines, "  return { cols: cs, rows: rr, text: \"\", more: n - lim }")
+            lines = append(lines, "end function")
+        end if
         lines = append(lines, "print \"" + marker + "\"")
         lines = append(lines, p + "_o = []")
         lines = append(lines, "for each " + p + "_n in reflect.variables()")
         lines = append(lines, "  if left(" + p + "_n, " + len(p) + ") != \"" + p + "\" then")
-        lines = append(lines, "    " + p + "_d = reflect.inspect(reflect.get(" + p + "_n))")
-        lines = append(lines, "    " + p + "_o = append(" + p + "_o, { name: " + p + "_n, kind: " + p + "_d.kind, type: " + p + "_d.type, category: " + p + "_d.category, serializable: " + p + "_d.serializable, count: " + p + "_d.count })")
+        lines = append(lines, "    " + p + "_v = reflect.get(" + p + "_n)")
+        lines = append(lines, "    " + p + "_d = reflect.inspect(" + p + "_v)")
+        entry = "{ name: " + p + "_n, kind: " + p + "_d.kind, type: " + p + "_d.type, category: " + p + "_d.category, serializable: " + p + "_d.serializable, count: " + p + "_d.count"
+        if with_preview then
+            entry = entry + ", preview: " + p + "_prev(" + p + "_v)"
+        end if
+        lines = append(lines, "    " + p + "_o = append(" + p + "_o, " + entry + " })")
         lines = append(lines, "  end if")
         lines = append(lines, "end for")
         lines = append(lines, "print json_encode(" + p + "_o)")
@@ -475,7 +575,7 @@ library studio_session
         ' document is accounted for (so the map's document segments are already
         ' fixed) and BEFORE any `end program`, because nothing after that runs.
         if vars_marker != "" then
-            body = body + studio_session._vars_epilogue(vars_marker)
+            body = body + studio_session._vars_epilogue_opt(vars_marker, true)
             if appended = "" then
                 appended = "vars"
             else
