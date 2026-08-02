@@ -46,6 +46,17 @@ latest: res-1  finished exit 0  at 1000  0s  [section edited since this run]
   output: <5
 >
   variables: none
+== standing, in the session that ran it ==
+standing=warm | 
+a section that never ran: never | not run yet
+== reopened in a new session — the same result, now cold ==
+standing=cold | cold — recorded in an earlier session; Run to rebuild the state
+the result is still there:
+Results — sec-5  (1 run(s))
+latest: res-1  finished exit 0  at 1000  0s
+  output: <5
+>
+  variables: none
 == an empty document ==
 section: (none)
 Results

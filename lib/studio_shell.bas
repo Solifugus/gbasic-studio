@@ -113,6 +113,7 @@ library studio_shell
         sess = studio_ui.exec_session(app)
         shell.bar.state.label = studio_ui.run_line(sess)
         shell.bar.section.label = studio_ui.section_label(app)
+        shell.bar.standing.label = studio_ui.standing_line(app)
         shell.pane.prefix.label = studio_ui.prefix_body(app)
         shell.pane.target.label = studio_ui.target_body(app)
         shell.pane.errors.label = studio_ui.error_body(app)
@@ -465,14 +466,18 @@ library studio_shell
         ' STU-5A′: which section Run would run, shown BEFORE you press it rather
         ' than after. It follows the caret.
         section = gtk.label("section: (none)")
+        ' STU-5 §10.3: whether what you are looking at is live in this session or
+        ' a record from an earlier one.
+        standing = gtk.label("")
         bar.append(run_btn)
         bar.append(halt_btn)
         bar.append(force_btn)
         bar.append(state)
         bar.append(section)
+        bar.append(standing)
         ' `stop` is a gBASIC keyword and cannot be a record key, hence `halt`.
         return { box: bar, run: run_btn, halt: halt_btn, force: force_btn,
-                 state: state, section: section }
+                 state: state, section: section, standing: standing }
     end function
 
     ' These three moved to studio_ui in STU-2E and stayed here as delegates. They

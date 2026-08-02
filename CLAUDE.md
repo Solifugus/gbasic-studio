@@ -139,6 +139,13 @@ Two consequences worth knowing before you touch the shell:
   for their own file tree; only the FINAL tick does a full redraw, because that
   is when the status line and the results pane change. `on_run_poll` returns the
   `active` flag, so the timer removes itself the moment the run ends.
+- `view_for` RESTORES a document's section state from the workspace
+  (`studio_sections.restore_from`) rather than creating one, and folds it back on
+  every change. Section ids are minted from a per-document counter that advances
+  as sections are re-matched across edits, so a state built from scratch on the
+  next launch renumbers everything — and every result recorded under the old ids
+  belongs to no section that exists. STU-3 built the anchors for exactly this and
+  nothing was calling them.
 - The panes read through `studio_ui.view_for`, which CACHES the section outline on
   `app.view` — so `refresh_run` and `refresh` return the app, and a caller that
   drops it re-parses the document on every render, at cursor-move rate. Cache

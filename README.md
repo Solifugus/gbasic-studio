@@ -73,6 +73,13 @@ bound is the point — a 500-element array is sampled to 50 and says `... 450 mo
 so inspecting never copies a large structure. A results file written by an older
 Studio still loads; its results simply have no variable capture.
 
+**A result from an earlier session is cold.** Reopening a project restores the
+cheap layer instantly — files, caret, run history — and deliberately does not
+replay anything: running your code on open, side effects and all, before you
+asked for it would be worse than the wait it saves. So the strip says
+`cold — recorded in an earlier session; Run to rebuild the state`, and Run is how
+you get the state back.
+
 What is not there: expansion beyond the preview's bound. Looking deeper than the
 sample means re-running the section, because the child that held the values is
 gone — that is the replay model, not an oversight, and Studio says `... N more`

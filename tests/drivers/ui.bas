@@ -734,6 +734,36 @@ program main(args)
     app = r.app
     print studio_ui.results_body(app)
 
+    ' STU-5 §10.3: a result from an EARLIER session is cold — real, readable, and
+    ' backed by no live state. Reopening the home is what makes it so.
+    banner("standing, in the session that ran it")
+    r = studio_ui.sync_cursor(app, id, 6, 0)
+    app = r.app
+    st = studio_ui.run_standing(app)
+    app = st.app
+    print "standing=" + st.standing + " | " + studio_ui.standing_line(app)
+    r = studio_ui.sync_cursor(app, id, 0, 0)
+    app = r.app
+    st = studio_ui.run_standing(app)
+    app = st.app
+    print "a section that never ran: " + st.standing + " | " + studio_ui.standing_line(app)
+
+    banner("reopened in a new session — the same result, now cold")
+    ' Closing writes the home; relaunching is a genuinely new session with no
+    ' live run in it, which is what makes the stored result cold rather than warm.
+    r = studio_ui.sync_cursor(app, id, 6, 0)
+    app = r.app
+    studio.persist(app)
+    again = studio.launch(home)
+    ad = studio_docs.active_doc(again.dm)
+    rr = studio_ui.sync_cursor(again, ad.id, 6, 0)
+    again = rr.app
+    st = studio_ui.run_standing(again)
+    again = st.app
+    print "standing=" + st.standing + " | " + studio_ui.standing_line(again)
+    print "the result is still there:"
+    print studio_ui.results_body(again)
+
     ' A caret in a document with nothing runnable in it at all.
     banner("an empty document")
     ef(file) = projdir + "/empty.bas"

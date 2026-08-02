@@ -1338,15 +1338,37 @@ library studio_ui
             ' It also makes `revision` mean something: a state created fresh every
             ' call is forever at revision 1, and anything using it as a change
             ' signal (the editor's gutter marks) would never see a change.
+            ws = app.model.workspace
+            fresh = false
             if v.st = nothing then
-                v.st = studio_sections.create(doc.id)
+                fresh = true
             end if
             if v.doc_id != doc.id then
-                v.st = studio_sections.create(doc.id)
+                fresh = true
+            end if
+            if fresh then
+                ' RESTORE rather than create. Ids are minted from a per-document
+                ' counter that advances as sections are re-matched across edits,
+                ' so a document edited in one session ends up with ids like sec-5
+                ' — and a state built from scratch next time numbers its sections
+                ' sec-1..N again. Every result recorded under the old ids would
+                ' then belong to no section that exists, and a document's whole
+                ' history would quietly disappear on restart.
+                '
+                ' STU-3 built the anchors to survive exactly this; nothing had
+                ' been calling them.
+                v.st = studio_sections.restore_from(ws.sections, doc.id)
             end if
             v.st = studio_sections.refresh(v.st, doc.content)
             v.src = doc.content
             v.doc_id = doc.id
+            ' Fold the state back into the workspace as it changes, so whatever
+            ' the shutdown pipeline writes already has it. Waiting until exit
+            ' would mean only the last document looked at kept its ids.
+            if ws != nothing then
+                ws.sections = studio_sections.persist_into(ws.sections, v.st)
+                app = studio.set_workspace(app, ws)
+            end if
         end if
         if v.doc_path != doc.path then
             v.store = studio_results.open(app.paths.home, doc.path)
@@ -1546,6 +1568,62 @@ library studio_ui
             return "Results\n(no section at the cursor)"
         end if
         return studio_results.view_text(app.paths.home, v.store, v.st, v.sid)
+    end function
+
+    ' ---- cold state (STU-5 §10.3) -------------------------------------------
+    '
+    ' Reopening a project restores the CHEAP layer instantly — which files were
+    ' open, where the caret was, what has run before. It does not restore
+    ' computed state, and it deliberately does not try: replaying a section's
+    ' chain on open would run the user's code, with its side effects, before they
+    ' had asked for anything.
+    '
+    ' So a section whose results were recorded in an earlier session is COLD: the
+    ' result is real and readable, but nothing is loaded in any interpreter, and
+    ' the way to get the state back is to run it again. Saying so is the whole
+    ' feature — a result presented without that distinction implies a live state
+    ' behind it that does not exist.
+    function run_standing(app)
+        v = studio_ui.view_for(app)
+        app = v.app
+        if v.sid = "" then
+            return { app: app, standing: "none", detail: "" }
+        end if
+        sess = studio_ui.exec_session(app)
+        if sess != nothing then
+            if sess.section_id = v.sid then
+                if studio_session.is_active(sess) then
+                    return { app: app, standing: "running", detail: v.sid }
+                end if
+                ' Run in THIS session: the state it produced is as live as the
+                ' replay model ever gets.
+                return { app: app, standing: "warm", detail: v.sid }
+            end if
+        end if
+        if v.store = nothing then
+            return { app: app, standing: "none", detail: "" }
+        end if
+        latest = studio_results.latest_for(v.store, v.sid)
+        if latest = nothing then
+            return { app: app, standing: "never", detail: v.sid }
+        end if
+        return { app: app, standing: "cold", detail: latest.result_id }
+    end function
+
+    ' The one line the strip shows about it. `warm` says nothing: a section that
+    ' just ran in front of you needs no explanation.
+    function standing_line(app)
+        r = studio_ui.run_standing(app)
+        if r.standing = "cold" then
+            return "cold — recorded in an earlier session; Run to rebuild the state"
+        end if
+        if r.standing = "never" then
+            return "not run yet"
+        end if
+        if r.standing = "running" then
+            return "running now"
+        end if
+        return ""
     end function
 
     ' A path-free, clock-free line for the headless goldens.
