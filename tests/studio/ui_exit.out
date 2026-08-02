@@ -1,6 +1,6 @@
 dirty documents: 0
 dirty documents after typing: 1
-saved=settings,session,workspace:ws-1,registry
+saved=settings,session,workspace:ws-1,registry,drafts
 == relaunching the same home ==
 nav rows=6
   [info] Workspace: ws
@@ -11,6 +11,8 @@ nav rows=6
   [file]     main.bas
 selected=main.bas
 tabs=1
-  * doc-1 main.bas
-doc-1 content after restart=print "main"
+  * doc-1 * main.bas
+doc-1 content after restart=unsaved when the window closed
 
+still unsaved=true
+the file itself is untouched=true

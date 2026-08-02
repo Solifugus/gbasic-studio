@@ -183,7 +183,8 @@ proj_sr="$tmproot/proj_sr"; mkproj "$proj_sr"
 home_s1="$tmproot/s1"
 : >"$stdout_file"
 timeout 60 "$GBASIC" "$APP" stu1_build "$home_s1" "$proj_sr" >"$stdout_file" 2>&1 || { cat "$stdout_file"; fail "stu1_build (exit)"; }
-grep -q '^saved=settings,session,workspace:ws-1,registry$' "$stdout_file" || { cat "$stdout_file"; fail "stu1_build (saved line)"; }
+# `drafts` joined this list when unsaved buffers started surviving a close.
+grep -q '^saved=settings,session,workspace:ws-1,registry,drafts$' "$stdout_file" || { cat "$stdout_file"; fail "stu1_build (saved line)"; }
 run_golden "stu1_restore" stu1_restore "$home_s1" tests/studio/stu1_restore.out
 
 # 8. Missing project — scanning a non-existent project directory yields no rows
@@ -667,7 +668,7 @@ run_ui() { # mode
 for m in rows open expand project bounds tabs edit save newproj refresh \
          newfile newfolder adopt exit \
          names rename delete closetab notice \
-         run runstop runerr cursor; do
+         run runstop runerr cursor drafts; do
     run_ui "$m"
 done
 

@@ -47,7 +47,7 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 123 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 124 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 7 cases, headless AND offline (scripted transport)
 ```
 
@@ -86,6 +86,8 @@ lib/studio_session.bas  replay-first execution in a child interpreter, 8 states
 lib/studio_results.bas  durable per-run results, retention, truncation, standing
 lib/studio_ui.bas       what an interaction MEANS — the browser/tab row models and
                         one function per interaction, over plain data, no GTK
+lib/studio_drafts.bas   unsaved buffers across a close; conflict-aware, keyed by
+                        a hash of the text the buffer was based on
 lib/studio_history.bas  the semantic action log — a closed vocabulary, bounded
                         by compaction into per-kind rollups
 lib/studio_tools.bas    the read-only tool surface the agent observes through —

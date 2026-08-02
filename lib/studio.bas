@@ -21,6 +21,7 @@ library studio
     ' missing load into a runtime failure deep inside a call, and it stops
     ' working entirely once these libraries live in separate projects.
     load studio_docs
+    load studio_drafts
     load studio_model
     load persist
     ' ---- paths -------------------------------------------------------------
@@ -280,6 +281,12 @@ library studio
         app = studio.startup(home)
         app = studio.load_registry(app)
         app.dm = studio._reload_docs(app)
+        ' Put back any unsaved buffers the last session was holding. They come
+        ' back UNSAVED — a draft is the user's typing, not a decision to write it
+        ' to their file.
+        r = studio_drafts.restore(app.paths.home, app.dm)
+        app.dm = r.dm
+        app.diagnostics = append(app.diagnostics, "drafts:" + count(r.restored) + " conflicts:" + count(r.conflicts))
         return app
     end function
 
@@ -312,9 +319,15 @@ library studio
     ' shutdown (settings/session/workspace) + the registry.
     function persist(app)
         app = studio._sync_docs(app)
+        ' Drafts BEFORE the workspace: a crash between the two leaves a draft the
+        ' next launch has no document to attach to, which is harmless. The other
+        ' order would leave a workspace naming documents whose unsaved text was
+        ' never written.
+        studio_drafts.capture(app.paths.home, app.dm)
         saved = studio.shutdown(app)
         studio.save_registry(app)
         saved = append(saved, "registry")
+        saved = append(saved, "drafts")
         return saved
     end function
 

@@ -47,6 +47,11 @@ function act(label, r)
   return r.app
 end function
 
+function read_file_text(p)
+  f(file) = p
+  return read(f)
+end function
+
 ' `join` requires string elements, so a list of line numbers needs converting.
 function numlist(nums)
   out = []
@@ -95,6 +100,7 @@ program main(args)
   load studio_docs
   load studio
   load studio_ui
+  load studio_drafts
 
   mode = args[0]
   home = args[1]
@@ -850,6 +856,51 @@ program main(args)
     print studio_ui.exec_summary(app)
   end if
 
+  ' ---- drafts: unsaved work survives closing the window --------------------
+  ' The hazard this closes: Studio used to discard every unsaved buffer on exit
+  ' and warn on stderr, which a GUI user never sees.
+  if mode = "drafts" then
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "main.bas"))
+    app = r.app
+    id = studio_docs.active_doc(app.dm).id
+    app = studio.edit_document(app, id, "half-typed, never saved\n")
+    print "dirty before closing: " + studio_ui.dirty_count(app)
+
+    saved = studio.persist(app)
+    print "saved=" + join(saved, ",")
+
+    banner("reopened — the typing is back, and still unsaved")
+    again = studio.launch(home)
+    d = studio_docs.doc_by_id(again.dm, id)
+    print "content=" + d.content
+    print "still dirty=" + studio_docs.is_dirty(d)
+    print "file on disk is untouched=" + (read_file_text(projdir + "/main.bas") = "print \"main\"\n")
+
+    banner("saving it clears the draft")
+    sv = studio_ui.save_active(again)
+    again = sv.app
+    studio.persist(again)
+    idx = studio_drafts.open_index(home)
+    print studio_drafts.summary(idx)
+    third = studio.launch(home)
+    d3 = studio_docs.doc_by_id(third.dm, id)
+    print "after a clean save, reopened dirty=" + studio_docs.is_dirty(d3)
+
+    banner("a file that changed underneath the draft is a CONFLICT, not a silent overwrite")
+    app2 = studio.launch(home)
+    app2 = studio.edit_document(app2, id, "typed again\n")
+    studio.persist(app2)
+    ' Someone else edits the file while Studio is closed.
+    w(file) = projdir + "/main.bas"
+    write(w, "changed by someone else\n")
+    app3 = studio.launch(home)
+    d4 = studio_docs.doc_by_id(app3.dm, id)
+    print "buffer=" + d4.content
+    print "external=" + d4.external
+    print "on disk=" + read_file_text(projdir + "/main.bas")
+  end if
+
   ' ---- notice: what the status bar says about each outcome -----------------
   ' Every action the shell can produce has to say something, or a refusal looks
   ' exactly like a button that is not wired.
@@ -886,11 +937,14 @@ program main(args)
     banner("relaunching the same home")
     again = studio.launch(home)
     show(again)
-    ' The KNOWN limitation, pinned rather than hidden: the tab comes back, the
-    ' unsaved text does not. Studio has no draft store, so what closing preserves
-    ' is which documents were open, not what was typed into them.
+    ' This used to pin a limitation — the tab came back and the unsaved text did
+    ' not — and now pins its absence. Closing preserves both which documents were
+    ' open AND what was typed into them; the buffer comes back UNSAVED, so the
+    ' decision to write it to the file is still the user's.
     d = studio_docs.doc_by_id(again.dm, "doc-1")
     print "doc-1 content after restart=" + d.content
+    print "still unsaved=" + studio_docs.is_dirty(d)
+    print "the file itself is untouched=" + (read_file_text(projdir + "/main.bas") = "print \"main\"\n")
   end if
 
   ' ---- refresh -------------------------------------------------------------

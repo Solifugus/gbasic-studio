@@ -1,0 +1,16 @@
+dirty before closing: 1
+saved=settings,session,workspace:ws-1,registry,drafts
+== reopened — the typing is back, and still unsaved ==
+content=half-typed, never saved
+
+still dirty=true
+file on disk is untouched=true
+== saving it clears the draft ==
+drafts: 0
+after a clean save, reopened dirty=false
+== a file that changed underneath the draft is a CONFLICT, not a silent overwrite ==
+buffer=typed again
+
+external=conflict
+on disk=changed by someone else
+

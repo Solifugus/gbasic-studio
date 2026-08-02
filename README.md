@@ -86,10 +86,14 @@ gone — that is the replay model, not an oversight, and Studio says `... N more
 rather than pretending otherwise. There is also no interactive table widget; the
 table is rendered as text in the results pane.
 
-A conflicting external change shows as an ordinary dirty marker — the tab does
-not distinguish it from your own unsaved edits. Closing the window saves *which*
-documents were open, not what was typed into them: Studio has no draft store, so
-unsaved buffers are lost and it says so on stderr as it exits.
+**Unsaved work survives closing the window.** A dirty buffer is written beside the
+workspace on the way out and put back on the way in — still unsaved, so the
+decision to write it to your file remains yours. If the file changed on disk
+while Studio was closed, the draft still comes back and the document is flagged
+as a conflict rather than either fact being hidden.
+
+A conflicting external change *during* a session shows as an ordinary dirty
+marker — the tab does not distinguish it from your own unsaved edits.
 
 **A read-only assistant (STU-6).** Studio keeps a semantic action history — files
 opened, sections selected and run, errors raised, in its own vocabulary rather
@@ -146,7 +150,7 @@ button yet. To start from a canned workspace instead:
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 123 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 124 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 7 cases, headless AND offline — no network, no key
 ```
 

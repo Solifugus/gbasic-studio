@@ -45,7 +45,7 @@ selected=untitled-1.bas
 tabs=1
   * doc-1 untitled-1.bas
 closing the window
-saved=settings,session,workspace:ws-1,registry
+saved=settings,session,workspace:ws-1,registry,drafts
 app-exited
 -- reopening the home in a new process --
 nav rows=4

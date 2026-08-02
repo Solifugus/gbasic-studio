@@ -53,7 +53,7 @@ a section that never ran: never | not run yet
 standing=cold | cold — recorded in an earlier session; Run to rebuild the state
 the result is still there:
 Results — sec-5  (1 run(s))
-latest: res-1  finished exit 0  at 1000  0s
+latest: res-1  finished exit 0  at 1000  0s  [section edited since this run]
   output: <5
 >
   variables: none
