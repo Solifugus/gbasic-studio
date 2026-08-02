@@ -1,0 +1,12 @@
+   exec: run: finished [sec-1] — exit 1
+strip:   run: finished [sec-1] — exit 1
+target:  <Hello
+>
+errors:  <target [sec-1] 5:21  undefined variable: X>
+results:
+Results — sec-1  (1 run(s))
+latest: res-1  finished exit 1  at 1000  0s
+  output: <Hello
+>
+  variables: none — the section did not finish
+  ! target 5:21 undefined variable: X

@@ -1532,6 +1532,14 @@ library studio_ui
 
     ' Errors were never shown at all before STU-5: a section that failed printed
     ' its diagnosis to stderr and the window put it nowhere.
+    ' What went wrong, for the section at the caret.
+    '
+    ' The ATTRIBUTED DIAGNOSTICS come first and are the reason this is not just
+    ' the stderr capture. A gBASIC child reports an error as a structured JSON
+    ' line, which studio_session parses OUT of stderr into `attribution` — so for
+    ' the most common failure there is, the raw capture is empty and a pane that
+    ' showed only stderr said "(none)" about a run that had just failed. That is
+    ' worse than having no pane: it is a pane asserting there was no error.
     function error_body(app)
         o = studio_ui.output_source(app)
         if o.kind = "live" then
@@ -1540,18 +1548,25 @@ library studio_ui
         if o.kind = "none" then
             return "(none)"
         end if
+        lines = []
+        for each a in o.result.attribution
+            where = a.where
+            sid = ""
+            if a.section_id != nothing then
+                sid = " [" + a.section_id + "]"
+            end if
+            lines = append(lines, where + sid + " " + a.line + ":" + a.column + "  " + a.message)
+        end for
         pre = studio_ui._capture_or(app, o, "err_prefix", "")
         tgt = studio_ui._capture_or(app, o, "err_target", "")
-        if pre = "" then
-            if tgt = "" then
-                return "(none)"
-            end if
-            return tgt
+        raw = pre + tgt
+        if raw != "" then
+            lines = append(lines, raw)
         end if
-        if tgt = "" then
-            return pre
+        if count(lines) = 0 then
+            return "(none)"
         end if
-        return pre + tgt
+        return join(lines, "\n")
     end function
 
     function _capture_or(app, o, name, empty)

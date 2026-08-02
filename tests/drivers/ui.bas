@@ -775,6 +775,31 @@ program main(args)
     print studio_ui.results_body(app)
   end if
 
+  ' ---- runerr: a section that fails, and what the window says about it -----
+  ' The failure a user actually hits: the program parses, runs, and raises. The
+  ' diagnostic arrives as structured JSON on the child's stderr and is parsed OUT
+  ' of it, so the raw capture is EMPTY — a pane showing only stderr reported
+  ' "(none)" about a run that had just failed.
+  if mode = "runerr" then
+    ef(file) = projdir + "/bad.bas"
+    write(ef, "print \"Hello\"\n\nx = 0\nwhile x < 3\n  print \"Counting \" + X\n  x = x + 1\nend while\n")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "bad.bas"))
+    app = r.app
+    app.clock_fixed = 1000
+    id = studio_docs.active_doc(app.dm).id
+    r = studio_ui.sync_cursor(app, id, 4, 0)
+    app = r.app
+    r = studio_ui.run_section(app, 4, 0)
+    app = r.app
+    app = drive(app)
+    print "strip:   " + studio_ui.run_line(studio_ui.exec_session(app))
+    print "target:  <" + studio_ui.target_body(app) + ">"
+    print "errors:  <" + studio_ui.error_body(app) + ">"
+    print "results:"
+    print studio_ui.results_body(app)
+  end if
+
   ' ---- runstop: refusal, stopping, and the states around a run -------------
   if mode = "runstop" then
     print "-> Run with nothing open: " + studio_ui.run_section(app, 0, 0).action

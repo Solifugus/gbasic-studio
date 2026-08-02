@@ -667,7 +667,7 @@ run_ui() { # mode
 for m in rows open expand project bounds tabs edit save newproj refresh \
          newfile newfolder adopt exit \
          names rename delete closetab notice \
-         run runstop cursor; do
+         run runstop runerr cursor; do
     run_ui "$m"
 done
 

@@ -146,7 +146,7 @@ button yet. To start from a canned workspace instead:
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 122 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 123 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 7 cases, headless AND offline — no network, no key
 ```
 
