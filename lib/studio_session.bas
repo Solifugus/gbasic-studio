@@ -139,6 +139,13 @@ library studio_session
             vars_raw: "",
             vars_status: "none",
             vars: [],
+            ' STU-5: the same, captured BEFORE the target section ran, so the two
+            ' can be diffed into "what this section changed".
+            vars_before_marker: "",
+            vars_before_fixed: "",
+            vars_before_raw: "",
+            vars_before_status: "none",
+            vars_before: [],
             ' STU-5A timing. The runtime's clock is whole seconds (`epoch()`), so a
             ' run shorter than a second records a duration of 0 -- reported as it is
             ' rather than dressed up with a millisecond figure the platform cannot
@@ -290,6 +297,18 @@ library studio_session
         return "@@gbstudiovars-" + epoch() + "-" + session.run_seq + "-" + a + "-" + b + "@@"
     end function
 
+    ' The before-scope's marker. Distinct from the after-scope's for the same
+    ' reason that one is distinct from the boundary marker: two dumps sharing a
+    ' marker would peel as one ambiguous occurrence and neither would be read.
+    function _vars_before_marker(session)
+        if session.vars_before_fixed != "" then
+            return session.vars_before_fixed
+        end if
+        a = floor(random() * 1000000000)
+        b = floor(random() * 1000000000)
+        return "@@gbstudiopre-" + epoch() + "-" + session.run_seq + "-" + a + "-" + b + "@@"
+    end function
+
     ' The name prefix the epilogue's own working variables carry, so it can leave
     ' itself out of what it reports. A user variable that happens to start with
     ' this is hidden from its own inspector, which is a better failure than an
@@ -375,7 +394,7 @@ library studio_session
     '      so replayed output can be told from the target's. gBASIC has no statement
     '      separator (Step 0), so a zero-line-shift marker is impossible; this is the
     '      single-injection fallback, and the map carries its single -1 offset.
-    function materialize_text(source, section, sections, nonce, vars_marker)
+    function materialize_text(source, section, sections, nonce, vars_marker, before_marker)
         prefix_end = section.end_offset
 
         ' Will the prefix execute a program block? Any section with `program:`
@@ -389,13 +408,29 @@ library studio_session
             end if
         end for
 
+        ' What gets INSERTED at the target section's first line: the boundary
+        ' marker, and — when a before-scope is wanted (STU-5) — a variable dump
+        ' ahead of it. The dump goes first so the marker stays the last inserted
+        ' line, which keeps `marker_line` meaning what it has always meant.
+        inserted = ""
+        inserted_lines = 0
+        if nonce != "" then
+            if before_marker != "" then
+                inserted = studio_session._vars_epilogue(before_marker)
+                inserted_lines = studio_session._line_count(inserted)
+            end if
+            inserted = inserted + "print \"" + nonce + "\"\n"
+            inserted_lines = inserted_lines + 1
+        end if
+
         marker_line = 0
         if nonce != "" then
             ls = studio_session._line_start(source, section.start_offset)
             head = studio_session._byte_prefix(source, ls)
             tail = studio_session._byte_slice(source, ls, prefix_end)
-            marker_line = studio_session._line_count(head) + 1
-            body = head + "print \"" + nonce + "\"\n" + tail
+            ' The marker is the LAST inserted line.
+            marker_line = studio_session._line_count(head) + inserted_lines
+            body = head + inserted + tail
         else
             body = studio_session._byte_prefix(source, prefix_end)
         end if
@@ -414,12 +449,21 @@ library studio_session
         prefix_lines = studio_session._line_count(body)
         segs = []
         if marker_line > 0 then
-            if marker_line > 1 then
-                segs = append(segs, { kind: "document", c_start: 1, c_end: marker_line - 1, delta: 0 })
+            ' The inserted block occupies `inserted_lines` lines ending at
+            ' `marker_line`. Everything before it is document text at its own
+            ' line; everything after is document text shifted by the whole block,
+            ' not by one — the delta is what map_line subtracts to name the
+            ' document line a diagnostic really means.
+            first_inserted = marker_line - inserted_lines + 1
+            if first_inserted > 1 then
+                segs = append(segs, { kind: "document", c_start: 1, c_end: first_inserted - 1, delta: 0 })
+            end if
+            if inserted_lines > 1 then
+                segs = append(segs, { kind: "generated", c_start: first_inserted, c_end: marker_line - 1, delta: 0 })
             end if
             segs = append(segs, { kind: "marker", c_start: marker_line, c_end: marker_line, delta: 0 })
             if prefix_lines > marker_line then
-                segs = append(segs, { kind: "document", c_start: marker_line + 1, c_end: prefix_lines, delta: -1 })
+                segs = append(segs, { kind: "document", c_start: marker_line + 1, c_end: prefix_lines, delta: 0 - inserted_lines })
             end if
         else
             if prefix_lines > 0 then
@@ -624,10 +668,20 @@ library studio_session
         session.vars_raw = ""
         session.vars = []
         session.vars_status = "none"
+        ' A before-scope only exists where there is a prefix to have built one.
+        ' Section 1 runs against nothing, so "before" is empty by construction and
+        ' injecting a dump would only add output to peel.
+        session.vars_before_marker = ""
+        if idx > 0 then
+            session.vars_before_marker = studio_session._vars_before_marker(session)
+        end if
+        session.vars_before_raw = ""
+        session.vars_before = []
+        session.vars_before_status = "none"
 
         session = studio_session._to(session, "materializing")
 
-        m = studio_session.materialize_text(source, target, sections, session.marker, session.vars_marker)
+        m = studio_session.materialize_text(source, target, sections, session.marker, session.vars_marker, session.vars_before_marker)
         session.appended = m.appended
         session.map = m.map
         session.hoisted = m.hoisted
@@ -767,8 +821,59 @@ library studio_session
         return session
     end function
 
+    ' The before-scope, peeled with the same discipline as the after-scope. It
+    ' sits in the PREFIX portion of the stream (it runs before the boundary
+    ' marker), so this must happen before the prefix/target split.
+    function _peel_before(session)
+        if session.vars_before_marker = "" then
+            session.vars_before_status = "none"
+            return session
+        end if
+        parts = split(session.out_raw, session.vars_before_marker)
+        occurrences = count(parts) - 1
+        if occurrences = 0 then
+            session.vars_before_status = "absent"
+            return session
+        end if
+        if occurrences > 1 then
+            session.vars_before_status = "ambiguous"
+            return session
+        end if
+        rest = parts[1]
+        ' The marker statement printed marker + newline, so the dump starts on the
+        ' NEXT line. Skipping that newline first is what makes "the first line" the
+        ' JSON rather than the empty string before it.
+        if byte_count(rest) > 0 then
+            if byte_at(rest, 0) = 10 then
+                rest = mid(rest, 1, len(rest) - 1)
+            end if
+        end if
+        nl = find(rest, "\n")
+        tail = ""
+        head = rest
+        if nl != nothing then
+            head = mid(rest, 0, nl)
+            tail = mid(rest, nl + 1, len(rest) - nl - 1)
+        end if
+        ' The dump is ONE line; everything after it is the program's own output
+        ' and goes back on the stream.
+        session.out_raw = parts[0] + tail
+        session.vars_before_raw = head
+        r = try_decode(head)
+        if r.ok then
+            if is_array(r.value) then
+                session.vars_before = r.value
+                session.vars_before_status = "captured"
+                return session
+            end if
+        end if
+        session.vars_before_status = "unreadable"
+        return session
+    end function
+
     function _resolve_split(session)
         session = studio_session._peel_vars(session)
+        session = studio_session._peel_before(session)
         if session.split_out = "exact" then
             session.out_target = session.out_raw
             session.out_prefix = ""
@@ -1057,6 +1162,8 @@ library studio_session
             ' that genuinely left nothing behind.
             vars: session.vars_raw,
             vars_status: session.vars_status,
+            vars_before: session.vars_before_raw,
+            vars_before_status: session.vars_before_status,
             truncated: [],
             attribution: session.attribution,
             run_seq: session.run_seq

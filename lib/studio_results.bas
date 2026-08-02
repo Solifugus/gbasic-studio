@@ -83,12 +83,14 @@ library studio_results
     ' missing load into a runtime failure deep inside a call, and it stops
     ' working entirely once these libraries live in separate projects.
     load persist
+    ' 3 (STU-5): a sixth capture, `vars_before` — the scope as it stood before the
+    ' target section ran, so the pane can show what the section CHANGED.
     ' 2 (STU-4C): results carry a fifth capture, `vars` — the variable scope the
     ' target section left behind. A version-1 store still loads: its results
     ' simply have no `vars` capture, and every reader treats an absent capture as
     ' zero bytes rather than as a missing field.
     function schema_version()
-        return 2
+        return 3
     end function
 
     ' ---- policy ------------------------------------------------------------
@@ -186,7 +188,7 @@ library studio_results
 
     ' The four streams a result captures, in display order.
     function capture_names()
-        return ["out_prefix", "out_target", "err_prefix", "err_target", "vars"]
+        return ["out_prefix", "out_target", "err_prefix", "err_target", "vars", "vars_before"]
     end function
 
     ' ---- load / save -------------------------------------------------------
@@ -323,7 +325,7 @@ library studio_results
 
         persist.ensure_dir(studio_results.capture_dir(home, store.doc_path))
         cut = []
-        sizes = { out_prefix: 0, out_target: 0, err_prefix: 0, err_target: 0, vars: 0 }
+        sizes = { out_prefix: 0, out_target: 0, err_prefix: 0, err_target: 0, vars: 0, vars_before: 0 }
         for each name in studio_results.capture_names()
             w = studio_results._write_capture(home, store.doc_path, result.result_id, name, result[name])
             sizes[name] = w.bytes
@@ -607,18 +609,114 @@ library studio_results
             out = append(out, "  variables: none")
             return out
         end if
-        out = append(out, "  variables (" + count(r.value) + "):")
-        for each v in r.value
-            line = "    " + v.name + " " + v.kind
-            if v.category = "container" then
-                line = line + "[" + v.count + "]"
+        before = studio_results._before_vars(home, store, result)
+        marked = studio_results.mark_changes(before, r.value)
+        changed = 0
+        for each v in marked
+            if v.change != "same" then
+                changed = changed + 1
             end if
-            if v.serializable = false then
-                line = line + " (live)"
-            end if
-            out = append(out, line)
+        end for
+        head = "  variables (" + count(marked) + "):"
+        if changed > 0 then
+            head = "  variables (" + count(marked) + ", " + changed + " changed):"
+        end if
+        out = append(out, head)
+        for each v in marked
+            out = append(out, "    " + studio_results.var_line(v))
         end for
         return out
+    end function
+
+    ' One variable's display line. The change marker leads, because "what did this
+    ' section do" is the question a result is being read to answer:
+    '   +  the section created it
+    '   ~  it existed before and does not look the same now
+    '      (blank) it was there and is unchanged
+    function var_line(v)
+        mark = "  "
+        if v.change = "new" then
+            mark = "+ "
+        end if
+        if v.change = "changed" then
+            mark = "~ "
+        end if
+        line = mark + v.name + " " + v.kind
+        if v.category = "container" then
+            line = line + "[" + v.count + "]"
+        end if
+        if v.serializable = false then
+            line = line + " (live)"
+        end if
+        return line
+    end function
+
+    ' Tag each of `after` against `before`: new, changed, or same — changed ones
+    ' first, then new, then the rest, each group in the order the child reported
+    ' (which reflection sorts by name).
+    '
+    ' "Changed" is judged on the SHALLOW descriptor: kind, type and count. Two
+    ' different values of the same kind and size are indistinguishable here, and
+    ' saying so is better than claiming a comparison that was never made — a
+    ' deeper answer needs the values, which a finished run no longer has.
+    function mark_changes(before, after)
+        seen = {}
+        for each b in before
+            seen[b.name] = b
+        end for
+        changed = []
+        added = []
+        same = []
+        for each a in after
+            prev = seen[a.name]
+            if prev = unknown then
+                a.change = "new"
+                added = append(added, a)
+            else
+                differs = false
+                if prev.kind != a.kind then
+                    differs = true
+                end if
+                if prev.type != a.type then
+                    differs = true
+                end if
+                if prev.count != a.count then
+                    differs = true
+                end if
+                if differs then
+                    a.change = "changed"
+                    changed = append(changed, a)
+                else
+                    a.change = "same"
+                    same = append(same, a)
+                end if
+            end if
+        end for
+        out = []
+        for each v in changed
+            out = append(out, v)
+        end for
+        for each v in added
+            out = append(out, v)
+        end for
+        for each v in same
+            out = append(out, v)
+        end for
+        return out
+    end function
+
+    function _before_vars(home, store, result)
+        if studio_results.capture_bytes(result, "vars_before") = 0 then
+            return []
+        end if
+        r = try_decode(studio_results.capture(home, store, result.result_id, "vars_before"))
+        if not r.ok then
+            return []
+        end if
+        if not is_array(r.value) then
+            return []
+        end if
+        return r.value
     end function
 
     ' The results view for one section: the latest result, then the history behind

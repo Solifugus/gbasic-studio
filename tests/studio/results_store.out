@@ -1,5 +1,5 @@
 status=loaded
-schema_version=2
+schema_version=3
 doc_path=/proj/a.bas
 next_result=2
 results=1
@@ -25,6 +25,7 @@ results=1
   started_epoch
   success
   truncated
+  vars_before_status
   vars_status
 -- store keys
   doc_path
@@ -34,5 +35,5 @@ results=1
 separate_from_workspace=true
 -- on disk
 index_bytes_under_1k=true
-capture_files=res-1.out_prefix,res-1.out_target,res-1.vars
+capture_files=res-1.out_prefix,res-1.out_target,res-1.vars,res-1.vars_before
 index_holds_no_text=true
