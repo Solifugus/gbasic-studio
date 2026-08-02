@@ -114,6 +114,14 @@ function redraw()
     return nothing
 end function
 
+' STU-6: append one semantic event. A handler naming its own event kind is not a
+' decision — it IS the handler's identity — and the vocabulary is closed, so a
+' typo raises here rather than becoming a category nobody can query.
+function note_event(kind, target, detail)
+    G.log = studio_history.note(G.log, kind, target, detail, epoch())
+    return nothing
+end function
+
 ' A browser row was activated (single click — GtkListBox activates on single
 ' click by default). Extract the row's index; the rows the view rendered decide
 ' what that index means.
@@ -123,6 +131,12 @@ function on_nav_row_activated(box, row)
     G.app = r.app
     G.last_action = r.action
     G.last_detail = r.detail
+    if r.action = "open" then
+        note_event("file_opened", G.shell.rows[idx].path, "")
+    end if
+    if r.action = "project" then
+        note_event("project_opened", G.shell.rows[idx].path, G.shell.rows[idx].label)
+    end if
     redraw()
     return nothing
 end function
@@ -181,6 +195,11 @@ function on_cursor_moved(buffer, pspec)
     c = ed.cursor()
     r = studio_ui.sync_cursor(G.app, G.app.dm.active, c.line, c.column)
     G.app = r.app
+    ' Only when the caret crosses INTO a different section. Recording every
+    ' cursor-position notify would fill the log with one event per arrow key.
+    if r.changed then
+        note_event("section_selected", r.detail, "")
+    end if
     pane_redraw()
     return nothing
 end function
@@ -204,6 +223,9 @@ function on_new_project()
     G.app = r.app
     G.last_action = r.action
     G.last_detail = r.detail
+    if r.action = "created" then
+        note_event("project_created", r.detail, "")
+    end if
     redraw()
     return nothing
 end function
@@ -216,6 +238,9 @@ function on_new_file()
     G.app = r.app
     G.last_action = r.action
     G.last_detail = r.detail
+    if r.action = "created" then
+        note_event("file_created", r.detail, "")
+    end if
     redraw()
     return nothing
 end function
@@ -225,6 +250,9 @@ function on_new_folder()
     G.app = r.app
     G.last_action = r.action
     G.last_detail = r.detail
+    if r.action = "created" then
+        note_event("folder_created", r.detail, "")
+    end if
     redraw()
     return nothing
 end function
@@ -234,6 +262,9 @@ function on_rename()
     G.app = r.app
     G.last_action = r.action
     G.last_detail = r.detail
+    if r.action = "renamed" then
+        note_event("file_renamed", r.detail, "")
+    end if
     redraw()
     return nothing
 end function
@@ -246,6 +277,9 @@ function on_delete()
     G.app = r.app
     G.last_action = r.action
     G.last_detail = r.detail
+    if r.action = "deleted" then
+        note_event("file_deleted", r.detail, "")
+    end if
     G.armed_path = r.armed
     redraw()
     return nothing
@@ -256,6 +290,9 @@ function on_close_tab()
     G.app = r.app
     G.last_action = r.action
     G.last_detail = r.detail
+    if r.action = "closed" then
+        note_event("file_closed", r.detail, "")
+    end if
     G.armed_doc = r.armed
     redraw()
     return nothing
@@ -266,6 +303,9 @@ function on_save()
     G.app = r.app
     G.last_action = r.action
     G.last_detail = r.detail
+    if r.action = "saved" then
+        note_event("file_saved", r.detail, "")
+    end if
     redraw()
     return nothing
 end function
@@ -325,8 +365,145 @@ function on_run_poll()
     end if
     G.last_action = r.action
     G.last_detail = r.detail
+    sess = studio_ui.exec_session(G.app)
+    if sess != nothing then
+        if sess.success then
+            note_event("section_executed", sess.section_id, "exit " + sess.exit_code)
+        else
+            note_event("run_failed", sess.section_id, studio_ui.run_line(sess))
+        end if
+    end if
     redraw()
     return false
+end function
+
+' STU-6: ask the assistant where the user was. Read-only by construction — the
+' registry it is given holds nothing that writes — and a missing key is reported
+' in the pane rather than raising, because an unconfigured assistant must not
+' take the window down with it.
+function on_ask_agent()
+    key = env("ANTHROPIC_API_KEY")
+    ok = false
+    if is_string(key) then
+        if key != "" then
+            ok = true
+        end if
+    end if
+    if not ok then
+        G.shell.apane.body.label = "(not configured — set ANTHROPIC_API_KEY and restart)"
+        return nothing
+    end if
+    G.shell.apane.body.label = "(asking...)"
+    m = studio_agent.model(llm.anthropic("claude-sonnet-4-6", key), agent_tools())
+    a = studio_agent.ask(m, G.app, G.log, studio_agent.default_question())
+    G.shell.apane.body.label = a.text
+    return nothing
+end function
+
+' One wrapper per tool. They cannot be one shared function: `llm` calls a tool's
+' callable with the ARGUMENTS only, so the callable is the only place the tool's
+' own name can live. Each is two lines and does nothing but name itself and read
+' the global — the same shape, and the same reason, as a signal handler.
+function tool_call(name, a)
+    r = studio_tools.call(G.app, G.log, name, a)
+    if r.ok then
+        return r.value
+    end if
+    ' `error` is a gBASIC keyword and cannot be a record key; the model sees a
+    ' `refused` field and the reason.
+    return { refused: r.why }
+end function
+
+function tool_current_project(a)
+    return tool_call("current_project", a)
+end function
+
+function tool_open_files(a)
+    return tool_call("open_files", a)
+end function
+
+function tool_active_file(a)
+    return tool_call("active_file", a)
+end function
+
+function tool_list_sections(a)
+    return tool_call("list_sections", a)
+end function
+
+function tool_section_at_cursor(a)
+    return tool_call("section_at_cursor", a)
+end function
+
+function tool_run_state(a)
+    return tool_call("run_state", a)
+end function
+
+function tool_section_results(a)
+    return tool_call("section_results", a)
+end function
+
+function tool_section_output(a)
+    return tool_call("section_output", a)
+end function
+
+function tool_section_variables(a)
+    return tool_call("section_variables", a)
+end function
+
+function tool_recent_actions(a)
+    return tool_call("recent_actions", a)
+end function
+
+function tool_where_was_i(a)
+    return tool_call("where_was_i", a)
+end function
+
+function agent_tools()
+    out = []
+    for each t in studio_tools.registry()
+        out = append(out, llm.tool(t.name, t.description, t.schema, tool_fn_for(t.name)))
+    end for
+    return out
+end function
+
+' Name to callable. A tool the registry lists but this does not map is a
+' programming error and says so, rather than being silently absent from what the
+' model can see.
+function tool_fn_for(name)
+    if name = "current_project" then
+        return tool_current_project
+    end if
+    if name = "open_files" then
+        return tool_open_files
+    end if
+    if name = "active_file" then
+        return tool_active_file
+    end if
+    if name = "list_sections" then
+        return tool_list_sections
+    end if
+    if name = "section_at_cursor" then
+        return tool_section_at_cursor
+    end if
+    if name = "run_state" then
+        return tool_run_state
+    end if
+    if name = "section_results" then
+        return tool_section_results
+    end if
+    if name = "section_output" then
+        return tool_section_output
+    end if
+    if name = "section_variables" then
+        return tool_section_variables
+    end if
+    if name = "recent_actions" then
+        return tool_recent_actions
+    end if
+    if name = "where_was_i" then
+        return tool_where_was_i
+    end if
+    error "agent_tools: no callable for tool '" + name + "'"
 end function
 
 function on_stop()
@@ -365,6 +542,7 @@ function wire_shell()
     gi.connect(sh.bar.run, "clicked", on_run)
     gi.connect(sh.bar.halt, "clicked", on_stop)
     gi.connect(sh.bar.force, "clicked", on_force_stop)
+    gi.connect(sh.apane.ask, "clicked", on_ask_agent)
     return nothing
 end function
 
@@ -857,6 +1035,7 @@ program main(args)
     load studio_sections
     load studio_session
     load studio_results
+    load studio_history
     load studio
 
     mode = "gui"
@@ -1204,6 +1383,9 @@ program main(args)
     G.stu2e = false
     G.stu2f = false
     G.save_on_exit = false
+    ' STU-6: the semantic action history. Loaded here, appended by the handlers,
+    ' written by the exit path beside everything else.
+    G.log = studio_history.open(home)
     if mode = "gui" then
         G.save_on_exit = true
     end if
@@ -1354,6 +1536,9 @@ program main(args)
     load gtk
     load sourceeditor
     load studio_ui
+    load llm
+    load studio_tools
+    load studio_agent
     load studio_shell
     gi.require("Gtk", "4.0")
 
@@ -1409,6 +1594,7 @@ program main(args)
             print to error "warning: " + unsaved + " document(s) had unsaved changes; Studio does not keep drafts"
         end if
         saved = studio.persist(G.app)
+        studio_history.save(home, G.log)
         print "saved=" + join(saved, ",")
     end if
     print "app-exited"

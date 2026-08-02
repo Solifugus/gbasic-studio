@@ -1390,11 +1390,16 @@ library studio_ui
     function sync_cursor(app, doc_id, line0, column0)
         doc = studio_docs.doc_by_id(app.dm, doc_id)
         if doc = nothing then
-            return { app: app, action: "unknown", detail: doc_id }
+            return { app: app, action: "unknown", detail: doc_id, changed: false }
         end if
+        ' What section the caret was in before, so the caller can tell a move
+        ' WITHIN a section from a move between them. The history records the
+        ' second and would drown in the first — this fires on every arrow key.
+        was = studio_ui.view_for(app)
+        app = was.app
         app.dm = studio_docs.set_cursor(app.dm, doc_id, line0 + 1, column0 + 1)
         v = studio_ui.view_for(app)
-        return { app: v.app, action: "cursor", detail: v.sid }
+        return { app: v.app, action: "cursor", detail: v.sid, changed: v.sid != was.sid }
     end function
 
     ' The section the caret is in, for the strip — so it is visible WHICH section

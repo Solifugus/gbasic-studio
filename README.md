@@ -9,7 +9,7 @@ library — and nothing in gBASIC depends on Studio.
 ## Status
 
 **The model and persistence layer are built and tested, and the shell now
-responds to input.** Phases STU-0 through STU-5A are complete as libraries;
+responds to input.** Phases STU-0 through STU-6 — the design's MVP — are complete;
 STU-2B wired the first interactions on top of them, STU-2C made a cold start go
 all the way through, STU-2D made the browser editable, STU-2E made Run work, and
 STU-5A′ pointed the panes at the caret.
@@ -91,6 +91,20 @@ not distinguish it from your own unsaved edits. Closing the window saves *which*
 documents were open, not what was typed into them: Studio has no draft store, so
 unsaved buffers are lost and it says so on stderr as it exits.
 
+**A read-only assistant (STU-6).** Studio keeps a semantic action history — files
+opened, sections selected and run, errors raised, in its own vocabulary rather
+than as keystrokes — and an assistant answers *"where was I?"* from it. The
+assistant is read-only **structurally**, not by policy: there is no write tool in
+the registry to permit or forbid, dispatch goes through a fixed table that
+refuses any name it does not hold, and nothing a model says is ever evaluated as
+source. It needs `ANTHROPIC_API_KEY` in the environment; without one the pane
+says so and the rest of Studio is unaffected.
+
+The history is bounded. The newest few hundred events keep their detail and
+everything older is compacted into per-kind rollups — still a true statement
+about what happened, just a coarser one — so the log cannot grow until Studio
+gets slow.
+
 Interaction is covered by tests rather than by hand. The rule STU-2B established
 is that a signal handler is an *adapter* — read one value off the widget, call
 one `studio_ui` function, redraw — so what a click MEANS lives in `lib/studio_ui.bas`
@@ -133,6 +147,7 @@ button yet. To start from a canned workspace instead:
 
 ```sh
 tests/run_studio.sh           # 122 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio_agent.sh     # 7 cases, headless AND offline — no network, no key
 ```
 
 Golden-file based: a driver plus a `.out` holding expected stdout, compared

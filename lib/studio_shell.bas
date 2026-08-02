@@ -394,10 +394,12 @@ library studio_shell
         bar = studio_shell.run_bar()
         pane = studio_shell.output_pane()
         rpane = studio_shell.results_pane()
+        apane = studio_shell.agent_pane()
         under = gtk.box("v", 4)
         under.append(bar.box)
         under.append(pane.box)
         under.append(rpane.box)
+        under.append(apane.box)
 
         vsplit = gtk.paned("v")
         vsplit.set_start_child(book)
@@ -427,7 +429,7 @@ library studio_shell
                  name_entry: name_entry, rename_btn: rename_btn,
                  delete_btn: delete_btn, close_btn: close_btn,
                  save_btn: save_btn, refresh_btn: refresh_btn,
-                 bar: bar, pane: pane, rpane: rpane,
+                 bar: bar, pane: pane, rpane: rpane, apane: apane,
                  ' STU-5 decoration state: which outline revision each document's
                  ' gutter marks were drawn for, and the one live highlight tag.
                  marked: {}, hl_tag: nothing, hl_doc: "",
@@ -534,6 +536,22 @@ library studio_shell
         box.append(head)
         box.append(body)
         return { box: box, head: head, body: body }
+    end function
+
+    ' ---- STU-6: the agent pane ---------------------------------------------
+    '
+    ' Read-only, and it says so. The button asks "where was I?"; the answer lands
+    ' in the label. There is no input field yet because there is nothing useful to
+    ' type at an assistant that can only look — orientation is one question.
+    function agent_pane()
+        box = gtk.box("v", 4)
+        head = gtk.label("Assistant — read-only; it can see your project, not change it")
+        ask_btn = gtk.button("Where was I?")
+        body = gtk.label("(not configured — set ANTHROPIC_API_KEY and restart)")
+        box.append(head)
+        box.append(ask_btn)
+        box.append(body)
+        return { box: box, ask: ask_btn, body: body }
     end function
 
     ' The pane's text for `section_id` against the CURRENT sections. Delegates the

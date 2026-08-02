@@ -1,0 +1,23 @@
+-- what Studio tells the model before it asks anything
+Workspace state:
+  project: Alpha (1 open)
+  active file: three.bas
+  section: sec-3 statements
+  run: idle / never
+
+Recent history:
+  4 events kept, 0 compacted
+  last file opened: three.bas
+  last section selected: sec-3 — statements
+  last run: sec-3 — exit 0
+  last error: (none)
+  last save: (none)
+-- the system prompt says read-only in so many words
+mentions READ ONLY=true
+tells it not to guess=true
+-- a scripted provider that just answers
+ok=true rounds=0
+text=You were in three.bas, in the last section, which ran clean.
+-- a scripted provider that calls a real tool first
+ok=true rounds=1
+text=You were editing three.bas.

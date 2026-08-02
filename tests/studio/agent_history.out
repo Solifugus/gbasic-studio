@@ -1,0 +1,23 @@
+fresh: history: 0 kept, 0 compacted, next_seq=1
+-- after five events
+history: 5 kept, 0 compacted, next_seq=6
+  1 1000 project_opened demo demo
+  2 1001 file_opened three.bas 
+  3 1002 section_selected sec-3 statements
+  4 1003 section_executed sec-3 exit 0
+  5 1004 file_saved three.bas 
+-- persisted and reopened
+history: 5 kept, 0 compacted, next_seq=6
+  1 1000 project_opened demo demo
+  2 1001 file_opened three.bas 
+  3 1002 section_selected sec-3 statements
+  4 1003 section_executed sec-3 exit 0
+  5 1004 file_saved three.bas 
+identical=true
+-- an unknown kind is a programming error, not an event
+is_kind(nonsense)=false
+is_kind(file_saved)=true
+-- orientation
+  last_file=three.bas
+  last_run=sec-3 exit 0
+  last_error=nothing

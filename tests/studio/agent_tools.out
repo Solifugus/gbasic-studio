@@ -1,0 +1,42 @@
+-- the whole surface
+  current_project
+  open_files
+  active_file
+  list_sections
+  section_at_cursor
+  run_state
+  section_results
+  section_output
+  section_variables
+  recent_actions
+  where_was_i
+-- every one of them is a READ. There is no write tool to refuse.
+count=11
+-- current_project
+workspace=ws projects=1 active=Alpha root=ag_tools_proj
+-- active_file
+name=three.bas line=7 modified=false
+-- section_at_cursor
+{"section_id":"sec-3","label":"section: sec-3 statements"}
+-- list_sections
+  sec-1 statements  line 1
+  sec-2 function add line 3
+  sec-3 statements  line 7
+-- run_state (nothing has run)
+{"state":"idle","section":"","standing":"never","note":"not run yet"}
+-- after a real run
+{"state":"finished","section":"sec-3","standing":"warm","note":""}
+-- section_output
+ran=true target=<5
+>
+-- section_variables
+  sum number new
+-- section_results
+{"section_id":"sec-3","count":1,"results":[{"result_id":"res-1","outcome":"finished","exit_code":0,"at":1000,"seconds":0,"standing":"current"}]}
+-- REFUSALS
+{"ok":false,"why":"no such tool: write_file","value":null}
+{"ok":false,"why":"no such tool: run_section","value":null}
+{"ok":false,"why":"no such tool: delete_everything","value":null}
+{"ok":false,"why":"tool section_output needs a section_id","value":null}
+is_tool(active_file)=true
+is_tool(save_file)=false

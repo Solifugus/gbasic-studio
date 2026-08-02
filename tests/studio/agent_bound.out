@@ -1,0 +1,7 @@
+kept=300 window=300
+compacted=121
+total accounted=421
+  rollup section_executed x121 2000..2120
+the newest event survives: division by zero
+the oldest kept is seq 122
+store under 200k=true

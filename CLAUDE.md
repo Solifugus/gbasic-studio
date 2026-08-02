@@ -48,6 +48,7 @@ you want content without clicking.
 
 ```sh
 tests/run_studio.sh            # 122 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio_agent.sh      # 7 cases, headless AND offline (scripted transport)
 ```
 
 Golden-file based: a driver plus a `.out` of expected stdout, compared
@@ -85,6 +86,12 @@ lib/studio_session.bas  replay-first execution in a child interpreter, 8 states
 lib/studio_results.bas  durable per-run results, retention, truncation, standing
 lib/studio_ui.bas       what an interaction MEANS — the browser/tab row models and
                         one function per interaction, over plain data, no GTK
+lib/studio_history.bas  the semantic action log — a closed vocabulary, bounded
+                        by compaction into per-kind rollups
+lib/studio_tools.bas    the read-only tool surface the agent observes through —
+                        projections of the same reads the window uses
+lib/studio_agent.bas    the orientation agent over llm.bas; transport injectable,
+                        so the whole path is testable with no network
 lib/studio_shell.bas    the GTK view — renders model state and reconciles on
                         redraw; holds no decisions
 ```
@@ -158,6 +165,15 @@ Two consequences worth knowing before you touch the shell:
   shell, so the headless suite can assert what a run reports. `studio_shell`
   keeps the old names as delegates only because the STU-4/5A display goldens
   print through them.
+- The agent surface is read-only STRUCTURALLY. There is no write tool to disable
+  and no permission flag to get wrong: `studio_tools.call` dispatches through a
+  fixed table and refuses any other name, and nothing evaluates model text.
+  `run_studio_agent.sh` greps for both properties, so adding a write tool fails
+  the suite until someone decides deliberately that STU-6 is over.
+- A tool's callable cannot close over the app (gBASIC functions do not close over
+  state), so `app/studio.bas` carries one two-line wrapper per tool that reads
+  the global and calls the dispatcher — the same adapter rule as a signal
+  handler, for the same reason.
 - The GtkApplication is built with `NON_UNIQUE` flags in `app/studio.bas` rather
   than via `gtk.application`, which defaults to single-instance. Reverting that
   does not just stop a second window opening — the *running* instance gets an
