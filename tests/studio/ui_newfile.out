@@ -77,4 +77,8 @@ tabs=5
     doc-3 untitled-1.bas
     doc-4 a.bas
   * doc-5 untitled-2.bas
+== the selection is in project one; the ACTIVE project is two ==
+selection still points at untitled-2.bas
+-> New File: created untitled-1.bas doc-6
+landed under docs
 -> New File with no workspace: none

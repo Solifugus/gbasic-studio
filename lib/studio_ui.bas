@@ -381,6 +381,16 @@ library studio_ui
         ' gBASIC), and `list` returns empty for a plain file AND for an empty
         ' directory — so the answer has to come from the PARENT's entry type, and
         ' that subtlety should exist in exactly one place.
+        ' The selection must be inside the ACTIVE project, or creations land in
+        ' one project's directory while being recorded as belonging to another.
+        ' That is reachable in an ordinary way: switching the active project does
+        ' not clear the browser selection, which still points into the tree of the
+        ' project you just left. Studio's own workspace showed a document filed
+        ' under proj-2 sitting in project-1's folder because of it.
+        inside = studio_ui._under(sel, proj.path)
+        if inside = false then
+            return proj.path
+        end if
         isdir = studio_docs._is_dir(sel)
         if isdir then
             return sel

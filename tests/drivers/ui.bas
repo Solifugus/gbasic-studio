@@ -370,6 +370,20 @@ program main(args)
     app = act("New File with a file selected", r)
     show(app)
 
+    ' Switching the active project does NOT clear the browser selection, so the
+    ' selection can point into the tree of the project you just left. A creation
+    ' must still land in the project you are IN — otherwise the file sits in one
+    ' project's folder while the workspace records it as another's.
+    banner("the selection is in project one; the ACTIVE project is two")
+    ws2 = app.model.workspace
+    ws2 = studio_model.add_project(ws2, "Beta", projdir + "/docs")
+    ws2 = studio_model.set_active_project(ws2, "proj-2")
+    app = studio.set_workspace(app, ws2)
+    print "selection still points at " + studio_ui._leaf(app.model.workspace.nav.selected_path)
+    r = studio_ui.new_file(app, "")
+    app = act("New File", r)
+    print "landed under " + studio_ui._leaf(studio_docs._dirname(studio_docs.active_doc(app.dm).path))
+
     ' With nothing open there is nowhere to create, and saying so beats writing
     ' a file into whatever directory happened to be current.
     cold = studio.launch(home + "/cold")
