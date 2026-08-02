@@ -1049,6 +1049,14 @@ library studio_session
             out_target: session.out_target,
             err_prefix: session.err_prefix,
             err_target: session.err_target,
+            ' STU-4C. The RAW json the child printed is what is stored: it is the
+            ' capture's text, and re-encoding a parsed copy would be a second
+            ' representation of the same thing to keep in step. `vars_status` goes
+            ' in the index so a reader knows WHY an empty capture is empty —
+            ' `absent` (the section raised) reads very differently from a section
+            ' that genuinely left nothing behind.
+            vars: session.vars_raw,
+            vars_status: session.vars_status,
             truncated: [],
             attribution: session.attribution,
             run_seq: session.run_seq

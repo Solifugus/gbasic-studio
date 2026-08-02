@@ -123,7 +123,10 @@ Two consequences worth knowing before you touch the shell:
   any appended `end program`: code after `end program` does not execute, so an
   epilogue at the end of the file would report nothing, silently, and only for
   program-body sections. `reflect.inspect` is shallow, so a section that built a
-  huge array reports its count and nothing more.
+  huge array reports its count and nothing more. The capture is persisted as a
+  fifth `studio_results` capture (schema 2); a version-1 store still loads, and
+  `capture_bytes` answers 0 for a capture a stored result does not have, because
+  a caller comparing `unknown > 0` raises.
 - A run lives in `app.exec` — beside `app.dm`, live state the shutdown pipeline
   does not write, because a half-finished child process is not something to
   restore into. The section and the SOURCE are fixed when Run is pressed and kept

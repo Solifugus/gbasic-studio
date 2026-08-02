@@ -63,9 +63,15 @@ million-row array reports the count and nothing else until something asks for
 more. A section that raised never reaches the epilogue, and that is reported as
 `absent` rather than as an error.
 
+They are stored with the run, as a fifth capture beside the four output streams,
+and the results pane lists them under the output. A results file written by an
+older Studio still loads: its results simply have no variable capture.
+
 What still does not respond: nothing shows section boundaries in the gutter, and
-nothing DISPLAYS those variables yet — the inspector pane, and persisting the
-capture into a result, are the next two steps.
+there is no expandable inspector — the pane lists names, kinds and counts, but
+opening a record or an array to look inside is still to come. Nor is there a
+changed-variables view: a run reports the whole scope it left, not the delta,
+which would need a second capture taken before the target ran.
 
 A conflicting external change shows as an ordinary dirty marker — the tab does
 not distinguish it from your own unsaved edits. Closing the window saves *which*

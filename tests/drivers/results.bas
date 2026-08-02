@@ -550,6 +550,7 @@ program main(args)
       reason: "", message: "",
       split_out: "exact", split_err: "exact", split_reason: "",
       out_prefix: "", out_target: over, err_prefix: "", err_target: over,
+      vars: "", vars_status: "none",
       truncated: [], attribution: [], run_seq: 1
     }
     store = studio_results.open(home, "/proj/u.bas")

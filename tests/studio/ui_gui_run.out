@@ -9,4 +9,5 @@ Results — sec-1  (1 run(s))
 latest: res-1  finished exit 0  at 1000  0s
   output: <one
 >
+  variables: none
 app-exited

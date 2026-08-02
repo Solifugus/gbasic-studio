@@ -83,8 +83,12 @@ library studio_results
     ' missing load into a runtime failure deep inside a call, and it stops
     ' working entirely once these libraries live in separate projects.
     load persist
+    ' 2 (STU-4C): results carry a fifth capture, `vars` — the variable scope the
+    ' target section left behind. A version-1 store still loads: its results
+    ' simply have no `vars` capture, and every reader treats an absent capture as
+    ' zero bytes rather than as a missing field.
     function schema_version()
-        return 1
+        return 2
     end function
 
     ' ---- policy ------------------------------------------------------------
@@ -97,10 +101,11 @@ library studio_results
         return 20
     end function
 
-    ' SIZE CAP, per capture (out_prefix / out_target / err_prefix / err_target).
+    ' SIZE CAP, per capture (the four output streams plus `vars`).
     ' 64 KB is one pipe buffer's worth — comfortably more than any output a human
     ' reads in a results pane, and small enough that the hard ceiling
-    ' (20 results x 4 captures x 64 KB) stays around 5 MB per document.
+    ' (20 results x 5 captures x 64 KB) stays under 7 MB per document. A `vars`
+    ' capture is a shallow descriptor per variable, so 64 KB is thousands of them.
     function capture_cap()
         return 65536
     end function
@@ -181,7 +186,7 @@ library studio_results
 
     ' The four streams a result captures, in display order.
     function capture_names()
-        return ["out_prefix", "out_target", "err_prefix", "err_target"]
+        return ["out_prefix", "out_target", "err_prefix", "err_target", "vars"]
     end function
 
     ' ---- load / save -------------------------------------------------------
@@ -318,7 +323,7 @@ library studio_results
 
         persist.ensure_dir(studio_results.capture_dir(home, store.doc_path))
         cut = []
-        sizes = { out_prefix: 0, out_target: 0, err_prefix: 0, err_target: 0 }
+        sizes = { out_prefix: 0, out_target: 0, err_prefix: 0, err_target: 0, vars: 0 }
         for each name in studio_results.capture_names()
             w = studio_results._write_capture(home, store.doc_path, result.result_id, name, result[name])
             sizes[name] = w.bytes
@@ -435,11 +440,18 @@ library studio_results
 
     ' The stored byte count of a capture, straight from the index -- so a UI can
     ' show how much output there is without reading any of it.
+    ' A capture a stored result does not have is zero bytes, not `unknown`. A
+    ' version-1 result has no `vars`, and every comparison a caller makes against
+    ' this ("> 0") raises on unknown rather than reading as absent.
     function capture_bytes(result, name)
         if not has(result, "captures") then
             return 0
         end if
-        return result.captures[name]
+        n = result.captures[name]
+        if n = unknown then
+            return 0
+        end if
+        return n
     end function
 
     ' This section's results, newest first.
@@ -551,6 +563,64 @@ library studio_results
         return line + studio_results._standing_note(standing)
     end function
 
+    ' The variables a result recorded, as display lines (empty when it has none).
+    '
+    ' Read from the capture on demand, never from the index: the descriptors are
+    ' opaque bytes like every other capture, so browsing history does not pull
+    ' them off disk. A version-1 result has no `vars` capture at all and produces
+    ' nothing here, which is what an older result should look like.
+    '
+    ' `absent` is worth a line of its own. A section that raised left no variables
+    ' *because it raised*, and that is different information from a section that
+    ' ran and genuinely defined nothing.
+    function vars_lines(home, store, result)
+        out = []
+        status = result["vars_status"]
+        if status = unknown then
+            return out
+        end if
+        if status = "absent" then
+            out = append(out, "  variables: none — the section did not finish")
+            return out
+        end if
+        if status = "ambiguous" then
+            out = append(out, "  variables: not separable (the program printed the marker)")
+            return out
+        end if
+        if status = "unreadable" then
+            out = append(out, "  variables: unreadable")
+            return out
+        end if
+        if studio_results.capture_bytes(result, "vars") = 0 then
+            return out
+        end if
+        r = try_decode(studio_results.capture(home, store, result.result_id, "vars"))
+        if not r.ok then
+            out = append(out, "  variables: unreadable")
+            return out
+        end if
+        if not is_array(r.value) then
+            out = append(out, "  variables: unreadable")
+            return out
+        end if
+        if count(r.value) = 0 then
+            out = append(out, "  variables: none")
+            return out
+        end if
+        out = append(out, "  variables (" + count(r.value) + "):")
+        for each v in r.value
+            line = "    " + v.name + " " + v.kind
+            if v.category = "container" then
+                line = line + "[" + v.count + "]"
+            end if
+            if v.serializable = false then
+                line = line + " (live)"
+            end if
+            out = append(out, line)
+        end for
+        return out
+    end function
+
     ' The results view for one section: the latest result, then the history behind
     ' it, with any result whose fingerprint no longer matches the section's current
     ' content marked as such on its own line.
@@ -578,6 +648,9 @@ library studio_results
         if count(latest.truncated) > 0 then
             lines = append(lines, "  truncated: " + join(latest.truncated, ","))
         end if
+        for each vl in studio_results.vars_lines(home, store, latest)
+            lines = append(lines, vl)
+        end for
         for each a in latest.attribution
             lines = append(lines, "  ! " + a.where + " " + a.line + ":" + a.column + " " + a.message)
         end for

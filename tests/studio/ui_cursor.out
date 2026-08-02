@@ -17,6 +17,7 @@ Results — sec-3  (1 run(s))
 latest: res-1  finished exit 0  at 1000  0s
   output: <5
 >
+  variables: none
 == move the caret up to the first section — the pane follows ==
 Results — sec-1
 (no runs yet)
@@ -25,6 +26,7 @@ Results — sec-3  (1 run(s))
 latest: res-1  finished exit 0  at 1000  0s  [section edited since this run]
   output: <5
 >
+  variables: none
 == an empty document ==
 section: (none)
 Results

@@ -599,7 +599,7 @@ program main(args)
     ' mkproj_ui would put a new row in every other ui_* golden.
     ' Three sections, so a run of the last one replays the two before it.
     rf(file) = projdir + "/runme.bas"
-    write(rf, "print \"one\"\n\nfunction add(a, b)\n  return a + b\nend function\n\nprint add(2, 3)\n")
+    write(rf, "print \"one\"\n\nfunction add(a, b)\n  return a + b\nend function\n\nsum = add(2, 3)\nprint sum\n")
 
     rows = studio_ui.nav_rows(app)
     r = studio_ui.activate_row(app, rows, row_index(rows, "file", "runme.bas"))

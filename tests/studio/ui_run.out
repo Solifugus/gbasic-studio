@@ -14,10 +14,14 @@ Results — sec-3  (1 run(s))
 latest: res-2  finished exit 0  at 1000  0s
   output: <5
 >
+  variables (1):
+    sum number
    exec: run: finished [sec-3] — exit 0
 Results — sec-3  (2 run(s))
 latest: res-3  finished exit 0  at 1000  0s
   output: <5
 >
+  variables (1):
+    sum number
 history:
   res-2  finished exit 0  at 1000  0s
