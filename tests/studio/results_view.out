@@ -3,19 +3,19 @@ Results — sec-2
 (no runs yet)
 -- current
 Results — sec-2  (2 run(s))
-latest: res-2  finished exit 0  at 1100  0s
+latest: res-2  finished exit 0  at 1969-12-31 19:18:20  0s
   variables: none
 history:
-  res-1  finished exit 0  at 1000  0s
+  res-1  finished exit 0  at 1969-12-31 19:16:40  0s
 -- after editing the section
 Results — sec-2  (2 run(s))
-latest: res-2  finished exit 0  at 1100  0s  [section edited since this run]
+latest: res-2  finished exit 0  at 1969-12-31 19:18:20  0s  [section edited since this run]
   variables: none
 history:
-  res-1  finished exit 0  at 1000  0s  [section edited since this run]
+  res-1  finished exit 0  at 1969-12-31 19:16:40  0s  [section edited since this run]
 -- after removing the section
 Results — sec-2  (2 run(s))
-latest: res-2  finished exit 0  at 1100  0s  [section no longer exists]
+latest: res-2  finished exit 0  at 1969-12-31 19:18:20  0s  [section no longer exists]
   variables: none
 history:
-  res-1  finished exit 0  at 1000  0s  [section no longer exists]
+  res-1  finished exit 0  at 1969-12-31 19:16:40  0s  [section no longer exists]

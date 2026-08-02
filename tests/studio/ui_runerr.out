@@ -5,7 +5,7 @@ target:  <Hello
 errors:  <target [sec-1] 5:21  undefined variable: X>
 results:
 Results — sec-1  (1 run(s))
-latest: res-1  finished exit 1  at 1000  0s
+latest: res-1  finished exit 1  at 1969-12-31 19:16:40  0s
   output: <Hello
 >
   variables: none — the section did not finish

@@ -9,7 +9,7 @@ before_count=2
   rows -> table
 -- the pane
 Results — sec-3  (1 run(s))
-latest: res-1  finished exit 0  at 1000  0s
+latest: res-1  finished exit 0  at 1969-12-31 19:16:40  0s
   variables (7, 5 changed):
     + big array[500]
         0

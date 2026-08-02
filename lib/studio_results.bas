@@ -553,6 +553,14 @@ library studio_results
         return "  [document does not parse]"
     end function
 
+    ' A readable time. A raw epoch in a results pane is a number nobody can read
+    ' — "at 1785692683" tells a user nothing about whether that run was five
+    ' minutes or five weeks ago, which is the only question they are asking.
+    ' A pinned test clock produces a fixed date, so goldens stay byte-stable.
+    function _when(epoch_seconds)
+        return string(from_epoch(epoch_seconds))
+    end function
+
     function _one_line(r, standing)
         line = r.result_id + "  " + r.outcome
         if r.outcome = "refused" then
@@ -563,7 +571,7 @@ library studio_results
                 line = line + " signal " + r.signal
             end if
         end if
-        line = line + "  at " + r.started_epoch + "  " + r.duration_seconds + "s"
+        line = line + "  at " + studio_results._when(r.started_epoch) + "  " + r.duration_seconds + "s"
         return line + studio_results._standing_note(standing)
     end function
 

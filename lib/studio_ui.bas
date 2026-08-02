@@ -1592,10 +1592,10 @@ library studio_ui
     function results_body(app)
         v = studio_ui.view_for(app)
         if v.store = nothing then
-            return "Results\n(no document open)"
+            return "(no document open)"
         end if
         if v.sid = "" then
-            return "Results\n(no section at the cursor)"
+            return "(no section at the cursor)"
         end if
         return studio_results.view_text(app.paths.home, v.store, v.st, v.sid)
     end function

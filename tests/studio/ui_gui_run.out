@@ -6,7 +6,7 @@ prefix=<(none)>
 target=<one
 >
 Results — sec-1  (1 run(s))
-latest: res-1  finished exit 0  at 1000  0s
+latest: res-1  finished exit 0  at 1969-12-31 19:16:40  0s
   output: <one
 >
   variables: none

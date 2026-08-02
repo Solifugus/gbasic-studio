@@ -24,7 +24,7 @@ Results — sec-1
    exec: run: finished [sec-5] — exit 0
 == the caret has not moved, so the pane shows that section's result ==
 Results — sec-5  (1 run(s))
-latest: res-1  finished exit 0  at 1000  0s
+latest: res-1  finished exit 0  at 1969-12-31 19:16:40  0s
   output: <5
 >
   variables: none
@@ -42,7 +42,7 @@ target=<5
 errors=<(none)>
 == edit the run section; its id survives but its fingerprint does not ==
 Results — sec-5  (1 run(s))
-latest: res-1  finished exit 0  at 1000  0s  [section edited since this run]
+latest: res-1  finished exit 0  at 1969-12-31 19:16:40  0s  [section edited since this run]
   output: <5
 >
   variables: none
@@ -53,11 +53,10 @@ a section that never ran: never | not run yet
 standing=cold | cold — recorded in an earlier session; Run to rebuild the state
 the result is still there:
 Results — sec-5  (1 run(s))
-latest: res-1  finished exit 0  at 1000  0s  [section edited since this run]
+latest: res-1  finished exit 0  at 1969-12-31 19:16:40  0s  [section edited since this run]
   output: <5
 >
   variables: none
 == an empty document ==
 section: (none)
-Results
 (no section at the cursor)

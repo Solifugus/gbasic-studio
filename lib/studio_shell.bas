@@ -55,9 +55,45 @@ library studio_shell
         rows = studio_ui.nav_rows(app)
         studio_shell._clear_listbox(nav)
         for each r in rows
-            nav.append(gtk.label(r.label))
+            nav.append(studio_shell._left(gtk.label(r.label)))
         end for
         return rows
+    end function
+
+    ' A LEFT-ALIGNED label. `gtk.label` centres, which is right for a title and
+    ' wrong for everything this shell shows: a browser row whose indentation
+    ' encodes tree depth, a line of program output, an error, a table of
+    ' variables. Centred, the indentation means nothing and output reads as
+    ' poetry. Nothing in a golden can see this — the text is identical either
+    ' way — which is why it survived five phases.
+    function _left(lbl)
+        lbl.xalign = 0
+        lbl.halign = gi.enum("Gtk.Align.START")
+        return lbl
+    end function
+
+    ' Left-aligned AND wrapping. Wrap rather than clip: a label narrower than its
+    ' text is silently truncated at the edge, and a message a user cannot finish
+    ' reading is not a message.
+    '
+    ' Only for things that occupy a whole row. Wrapping a label that shares a
+    ' horizontal strip with others makes each one a narrow column of syllables —
+    ' which is what the run strip turned into the first time this was applied to
+    ' everything.
+    function _wrapped(lbl)
+        lbl = studio_shell._left(lbl)
+        lbl.wrap = true
+        lbl.wrap_mode = gi.enum("Pango.WrapMode.WORD_CHAR")
+        return lbl
+    end function
+
+    ' Left-aligned AND selectable AND monospaced: for captured output and
+    ' anything else a user will want to copy out of.
+    function _mono(lbl)
+        lbl = studio_shell._wrapped(lbl)
+        lbl.selectable = true
+        lbl.add_css_class("monospace")
+        return lbl
     end function
 
     ' Empty a GtkListBox by repeatedly removing row 0. `remove_all` would be one
@@ -359,7 +395,10 @@ library studio_shell
         ' The buttons are returned, not connected: `gi.connect` lives only in the
         ' entry program (see this file's header).
         header = gtk.box("h", 6)
-        header.append(gtk.label("gBASIC Studio"))
+        header.append(studio_shell._left(gtk.label("gBASIC Studio")))
+        ' The name field expanded to fill the header and pushed every button to
+        ' the right; it needs a width, not all of the width.
+        name_entry_width = 18
         new_btn = gtk.button("New Project")
         file_btn = gtk.button("New File")
         folder_btn = gtk.button("New Folder")
@@ -374,6 +413,8 @@ library studio_shell
         ' driven by any test we can write.
         name_entry = gi.new("Gtk.Entry")
         name_entry.placeholder_text = "name"
+        name_entry.max_width_chars = name_entry_width
+        name_entry.hexpand = false
         rename_btn = gtk.button("Rename")
         delete_btn = gtk.button("Delete")
         close_btn = gtk.button("Close")
@@ -414,22 +455,35 @@ library studio_shell
         pane = studio_shell.output_pane()
         rpane = studio_shell.results_pane()
         apane = studio_shell.agent_pane()
+
+        ' The design puts the console at the BOTTOM and inspection at the RIGHT
+        ' (§6.2/§6.3), and looking at the window showed why: four panes stacked in
+        ' one scroller meant the variables of a run sat below the fold with the
+        ' editor still half empty. Output goes under the editor; results and the
+        ' assistant go beside them.
         under = gtk.box("v", 4)
         under.append(bar.box)
         under.append(pane.box)
-        under.append(rpane.box)
-        under.append(apane.box)
+
+        beside = gtk.box("v", 4)
+        beside.append(rpane.box)
+        beside.append(apane.box)
 
         vsplit = gtk.paned("v")
         vsplit.set_start_child(book)
         vsplit.set_end_child(gtk.scrolled(under))
-        vsplit.position = 420
-        split.set_end_child(vsplit)
+        vsplit.position = 380
+
+        rsplit = gtk.paned("h")
+        rsplit.set_start_child(vsplit)
+        rsplit.set_end_child(gtk.scrolled(beside))
+        rsplit.position = 620
+        split.set_end_child(rsplit)
 
         outer.append(split)
 
         ' --- status bar ---
-        status = gtk.label(studio_shell.status_text(app))
+        status = studio_shell._left(gtk.label(studio_shell.status_text(app)))
         outer.append(status)
 
         win.set_child(outer)
@@ -483,13 +537,16 @@ library studio_shell
         run_btn = gtk.button("Run Section")
         halt_btn = gtk.button("Stop")
         force_btn = gtk.button("Force Stop")
-        state = gtk.label("run: idle")
+        state = studio_shell._left(gtk.label("run: idle"))
         ' STU-5A′: which section Run would run, shown BEFORE you press it rather
         ' than after. It follows the caret.
-        section = gtk.label("section: (none)")
+        section = studio_shell._left(gtk.label("section: (none)"))
         ' STU-5 §10.3: whether what you are looking at is live in this session or
         ' a record from an earlier one.
-        standing = gtk.label("")
+        standing = studio_shell._left(gtk.label(""))
+        ' The strip is one horizontal row, so this cannot wrap; ellipsize instead,
+        ' which at least SAYS it was cut rather than stopping mid-word.
+        standing.ellipsize = gi.enum("Pango.EllipsizeMode.END")
         bar.append(run_btn)
         bar.append(halt_btn)
         bar.append(force_btn)
@@ -512,14 +569,14 @@ library studio_shell
 
     function output_pane()
         box = gtk.box("v", 4)
-        prefix_head = gtk.label("Prefix output — sections replayed before the target")
-        prefix_body = gtk.label("")
-        target_head = gtk.label("Target output — the section you ran")
-        target_body = gtk.label("")
+        prefix_head = studio_shell._wrapped(gtk.label("Prefix output — sections replayed before the target"))
+        prefix_body = studio_shell._mono(gtk.label(""))
+        target_head = studio_shell._wrapped(gtk.label("Target output — the section you ran"))
+        target_body = studio_shell._mono(gtk.label(""))
         ' STU-5: a section's errors had nowhere to go. The child's stderr was
         ' captured, attributed and stored, and the window showed none of it.
-        error_head = gtk.label("Errors")
-        error_body = gtk.label("")
+        error_head = studio_shell._wrapped(gtk.label("Errors"))
+        error_body = studio_shell._mono(gtk.label(""))
         box.append(prefix_head)
         box.append(prefix_body)
         box.append(target_head)
@@ -550,8 +607,8 @@ library studio_shell
 
     function results_pane()
         box = gtk.box("v", 4)
-        head = gtk.label("Results — the section at the cursor")
-        body = gtk.label("")
+        head = studio_shell._wrapped(gtk.label("Results — the section at the cursor"))
+        body = studio_shell._mono(gtk.label(""))
         box.append(head)
         box.append(body)
         return { box: box, head: head, body: body }
@@ -564,9 +621,10 @@ library studio_shell
     ' type at an assistant that can only look — orientation is one question.
     function agent_pane()
         box = gtk.box("v", 4)
-        head = gtk.label("Assistant — read-only; it can see your project, not change it")
+        head = studio_shell._wrapped(gtk.label("Assistant — read-only; it can see your project, not change it"))
         ask_btn = gtk.button("Where was I?")
-        body = gtk.label("(not configured — set ANTHROPIC_API_KEY and restart)")
+        ask_btn.halign = gi.enum("Gtk.Align.START")
+        body = studio_shell._wrapped(gtk.label("(not configured — set ANTHROPIC_API_KEY and restart)"))
         box.append(head)
         box.append(ask_btn)
         box.append(body)

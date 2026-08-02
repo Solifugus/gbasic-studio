@@ -176,6 +176,13 @@ Two consequences worth knowing before you touch the shell:
   state), so `app/studio.bas` carries one two-line wrapper per tool that reads
   the global and calls the dispatcher — the same adapter rule as a signal
   handler, for the same reason.
+- Labels: `studio_shell._left` aligns, `_wrapped` also wraps, `_mono` also
+  selects and monospaces. `gtk.label` CENTRES, which is right for a title and
+  wrong for a browser row whose indentation encodes depth, for program output,
+  and for a table. Wrapping belongs only on labels that own a whole row — the run
+  strip is a horizontal box, and wrapping its labels turned each into a narrow
+  column of syllables. NONE of this is visible to a golden: the text is identical
+  either way, which is how it survived five phases.
 - The GtkApplication is built with `NON_UNIQUE` flags in `app/studio.bas` rather
   than via `gtk.application`, which defaults to single-instance. Reverting that
   does not just stop a second window opening — the *running* instance gets an
