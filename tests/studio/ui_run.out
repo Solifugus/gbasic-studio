@@ -9,6 +9,7 @@ prefix=<one
 >
 target=<5
 >
+errors=<(none)>
 == and the run is now a durable result ==
 Results — sec-3  (1 run(s))
 latest: res-2  finished exit 0  at 1000  0s

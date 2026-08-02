@@ -113,9 +113,55 @@ library studio_shell
         sess = studio_ui.exec_session(app)
         shell.bar.state.label = studio_ui.run_line(sess)
         shell.bar.section.label = studio_ui.section_label(app)
-        shell.pane.prefix.label = studio_ui.prefix_text(sess)
-        shell.pane.target.label = studio_ui.target_text(sess)
+        shell.pane.prefix.label = studio_ui.prefix_body(app)
+        shell.pane.target.label = studio_ui.target_body(app)
+        shell.pane.errors.label = studio_ui.error_body(app)
         shell.rpane.body.label = studio_ui.results_body(app)
+        d = studio_shell._decorate(shell, app)
+        return { shell: d.shell, app: d.app }
+    end function
+
+    ' STU-5: draw the sections into the source itself — a gutter mark where each
+    ' one starts, and a tint over the one the caret is in.
+    '
+    ' The marks are redrawn only when the outline's REVISION changes. That number
+    ' moves on an edit and not on a caret move, and this runs on every caret move.
+    function _decorate(shell, app)
+        ed = studio_shell.editor_for(shell, app.dm.active)
+        if ed = nothing then
+            return { shell: shell, app: app }
+        end if
+        m = studio_ui.section_marks(app)
+        app = m.app
+        if shell.marked[m.doc_id] != m.revision then
+            buf = ed.buffer
+            ' `_iter` unwraps GTK's out-parameter record; the bridge hands the
+            ' iterator back inside one, and remove_source_marks wants the value.
+            s = sourceeditor._iter(buf.get_start_iter())
+            e = sourceeditor._iter(buf.get_end_iter())
+            buf.remove_source_marks(s, e, "section")
+            for each ln in m.lines
+                ed.mark(ln, "section")
+            end for
+            shell.marked[m.doc_id] = m.revision
+        end if
+
+        ' One tag at a time, removed from the editor that owns it — a tag belongs
+        ' to its buffer, and switching tabs would otherwise leave the old document
+        ' permanently tinted.
+        if shell.hl_tag != nothing then
+            owner = studio_shell.editor_for(shell, shell.hl_doc)
+            if owner != nothing then
+                owner.unhighlight(shell.hl_tag)
+            end if
+            shell.hl_tag = nothing
+        end if
+        r = studio_ui.current_range(app)
+        app = r.app
+        if r.ok then
+            shell.hl_tag = ed.highlight(r.start0, r.end0, "#eaf1fb")
+            shell.hl_doc = m.doc_id
+        end if
         return { shell: shell, app: app }
     end function
 
@@ -185,6 +231,13 @@ library studio_shell
                 ' and STU-2E made it matter, because Run reads the caret to decide
                 ' which section to run.
                 ed.set_cursor(0, 0)
+                ' STU-5: line marks are invisible until the view is told to show
+                ' them and the category has attributes to draw with.
+                vw = ed.view()
+                vw.set_show_line_marks(true)
+                at = gi.new("GtkSource.MarkAttributes")
+                at.set_icon_name("media-playback-start-symbolic")
+                vw.set_mark_attributes("section", at, 1)
                 sc = gtk.scrolled(ed.view())
                 sc.vexpand = true
                 sc.hexpand = true
@@ -374,6 +427,9 @@ library studio_shell
                  delete_btn: delete_btn, close_btn: close_btn,
                  save_btn: save_btn, refresh_btn: refresh_btn,
                  bar: bar, pane: pane, rpane: rpane,
+                 ' STU-5 decoration state: which outline revision each document's
+                 ' gutter marks were drawn for, and the one live highlight tag.
+                 marked: {}, hl_tag: nothing, hl_doc: "",
                  rows: [], pages: [], welcome: false }
     end function
 
@@ -434,11 +490,17 @@ library studio_shell
         prefix_body = gtk.label("")
         target_head = gtk.label("Target output — the section you ran")
         target_body = gtk.label("")
+        ' STU-5: a section's errors had nowhere to go. The child's stderr was
+        ' captured, attributed and stored, and the window showed none of it.
+        error_head = gtk.label("Errors")
+        error_body = gtk.label("")
         box.append(prefix_head)
         box.append(prefix_body)
         box.append(target_head)
         box.append(target_body)
-        return { box: box, prefix: prefix_body, target: target_body }
+        box.append(error_head)
+        box.append(error_body)
+        return { box: box, prefix: prefix_body, target: target_body, errors: error_body }
     end function
 
     function output_prefix_text(session)

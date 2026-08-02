@@ -1082,8 +1082,13 @@ library studio_ui
             end if
         end if
 
-        st = studio_sections.create(doc.id)
-        st = studio_sections.refresh(st, doc.content)
+        ' The SAME section state the panes are showing, not a fresh derivation.
+        ' Two derivations of one document can disagree about which section is
+        ' which after an edit, and a run recorded against an id the pane does not
+        ' use is a result nobody can find.
+        vw = studio_ui.view_for(app)
+        app = vw.app
+        st = vw.st
         sid = studio_ui.section_for(st, doc.content, line0 + 1, column0 + 1)
         if sid = "" then
             return { app: app, action: "no-section", detail: "", active: false }
@@ -1323,8 +1328,23 @@ library studio_ui
             stale = true
         end if
         if stale then
-            st = studio_sections.create(doc.id)
-            v.st = studio_sections.refresh(st, doc.content)
+            ' REFRESH the existing state; do not build a new one. Section ids are
+            ' stable across edits because `refresh` re-matches the old sections
+            ' against the new outline — that is the whole of STU-3. Deriving from
+            ' scratch each time would re-mint ids in file order, so inserting a
+            ' section at the top would silently renumber every result recorded
+            ' against the ones below it.
+            '
+            ' It also makes `revision` mean something: a state created fresh every
+            ' call is forever at revision 1, and anything using it as a change
+            ' signal (the editor's gutter marks) would never see a change.
+            if v.st = nothing then
+                v.st = studio_sections.create(doc.id)
+            end if
+            if v.doc_id != doc.id then
+                v.st = studio_sections.create(doc.id)
+            end if
+            v.st = studio_sections.refresh(v.st, doc.content)
             v.src = doc.content
             v.doc_id = doc.id
         end if
@@ -1375,6 +1395,143 @@ library studio_ui
             end if
         end if
         return line
+    end function
+
+    ' ---- what the editor should draw (STU-5) --------------------------------
+    '
+    ' Sections have been invisible in the source since STU-3 derived them: the
+    ' strip names the one at the caret, and nothing in the code shows where it
+    ' starts or ends. Both of these are decisions about WHICH lines, in editor
+    ' units; the shell does the drawing.
+    '
+    ' `revision` comes back so the caller can tell whether the marks it drew are
+    ' still the right ones. The outline changes on edits, not on caret moves, and
+    ' re-marking a document sixteen times a second while someone types would be
+    ' the same mistake as rebuilding the browser pane on every keystroke.
+    function section_marks(app)
+        v = studio_ui.view_for(app)
+        app = v.app
+        doc = studio_docs.active_doc(app.dm)
+        id = ""
+        if doc != nothing then
+            id = doc.id
+        end if
+        lines = []
+        rev = -1
+        if v.st != nothing then
+            rev = v.st.revision
+            for each s in v.st.sections
+                if s.status != "stale" then
+                    lines = append(lines, s.start_line - 1)
+                end if
+            end for
+        end if
+        return { app: app, lines: lines, revision: rev, doc_id: id }
+    end function
+
+    ' The 0-based line range of the section at the caret — what Run would run,
+    ' shown as an extent in the code rather than only as an id in the strip.
+    function current_range(app)
+        v = studio_ui.view_for(app)
+        app = v.app
+        if v.sid = "" then
+            return { app: app, ok: false, start0: 0, end0: 0 }
+        end if
+        sec = studio_sections.section_by_id(v.st, v.sid)
+        if sec = nothing then
+            return { app: app, ok: false, start0: 0, end0: 0 }
+        end if
+        return { app: app, ok: true, start0: sec.start_line - 1, end0: sec.end_line - 1 }
+    end function
+
+    ' ---- the output panes, per section (STU-5) ------------------------------
+    '
+    ' The output panes used to show the live session and only the live session,
+    ' so they described whatever last ran no matter where the caret was — the
+    ' same inconsistency the results pane had before STU-5A′. Output is per
+    ' SECTION: move the caret and the panes swap with it.
+    '
+    ' A run in flight is the exception, and only for its own section: while the
+    ' child is producing output there is no stored result yet, and the live stream
+    ' is the only thing there is to show. Put the caret somewhere else during a
+    ' run and you see that section's last result, which is correct — the run
+    ' happening elsewhere is not what you are looking at.
+    function output_source(app)
+        v = studio_ui.view_for(app)
+        sess = studio_ui.exec_session(app)
+        if sess != nothing then
+            if sess.section_id = v.sid then
+                live = studio_session.is_active(sess)
+                if live then
+                    return { app: v.app, kind: "live", session: sess, result: nothing, store: v.store }
+                end if
+            end if
+        end if
+        if v.store = nothing then
+            return { app: v.app, kind: "none", session: nothing, result: nothing, store: nothing }
+        end if
+        if v.sid = "" then
+            return { app: v.app, kind: "none", session: nothing, result: nothing, store: nothing }
+        end if
+        latest = studio_results.latest_for(v.store, v.sid)
+        if latest = nothing then
+            return { app: v.app, kind: "none", session: nothing, result: nothing, store: v.store }
+        end if
+        return { app: v.app, kind: "stored", session: nothing, result: latest, store: v.store }
+    end function
+
+    ' What the prefix pane shows for the section at the caret.
+    function prefix_body(app)
+        o = studio_ui.output_source(app)
+        if o.kind = "live" then
+            return studio_ui.prefix_text(o.session)
+        end if
+        if o.kind = "none" then
+            return "(this section has not run)"
+        end if
+        return studio_ui._capture_or(app, o, "out_prefix", "(none)")
+    end function
+
+    function target_body(app)
+        o = studio_ui.output_source(app)
+        if o.kind = "live" then
+            return studio_ui.target_text(o.session)
+        end if
+        if o.kind = "none" then
+            return "(this section has not run)"
+        end if
+        return studio_ui._capture_or(app, o, "out_target", "(none)")
+    end function
+
+    ' Errors were never shown at all before STU-5: a section that failed printed
+    ' its diagnosis to stderr and the window put it nowhere.
+    function error_body(app)
+        o = studio_ui.output_source(app)
+        if o.kind = "live" then
+            return "(running)"
+        end if
+        if o.kind = "none" then
+            return "(none)"
+        end if
+        pre = studio_ui._capture_or(app, o, "err_prefix", "")
+        tgt = studio_ui._capture_or(app, o, "err_target", "")
+        if pre = "" then
+            if tgt = "" then
+                return "(none)"
+            end if
+            return tgt
+        end if
+        if tgt = "" then
+            return pre
+        end if
+        return pre + tgt
+    end function
+
+    function _capture_or(app, o, name, empty)
+        if studio_results.capture_bytes(o.result, name) = 0 then
+            return empty
+        end if
+        return studio_results.capture(app.paths.home, o.store, o.result.result_id, name)
     end function
 
     ' The results pane's body: the history for the section AT THE CURSOR, judged

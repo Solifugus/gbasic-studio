@@ -47,6 +47,15 @@ function act(label, r)
   return r.app
 end function
 
+' `join` requires string elements, so a list of line numbers needs converting.
+function numlist(nums)
+  out = []
+  for each n in nums
+    out = append(out, string(n))
+  end for
+  return join(out, ",")
+end function
+
 ' Poll an in-flight run to completion, exactly as the GTK timer does — the only
 ' difference is that nothing here waits between ticks.
 function drive(app)
@@ -628,9 +637,9 @@ program main(args)
     app = drive(app)
 
     banner("prefix and target output are kept apart")
-    sess = studio_ui.exec_session(app)
-    print "prefix=<" + studio_ui.prefix_text(sess) + ">"
-    print "target=<" + studio_ui.target_text(sess) + ">"
+    print "prefix=<" + studio_ui.prefix_body(app) + ">"
+    print "target=<" + studio_ui.target_body(app) + ">"
+    print "errors=<" + studio_ui.error_body(app) + ">"
     banner("and the run is now a durable result")
     print studio_ui.results_body(app)
 
@@ -662,6 +671,27 @@ program main(args)
       l = l + 1
     end while
 
+    ' STU-5: what the editor draws. Lines are the editor's own 0-based ones.
+    banner("gutter marks, and the extent of the section at the caret")
+    m = studio_ui.section_marks(app)
+    app = m.app
+    print "marks at lines " + numlist(m.lines) + " (revision " + m.revision + ")"
+    l = 0
+    while l < 7
+      r = studio_ui.sync_cursor(app, id, l, 0)
+      app = r.app
+      cr = studio_ui.current_range(app)
+      app = cr.app
+      print "  caret " + l + " -> highlight " + cr.start0 + ".." + cr.end0
+      l = l + 1
+    end while
+    ' An edit moves the revision, so the marks are redrawn — and only then.
+    app = studio.edit_document(app, id, "print \"one\"\n\nfunction add(a, b)\n  return a + b\nend function\n\nnewvar = 1\nprint add(2, 3)\n")
+    m2 = studio_ui.section_marks(app)
+    app = m2.app
+    print "after an edit: marks at " + numlist(m2.lines) + " (revision " + m2.revision + ")"
+    app = studio.edit_document(app, id, "print \"one\"\n\nfunction add(a, b)\n  return a + b\nend function\n\nprint add(2, 3)\n")
+
     banner("nothing has run, so every section says so")
     r = studio_ui.sync_cursor(app, id, 0, 0)
     app = r.app
@@ -683,6 +713,18 @@ program main(args)
     r = studio_ui.sync_cursor(app, id, 0, 0)
     app = r.app
     print studio_ui.results_body(app)
+
+    ' STU-5: the OUTPUT panes are per-section too. The caret is on a section that
+    ' has never run, so they say so rather than showing the other section's output.
+    banner("and so does the output")
+    print "prefix=<" + studio_ui.prefix_body(app) + ">"
+    print "target=<" + studio_ui.target_body(app) + ">"
+    r = studio_ui.sync_cursor(app, id, 6, 0)
+    app = r.app
+    print "-- back on the section that ran --"
+    print "prefix=<" + studio_ui.prefix_body(app) + ">"
+    print "target=<" + studio_ui.target_body(app) + ">"
+    print "errors=<" + studio_ui.error_body(app) + ">"
 
     ' Editing the section a result describes must show up as a mark, and that
     ' means the pane's section model has to be re-derived from the new text.

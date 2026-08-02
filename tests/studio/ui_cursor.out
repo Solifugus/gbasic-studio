@@ -7,13 +7,23 @@
   line 5 -> sec-2   | section: sec-2 function add
   line 6 -> sec-3   | section: sec-3 statements
   line 7 -> sec-3   | section: sec-3 statements
+== gutter marks, and the extent of the section at the caret ==
+marks at lines 0,2,6 (revision 1)
+  caret 0 -> highlight 0..0
+  caret 1 -> highlight 0..0
+  caret 2 -> highlight 2..4
+  caret 3 -> highlight 2..4
+  caret 4 -> highlight 2..4
+  caret 5 -> highlight 2..4
+  caret 6 -> highlight 6..6
+after an edit: marks at 0,2,6 (revision 2)
 == nothing has run, so every section says so ==
 Results — sec-1
 (no runs yet)
 == run the LAST section, with the caret in it ==
-   exec: run: finished [sec-3] — exit 0
+   exec: run: finished [sec-5] — exit 0
 == the caret has not moved, so the pane shows that section's result ==
-Results — sec-3  (1 run(s))
+Results — sec-5  (1 run(s))
 latest: res-1  finished exit 0  at 1000  0s
   output: <5
 >
@@ -21,8 +31,17 @@ latest: res-1  finished exit 0  at 1000  0s
 == move the caret up to the first section — the pane follows ==
 Results — sec-1
 (no runs yet)
+== and so does the output ==
+prefix=<(this section has not run)>
+target=<(this section has not run)>
+-- back on the section that ran --
+prefix=<one
+>
+target=<5
+>
+errors=<(none)>
 == edit the run section; its id survives but its fingerprint does not ==
-Results — sec-3  (1 run(s))
+Results — sec-5  (1 run(s))
 latest: res-1  finished exit 0  at 1000  0s  [section edited since this run]
   output: <5
 >
