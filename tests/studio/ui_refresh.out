@@ -21,7 +21,7 @@ nav rows=6
 selected=README.md
 tabs=2
     doc-1 main.bas
-  * doc-2 * README.md
+  * doc-2 ~ README.md
 doc-1 content=changed on disk while Studio was clean
 
 doc-2 content=my unsaved edits

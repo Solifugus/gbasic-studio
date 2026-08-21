@@ -92,8 +92,11 @@ decision to write it to your file remains yours. If the file changed on disk
 while Studio was closed, the draft still comes back and the document is flagged
 as a conflict rather than either fact being hidden.
 
-A conflicting external change *during* a session shows as an ordinary dirty
-marker — the tab does not distinguish it from your own unsaved edits.
+**A tab says which kind of trouble it is in.** `*` is your unsaved edits, `~` is
+the file having changed on disk underneath them, and `!` is the file being gone.
+Those first two used to look identical, which mattered: **Save on a `~` tab
+overwrites whatever else wrote the file**, so it now takes two clicks and says
+what it is about to do.
 
 **A read-only assistant (STU-6).** Studio keeps a semantic action history — files
 opened, sections selected and run, errors raised, in its own vocabulary rather

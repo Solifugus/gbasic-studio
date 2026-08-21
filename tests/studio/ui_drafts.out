@@ -11,6 +11,15 @@ after a clean save, reopened dirty=false
 == a file that changed underneath the draft is a CONFLICT, not a silent overwrite ==
 buffer=typed again
 
-external=conflict
+external=changed
 on disk=changed by someone else
 
+the tab says: ~ main.bas
+== Save over a conflict arms first ==
+-> Save: armed-save | the file changed on disk since you opened it — click Save again to overwrite it
+on disk still=changed by someone else
+
+-> Save again: saved
+on disk now=typed again
+
+arm kinds: save (save) vs  (none)

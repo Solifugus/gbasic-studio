@@ -291,7 +291,7 @@ program main(args)
 
   ' ---- save ----------------------------------------------------------------
   if mode = "save" then
-    r = studio_ui.save_active(app)
+    r = studio_ui.save_active(app, "")
     app = act("save with nothing open", r)
 
     rows = studio_ui.nav_rows(app)
@@ -302,7 +302,7 @@ program main(args)
     app = act("edit", r)
     show(app)
 
-    r = studio_ui.save_active(app)
+    r = studio_ui.save_active(app, "")
     app = act("save", r)
     banner("clean again, and the tab marker is gone")
     show(app)
@@ -507,7 +507,7 @@ program main(args)
     show(app)
 
     ' A directory renames too, and the expansion state comes with it.
-    sv = studio_ui.save_active(app)
+    sv = studio_ui.save_active(app, "")
     app = sv.app
     rows = studio_ui.nav_rows(app)
     r = studio_ui.activate_row(app, rows, row_index(rows, "dir", "src"))
@@ -878,7 +878,7 @@ program main(args)
     print "file on disk is untouched=" + (read_file_text(projdir + "/main.bas") = "print \"main\"\n")
 
     banner("saving it clears the draft")
-    sv = studio_ui.save_active(again)
+    sv = studio_ui.save_active(again, "")
     again = sv.app
     studio.persist(again)
     idx = studio_drafts.open_index(home)
@@ -899,6 +899,20 @@ program main(args)
     print "buffer=" + d4.content
     print "external=" + d4.external
     print "on disk=" + read_file_text(projdir + "/main.bas")
+    print "the tab says: " + studio_ui.tab_label(d4)
+
+    ' Saving over a conflict OVERWRITES whoever else wrote the file, so it takes
+    ' two clicks — the same shape as Delete and Close, and for a bigger reason.
+    banner("Save over a conflict arms first")
+    sv = studio_ui.save_active(app3, "")
+    app3 = sv.app
+    print "-> Save: " + sv.action + " | " + studio_ui.action_notice(sv.action, sv.detail)
+    print "on disk still=" + read_file_text(projdir + "/main.bas")
+    sv2 = studio_ui.save_active(app3, sv.armed)
+    app3 = sv2.app
+    print "-> Save again: " + sv2.action
+    print "on disk now=" + read_file_text(projdir + "/main.bas")
+    print "arm kinds: " + studio_ui.arm_kind("armed-save") + " (save) vs " + studio_ui.arm_kind("saved") + " (none)"
   end if
 
   ' ---- notice: what the status bar says about each outcome -----------------

@@ -117,6 +117,14 @@ Two consequences worth knowing before you touch the shell:
   directory also expands it: a file that exists and is not on screen reads as the
   button having done nothing. `new_folder` deliberately does not move the
   selection, or a second New Folder would nest inside the first.
+- Three things arm before they fire: Delete (keyed to a path), Close (to a
+  document id) and Save-over-a-conflict (to a document id). Saving a document
+  whose file changed underneath OVERWRITES whoever made that change, which is
+  the same class of loss as deleting. An ORDINARY save is one click — there is
+  nothing at stake in it.
+- `doc.external` has exactly three values: none | changed | deleted. Do not add a
+  fourth for a case that is one of those; the tab markers and the checkpoint
+  policy both read it.
 - Destructive actions arm before they fire, and the arm is keyed to the *thing*
   (a path for Delete, a document id for Close) rather than to a flag — so moving
   the selection between the two clicks re-arms on the new row instead of deleting

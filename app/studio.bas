@@ -96,6 +96,9 @@ function redraw()
     if kind != "doc" then
         G.armed_doc = ""
     end if
+    if kind != "save" then
+        G.armed_save = ""
+    end if
     r = studio_shell.refresh(G.shell, G.app, notice, clear_name)
     G.shell = r.shell
     ' The app comes back because rendering the panes populates a cache on it
@@ -299,10 +302,11 @@ function on_close_tab()
 end function
 
 function on_save()
-    r = studio_ui.save_active(G.app)
+    r = studio_ui.save_active(G.app, G.armed_save)
     G.app = r.app
     G.last_action = r.action
     G.last_detail = r.detail
+    G.armed_save = r.armed
     if r.action = "saved" then
         note_event("file_saved", r.detail, "")
     end if
@@ -1372,6 +1376,7 @@ program main(args)
     G.last_detail = ""
     G.armed_path = ""
     G.armed_doc = ""
+    G.armed_save = ""
     G.stu2b = false
     G.stu2b_cold = false
     G.phase = 0

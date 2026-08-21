@@ -162,15 +162,27 @@ library studio_ui
         return rows
     end function
 
-    ' A tab label with markers: "! " missing, "* " dirty (unsaved), then the name.
+    ' A tab label with markers, most alarming first:
+    '   "! "  the file is gone
+    '   "~ "  the file CHANGED on disk while you had unsaved edits
+    '   "* "  you have unsaved edits
+    '
+    ' The middle one used to render as "* " like any other unsaved buffer, which
+    ' made a conflict indistinguishable from ordinary typing — and Save on a
+    ' conflicted document overwrites whatever else wrote the file. A marker that
+    ' cannot tell you that is worse than no marker.
     function tab_label(doc)
         marker = ""
         if doc.missing then
             marker = "! "
         else
-            dirty = studio_docs.is_dirty(doc)
-            if dirty then
-                marker = "* "
+            if doc.external = "changed" then
+                marker = "~ "
+            else
+                dirty = studio_docs.is_dirty(doc)
+                if dirty then
+                    marker = "* "
+                end if
             end if
         end if
         return marker + doc.display_name
@@ -255,13 +267,29 @@ library studio_ui
 
     ' Save the active document. Returns { app, action, detail } with action
     ' "saved" | "error" | "unknown" | "none" (nothing open).
-    function save_active(app)
+    ' Save the active document. `armed` is the document id a previous Save
+    ' armed — the same two-click shape Delete and Close use, and here for the
+    ' same reason: saving a document whose file changed underneath OVERWRITES
+    ' whatever made that change, and doing it on one unremarkable click is how
+    ' someone else's work disappears.
+    '
+    ' Only a conflict arms. An ordinary save is one click, because there is
+    ' nothing at stake in it.
+    '
+    ' Returns { app, action, detail, armed } with action
+    ' "saved" | "armed-save" | "error" | "unknown" | "none".
+    function save_active(app, armed)
         doc = studio_docs.active_doc(app.dm)
         if doc = nothing then
-            return { app: app, action: "none", detail: "" }
+            return { app: app, action: "none", detail: "", armed: "" }
+        end if
+        if doc.external = "changed" then
+            if armed != doc.id then
+                return { app: app, action: "armed-save", detail: doc.id, armed: doc.id }
+            end if
         end if
         sv = studio.save_document(app, doc.id)
-        return { app: sv.app, action: sv.status, detail: doc.id }
+        return { app: sv.app, action: sv.status, detail: doc.id, armed: "" }
     end function
 
     ' ---- workspace / project creation --------------------------------------
@@ -795,6 +823,9 @@ library studio_ui
         if action = "armed-close" then
             return leaf + " has unsaved changes — click Close again to discard them"
         end if
+        if action = "armed-save" then
+            return "the file changed on disk since you opened it — click Save again to overwrite it"
+        end if
         if action = "invalid" then
             return "that name will not do (" + detail + ")"
         end if
@@ -884,6 +915,9 @@ library studio_ui
         end if
         if action = "armed-close" then
             return "doc"
+        end if
+        if action = "armed-save" then
+            return "save"
         end if
         return ""
     end function

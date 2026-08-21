@@ -220,7 +220,11 @@ library studio_drafts
                     d.content = read(f)
                     moved = e.base != now
                     if moved then
-                        d.external = "conflict"
+                        ' The documented vocabulary is none|changed|deleted
+                        ' (studio_docs). A fourth value here would be a second
+                        ' way of saying the same thing that every reader of
+                        ' `external` would have to learn.
+                        d.external = "changed"
                         conflicts = append(conflicts, d.id)
                     else
                         restored = append(restored, d.id)
