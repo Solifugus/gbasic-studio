@@ -1,0 +1,29 @@
+-- a cold home --
+nav rows=1
+  [info] (no workspace open)
+selected=
+tabs=0
+typing the folder path into the name field, then clicking Open Folder
+action=adopted status=opened ui_gui_open_proj
+name field is now []
+-- after Open Folder --
+nav rows=4
+  [info] Workspace: workspace
+  [project] * ui_gui_open_proj
+  [dir]   > src
+  [file]     thing.bas
+selected=
+tabs=0
+clicking Open Folder again on the same path
+action=activated status=switched to ui_gui_open_proj
+-- activated, not duplicated --
+nav rows=4
+  [info] Workspace: workspace
+  [project] * ui_gui_open_proj
+  [dir]   > src
+  [file]     thing.bas
+selected=
+tabs=0
+clicking Open Folder on a path that is not there
+action=missing status=nowhere is not there
+app-exited

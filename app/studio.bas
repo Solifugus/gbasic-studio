@@ -260,6 +260,19 @@ function on_new_folder()
     return nothing
 end function
 
+' Open the folder named in the header field as a project.
+function on_open_folder()
+    r = studio_ui.adopt_folder(G.app, G.shell.name_entry.text)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    if r.action = "adopted" then
+        note_event("folder_opened", G.shell.name_entry.text, r.detail)
+    end if
+    redraw()
+    return nothing
+end function
+
 function on_rename()
     r = studio_ui.rename_selected(G.app, G.shell.name_entry.text)
     G.app = r.app
@@ -538,6 +551,7 @@ function wire_shell()
     gi.connect(sh.new_btn, "clicked", on_new_project)
     gi.connect(sh.file_btn, "clicked", on_new_file)
     gi.connect(sh.folder_btn, "clicked", on_new_folder)
+    gi.connect(sh.open_btn, "clicked", on_open_folder)
     gi.connect(sh.rename_btn, "clicked", on_rename)
     gi.connect(sh.delete_btn, "clicked", on_delete)
     gi.connect(sh.close_btn, "clicked", on_close_tab)
@@ -870,6 +884,42 @@ function stu2f_step()
     return false
 end function
 
+' ---- STU-2C' display tier -------------------------------------------------
+'
+' Open Folder reads the header field as a PATH. This types one in and clicks the
+' button, which is the whole reason the control is a field rather than a dialog:
+' a GtkFileDialog is async with no signal a test can synthesise, so it would be
+' the one control in this window nothing could press.
+function stu2g_step()
+    G.phase = G.phase + 1
+    if G.phase = 1 then
+        print "typing the folder path into the name field, then clicking Open Folder"
+        G.shell.name_entry.text = G.open_target
+        G.shell.open_btn.activate()
+        return true
+    end if
+    if G.phase = 2 then
+        print "action=" + G.last_action + " status=" + G.shell.status.label
+        print "name field is now [" + G.shell.name_entry.text + "]"
+        state("after Open Folder")
+        print "clicking Open Folder again on the same path"
+        G.shell.name_entry.text = G.open_target
+        G.shell.open_btn.activate()
+        return true
+    end if
+    if G.phase = 3 then
+        print "action=" + G.last_action + " status=" + G.shell.status.label
+        state("activated, not duplicated")
+        print "clicking Open Folder on a path that is not there"
+        G.shell.name_entry.text = G.open_target + "/nowhere"
+        G.shell.open_btn.activate()
+        return true
+    end if
+    print "action=" + G.last_action + " status=" + G.shell.status.label
+    G.app_ref.quit()
+    return false
+end function
+
 ' The cold-home path: an empty home renders "(no workspace open)", and New
 ' Project is the only thing that can move it. If this button does not work, a
 ' new user has no way into Studio at all.
@@ -913,6 +963,11 @@ function on_activate(gtkapp)
     if G.stu2d then
         state("as built")
         gi.timeout(400, stu2d_step)
+        return nothing
+    end if
+    if G.stu2g then
+        state("a cold home")
+        gi.timeout(400, stu2g_step)
         return nothing
     end if
     if G.stu2e then
@@ -1387,6 +1442,8 @@ program main(args)
     G.stu2d = false
     G.stu2e = false
     G.stu2f = false
+    G.stu2g = false
+    G.open_target = ""
     G.save_on_exit = false
     ' STU-6: the semantic action history. Loaded here, appended by the handlers,
     ' written by the exit path beside everything else.
@@ -1428,6 +1485,12 @@ program main(args)
         ws = G.app.model.workspace
         ws = studio_model.add_project(ws, "Alpha", projdir)
         G.app = studio.set_workspace(G.app, ws)
+    end if
+
+    ' STU-2C': Open Folder, typed into the name field and clicked for real.
+    if mode = "stu2g_smoke" then
+        G.stu2g = true
+        G.open_target = args[2]
     end if
 
     ' STU-2E: Run Section, clicked for real, with a document open and its cursor

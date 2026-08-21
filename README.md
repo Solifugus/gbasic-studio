@@ -23,7 +23,8 @@ it, delete it, and close the window — and what is left is still there next tim
 because closing now writes the session. The status bar says what each click did,
 including what it refused to do and why.
 
-New File, New Folder and Rename read the header's **name field**. Leave it empty
+New File, New Folder, Rename and **Open Folder** read the header's **name
+field** — the last one as a path. Leave it empty
 and creation mints `untitled-N.bas` / `new-folder-N`; type into it and that is
 the name. It is a field rather than a dialog on purpose: a GtkEntry's text can be
 set programmatically, so the display tier types into it and clicks Rename for
@@ -142,8 +143,9 @@ GBASIC=/usr/local/bin/gbasic GBASIC_STDLIB=/usr/local/share/gbasic/stdlib ./stud
 An empty home renders `(no workspace open)`; click **New Project** and Studio
 creates a workspace plus a project directory under `<home>/projects/` and shows
 it, then **New File** gives you something to type in. To work on a directory you
-already have, pass it as the third argument (above) — there is no Open Folder
-button yet. To start from a canned workspace instead:
+already have, type its path into the header's name field and press **Open
+Folder**, or pass it as the third argument (above). To start from a canned
+workspace instead:
 
 ```sh
 ./studio build /tmp/demo-home
@@ -153,7 +155,7 @@ button yet. To start from a canned workspace instead:
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 124 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 125 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 7 cases, headless AND offline — no network, no key
 ```
 

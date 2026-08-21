@@ -847,11 +847,13 @@ library studio_ui
         if action = "in-use" then
             return "something inside it is open (" + leaf + ")"
         end if
+        ' "<project-id> <name>" — a user knows the folder by its name, not by an
+        ' id Studio minted.
         if action = "adopted" then
-            return "opened " + leaf
+            return "opened " + studio_ui._token_leaf(detail, 1)
         end if
         if action = "activated" then
-            return "switched to " + leaf
+            return "switched to " + studio_ui._token_leaf(detail, 1)
         end if
         if action = "refreshed" then
             return "refreshed"
@@ -930,6 +932,12 @@ library studio_ui
             return true
         end if
         if action = "renamed" then
+            return true
+        end if
+        if action = "adopted" then
+            return true
+        end if
+        if action = "activated" then
             return true
         end if
         return false

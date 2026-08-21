@@ -415,6 +415,12 @@ library studio_shell
         name_entry.placeholder_text = "name"
         name_entry.max_width_chars = name_entry_width
         name_entry.hexpand = false
+        ' Reads the name field as a PATH. A real folder chooser is a
+        ' GtkFileDialog — async, with no signal a test can synthesise — so it
+        ' would be the one control in this window nothing could press. The field
+        ' is the same answer STU-2D gave for names, and a "Browse..." button that
+        ' merely FILLS the field can be added later without changing any of this.
+        open_btn = gtk.button("Open Folder")
         rename_btn = gtk.button("Rename")
         delete_btn = gtk.button("Delete")
         close_btn = gtk.button("Close")
@@ -424,6 +430,7 @@ library studio_shell
         header.append(file_btn)
         header.append(folder_btn)
         header.append(name_entry)
+        header.append(open_btn)
         header.append(rename_btn)
         header.append(delete_btn)
         header.append(close_btn)
@@ -499,7 +506,7 @@ library studio_shell
         ' the first refresh — see `present` below.
         return { window: win, status: status, nav: nav, notebook: book,
                  new_btn: new_btn, file_btn: file_btn, folder_btn: folder_btn,
-                 name_entry: name_entry, rename_btn: rename_btn,
+                 name_entry: name_entry, open_btn: open_btn, rename_btn: rename_btn,
                  delete_btn: delete_btn, close_btn: close_btn,
                  save_btn: save_btn, refresh_btn: refresh_btn,
                  bar: bar, pane: pane, rpane: rpane, apane: apane,

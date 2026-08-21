@@ -47,7 +47,7 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 124 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 125 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 7 cases, headless AND offline (scripted transport)
 ```
 
@@ -57,7 +57,7 @@ so. The suite builds the sibling gBASIC first when `GBASIC` points into a source
 tree, so an interpreter change is what gets tested rather than a stale binary.
 Display tiers (`sections_gui`, `sessions_gui`, `results_gui`, `ui_gui`,
 `ui_gui_cold`, `ui_gui_new`, `ui_gui_name`, `ui_gui_solo`, `ui_gui_run`,
-`ui_gui_cursor`) SKIP cleanly without GTK 4 or a display.
+`ui_gui_cursor`, `ui_gui_open`) SKIP cleanly without GTK 4 or a display.
 `ui_gui_new` is the only case that spans two processes: the GUI builds a project
 from nothing and closes, and a second interpreter run reopens the same home —
 because a process asserting its own memory cannot show that anything reached
@@ -117,21 +117,20 @@ Two consequences worth knowing before you touch the shell:
   directory also expands it: a file that exists and is not on screen reads as the
   button having done nothing. `new_folder` deliberately does not move the
   selection, or a second New Folder would nest inside the first.
-- Three things arm before they fire: Delete (keyed to a path), Close (to a
-  document id) and Save-over-a-conflict (to a document id). Saving a document
-  whose file changed underneath OVERWRITES whoever made that change, which is
-  the same class of loss as deleting. An ORDINARY save is one click — there is
-  nothing at stake in it.
+- Three things arm before they fire: Delete, Close, and Save over a CONFLICT —
+  saving a document whose file changed underneath overwrites whoever made that
+  change, which is the same class of loss as deleting. An ordinary save is one
+  click; nothing is at stake in it. Each arm is keyed to the *thing* (a path for
+  Delete, a document id for the other two) rather than to a flag, so moving the
+  selection between the two clicks re-arms on the new row instead of deleting
+  it.
+  `redraw` expires an arm the last action did not renew (`studio_ui.arm_kind`),
+  which stops one outliving an unrelated click. Do not reintroduce a confirmation
+  dialog: it would be an async surface no test can press, which is the same
+  reason names come from a header field.
 - `doc.external` has exactly three values: none | changed | deleted. Do not add a
   fourth for a case that is one of those; the tab markers and the checkpoint
   policy both read it.
-- Destructive actions arm before they fire, and the arm is keyed to the *thing*
-  (a path for Delete, a document id for Close) rather than to a flag — so moving
-  the selection between the two clicks re-arms on the new row instead of deleting
-  it. `redraw` expires an arm that the last action did not renew
-  (`studio_ui.arm_kind`), which is what stops one from outliving an unrelated
-  click. Do not reintroduce a confirmation dialog: it would be an async surface
-  no test can press, which is the same reason names come from a header field.
 - Every outcome gets a status line via `studio_ui.action_notice`. A refusal that
   says nothing is indistinguishable from a dead button, which is how the whole
   window felt before STU-2B.

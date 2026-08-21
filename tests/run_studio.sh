@@ -841,6 +841,31 @@ if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
         fi
     fi
 
+    # STU-2C': Open Folder reads the header field as a path. The point of it
+    # being a field is that this case can exist at all — a GtkFileDialog is async
+    # with no synthesisable signal, so the same button behind a chooser would be
+    # the one control in this window no test could press.
+    og_home="$tmproot/ui_gui_open"; og_proj="$tmproot/ui_gui_open_proj"
+    mkdir -p "$og_home" "$og_proj/src"
+    printf 'print "in the opened folder"\n' > "$og_proj/thing.bas"
+    printf 'y\n' > "$og_proj/src/b.bas"
+    : >"$stdout_file"
+    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
+            "$GBASIC" "$APP" stu2g_smoke "$og_home" "$og_proj" \
+            >"$stdout_file" 2>/dev/null; then
+        if diff -u tests/studio/ui_gui_open.out "$stdout_file"; then
+            printf 'PASS ui_gui_open (a folder path typed into the field, opened for real)\n'
+        else
+            fail "ui_gui_open (output diff)"
+        fi
+    else
+        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
+            printf 'SKIP ui_gui_open (GTK 4 typelib not available)\n'
+        else
+            cat "$stdout_file"; fail "ui_gui_open (nonzero exit)"
+        fi
+    fi
+
     # Two Studio windows at once. This is a regression test for a real defect,
     # not a stress test: `gtk.application(id)` defaults to SINGLE-INSTANCE, so a
     # second Studio used to print nothing and quietly hand its "activate" to the
@@ -878,6 +903,7 @@ else
     printf 'SKIP ui_gui_solo (no display)\n'
     printf 'SKIP ui_gui_run (no display)\n'
     printf 'SKIP ui_gui_cursor (no display)\n'
+    printf 'SKIP ui_gui_open (no display)\n'
 fi
 
 printf 'run_studio: all cases passed\n'
