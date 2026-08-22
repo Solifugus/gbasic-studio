@@ -48,7 +48,7 @@ you want content without clicking.
 
 ```sh
 tests/run_studio.sh            # 153 cases, headless; honours GBASIC / GBASIC_STDLIB
-tests/run_studio_agent.sh      # 7 cases, headless AND offline (scripted transport)
+tests/run_studio_agent.sh      # 29 cases, headless AND offline (scripted transport)
 ```
 
 Golden-file based: a driver plus a `.out` of expected stdout, compared
@@ -57,7 +57,7 @@ so. The suite builds the sibling gBASIC first when `GBASIC` points into a source
 tree, so an interpreter change is what gets tested rather than a stale binary.
 Display tiers (`sections_gui`, `sessions_gui`, `results_gui`, `ui_gui`,
 `ui_gui_cold`, `ui_gui_new`, `ui_gui_name`, `ui_gui_solo`, `ui_gui_run`,
-`ui_gui_cursor`, `ui_gui_open`, `ui_gui_branch`, `ui_gui_table`, `ui_gui_overlay`) SKIP cleanly
+`ui_gui_cursor`, `ui_gui_open`, `ui_gui_branch`, `ui_gui_table`, `ui_gui_overlay`, `ui_gui_teach`) SKIP cleanly
 without GTK 4 or a display.
 `ui_gui_new` is the only case that spans two processes: the GUI builds a project
 from nothing and closes, and a second interpreter run reopens the same home —
@@ -101,10 +101,21 @@ lib/studio_drafts.bas   unsaved buffers across a close; conflict-aware, keyed by
                         a hash of the text the buffer was based on
 lib/studio_history.bas  the semantic action log — a closed vocabulary, bounded
                         by compaction into per-kind rollups
-lib/studio_tools.bas    the read-only tool surface the agent observes through —
-                        projections of the same reads the window uses
-lib/studio_agent.bas    the orientation agent over llm.bas; transport injectable,
-                        so the whole path is testable with no network
+lib/studio_tools.bas    the semantic tool surface: STU-6 reads plus STU-10 acts,
+                        every one of them a call into studio_ui — one gate
+                        (`invoke`), which decides permission before dispatching
+lib/studio_permissions.bas STU-10 tiers (read/local/external), policies
+                        (auto/confirm/deny), and scope composition. Scopes
+                        NARROW; they never widen
+lib/studio_teaching.bas STU-10 pointing at the window by stable widget name —
+                        cues over plain data, rendered with generic GTK
+lib/studio_secrets.bas  STU-10 credential storage: AES-GCM, key from the
+                        environment and NEVER written to disk
+lib/studio_providers.bas STU-10 selectable providers; credential from the secret
+                        store first, environment second, and it says which
+lib/studio_agent.bas    the agent over llm.bas — orientation (STU-6) and acting
+                        (STU-10); transport injectable, so the whole path is
+                        testable with no network
 lib/studio_shell.bas    the GTK view — renders model state and reconciles on
                         redraw; holds no decisions
 ```
@@ -245,6 +256,32 @@ Two consequences worth knowing before you touch the shell:
 - If an overlay changes a section so its id no longer re-matches (renaming the
   function it replaces), the run REFUSES. Running the nearest thing would run
   different code under the id the results are filed against.
+- STU-6's `agent_readonly` is GONE, replaced deliberately by three properties
+  (`agent_tiered`, `agent_parity`, `agent_one_gate`). Do not re-add a write tool
+  outside `act_registry`, and do not let `_perform` reach past `studio_ui`: parity
+  with the window is what makes "the agent can do what the user can do"
+  structural rather than aspirational.
+- Tiers are assigned by REVERSIBILITY, not by how dangerous a name sounds.
+  Editing code is `local` (unsaved until Save); deleting is `external` (the §8.3
+  non-rewindable set).
+- Permission scopes NARROW and never widen. If the innermost scope simply won, a
+  project config could grant the agent more authority than the user set globally
+  — and that file is one somebody else may have written. An unset scope has NO
+  opinion; it does not vote the default.
+- A confirmation token hashes the tool name AND its arguments. Confirming
+  "delete a.bas" must never authorize "delete b.bas".
+- REFUSED acts are audited too. A log of successes is a record of what worked,
+  not of what was attempted, and it would make an agent probing at a denied tier
+  invisible. Reads are not logged, or they would bury the acts.
+- There is NO in-loop confirmation dialog, deliberately: confirmation is granted
+  by policy. A dialog is an async surface no test can press — the same reason
+  names come from a header field.
+- The secret store's key comes from the environment and is NEVER written to disk;
+  `secrets_no_key_file` greps for that. Without libcrypto the store REFUSES
+  rather than falling back to plaintext.
+- `agent_widgets` keeps `studio_teaching.registry()` and `studio_shell.teachable()`
+  the same set. A registry entry the shell cannot resolve is a teaching request
+  that reports success and draws nothing.
 - A Studio branch is NOT a Git branch — not stored, surfaced or created as one
   (design §2.3), and `branches_not_git` greps the source to keep it that way.
   A state-only branch differs from its siblings ONLY by the bindings it injects;
@@ -253,11 +290,12 @@ Two consequences worth knowing before you touch the shell:
 - Staleness is SURFACED, never acted on: a branch whose shared ancestry changed
   is flagged and stays selected, and re-anchoring is a separate explicit act.
   Studio never silently attaches stale execution state to changed source (§9.3).
-- The agent surface is read-only STRUCTURALLY. There is no write tool to disable
-  and no permission flag to get wrong: `studio_tools.call` dispatches through a
-  fixed table and refuses any other name, and nothing evaluates model text.
-  `run_studio_agent.sh` greps for both properties, so adding a write tool fails
-  the suite until someone decides deliberately that STU-6 is over.
+- The agent surface WAS read-only structurally (STU-6). STU-10 ended that on
+  purpose, so the claim is now narrower and still enforced: `studio_tools.invoke`
+  is the sole dispatch authority — it refuses a name that is not in the registry,
+  decides permission BEFORE dispatching, and nothing evaluates model text. The
+  read path (`call`) refuses an act outright. `run_studio_agent.sh` greps for all
+  of it.
 - A tool's callable cannot close over the app (gBASIC functions do not close over
   state), so `app/studio.bas` carries one two-line wrapper per tool that reads
   the global and calls the dispatcher — the same adapter rule as a signal

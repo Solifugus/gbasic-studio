@@ -9,9 +9,11 @@ library — and nothing in gBASIC depends on Studio.
 ## Status
 
 **The model and persistence layer are built and tested, and the shell now
-responds to input.** Phases STU-0 through STU-9 are complete — STU-0..STU-6 are
-the design's MVP, STU-7 and STU-9 are the two kinds of exploratory branch, and
-STU-8 added rich viewers and the tabular tier;
+responds to input.** Phases STU-0 through STU-10 are complete — STU-0..STU-6 are
+the design's MVP, STU-7 and STU-9 are the two kinds of exploratory branch,
+STU-8 added rich viewers and the tabular tier, and STU-10 gave the assistant
+the ability to act under a permission model. Only git integration (STU-11)
+remains.
 STU-2B wired the first interactions on top of them, STU-2C made a cold start go
 all the way through, STU-2D made the browser editable, STU-2E made Run work, and
 STU-5A′ pointed the panes at the caret.
@@ -195,6 +197,43 @@ when a cell of them is bound. Both halves are measured rather than asserted: the
 display tier runs the same interaction over a 1,200-row table and a 12,000-row
 one and requires byte-identical output — the bind count is a function of the
 window, not of the table.
+
+**An assistant that can act, under permissions you set (STU-10).** The agent
+performs the *same semantic operations your buttons do* — it calls into the same
+layer, so "the agent can do what you can do" is a property of the code rather
+than a claim. Tools sit in three tiers, and the line between them is
+**reversibility, not how dangerous the name sounds**:
+
+| tier | examples | default |
+|---|---|---|
+| read | observe the project, files, state, history | automatic |
+| local | navigate, edit a buffer, run a section, make a branch | ask first |
+| external | save over a file, delete, rename | ask first |
+
+Editing is *local* because a buffer edit is unsaved until you press Save.
+Deleting is *external* because Studio cannot put it back.
+
+**Scopes narrow; they never widen.** Global sets your defaults, a project may
+only tighten them, and a session can clamp everything down — *"read-only this
+investigation"*. If the innermost scope simply won, a project config could hand
+the agent more authority than you granted, and that file is one somebody else
+may have written.
+
+**A confirmation is bound to the act.** The token hashes the tool name *and its
+arguments*, so confirming `delete a.bas` can never be spent on `delete b.bas`.
+Every act is recorded in the history — **including the refused ones**, because a
+log of successes is a record of what worked, not of what was attempted.
+
+There is no in-loop confirmation dialog, deliberately: confirmation is granted by
+policy. A dialog is an async surface no test can press, which is the same reason
+names come from a header field and Delete takes two clicks.
+
+**Teaching, and secrets.** The agent can point at the window by name — highlight,
+pulse, focus, reveal, or annotate a line range — and a bad name is refused *with
+the list of real ones*, so a model can correct itself. API keys live in an
+encrypted store whose key comes from your environment and is **never written to
+disk**; without libcrypto the store refuses to save rather than quietly falling
+back to plaintext.
 
 **A read-only assistant (STU-6).** Studio keeps a semantic action history — files
 opened, sections selected and run, errors raised, in its own vocabulary rather
