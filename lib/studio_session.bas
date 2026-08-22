@@ -141,6 +141,10 @@ library studio_session
             vars: [],
             ' STU-5: the same, captured BEFORE the target section ran, so the two
             ' can be diffed into "what this section changed".
+            ' STU-7: branch bindings to splice in, [ { offset, text } ]. Empty
+            ' unless a caller has a branch selected.
+            binds: [],
+            branch: "",
             vars_before_marker: "",
             vars_before_fixed: "",
             vars_before_raw: "",
@@ -340,6 +344,17 @@ library studio_session
         return 200
     end function
 
+    ' Add one name to the `appended` tag list without repeating it.
+    function _tag(appended, name)
+        if appended = "" then
+            return name
+        end if
+        if find(appended, name) != nothing then
+            return appended
+        end if
+        return appended + "+" + name
+    end function
+
     function _vars_epilogue(marker)
         return studio_session._vars_epilogue_opt(marker, false)
     end function
@@ -494,7 +509,109 @@ library studio_session
     '      so replayed output can be told from the target's. gBASIC has no statement
     '      separator (Step 0), so a zero-line-shift marker is impossible; this is the
     '      single-injection fallback, and the map carries its single -1 offset.
-    function materialize_text(source, section, sections, nonce, vars_marker, before_marker)
+    ' Splice a set of INSERTIONS into the document prefix and build the line map
+    ' in one pass.
+    '
+    ' There used to be exactly one insertion point — the boundary marker at the
+    ' target section's first line — and the map was written by hand around it.
+    ' STU-7 adds another: a branch's bindings go in at its BRANCH POINT, which is
+    ' generally somewhere above the target. Rather than special-case two, this
+    ' takes any number, in offset order, and the marker becomes one of them.
+    '
+    ' Each insertion is { offset, text, kind }, `offset` a LINE START in source.
+    ' `kind` is the map segment kind its lines get: "generated" for anything with
+    ' no document counterpart, "marker" for the boundary line itself.
+    '
+    ' The invariant that makes the arithmetic work: every chunk emitted ends on a
+    ' line boundary, so `_line_count(body)` is always "lines emitted so far".
+    function _splice(source, prefix_end, inserts)
+        ordered = studio_session._by_offset(inserts)
+        body = ""
+        segs = []
+        cursor = 0
+        shift = 0
+        marker_line = 0
+        for each ins in ordered
+            if ins.offset > cursor then
+                chunk = studio_session._byte_slice(source, cursor, ins.offset)
+                if byte_count(chunk) > 0 then
+                    c_start = studio_session._line_count(body) + 1
+                    body = body + chunk
+                    c_end = studio_session._line_count(body)
+                    if c_end >= c_start then
+                        segs = append(segs, { kind: "document", c_start: c_start, c_end: c_end, delta: 0 - shift })
+                    end if
+                end if
+                cursor = ins.offset
+            end if
+            c_start = studio_session._line_count(body) + 1
+            body = body + ins.text
+            c_end = studio_session._line_count(body)
+            n = c_end - c_start + 1
+            if n > 0 then
+                segs = append(segs, { kind: ins.kind, c_start: c_start, c_end: c_end, delta: 0 })
+                if ins.kind = "marker" then
+                    marker_line = c_end
+                end if
+                shift = shift + n
+            end if
+        end for
+        newline_added = false
+        if prefix_end > cursor then
+            chunk = studio_session._byte_slice(source, cursor, prefix_end)
+            if byte_count(chunk) > 0 then
+                c_start = studio_session._line_count(body) + 1
+                body = body + chunk
+                ' A section's end_offset stops at its last statement, NOT after
+                ' the newline that follows it, so this final chunk is normally an
+                ' unterminated line. Close it HERE, before measuring: a line the
+                ' count does not see gets no map segment, and a diagnostic on it
+                ' comes back unmapped — which is exactly what happened, on the
+                ' target section's own last line, the likeliest line to fail on.
+                nn = byte_count(body)
+                if nn > 0 then
+                    if byte_at(body, nn - 1) != 10 then
+                        body = body + "\n"
+                        newline_added = true
+                    end if
+                end if
+                c_end = studio_session._line_count(body)
+                if c_end >= c_start then
+                    segs = append(segs, { kind: "document", c_start: c_start, c_end: c_end, delta: 0 - shift })
+                end if
+            end if
+        end if
+        return { text: body, segs: segs, marker_line: marker_line, shift: shift, newline_added: newline_added }
+    end function
+
+    ' Insertion sort by offset; equal offsets keep the order they were given, so
+    ' a branch's bindings at the target's own line still precede the marker.
+    function _by_offset(inserts)
+        out = []
+        for each ins in inserts
+            placed = false
+            nxt = []
+            for each o in out
+                if not placed then
+                    if ins.offset < o.offset then
+                        nxt = append(nxt, ins)
+                        placed = true
+                    end if
+                end if
+                nxt = append(nxt, o)
+            end for
+            if not placed then
+                nxt = append(nxt, ins)
+            end if
+            out = nxt
+        end for
+        return out
+    end function
+
+    ' `binds` is STU-7's branch bindings: [ { offset, text } ], each at the line
+    ' start of a branch point. Empty for a document with no branch selected,
+    ' which is every document until someone makes one.
+    function materialize_text(source, section, sections, nonce, vars_marker, before_marker, binds)
         prefix_end = section.end_offset
 
         ' Will the prefix execute a program block? Any section with `program:`
@@ -508,89 +625,60 @@ library studio_session
             end if
         end for
 
-        ' What gets INSERTED at the target section's first line: the boundary
-        ' marker, and — when a before-scope is wanted (STU-5) — a variable dump
-        ' ahead of it. The dump goes first so the marker stays the last inserted
-        ' line, which keeps `marker_line` meaning what it has always meant.
-        inserted = ""
-        inserted_lines = 0
-        if nonce != "" then
-            if before_marker != "" then
-                inserted = studio_session._vars_epilogue(before_marker)
-                inserted_lines = studio_session._line_count(inserted)
+        inserts = []
+        for each b in binds
+            if b.offset <= prefix_end then
+                inserts = append(inserts, { offset: b.offset, text: b.text, kind: "generated" })
             end if
-            inserted = inserted + "print \"" + nonce + "\"\n"
-            inserted_lines = inserted_lines + 1
-        end if
-
-        marker_line = 0
+        end for
+        ' The boundary marker, and — when a before-scope is wanted (STU-5) — a
+        ' variable dump ahead of it. Two insertions at one offset rather than one
+        ' concatenated block, so the map calls the dump `generated` and the marker
+        ' line `marker`, which is what map_line reports them as.
         if nonce != "" then
             ls = studio_session._line_start(source, section.start_offset)
-            head = studio_session._byte_prefix(source, ls)
-            tail = studio_session._byte_slice(source, ls, prefix_end)
-            ' The marker is the LAST inserted line.
-            marker_line = studio_session._line_count(head) + inserted_lines
-            body = head + inserted + tail
-        else
-            body = studio_session._byte_prefix(source, prefix_end)
+            if before_marker != "" then
+                inserts = append(inserts, { offset: ls, text: studio_session._vars_epilogue(before_marker), kind: "generated" })
+            end if
+            inserts = append(inserts, { offset: ls, text: "print \"" + nonce + "\"\n", kind: "marker" })
         end if
 
+        sp = studio_session._splice(source, prefix_end, inserts)
+        body = sp.text
+        marker_line = sp.marker_line
+        segs = sp.segs
+
         appended = ""
+        if sp.newline_added then
+            appended = "newline"
+        end if
         n = byte_count(body)
         if n > 0 then
             if byte_at(body, n - 1) != 10 then
                 body = body + "\n"
-                appended = "newline"
+                appended = studio_session._tag(appended, "newline")
             end if
+        end if
+        if count(binds) > 0 then
+            appended = studio_session._tag(appended, "branch")
         end if
 
         ' Every line of the prefix is accounted for before anything generated is
         ' appended, so the map's document segments are fixed at this point.
         prefix_lines = studio_session._line_count(body)
-        segs = []
-        if marker_line > 0 then
-            ' The inserted block occupies `inserted_lines` lines ending at
-            ' `marker_line`. Everything before it is document text at its own
-            ' line; everything after is document text shifted by the whole block,
-            ' not by one — the delta is what map_line subtracts to name the
-            ' document line a diagnostic really means.
-            first_inserted = marker_line - inserted_lines + 1
-            if first_inserted > 1 then
-                segs = append(segs, { kind: "document", c_start: 1, c_end: first_inserted - 1, delta: 0 })
-            end if
-            if inserted_lines > 1 then
-                segs = append(segs, { kind: "generated", c_start: first_inserted, c_end: marker_line - 1, delta: 0 })
-            end if
-            segs = append(segs, { kind: "marker", c_start: marker_line, c_end: marker_line, delta: 0 })
-            if prefix_lines > marker_line then
-                segs = append(segs, { kind: "document", c_start: marker_line + 1, c_end: prefix_lines, delta: 0 - inserted_lines })
-            end if
-        else
-            if prefix_lines > 0 then
-                segs = append(segs, { kind: "document", c_start: 1, c_end: prefix_lines, delta: 0 })
-            end if
-        end if
 
         ' STU-4C: the variable epilogue goes here — after every line of the
         ' document is accounted for (so the map's document segments are already
         ' fixed) and BEFORE any `end program`, because nothing after that runs.
         if vars_marker != "" then
             body = body + studio_session._vars_epilogue_opt(vars_marker, true)
-            if appended = "" then
-                appended = "vars"
-            else
-                appended = appended + "+vars"
-            end if
+            appended = studio_session._tag(appended, "vars")
         end if
 
         anc = section.anchor.ancestry
         if left(anc, 8) = "program:" then
             body = body + "end program\n"
-            if appended = "" then
-                appended = "end-program"
-            else
-                appended = appended + "+end-program"
-            end if
+            appended = studio_session._tag(appended, "end-program")
         end if
         gen_lines = studio_session._line_count(body)
         if gen_lines > prefix_lines then
@@ -781,7 +869,7 @@ library studio_session
 
         session = studio_session._to(session, "materializing")
 
-        m = studio_session.materialize_text(source, target, sections, session.marker, session.vars_marker, session.vars_before_marker)
+        m = studio_session.materialize_text(source, target, sections, session.marker, session.vars_marker, session.vars_before_marker, session.binds)
         session.appended = m.appended
         session.map = m.map
         session.hoisted = m.hoisted
@@ -1264,6 +1352,10 @@ library studio_session
             vars_status: session.vars_status,
             vars_before: session.vars_before_raw,
             vars_before_status: session.vars_before_status,
+            ' STU-7: which branch produced this. "" is the baseline. Without it
+            ' two branches running the same section would interleave into one
+            ' history and neither would describe what it claims to.
+            branch: session.branch,
             truncated: [],
             attribution: session.attribution,
             run_seq: session.run_seq

@@ -41,6 +41,7 @@ library studio_ui
     load studio_sections
     load studio_session
     load studio_results
+    load studio_branches
 
     ' ---- the browser row model ---------------------------------------------
 
@@ -1105,6 +1106,73 @@ library studio_ui
         return ""
     end function
 
+    ' ---- branches (STU-7) ---------------------------------------------------
+
+    ' The branch tree for the workspace. Lives in the workspace record beside the
+    ' section anchors, because a branch means nothing without the sections it
+    ' points at and the two must be restored together or not at all.
+    function branch_tree(app)
+        ws = app.model.workspace
+        if ws = nothing then
+            return studio_branches.create()
+        end if
+        return studio_branches.from_persist(ws["branches"])
+    end function
+
+    function set_branch_tree(app, tree)
+        ws = app.model.workspace
+        if ws = nothing then
+            return app
+        end if
+        ws.branches = studio_branches.to_persist(tree)
+        return studio.set_workspace(app, ws)
+    end function
+
+    ' The selected chain's bindings, as splice insertions for materialize_text:
+    ' each at the LINE START of its branch point's section, so the assignments run
+    ' immediately before the code that is allowed to diverge.
+    '
+    ' Everything above a branch point is shared ancestry — so a binding placed at
+    ' the point cannot affect it, which is the model holding rather than a
+    ' convention being observed.
+    function branch_inserts(app)
+        v = studio_ui.view_for(app)
+        app = v.app
+        if v.st = nothing then
+            return { app: app, inserts: [], chain: [] }
+        end if
+        doc = studio_docs.active_doc(app.dm)
+        if doc = nothing then
+            return { app: app, inserts: [], chain: [] }
+        end if
+        tree = studio_ui.branch_tree(app)
+        chain = studio_branches.selected_chain(tree, doc.id, v.st)
+        inserts = []
+        for each b in chain
+            text = studio_branches.bindings_text(b)
+            if text != "" then
+                sec = studio_sections.section_by_id(v.st, b.point)
+                if sec != nothing then
+                    off = studio_session._line_start(doc.content, sec.start_offset)
+                    inserts = append(inserts, { offset: off, text: text })
+                end if
+            end if
+        end for
+        return { app: app, inserts: inserts, chain: chain }
+    end function
+
+    ' Which branch a run belongs to — the innermost selected one, or "" for the
+    ' baseline. A result records it so siblings do not share one history.
+    function active_branch(app)
+        bi = studio_ui.branch_inserts(app)
+        n = count(bi.chain)
+        if n = 0 then
+            return { app: bi.app, id: "", name: "" }
+        end if
+        b = bi.chain[n - 1]
+        return { app: bi.app, id: b.id, name: b.name }
+    end function
+
     ' Start a run for the active document's section at (line0, column0).
     '
     ' The position arrives in the EDITOR's units — GtkSourceView counts lines and
@@ -1153,9 +1221,19 @@ library studio_ui
         if fixed != unknown then
             sess.clock_fixed = fixed
         end if
+        ' STU-7: the selected chain's bindings go into the materialized prefix.
+        bi = studio_ui.branch_inserts(app)
+        app = bi.app
+        sess.binds = bi.inserts
+        ab0 = studio_ui.active_branch(app)
+        app = ab0.app
+        sess.branch = ab0.id
         sess = studio_session.run(sess, st, doc.content, sid)
 
+        ab = studio_ui.active_branch(app)
+        app = ab.app
         app.exec = { doc_id: doc.id, doc_path: doc.path, sid: sid, secs: st,
+                     branch: ab.id, branch_name: ab.name,
                      src: doc.content, session: sess,
                      store: studio_results.open(app.paths.home, doc.path) }
         act = sess.state
@@ -1552,11 +1630,12 @@ library studio_ui
         if v.sid = "" then
             return { app: v.app, kind: "none", session: nothing, result: nothing, store: nothing }
         end if
-        latest = studio_results.latest_for(v.store, v.sid)
+        ab = studio_ui.active_branch(v.app)
+        latest = studio_results.latest_in(v.store, v.sid, ab.id)
         if latest = nothing then
-            return { app: v.app, kind: "none", session: nothing, result: nothing, store: v.store }
+            return { app: ab.app, kind: "none", session: nothing, result: nothing, store: v.store }
         end if
-        return { app: v.app, kind: "stored", session: nothing, result: latest, store: v.store }
+        return { app: ab.app, kind: "stored", session: nothing, result: latest, store: v.store }
     end function
 
     ' What the prefix pane shows for the section at the caret.
@@ -1639,7 +1718,8 @@ library studio_ui
         if v.sid = "" then
             return "(no section at the cursor)"
         end if
-        return studio_results.view_text(app.paths.home, v.store, v.st, v.sid)
+        ab = studio_ui.active_branch(v.app)
+        return studio_results.view_in(app.paths.home, v.store, v.st, v.sid, ab.id)
     end function
 
     ' ---- cold state (STU-5 §10.3) -------------------------------------------

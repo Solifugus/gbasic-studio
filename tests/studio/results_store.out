@@ -5,6 +5,7 @@ next_result=2
 results=1
 -- record keys
   attribution
+  branch
   captures
   duration_seconds
   exit_code

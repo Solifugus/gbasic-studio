@@ -459,6 +459,40 @@ library studio_results
     end function
 
     ' This section's results, newest first.
+    ' The branch a stored result belongs to. A result written before STU-7 has no
+    ' branch field at all, and that is the baseline — which is what it was.
+    function branch_of(result)
+        b = result["branch"]
+        if b = unknown then
+            return ""
+        end if
+        if b = nothing then
+            return ""
+        end if
+        return b
+    end function
+
+    ' History for one section IN ONE BRANCH. Sibling branches explore the same
+    ' section with different state; showing their runs interleaved would put two
+    ' answers to different questions in one list.
+    function history_in(store, section_id, branch)
+        out = []
+        for each r in studio_results.history_for(store, section_id)
+            if studio_results.branch_of(r) = branch then
+                out = append(out, r)
+            end if
+        end for
+        return out
+    end function
+
+    function latest_in(store, section_id, branch)
+        h = studio_results.history_in(store, section_id, branch)
+        if count(h) = 0 then
+            return nothing
+        end if
+        return h[0]
+    end function
+
     function history_for(store, section_id)
         out = []
         for each r in store.results
@@ -807,7 +841,11 @@ library studio_results
     ' it, with any result whose fingerprint no longer matches the section's current
     ' content marked as such on its own line.
     function view_text(home, store, sections, section_id)
-        hist = studio_results.history_for(store, section_id)
+        return studio_results.view_in(home, store, sections, section_id, "")
+    end function
+
+    function view_in(home, store, sections, section_id, branch)
+        hist = studio_results.history_in(store, section_id, branch)
         if count(hist) = 0 then
             if store.status = "corrupt" then
                 return "Results — " + section_id + "\n(results file unreadable)"

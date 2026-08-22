@@ -101,6 +101,7 @@ program main(args)
   load studio
   load studio_ui
   load studio_drafts
+  load studio_branches
 
   mode = args[0]
   home = args[1]
@@ -913,6 +914,76 @@ program main(args)
     print "-> Save again: " + sv2.action
     print "on disk now=" + read_file_text(projdir + "/main.bas")
     print "arm kinds: " + studio_ui.arm_kind("armed-save") + " (save) vs " + studio_ui.arm_kind("saved") + " (none)"
+  end if
+
+  ' ---- branch: two continuations over identical source ---------------------
+  ' The whole claim of a state-only branch: the SAME code, run twice, producing
+  ' different answers because the bindings injected at the branch point differ.
+  if mode = "branch" then
+    bf(file) = projdir + "/branchy.bas"
+    write(bf, "threshold = 0.5\n\nfunction score(t)\n  return t * 100\nend function\n\nprint \"score is \" + score(threshold)\n")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "branchy.bas"))
+    app = r.app
+    app.clock_fixed = 1000
+    id = studio_docs.active_doc(app.dm).id
+    r = studio_ui.sync_cursor(app, id, 6, 0)
+    app = r.app
+    v = studio_ui.view_for(app)
+    app = v.app
+    point = v.sid
+    print "the branch point is the section at the caret: " + point
+
+    banner("baseline: no branch selected, the document as written")
+    r = studio_ui.run_section(app, 6, 0)
+    app = r.app
+    app = drive(app)
+    print "target=<" + studio_ui.target_body(app) + ">"
+
+    banner("two branches at that point, each binding threshold differently")
+    tree = studio_ui.branch_tree(app)
+    a = studio_branches.add(tree, id, point, "Low", "", v.st)
+    tree = studio_branches.bind(a.tree, a.id, "threshold", "0.25").tree
+    b = studio_branches.add(tree, id, point, "High", "", v.st)
+    tree = studio_branches.bind(b.tree, b.id, "threshold", "0.9").tree
+    app = studio_ui.set_branch_tree(app, tree)
+
+    tree = studio_branches.select(tree, a.id).tree
+    app = studio_ui.set_branch_tree(app, tree)
+    print "-> selected " + studio_ui.active_branch(app).name
+    r = studio_ui.run_section(app, 6, 0)
+    app = r.app
+    app = drive(app)
+    print "target=<" + studio_ui.target_body(app) + ">"
+
+    tree = studio_branches.select(tree, b.id).tree
+    app = studio_ui.set_branch_tree(app, tree)
+    print "-> selected " + studio_ui.active_branch(app).name
+    r = studio_ui.run_section(app, 6, 0)
+    app = r.app
+    app = drive(app)
+    print "target=<" + studio_ui.target_body(app) + ">"
+
+    banner("the file on disk never changed")
+    print read_file_text(projdir + "/branchy.bas")
+
+    banner("each branch keeps its OWN history; they do not interleave")
+    print "-- High (selected)"
+    print studio_ui.results_body(app)
+    tree = studio_branches.select(tree, a.id).tree
+    app = studio_ui.set_branch_tree(app, tree)
+    print "-- Low"
+    print studio_ui.results_body(app)
+    tree = studio_branches.clear_point(tree, point)
+    app = studio_ui.set_branch_tree(app, tree)
+    print "-- baseline"
+    print studio_ui.results_body(app)
+
+    banner("branches survive a save and a relaunch")
+    studio.persist(app)
+    again = studio.launch(home)
+    back = studio_ui.branch_tree(again)
+    print studio_branches.summary(back, id, v.st)
   end if
 
   ' ---- notice: what the status bar says about each outcome -----------------

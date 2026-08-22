@@ -1,0 +1,49 @@
+the branch point is the section at the caret: sec-3
+== baseline: no branch selected, the document as written ==
+   exec: run: finished [sec-3] — exit 0
+target=<score is 50
+>
+== two branches at that point, each binding threshold differently ==
+-> selected Low
+   exec: run: finished [sec-3] — exit 0
+target=<score is 25
+>
+-> selected High
+   exec: run: finished [sec-3] — exit 0
+target=<score is 90
+>
+== the file on disk never changed ==
+threshold = 0.5
+
+function score(t)
+  return t * 100
+end function
+
+print "score is " + score(threshold)
+
+== each branch keeps its OWN history; they do not interleave ==
+-- High (selected)
+Results — sec-3  (1 run(s))
+latest: res-3  finished exit 0  at 1969-12-31 19:16:40  0s
+  output: <score is 90
+>
+  variables (1):
+      threshold number = 0.9
+-- Low
+Results — sec-3  (1 run(s))
+latest: res-2  finished exit 0  at 1969-12-31 19:16:40  0s
+  output: <score is 25
+>
+  variables (1):
+      threshold number = 0.25
+-- baseline
+Results — sec-3  (1 run(s))
+latest: res-1  finished exit 0  at 1969-12-31 19:16:40  0s
+  output: <score is 50
+>
+  variables (1):
+      threshold number = 0.5
+== branches survive a save and a relaunch ==
+branches: 2 next=3
+    br-1 Low @sec-3  {threshold=0.25}
+    br-2 High @sec-3  {threshold=0.9}
