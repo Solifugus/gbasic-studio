@@ -1,0 +1,17 @@
+== made against the current ancestry ==
+branches: 1 next=2
+  * br-1 Robust @sec-3  {threshold=0.95}
+== a change BELOW the branch point leaves it alone ==
+branches: 1 next=2
+  * br-1 Robust @sec-3  {threshold=0.95}
+stale: 0
+== a change ABOVE it does not ==
+branches: 1 next=2
+  * br-1 Robust @sec-3  [ancestry changed]  {threshold=0.95}
+stale: 1
+and it is still SELECTED — the flag is surfaced, not acted on:
+  selected=br-1
+== re-anchoring is explicit: a person looked and accepted ==
+-> reanchor: reanchored br-1
+branches: 1 next=2
+  * br-1 Robust @sec-3  {threshold=0.95}

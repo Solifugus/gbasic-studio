@@ -1,0 +1,15 @@
+== before ==
+branches: 3 next=4
+    br-1 Baseline @sec-3
+  * br-2 Robust @sec-3  {threshold=0.95}
+    * br-3 Inner @sec-1 under br-2
+== after a round trip through JSON ==
+branches: 3 next=4
+    br-1 Baseline @sec-3
+  * br-2 Robust @sec-3  {threshold=0.95}
+    * br-3 Inner @sec-1 under br-2
+identical=true
+== a missing or future record degrades to an empty tree ==
+  from nothing:  0
+  from unknown:  0
+  from a future: 0 next=1

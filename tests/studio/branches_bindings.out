@@ -1,0 +1,25 @@
+-> bind threshold: bound threshold
+-> bind label: bound label
+-> rebind threshold: bound threshold
+branches: 2 next=3
+    br-1 Baseline @sec-3
+    br-2 Robust @sec-3  {threshold=0.99, label="robust"}
+== the source a branch contributes ==
+<threshold = 0.99
+label = "robust"
+>
+a branch with no bindings contributes nothing: <>
+== what a binding may not be ==
+  empty name:     the name is empty
+  empty value:    the value is empty
+  not a name:     'a-b' is not a variable name
+  leading digit:  '2x' is not a variable name
+  two statements: the value must be a single expression
+  fine:           []
+-> bind a bad name: invalid 'a-b' is not a variable name
+== the selected chain's bindings, outermost first ==
+  chain: br-2 Robust
+  chain: br-3 Inner
+  br-2 @sec-3 threshold = 0.99
+  br-2 @sec-3 label = "robust"
+  br-3 @sec-1 threshold = 0.5

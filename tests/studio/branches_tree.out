@@ -1,0 +1,40 @@
+empty: branches: 0 next=1
+== three branches at one point ==
+branches: 3 next=4
+    br-1 Baseline @sec-3
+    br-2 Robust @sec-3
+    br-3 No Outliers @sec-3
+== exactly one is selected at a point ==
+-> select Robust: selected br-2
+branches: 3 next=4
+    br-1 Baseline @sec-3
+  * br-2 Robust @sec-3
+    br-3 No Outliers @sec-3
+-> select No Outliers: selected br-3
+branches: 3 next=4
+    br-1 Baseline @sec-3
+    br-2 Robust @sec-3
+  * br-3 No Outliers @sec-3
+selected at the point: br-3
+== nesting: a branch point inside a branch ==
+-> select Inner: selected br-4
+branches: 4 next=5
+    br-1 Baseline @sec-3
+    br-2 Robust @sec-3
+  * br-3 No Outliers @sec-3
+    * br-4 Inner @sec-1 under br-3
+== rename ==
+-> rename: renamed br-2
+-> rename to nothing: invalid empty
+-> rename a branch that is not there: unknown br-99
+branches: 4 next=5
+    br-1 Baseline @sec-3
+    br-2 Robust v2 @sec-3
+  * br-3 No Outliers @sec-3
+    * br-4 Inner @sec-1 under br-3
+== deleting a branch takes its descendants with it ==
+-> delete No Outliers: removed 2
+branches: 2 next=5
+    br-1 Baseline @sec-3
+    br-2 Robust v2 @sec-3
+the point falls back to baseline: []

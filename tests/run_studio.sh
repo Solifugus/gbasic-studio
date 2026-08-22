@@ -157,6 +157,37 @@ else
 fi
 
 # ==========================================================================
+# STU-7 — exploratory branching, state-only. Pure model logic over plain data:
+# tree operations, selection, nesting, bindings, staleness and persistence. No
+# child process and no display, so it runs everywhere the backbone does.
+BRANCH=tests/drivers/branches.bas
+run_branch() { # mode
+    local mode="$1" h
+    h="$tmproot/br_$mode"
+    rm -rf "$h"; mkdir -p "$h"
+    : >"$stdout_file"
+    if ! timeout 60 "$GBASIC" "$BRANCH" "$mode" "$h" >"$stdout_file" 2>&1; then
+        cat "$stdout_file"; fail "branches_$mode (nonzero exit)"
+    fi
+    if diff -u "tests/studio/branches_$mode.out" "$stdout_file"; then
+        printf 'PASS branches_%s\n' "$mode"
+    else
+        fail "branches_$mode (output diff)"
+    fi
+}
+for m in tree bindings stale persist; do
+    run_branch "$m"
+done
+
+# A Studio branch is NOT a Git branch (design §2.3): not stored as one, not
+# surfaced as one, not created as one. Checked against the source, because the
+# failure would be a `git` invocation nobody noticed adding.
+if grep -nE '"git"|git branch|git checkout|refs/heads' lib/studio_branches.bas; then
+    fail "branches_not_git (the branch model reaches for git)"
+fi
+printf 'PASS branches_not_git (no git ref is created, stored or surfaced)\n'
+
+# ==========================================================================
 # STU-1 — workspace navigation, project browser, registry.
 # ==========================================================================
 

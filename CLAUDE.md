@@ -47,7 +47,7 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 125 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 130 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 7 cases, headless AND offline (scripted transport)
 ```
 
@@ -86,6 +86,9 @@ lib/studio_session.bas  replay-first execution in a child interpreter, 8 states
 lib/studio_results.bas  durable per-run results, retention, truncation, standing
 lib/studio_ui.bas       what an interaction MEANS — the browser/tab row models and
                         one function per interaction, over plain data, no GTK
+lib/studio_branches.bas STU-7 state-only branches: a tree of alternate
+                        continuations, each a set of BINDINGS replayed over
+                        identical source; anchored to its shared ancestry
 lib/studio_drafts.bas   unsaved buffers across a close; conflict-aware, keyed by
                         a hash of the text the buffer was based on
 lib/studio_history.bas  the semantic action log — a closed vocabulary, bounded
@@ -174,6 +177,14 @@ Two consequences worth knowing before you touch the shell:
   shell, so the headless suite can assert what a run reports. `studio_shell`
   keeps the old names as delegates only because the STU-4/5A display goldens
   print through them.
+- A Studio branch is NOT a Git branch — not stored, surfaced or created as one
+  (design §2.3), and `branches_not_git` greps the source to keep it that way.
+  A state-only branch differs from its siblings ONLY by the bindings it injects;
+  the source is identical in every branch, which is what makes it cheap enough to
+  be served by the replay model with no overlay and no temp file.
+- Staleness is SURFACED, never acted on: a branch whose shared ancestry changed
+  is flagged and stays selected, and re-anchoring is a separate explicit act.
+  Studio never silently attaches stale execution state to changed source (§9.3).
 - The agent surface is read-only STRUCTURALLY. There is no write tool to disable
   and no permission flag to get wrong: `studio_tools.call` dispatches through a
   fixed table and refuses any other name, and nothing evaluates model text.
