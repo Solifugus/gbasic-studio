@@ -1,0 +1,21 @@
+a config file with a typo in it must not be a config that grants MORE.
+
+-- an unknown policy name is ignored, leaving the default
+  read: auto
+  local: confirm
+  external: confirm
+
+-- a non-record scope is no scope at all
+  read: auto
+  local: confirm
+  external: confirm
+
+-- an unknown TIER key is ignored rather than invented
+  read: auto
+  local: confirm
+  external: confirm
+
+-- and an unreadable policy ranks as the strictest thing there is
+  stored as: sideways
+  decide -> denied (the local tier is denied by policy)
+  deny (a tier that does not exist)

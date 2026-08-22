@@ -27,6 +27,7 @@ library studio_tools
     load studio_results
     load studio_history
     load studio_ui
+    load studio_permissions
 
     function schema_version()
         return 1
@@ -79,7 +80,292 @@ library studio_tools
         out = append(out, { name: "where_was_i",
             description: "A reconstruction of the user's working context: last file, last section, last run, last error.",
             schema: studio_tools._obj() })
+        for each a in studio_tools.act_registry()
+            out = append(out, a)
+        end for
         return out
+    end function
+
+    ' ---- STU-10: the act tools ---------------------------------------------
+    '
+    ' PARITY BY CONSTRUCTION (§12). Every one of these calls the SAME studio_ui
+    ' function the toolbar calls. There is no second automation path and there is
+    ' nothing here that a user cannot do — which is the design's requirement, and
+    ' it is enforced by a grep rather than by intention: `agent_parity` fails if an
+    ' act tool reaches past studio_ui into the model directly.
+    '
+    ' TIERS are assigned by REVERSIBILITY, not by how dangerous the name sounds
+    ' (§17). Editing code is `local` because a buffer edit is unsaved until Save
+    ' and Studio can put it back. Deleting a file is `external` because it is in
+    ' the §8.3 non-rewindable set — Studio cannot.
+    function act_registry()
+        out = []
+        out = append(out, { name: "open_document", tier: "local",
+            description: "Open a file from the project browser into a tab, and make it active.",
+            schema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } })
+        out = append(out, { name: "select_document", tier: "local",
+            description: "Make an already-open document the active tab.",
+            schema: { type: "object", properties: { doc_id: { type: "string" } }, required: ["doc_id"] } })
+        out = append(out, { name: "move_cursor", tier: "local",
+            description: "Put the caret at a line and column of the active document. Lines and columns are 0-based, as the editor counts them.",
+            schema: { type: "object", properties: { line: { type: "number" }, column: { type: "number" } }, required: ["line"] } })
+        out = append(out, { name: "edit_document", tier: "local",
+            description: "Replace the active document's whole text. The change is UNSAVED, exactly as if the user had typed it.",
+            schema: { type: "object", properties: { content: { type: "string" } }, required: ["content"] } })
+        out = append(out, { name: "execute_section", tier: "local",
+            description: "Run the section at the caret, in the selected branch, exactly as the Run button does.",
+            schema: studio_tools._obj() })
+        out = append(out, { name: "stop_execution", tier: "local",
+            description: "Ask the running section to stop.",
+            schema: studio_tools._obj() })
+        out = append(out, { name: "create_branch", tier: "local",
+            description: "Create an exploratory branch at the section under the caret and select it.",
+            schema: { type: "object", properties: { name: { type: "string" } }, required: ["name"] } })
+        out = append(out, { name: "bind_value", tier: "local",
+            description: "Add a binding to the selected branch, written as 'name = value'.",
+            schema: { type: "object", properties: { binding: { type: "string" } }, required: ["binding"] } })
+        out = append(out, { name: "create_file", tier: "local",
+            description: "Create a new file in the browser's target directory.",
+            schema: { type: "object", properties: { name: { type: "string" } }, required: [] } })
+        out = append(out, { name: "create_folder", tier: "local",
+            description: "Create a new folder in the browser's target directory.",
+            schema: { type: "object", properties: { name: { type: "string" } }, required: [] } })
+        ' --- external: the things Studio cannot undo -------------------------
+        out = append(out, { name: "save_document", tier: "external",
+            description: "Write the active document's buffer to its file. External because it overwrites what is on disk.",
+            schema: studio_tools._obj() })
+        out = append(out, { name: "delete_path", tier: "external",
+            description: "Delete the file or folder selected in the browser. Not undoable by Studio.",
+            schema: studio_tools._obj() })
+        out = append(out, { name: "rename_path", tier: "external",
+            description: "Rename the file or folder selected in the browser.",
+            schema: { type: "object", properties: { name: { type: "string" } }, required: ["name"] } })
+        return out
+    end function
+
+    ' Perform one act.
+    '
+    ' Every branch is the same shape: call ONE studio_ui function — the same one
+    ' the corresponding button calls — and turn its result into a tool result. No
+    ' branch reaches into studio_docs, studio_model or the filesystem directly;
+    ' that is what makes "the Agent invokes the same operations the toolbar does"
+    ' a property of the code rather than a claim in a document, and `agent_parity`
+    ' greps for it.
+    '
+    ' EVERY ACT IS AUDITED (§14/§17), including the ones that fail. An agent that
+    ' tried to delete a file and was refused is exactly the thing someone reading
+    ' the history later needs to see; recording only successes would make the log
+    ' a record of what worked rather than of what was attempted.
+    function _act(app, log, name, args)
+        r = studio_tools._perform(app, name, args)
+        log = studio_history.note(log, "agent_action", name, r.action + " " + r.detail, nothing)
+        return { app: r.app, log: log, ok: r.ok, why: r.why, value: r.value, token: "" }
+    end function
+
+    function _done(app, r, value)
+        ' studio_ui reports a refusal as an ACTION, not as a raise, and the
+        ' vocabulary is shared with the status line. A tool result has to say
+        ' whether it worked, so the refusals are translated here in one place.
+        ok = true
+        why = ""
+        if studio_tools._is_refusal(r.action) then
+            ok = false
+            why = r.action + ": " + r.detail
+        end if
+        return { app: r.app, ok: ok, why: why, value: value,
+                 action: r.action, detail: r.detail }
+    end function
+
+    function _is_refusal(action)
+        return contains(["refused", "no-doc", "no-section", "no-table", "out-of-range", "armed", "armed-save", "none", "missing", "invalid", "exists", "error", "unknown"], action)
+    end function
+
+    function _fail(app, name, why)
+        return { app: app, ok: false, why: why, value: nothing,
+                 action: "refused", detail: why }
+    end function
+
+    function _perform(app, name, args)
+        if name = "open_document" then
+            path = args["path"]
+            if not is_string(path) then
+                return studio_tools._fail(app, name, "open_document needs a path")
+            end if
+            rows = studio_ui.nav_rows(app)
+            app = rows.app
+            i = 0
+            for each row in rows.rows
+                if row.path = path then
+                    r = studio_ui.activate_row(app, rows.rows, i)
+                    return studio_tools._done(app, r, { doc: r.detail })
+                end if
+                i = i + 1
+            end for
+            return studio_tools._fail(app, name, "nothing in the browser is at " + path)
+        end if
+        if name = "select_document" then
+            doc_id = args["doc_id"]
+            if not is_string(doc_id) then
+                return studio_tools._fail(app, name, "select_document needs a doc_id")
+            end if
+            tabs = studio_ui.tab_rows(app)
+            i = 0
+            for each t in tabs
+                if t.doc_id = doc_id then
+                    r = studio_ui.select_tab(app, tabs, i)
+                    return studio_tools._done(app, r, { doc_id: doc_id })
+                end if
+                i = i + 1
+            end for
+            return studio_tools._fail(app, name, "no open document has id " + doc_id)
+        end if
+        if name = "move_cursor" then
+            doc = studio_docs.active_doc(app.dm)
+            if doc = nothing then
+                return studio_tools._fail(app, name, "no document is open")
+            end if
+            line = args["line"]
+            if not is_number(line) then
+                return studio_tools._fail(app, name, "move_cursor needs a line")
+            end if
+            col = args["column"]
+            if not is_number(col) then
+                col = 0
+            end if
+            r = studio_ui.sync_cursor(app, doc.id, line, col)
+            return studio_tools._done(app, r, { line: line, column: col })
+        end if
+        if name = "edit_document" then
+            doc = studio_docs.active_doc(app.dm)
+            if doc = nothing then
+                return studio_tools._fail(app, name, "no document is open")
+            end if
+            content = args["content"]
+            if not is_string(content) then
+                return studio_tools._fail(app, name, "edit_document needs content")
+            end if
+            ' The same call the editor's own "changed" handler makes, with the
+            ' same argument shape: a list of buffers. One entry here, because an
+            ' agent edits the document it is looking at.
+            r = studio_ui.sync_buffers(app, [{ doc_id: doc.id, text: content }])
+            return studio_tools._done(app, r, { bytes: byte_count(content) })
+        end if
+        if name = "execute_section" then
+            doc = studio_docs.active_doc(app.dm)
+            if doc = nothing then
+                return studio_tools._fail(app, name, "no document is open")
+            end if
+            r = studio_ui.run_section(app, doc.cursor.line, doc.cursor.column)
+            return studio_tools._done(app, r, { section: r.detail, active: r.active })
+        end if
+        if name = "stop_execution" then
+            r = studio_ui.stop_run(app)
+            return studio_tools._done(app, r, { state: r.action })
+        end if
+        if name = "create_branch" then
+            nm = args["name"]
+            if not is_string(nm) then
+                return studio_tools._fail(app, name, "create_branch needs a name")
+            end if
+            br = studio_ui.branch_rows(app)
+            app = br.app
+            if count(br.rows) = 0 then
+                return studio_tools._fail(app, name, "there is no section at the caret to branch at")
+            end if
+            r = studio_ui.activate_branch_row(app, br.rows, count(br.rows) - 1, nm)
+            return studio_tools._done(app, r, { branch: r.detail })
+        end if
+        if name = "bind_value" then
+            b = args["binding"]
+            if not is_string(b) then
+                return studio_tools._fail(app, name, "bind_value needs a binding, written 'name = value'")
+            end if
+            r = studio_ui.bind_selected(app, b)
+            return studio_tools._done(app, r, { binding: r.detail })
+        end if
+        if name = "create_file" then
+            r = studio_ui.new_file(app, studio_tools._name_arg(args))
+            return studio_tools._done(app, r, { created: r.detail })
+        end if
+        if name = "create_folder" then
+            r = studio_ui.new_folder(app, studio_tools._name_arg(args))
+            return studio_tools._done(app, r, { created: r.detail })
+        end if
+        if name = "save_document" then
+            ' `armed` is Studio's own two-step for saving over a file that changed
+            ' underneath. The agent passes it armed because the PERMISSION gate is
+            ' the confirmation here — asking twice, once through each mechanism,
+            ' would be one refusal the caller can never satisfy.
+            doc = studio_docs.active_doc(app.dm)
+            if doc = nothing then
+                return studio_tools._fail(app, name, "no document is open")
+            end if
+            r = studio_ui.save_active(app, doc.id)
+            return studio_tools._done(app, r, { saved: r.detail })
+        end if
+        if name = "delete_path" then
+            ws = app.model.workspace
+            if ws = nothing then
+                return studio_tools._fail(app, name, "no workspace is open")
+            end if
+            if ws.nav.selected_path = "" then
+                return studio_tools._fail(app, name, "nothing is selected in the browser")
+            end if
+            ' Armed with the path itself: studio_ui keys its two-step to the THING,
+            ' so passing the selection here confirms that path and no other — the
+            ' same guarantee the permission token gives, enforced twice by two
+            ' mechanisms that were designed for it independently.
+            r = studio_ui.delete_selected(app, ws.nav.selected_path)
+            return studio_tools._done(app, r, { deleted: r.detail })
+        end if
+        if name = "rename_path" then
+            nm = args["name"]
+            if not is_string(nm) then
+                return studio_tools._fail(app, name, "rename_path needs a name")
+            end if
+            r = studio_ui.rename_selected(app, nm)
+            return studio_tools._done(app, r, { renamed: r.detail })
+        end if
+        return studio_tools._fail(app, name, "no such act: " + name)
+    end function
+
+    ' An absent name is not an error for the two creators: the window mints
+    ' untitled-N when its field is empty, and the agent gets the same behaviour
+    ' rather than a different one.
+    function _name_arg(args)
+        v = args["name"]
+        if is_string(v) then
+            return v
+        end if
+        return ""
+    end function
+
+    ' A tool's tier. Everything without one declared is `read` — the STU-6 surface
+    ' predates tiers, and every one of those tools observes and changes nothing.
+    function tier_of(name)
+        for each t in studio_tools.registry()
+            if t.name = name then
+                if has(t, "tier") then
+                    return t.tier
+                end if
+                return "read"
+            end if
+        end for
+        ' A name that is not a tool has no tier. Callers check `is_tool` first;
+        ' this answers the strictest thing rather than a comfortable default.
+        return "external"
+    end function
+
+    function act_names()
+        out = []
+        for each t in studio_tools.act_registry()
+            out = append(out, t.name)
+        end for
+        return out
+    end function
+
+    function is_act(name)
+        return contains(studio_tools.act_names(), name)
     end function
 
     function names()
@@ -94,14 +380,61 @@ library studio_tools
         return contains(studio_tools.names(), name)
     end function
 
-    ' Dispatch. Returns { ok, value } or { ok: false, why } — never raises for a
-    ' bad name or bad arguments, because those arrive from a language model and a
-    ' model getting a tool name wrong is an ordinary event, not a crash.
+    ' THE GATE. Every tool call, read or act, comes through here — one dispatch
+    ' authority, so "only registered tools run" and "no act runs without a policy
+    ' decision" are one check each rather than one per caller.
+    '
+    ' Returns { app, log, ok, why, value, token }. The app and log come back
+    ' because an act changes them; a read hands back what it was given.
+    '
+    ' ORDER MATTERS AND IS DELIBERATE: the name is checked against the registry
+    ' BEFORE the permission decision, and the permission decision before anything
+    ' runs. Deciding permission first would mean asking a policy question about a
+    ' tool that does not exist — and answering it, for an unknown name, out of
+    ' whatever `tier_of` guessed.
+    function invoke(app, log, policy, name, args, confirmed)
+        if not studio_tools.is_tool(name) then
+            return { app: app, log: log, ok: false, why: "no such tool: " + name,
+                     value: nothing, token: "" }
+        end if
+        tier = studio_tools.tier_of(name)
+        d = studio_permissions.decide(policy, tier, name, args, confirmed)
+        ' A REFUSED act is audited too, and this is not a nicety. "The agent tried
+        ' to delete a file and was stopped" is precisely what someone reading the
+        ' history later needs to see; a log of successes only is a record of what
+        ' worked, not of what was attempted, and it would make an agent probing at
+        ' a denied tier invisible.
+        '
+        ' A read is not logged either way. Reads are automatic, constant, and
+        ' would bury the acts — the log is for what CHANGED and for what tried to.
+        if d.verdict != "allowed" then
+            if studio_tools.is_act(name) then
+                log = studio_history.note(log, "agent_action", name, d.verdict + ": " + d.why, nothing)
+            end if
+            return { app: app, log: log, ok: false, why: d.why, value: nothing, token: d.token }
+        end if
+        if studio_tools.is_act(name) then
+            return studio_tools._act(app, log, name, args)
+        end if
+        r = studio_tools.call(app, log, name, args)
+        return { app: app, log: log, ok: r.ok, why: r.why, value: r.value, token: "" }
+    end function
+
+    ' The read surface, unchanged from STU-6 and still callable directly by
+    ' anything that only reads. It is not a second gate: `invoke` is the only
+    ' thing an agent reaches, and every act goes through `_act`.
+    '
+    ' Returns { ok, value } or { ok: false, why } — never raises for a bad name or
+    ' bad arguments, because those arrive from a language model and a model
+    ' getting a tool name wrong is an ordinary event, not a crash.
     ' (`error` is a gBASIC keyword and cannot be a record key, hence `why`.)
     function call(app, log, name, args)
         known = studio_tools.is_tool(name)
         if not known then
             return { ok: false, why: "no such tool: " + name, value: nothing }
+        end if
+        if studio_tools.is_act(name) then
+            return { ok: false, why: name + " changes things; call it through invoke", value: nothing }
         end if
         if name = "current_project" then
             return studio_tools._ok(studio_tools._project(app))

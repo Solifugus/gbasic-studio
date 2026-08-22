@@ -1,0 +1,28 @@
+every tool, and the tier its REVERSIBILITY puts it in:
+  read  current_project
+  read  open_files
+  read  active_file
+  read  list_sections
+  read  section_at_cursor
+  read  run_state
+  read  section_results
+  read  section_output
+  read  section_variables
+  read  recent_actions
+  read  where_was_i
+  local  open_document
+  local  select_document
+  local  move_cursor
+  local  edit_document
+  local  execute_section
+  local  stop_execution
+  local  create_branch
+  local  bind_value
+  local  create_file
+  local  create_folder
+  external  save_document
+  external  delete_path
+  external  rename_path
+
+-- a name that is not a tool has no tier, and answers the strictest thing
+  external

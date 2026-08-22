@@ -134,13 +134,18 @@ program main(args)
     log = studio_history.open(home)
     log = studio_history.note(log, "file_opened", projdir + "/three.bas", "", 1001)
 
-    print "-- the whole surface"
+    print "-- the whole surface, by the tier each tool's REVERSIBILITY puts it in"
     for each t in studio_tools.registry()
-      print "  " + t.name
+      print "  " + studio_tools.tier_of(t.name) + "  " + t.name
     end for
-
-    print "-- every one of them is a READ. There is no write tool to refuse."
     print "count=" + count(studio_tools.registry())
+
+    ' STU-6 asserted here that every tool was a read. STU-10 ended that
+    ' deliberately, so what is asserted instead is the property that replaced it:
+    ' the READ path still refuses to perform an act. `invoke` is the only way
+    ' through, and it decides permission first.
+    print "-- the read path still refuses an act outright"
+    print "  " + studio_tools.call(app, log, "delete_path", {}).why
 
     print "-- current_project"
     cp = studio_tools.call(app, log, "current_project", {}).value

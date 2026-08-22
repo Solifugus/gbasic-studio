@@ -1,0 +1,17 @@
+a confirmation names ONE act. It cannot be spent on another.
+  delete a.bas: delete_path:286887861
+  delete b.bas: delete_path:199996764
+  rename a.bas: rename_path:353950500
+  a = b: false
+  a = c: false
+
+-- the same act always hashes the same way
+  stable: true
+
+-- confirming with the wrong token is the same as not confirming
+  right: allowed
+  wrong: needs-confirm
+  empty: needs-confirm
+
+-- and a denied tier cannot be confirmed past at all
+  denied

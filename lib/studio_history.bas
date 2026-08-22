@@ -51,7 +51,13 @@ library studio_history
                 "file_opened", "file_closed", "file_created", "file_saved",
                 "file_renamed", "file_deleted", "folder_created",
                 "section_selected", "section_executed", "run_stopped",
-                "run_failed", "error_raised"]
+                "run_failed", "error_raised",
+                ' STU-10: what the AGENT did, kept in the same log and the same
+                ' closed vocabulary as what the user did. One log, because "who
+                ' changed this" is a question about a single sequence of events,
+                ' and two logs interleaved after the fact is a reconstruction
+                ' rather than a record.
+                "agent_action"]
     end function
 
     function is_kind(kind)

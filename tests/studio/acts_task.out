@@ -1,0 +1,14 @@
+open a file -> edit it -> put the caret in it -> run it -> report
+  create_file -> ok
+  edit_document -> ok
+  move_cursor -> ok
+  execute_section -> ok
+  section_output -> ok
+  target output: <the answer is 42
+>
+
+-- and every step of it is in the history, refusals included
+  agent_action execute_section — running sec-1
+  agent_action move_cursor — cursor sec-1
+  agent_action edit_document — synced doc-1->dirty
+  agent_action create_file — created task.bas doc-1

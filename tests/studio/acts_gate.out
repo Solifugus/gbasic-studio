@@ -1,0 +1,29 @@
+-- default policy: reads are automatic
+  read: auto
+  local: confirm
+  external: confirm
+
+  current_project -> ok
+
+-- a local act needs confirmation by default, and says so
+  create_file -> create_file is a local action and needs confirmation
+  token: create_file:270421503
+
+-- a confirmation is bound to the ACT: this one cannot be spent elsewhere
+  create_file -> create_file is a local action and needs confirmation
+
+-- confirmed, it runs
+  create_file -> ok
+
+-- with local autonomy turned up, no confirmation is asked for
+  create_file -> ok
+
+-- but a session clamp overrides that, whatever global says
+  create_file -> the local tier is denied by policy
+  local = deny (narrowed by session)
+
+-- an unknown tool is refused before any policy question is asked
+  rm_rf -> no such tool: rm_rf
+
+-- a read tool cannot be reached through the write path, or vice versa
+  call(create_file) -> create_file changes things; call it through invoke

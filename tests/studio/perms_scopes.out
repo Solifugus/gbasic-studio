@@ -1,0 +1,35 @@
+-- shipped defaults: read is automatic, everything else asks
+  read: auto
+  local: confirm
+  external: confirm
+
+-- global turns local autonomy up
+  read: auto
+  local: auto
+  external: confirm
+
+-- an unset project has NO opinion; it does not vote the default
+  read: auto
+  local: auto
+  external: confirm
+
+-- the project narrows it back
+  read: auto
+  local: confirm
+  external: confirm
+
+-- a project may not WIDEN what global denied
+  read: auto
+  local: confirm
+  external: deny
+
+-- "read-only this investigation" clamps everything
+  read: auto
+  local: deny
+  external: deny
+
+-- and each answer says where it came from
+  read = auto (default)
+  local = auto (from global)
+  local = confirm (narrowed by project)
+  local = deny (narrowed by session)

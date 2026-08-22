@@ -1,0 +1,19 @@
+  create_file -> ok
+the file exists: true
+
+-- local autonomy does NOT carry over to a destructive act
+  delete_path -> delete_path is an external action and needs confirmation
+  the file still exists: true
+
+-- confirmed, it goes
+  delete_path -> ok
+  the file still exists: false
+
+-- a session that denies the external tier cannot be confirmed past
+  delete_path -> the external tier is denied by policy
+
+-- every attempt is in the audit trail, including the refused ones
+  delete_path — denied: the external tier is denied by policy
+  delete_path — deleted doomed.bas
+  delete_path — needs-confirm: delete_path is an external action and needs confirmation
+  create_file — created doomed.bas doc-1

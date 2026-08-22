@@ -1,17 +1,31 @@
--- the whole surface
-  current_project
-  open_files
-  active_file
-  list_sections
-  section_at_cursor
-  run_state
-  section_results
-  section_output
-  section_variables
-  recent_actions
-  where_was_i
--- every one of them is a READ. There is no write tool to refuse.
-count=11
+-- the whole surface, by the tier each tool's REVERSIBILITY puts it in
+  read  current_project
+  read  open_files
+  read  active_file
+  read  list_sections
+  read  section_at_cursor
+  read  run_state
+  read  section_results
+  read  section_output
+  read  section_variables
+  read  recent_actions
+  read  where_was_i
+  local  open_document
+  local  select_document
+  local  move_cursor
+  local  edit_document
+  local  execute_section
+  local  stop_execution
+  local  create_branch
+  local  bind_value
+  local  create_file
+  local  create_folder
+  external  save_document
+  external  delete_path
+  external  rename_path
+count=24
+-- the read path still refuses an act outright
+  delete_path changes things; call it through invoke
 -- current_project
 workspace=ws projects=1 active=Alpha root=ag_tools_proj
 -- active_file
