@@ -42,6 +42,7 @@ library studio_ui
     load studio_session
     load studio_results
     load studio_branches
+    load studio_overlays
     load studio_viewers
     load studio_table
 
@@ -1151,6 +1152,141 @@ library studio_ui
         return studio.set_workspace(app, ws)
     end function
 
+    ' ---- overlays (STU-9) ---------------------------------------------------
+
+    ' A branch's code overlay, stored in the workspace beside the branch tree for
+    ' the same reason the tree sits beside the section anchors: an overlay is
+    ' addressed by section id, so it is meaningless without the anchors that give
+    ' those ids meaning, and the three must be restored together or not at all.
+    function overlays(app)
+        ws = app.model.workspace
+        if ws = nothing then
+            return studio_overlays.create()
+        end if
+        return studio_overlays.from_persist(ws["overlays"])
+    end function
+
+    function set_overlays(app, ov)
+        ws = app.model.workspace
+        if ws = nothing then
+            return app
+        end if
+        ws.overlays = studio_overlays.to_persist(ov)
+        return studio.set_workspace(app, ws)
+    end function
+
+    ' Which KIND of branch this is (§9.2) — DERIVED, never stored. A stored kind
+    ' is a second source of truth that can disagree with the edits themselves, and
+    ' the disagreement would show up as a branch that says "code" and runs the
+    ' canonical text.
+    function branch_kind(app, branch)
+        if branch = "" then
+            return "baseline"
+        end if
+        if studio_overlays.has_any(studio_ui.overlays(app), branch) then
+            return "code"
+        end if
+        return "state"
+    end function
+
+    ' The source THIS BRANCH sees: canonical text with the selected chain's
+    ' overlay edits projected over it.
+    '
+    ' Every edit in the chain is projected, not just the selected branch's own —
+    ' a branch nested under an overlay branch inherits its parent's code, which is
+    ' what "everything below the branch point may diverge" means once the
+    ' divergence is code.
+    '
+    ' The canonical file is not read, written, or touched: the projection is a
+    ' value, and the only thing that ever reaches a disk is the temp materialization
+    ' the run pipeline already writes.
+    function projected_source(app)
+        v = studio_ui.view_for(app)
+        app = v.app
+        doc = studio_docs.active_doc(app.dm)
+        if doc = nothing then
+            return { app: app, text: "", applied: [], overlaid: false }
+        end if
+        ov = studio_ui.overlays(app)
+        tree = studio_ui.branch_tree(app)
+        edits = []
+        for each b in studio_branches.selected_chain(tree, doc.id, v.st)
+            for each e in studio_overlays.for_branch(ov, b.id)
+                edits = append(edits, e)
+            end for
+        end for
+        if count(edits) = 0 then
+            return { app: app, text: doc.content, applied: [], overlaid: false }
+        end if
+        ok = studio_overlays.applicable(v.st, edits, -1)
+        p = studio_overlays.project(doc.content, v.st, ok)
+        return { app: app, text: p.text, applied: p.applied, overlaid: true }
+    end function
+
+    ' The sections OF THE SOURCE THIS BRANCH SEES.
+    '
+    ' For a baseline or a state-only branch this is just the canonical outline.
+    ' For an overlay branch it is the outline of the projection — and everything
+    ' about that branch is then judged against it: which section the caret is in,
+    ' which section a run targets, and whether a stored result still describes the
+    ' text it ran. Judging an overlay branch's results against CANONICAL sections
+    ' would mark every one of them changed the moment the overlay existed, which
+    ' is noise dressed as honesty.
+    '
+    ' Section ids survive the projection because STU-3 re-matches on structural
+    ' evidence — kind, name, ancestry, ordinal — and an overlay replaces a
+    ' section's body, not its identity. An overlay that renames the function it
+    ' replaces is the case where that stops being true, and it shows up honestly:
+    ' the id does not re-match, and the run refuses rather than running a
+    ' different section under the old id.
+    '
+    ' CACHED on the app beside the canonical view, and for the same reason: this
+    ' runs on every render, and re-parsing a document at cursor-move rate is what
+    ' the STU-5A cache exists to prevent. The key is the projected TEXT, which
+    ' moves whenever the document, the overlay or the selection does — splicing to
+    ' compare is cheap; parsing is not.
+    function branch_sections(app)
+        v = studio_ui.view_for(app)
+        app = v.app
+        ps = studio_ui.projected_source(app)
+        app = ps.app
+        if not ps.overlaid then
+            return { app: app, st: v.st, src: ps.text, overlaid: false }
+        end if
+        cached = app["bview"]
+        if cached != unknown then
+            if cached != nothing then
+                if cached.src = ps.text then
+                    return { app: app, st: cached.st, src: ps.text, overlaid: true }
+                end if
+            end if
+        end if
+        bst = studio_sections.refresh(v.st, ps.text)
+        app["bview"] = { src: ps.text, st: bst }
+        return { app: app, st: bst, src: ps.text, overlaid: true }
+    end function
+
+    ' Every conflict in the selected chain's overlay, against the sections as they
+    ' are now. Surfaced, never acted on (§9.3).
+    function overlay_conflicts(app)
+        v = studio_ui.view_for(app)
+        app = v.app
+        doc = studio_docs.active_doc(app.dm)
+        out = []
+        if doc = nothing then
+            return { app: app, problems: out }
+        end if
+        ov = studio_ui.overlays(app)
+        tree = studio_ui.branch_tree(app)
+        for each b in studio_branches.selected_chain(tree, doc.id, v.st)
+            for each p in studio_overlays.conflicts(v.st, studio_overlays.for_branch(ov, b.id), -1)
+                out = append(out, { branch: b.id, name: b.name, section_id: p.section_id,
+                                    why: p.why, detail: p.detail })
+            end for
+        end for
+        return { app: app, problems: out }
+    end function
+
     ' The selected chain's bindings, as splice insertions for materialize_text:
     ' each at the LINE START of its branch point's section, so the assignments run
     ' immediately before the code that is allowed to diverge.
@@ -1220,14 +1356,24 @@ library studio_ui
         tree = studio_ui.branch_tree(app)
         sel = studio_branches.selected_at(tree, v.sid)
         rows = []
+        ov = studio_ui.overlays(app)
         rows = append(rows, { kind: "baseline", id: "", label: "Baseline",
-                              selected: sel = "", stale: false })
+                              selected: sel = "", stale: false,
+                              overlay: 0, conflicts: 0 })
         for each b in studio_branches.at_point(tree, doc.id, v.sid)
+            ' STU-9: a code-overlay branch is VISIBLY MARKED experimental (§9.2),
+            ' and its unresolved conflicts are marked beside it (§9.3). Both are
+            ' counted from the edits themselves rather than stored, so a branch
+            ' cannot claim a kind its contents do not have.
+            edits = studio_overlays.for_branch(ov, b.id)
             rows = append(rows, { kind: "branch", id: b.id, label: b.name,
                                   selected: sel = b.id,
-                                  stale: studio_branches.is_stale(tree, b, v.st) })
+                                  stale: studio_branches.is_stale(tree, b, v.st),
+                                  overlay: count(edits),
+                                  conflicts: count(studio_overlays.conflicts(v.st, edits, -1)) })
         end for
-        rows = append(rows, { kind: "add", id: "", label: "+", selected: false, stale: false })
+        rows = append(rows, { kind: "add", id: "", label: "+", selected: false, stale: false,
+                              overlay: 0, conflicts: 0 })
         return { app: app, rows: rows, point: v.sid }
     end function
 
@@ -1305,6 +1451,21 @@ library studio_ui
     end function
 
     ' One line naming the selected branch, for the strip.
+    ' The experimental marking, in one place so the selector, the run strip and
+    ' the goldens cannot word it differently. A branch carrying code is not just
+    ' another branch — it is running something that is not in your file, and the
+    ' design requires that to be visible rather than inferable (§9.2).
+    function overlay_mark(r)
+        if r.overlay = 0 then
+            return ""
+        end if
+        mark = " [experimental: " + r.overlay + " section(s)]"
+        if r.conflicts > 0 then
+            mark = mark + " [" + r.conflicts + " conflict(s)]"
+        end if
+        return mark
+    end function
+
     function branch_label(app)
         br = studio_ui.branch_rows(app)
         app = br.app
@@ -1316,7 +1477,7 @@ library studio_ui
                 if r.kind = "baseline" then
                     return "branch: baseline"
                 end if
-                line = "branch: " + r.label
+                line = "branch: " + r.label + studio_ui.overlay_mark(r)
                 if r.stale then
                     line = line + " [ancestry changed]"
                 end if
@@ -1396,13 +1557,29 @@ library studio_ui
                 sess.table = { name: tf.name, path: tf.path, cap: studio_table.export_cap(), chunk: studio_table.export_chunk(), stamp: tf.stamp }
             end if
         end if
-        sess = studio_session.run(sess, st, doc.content, sid)
+        ' STU-9: an overlay branch runs its PROJECTION, not the file. The canonical
+        ' document is never written and never re-read here — the projection is a
+        ' value, and the only thing that reaches a disk is the temp materialization
+        ' the run pipeline already writes for every run.
+        bs = studio_ui.branch_sections(app)
+        app = bs.app
+        run_st = bs.st
+        run_src = bs.src
+        if bs.overlaid then
+            if studio_sections.section_by_id(run_st, sid) = nothing then
+                ' The section the caret is in does not survive this branch's
+                ' overlay. Running "the nearest thing" would run different code
+                ' under the id the results are filed against.
+                return { app: app, action: "refused", detail: "this branch's overlay replaces the section at the cursor with something that is not a section any more", active: false }
+            end if
+        end if
+        sess = studio_session.run(sess, run_st, run_src, sid)
 
         ab = studio_ui.active_branch(app)
         app = ab.app
-        app.exec = { doc_id: doc.id, doc_path: doc.path, sid: sid, secs: st,
+        app.exec = { doc_id: doc.id, doc_path: doc.path, sid: sid, secs: run_st,
                      branch: ab.id, branch_name: ab.name,
-                     src: doc.content, session: sess,
+                     src: run_src, session: sess,
                      store: studio_results.open(app.paths.home, doc.path) }
         act = sess.state
         detail = sid
@@ -1902,7 +2079,200 @@ library studio_ui
             return "(no section at the cursor)"
         end if
         ab = studio_ui.active_branch(v.app)
-        return studio_results.view_with(app.paths.home, v.store, v.st, v.sid, ab.id, studio_ui.viewers_of(app))
+        app = ab.app
+        ' STU-9: judged against the sections THIS BRANCH sees, so an overlay
+        ' branch's results are not all marked stale by the overlay itself.
+        bs = studio_ui.branch_sections(app)
+        app = bs.app
+        return studio_results.view_with(app.paths.home, v.store, bs.st, v.sid, ab.id, studio_ui.viewers_of(app))
+    end function
+
+    ' ---- STU-9: the overlay interactions ------------------------------------
+    '
+    ' Five acts, each explicit (§9.2/§9.3): begin an overlay on the section at the
+    ' caret, save what was typed into it, discard it, promote it into the file, or
+    ' rebase it onto changed canonical text.
+
+    ' Begin editing this branch's copy of the section at the caret. The overlay
+    ' starts as the canonical text — an experiment starts from what is there, not
+    ' from an empty buffer — and `base_fp` is stamped NOW, which is the whole
+    ' basis of every conflict answer later.
+    '
+    ' The baseline cannot carry an overlay: the baseline IS the file, and an
+    ' overlay on it would be an edit pretending not to be one.
+    function begin_overlay(app)
+        v = studio_ui.view_for(app)
+        app = v.app
+        doc = studio_docs.active_doc(app.dm)
+        if doc = nothing then
+            return { app: app, action: "no-doc", detail: "", text: "" }
+        end if
+        if v.sid = "" then
+            return { app: app, action: "no-section", detail: "", text: "" }
+        end if
+        ab = studio_ui.active_branch(app)
+        app = ab.app
+        if ab.id = "" then
+            return { app: app, action: "refused", detail: "the baseline is the file itself — make a branch to experiment on", text: "" }
+        end if
+        pt = studio_branches.by_id(studio_ui.branch_tree(app), ab.id)
+        if pt != nothing then
+            sec = studio_sections.section_by_id(v.st, v.sid)
+            if sec != nothing then
+                point = studio_sections.section_by_id(v.st, pt.point)
+                if point != nothing then
+                    if sec.start_offset < point.end_offset then
+                        return { app: app, action: "refused", detail: "an overlay changes only what is BELOW the branch point", text: "" }
+                    end if
+                end if
+            end if
+        end if
+        text = studio_overlays.canonical_text(doc.content, v.st, v.sid)
+        ov = studio_ui.overlays(app)
+        existing = studio_overlays.edit_for(ov, ab.id, v.sid)
+        if existing != nothing then
+            return { app: app, action: "overlay-open", detail: v.sid, text: existing.text }
+        end if
+        ov = studio_overlays.put(ov, ab.id, v.sid, studio_overlays.base_fp(v.st, v.sid), text)
+        app = studio_ui.set_overlays(app, ov)
+        return { app: app, action: "overlay-began", detail: v.sid, text: text }
+    end function
+
+    ' Save typed text into this branch's overlay for the section at the caret.
+    ' `base_fp` is NOT re-stamped: it records what the overlay was written
+    ' against, and moving it here would quietly resolve a conflict the user has
+    ' not been told about.
+    function save_overlay(app, text)
+        v = studio_ui.view_for(app)
+        app = v.app
+        if v.sid = "" then
+            return { app: app, action: "no-section", detail: "" }
+        end if
+        ab = studio_ui.active_branch(app)
+        app = ab.app
+        if ab.id = "" then
+            return { app: app, action: "refused", detail: "the baseline is the file itself" }
+        end if
+        ov = studio_ui.overlays(app)
+        existing = studio_overlays.edit_for(ov, ab.id, v.sid)
+        fp = studio_overlays.base_fp(v.st, v.sid)
+        if existing != nothing then
+            fp = existing.base_fp
+        end if
+        ov = studio_overlays.put(ov, ab.id, v.sid, fp, text)
+        app = studio_ui.set_overlays(app, ov)
+        return { app: app, action: "overlay-saved", detail: v.sid }
+    end function
+
+    function discard_overlay(app)
+        v = studio_ui.view_for(app)
+        app = v.app
+        ab = studio_ui.active_branch(app)
+        app = ab.app
+        if ab.id = "" then
+            return { app: app, action: "refused", detail: "the baseline has no overlay" }
+        end if
+        ov = studio_ui.overlays(app)
+        if v.sid = "" then
+            return { app: app, action: "no-section", detail: "" }
+        end if
+        if studio_overlays.edit_for(ov, ab.id, v.sid) = nothing then
+            return { app: app, action: "refused", detail: "no overlay on this section" }
+        end if
+        ov = studio_overlays.drop(ov, ab.id, v.sid)
+        app = studio_ui.set_overlays(app, ov)
+        return { app: app, action: "overlay-discarded", detail: v.sid }
+    end function
+
+    ' Promote: write the overlay into the canonical document. From here on it is an
+    ' ordinary working-tree edit — the thing Git can see (§18) — and the overlay is
+    ' gone from metadata, because leaving it would leave a second copy of text that
+    ' is now simply the file.
+    '
+    ' The document is marked DIRTY rather than written to disk. Promote is an edit,
+    ' and Studio's rule for edits is that the user saves them; a promote that wrote
+    ' through to the file would be the one action in the window that bypasses Save.
+    function promote_overlay(app)
+        v = studio_ui.view_for(app)
+        app = v.app
+        doc = studio_docs.active_doc(app.dm)
+        if doc = nothing then
+            return { app: app, action: "no-doc", detail: "" }
+        end if
+        ab = studio_ui.active_branch(app)
+        app = ab.app
+        if ab.id = "" then
+            return { app: app, action: "refused", detail: "the baseline has no overlay to promote" }
+        end if
+        ov = studio_ui.overlays(app)
+        edits = studio_overlays.for_branch(ov, ab.id)
+        r = studio_overlays.promote(doc.content, v.st, edits, -1)
+        if not r.ok then
+            if r.why = "empty" then
+                return { app: app, action: "refused", detail: "this branch has no overlay" }
+            end if
+            return { app: app, action: "refused", detail: count(r.problems) + " conflict(s) — rebase or discard first" }
+        end if
+        app.dm = studio_docs.edit(app.dm, doc.id, r.text)
+        ov = studio_overlays.drop_branch(ov, ab.id)
+        app = studio_ui.set_overlays(app, ov)
+        app["bview"] = nothing
+        return { app: app, action: "overlay-promoted", detail: count(edits) + " section(s) — unsaved, as any edit is" }
+    end function
+
+    ' Rebase: re-stamp this branch's overlay onto the canonical text as it is now.
+    ' Not a merge, and it does not claim to be — an overlay is a whole section, so
+    ' accepting it SHADOWS the canonical change. The detail says how many, and
+    ' `overlay_diff` shows what.
+    function rebase_overlay(app)
+        v = studio_ui.view_for(app)
+        app = v.app
+        ab = studio_ui.active_branch(app)
+        app = ab.app
+        if ab.id = "" then
+            return { app: app, action: "refused", detail: "the baseline has no overlay" }
+        end if
+        r = studio_overlays.rebase(studio_ui.overlays(app), ab.id, v.st)
+        app = studio_ui.set_overlays(app, r.ov)
+        app["bview"] = nothing
+        if count(r.unresolved) > 0 then
+            return { app: app, action: "overlay-rebased", detail: count(r.rebased) + " re-anchored, " + count(r.unresolved) + " cannot be — discard those" }
+        end if
+        if count(r.rebased) = 0 then
+            return { app: app, action: "refused", detail: "nothing to rebase — the overlay already sits on the current text" }
+        end if
+        return { app: app, action: "overlay-rebased", detail: count(r.rebased) + " section(s) now shadow the current text" }
+    end function
+
+    ' Canonical against overlay, for the whole selected branch. This is the
+    ' "compare" of §9.2, and it is what makes rebase honest: after re-stamping,
+    ' this is where the canonical change that got shadowed is still visible.
+    function overlay_diff(app)
+        v = studio_ui.view_for(app)
+        app = v.app
+        doc = studio_docs.active_doc(app.dm)
+        out = []
+        if doc = nothing then
+            return { app: app, lines: out }
+        end if
+        ab = studio_ui.active_branch(app)
+        app = ab.app
+        if ab.id = "" then
+            out = append(out, "(the baseline is the file itself)")
+            return { app: app, lines: out }
+        end if
+        edits = studio_overlays.for_branch(studio_ui.overlays(app), ab.id)
+        if count(edits) = 0 then
+            out = append(out, "(no overlay on " + ab.name + ")")
+            return { app: app, lines: out }
+        end if
+        out = append(out, ab.name + " against the file:")
+        for each e in edits
+            for each l in studio_overlays.diff_lines(doc.content, v.st, e)
+                out = append(out, l)
+            end for
+        end for
+        return { app: app, lines: out }
     end function
 
     ' ---- STU-8: the tabular tier -------------------------------------------

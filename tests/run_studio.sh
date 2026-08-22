@@ -157,6 +157,36 @@ else
 fi
 
 # ==========================================================================
+# STU-9 — code-overlay branches. Projection, scope, conflict, rebase, promote,
+# discard and persistence, over plain data. No child process and no display.
+OVL=tests/drivers/overlays.bas
+run_overlays() { # mode
+    local mode="$1" h
+    h="$tmproot/ov_$mode"
+    rm -rf "$h"; mkdir -p "$h"
+    : >"$stdout_file"
+    if ! timeout 60 "$GBASIC" "$OVL" "$mode" "$h" >"$stdout_file" 2>&1; then
+        cat "$stdout_file"; fail "overlays_$mode (nonzero exit)"
+    fi
+    if diff -u "tests/studio/overlays_$mode.out" "$stdout_file"; then
+        printf 'PASS overlays_%s\n' "$mode"
+    else
+        fail "overlays_$mode (output diff)"
+    fi
+}
+for m in project scope conflict gone persist; do
+    run_overlays "$m"
+done
+
+# An overlay is stored in Studio metadata and materialized for a run; it is
+# never a second visible .bas and never a git ref (§2.1, §2.3). Checked against
+# the source, because the failure would be a shadow file nobody noticed adding.
+if grep -nE '"git"|git branch|git checkout|refs/heads|\.bas"' lib/studio_overlays.bas; then
+    fail "overlays_not_files (the overlay model reaches for git or writes a .bas)"
+fi
+printf 'PASS overlays_not_files (no git ref, no shadow .bas)\n'
+
+# ==========================================================================
 # STU-8 — library-registered rich viewers. Sidecar discovery, validation,
 # descriptor matching, specificity and rendering. Declarative JSON in, display
 # lines out: no GTK, no child process, no display, and nothing evaluated.
@@ -760,7 +790,7 @@ run_ui() { # mode
 for m in rows open expand project bounds tabs edit save newproj refresh \
          newfile newfolder adopt exit \
          names rename delete closetab notice \
-         run runstop runerr cursor drafts branch table; do
+         run runstop runerr cursor drafts branch table overlay overlay_conflict; do
     run_ui "$m"
 done
 
@@ -983,6 +1013,31 @@ if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
         fi
     fi
 
+    # STU-9: the whole overlay cycle, clicked for real. What only this tier can
+    # reach: that the overlay editor is a REAL editable buffer (text typed into it
+    # comes back out), that all six acts are connected, and that a promote reaches
+    # the source editor through the ordinary redraw rather than a path of its own.
+    b9_home="$tmproot/ui_gui_overlay"; b9_proj="$tmproot/ui_gui_overlay_proj"
+    rm -rf "$b9_home" "$b9_proj"; mkdir -p "$b9_home" "$b9_proj"
+    printf 'threshold = 0.5\n\nfunction score(t)\n  return t * 100\nend function\n\nprint "score is " + score(threshold)\n' \
+        > "$b9_proj/branchy.bas"
+    : >"$stdout_file"
+    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
+            "$GBASIC" "$APP" stu9_smoke "$b9_home" "$b9_proj" \
+            >"$stdout_file" 2>/dev/null; then
+        if diff -u tests/studio/ui_gui_overlay.out "$stdout_file"; then
+            printf 'PASS ui_gui_overlay (an overlay typed, run, compared and promoted)\n'
+        else
+            fail "ui_gui_overlay (output diff)"
+        fi
+    else
+        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
+            printf 'SKIP ui_gui_overlay (GTK 4 typelib not available)\n'
+        else
+            cat "$stdout_file"; fail "ui_gui_overlay (nonzero exit)"
+        fi
+    fi
+
     # STU-8: the tabular tier, clicked for real -- and the virtualization
     # assertion, which is the reason this tier runs TWICE.
     #
@@ -1074,6 +1129,7 @@ else
     printf 'SKIP ui_gui_open (no display)\n'
     printf 'SKIP ui_gui_branch (no display)\n'
     printf 'SKIP ui_gui_table (no display)\n'
+    printf 'SKIP ui_gui_overlay (no display)\n'
 fi
 
 printf 'run_studio: all cases passed\n'

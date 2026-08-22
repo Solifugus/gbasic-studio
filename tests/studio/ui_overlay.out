@@ -1,0 +1,54 @@
+== the baseline is the file itself, and cannot carry an overlay ==
+action=refused — the baseline is the file itself — make a branch to experiment on
+== so: a branch at the top section, then an overlay below it ==
+action=branched br-1 Robust
+action=overlay-began on sec-2
+  an overlay opens as a COPY of what is there:
+    |function score(t)
+    |  return t * 100
+    |end function
+== typing into it ==
+action=overlay-saved sec-2
+branch kind: code
+== and it is VISIBLY MARKED experimental (§9.2) ==
+    Baseline
+  * Robust [experimental: 1 section(s)]
+    +
+  branch: Robust [experimental: 1 section(s)]
+== the branch sees different source; the DOCUMENT does not ==
+overlaid=true applied=sec-2
+document still says:
+    |threshold = 0.5
+    |
+    |function score(t)
+    |  return t * 100
+    |end function
+    |
+    |print "score is " + score(threshold)
+    |
+== compare ==
+Robust against the file:
+  sec-2:
+    1 line(s) unchanged above
+    -   return t * 100
+    +   if t < 0 then
+    +     return 0
+    +   end if
+    +   return t * 1000
+    1 line(s) unchanged below
+== running the branch runs the OVERLAY ==
+   exec: run: finished [sec-3] — exit 0
+target=<score is 500
+>
+== and the canonical file on disk was never touched ==
+  size unchanged:  true
+  bytes unchanged: true
+== an overlay survives a close and a relaunch ==
+edits restored: 1
+  br-1 / sec-2
+branches restored: 1
+== the baseline still runs the file ==
+action=baseline
+   exec: run: finished [sec-3] — exit 0
+target=<score is 50
+>

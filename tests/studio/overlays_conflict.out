@@ -1,0 +1,43 @@
+-- upstream changed, the overlaid section did not: still applies
+overlay: 1 section(s), 0 conflict(s)
+  ok      sec-2
+
+-- the OVERLAID section changed canonically: a conflict, not a guess
+overlay: 1 section(s), 1 conflict(s)
+  changed sec-2
+            the canonical text moved after this overlay was written
+
+   what it is now shadowing:
+  sec-2:
+    1 line(s) unchanged above
+    -   return t * 1000
+    +   if t < 0 then
+    +     return 0
+    +   end if
+    +   return t * 100
+    1 line(s) unchanged below
+
+-- promote is refused outright while anything conflicts
+   ok=false why=conflicts
+   file text unchanged by the refusal: true
+
+-- rebase re-stamps it onto the current text, and SAYS it shadows one
+   rebased: sec-2
+   unresolved: 0
+overlay: 1 section(s), 0 conflict(s)
+  ok      sec-2
+
+-- and now promote is allowed
+   ok=true
+-- promoted source
+   |threshold = 0.5
+   |
+   |function score(t)
+   |  if t < 0 then
+   |    return 0
+   |  end if
+   |  return t * 100
+   |end function
+   |
+   |print "score is " + score(threshold)
+   |

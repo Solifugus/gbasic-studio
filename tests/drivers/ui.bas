@@ -108,6 +108,7 @@ program main(args)
   load studio
   load studio_ui
   load studio_table
+  load studio_overlays
   load studio_drafts
   load studio_branches
 
@@ -679,6 +680,213 @@ program main(args)
     app = r.app
     app = drive(app)
     print studio_ui.results_body(app)
+  end if
+
+  ' ---- overlay: code-overlay branches, end to end through the run path -----
+  if mode = "overlay" then
+    of(file) = projdir + "/overlaid.bas"
+    write(of, "threshold = 0.5\n\nfunction score(t)\n  return t * 100\nend function\n\nprint \"score is \" + score(threshold)\n")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "overlaid.bas"))
+    app = r.app
+    app.clock_fixed = 1000
+    id = studio_docs.active_doc(app.dm).id
+
+    ' Everything the acceptance criterion is about: the file on disk must be
+    ' byte-identical after running an overlay. Recorded before anything happens.
+    before_size = file_size(of)
+    before_text = read(of)
+
+    banner("the baseline is the file itself, and cannot carry an overlay")
+    r = studio_ui.sync_cursor(app, id, 6, 0)
+    app = r.app
+    b = studio_ui.begin_overlay(app)
+    app = b.app
+    print "action=" + b.action + " — " + b.detail
+
+    banner("so: a branch at the top section, then an overlay below it")
+    r = studio_ui.sync_cursor(app, id, 0, 0)
+    app = r.app
+    brows = studio_ui.branch_rows(app)
+    app = brows.app
+    r = studio_ui.activate_branch_row(app, brows.rows, count(brows.rows) - 1, "Robust")
+    app = r.app
+    print "action=" + r.action + " " + r.detail
+
+    r = studio_ui.sync_cursor(app, id, 2, 0)
+    app = r.app
+    b = studio_ui.begin_overlay(app)
+    app = b.app
+    print "action=" + b.action + " on " + b.detail
+    print "  an overlay opens as a COPY of what is there:"
+    for each l in split(b.text, "\n")
+      print "    |" + l
+    end for
+
+    banner("typing into it")
+    r = studio_ui.save_overlay(app, "function score(t)\n  if t < 0 then\n    return 0\n  end if\n  return t * 1000\nend function")
+    app = r.app
+    print "action=" + r.action + " " + r.detail
+    print "branch kind: " + studio_ui.branch_kind(app, studio_ui.active_branch(app).id)
+
+    banner("and it is VISIBLY MARKED experimental (§9.2)")
+    ' The selector shows the branches AT the caret's section, so this reads the
+    ' point the branch hangs off — not the section the overlay changed, which is
+    ' below it.
+    r = studio_ui.sync_cursor(app, id, 0, 0)
+    app = r.app
+    brows3 = studio_ui.branch_rows(app)
+    app = brows3.app
+    for each row in brows3.rows
+      mk = "  "
+      if row.selected then
+        mk = "* "
+      end if
+      print "  " + mk + row.label + studio_ui.overlay_mark(row)
+    end for
+    print "  " + studio_ui.branch_label(app)
+    r = studio_ui.sync_cursor(app, id, 2, 0)
+    app = r.app
+
+    banner("the branch sees different source; the DOCUMENT does not")
+    ps = studio_ui.projected_source(app)
+    app = ps.app
+    print "overlaid=" + string(ps.overlaid) + " applied=" + join(ps.applied, ",")
+    print "document still says:"
+    for each l in split(studio_docs.active_doc(app.dm).content, "\n")
+      print "    |" + l
+    end for
+
+    banner("compare")
+    d = studio_ui.overlay_diff(app)
+    app = d.app
+    for each l in d.lines
+      print l
+    end for
+
+    banner("running the branch runs the OVERLAY")
+    r = studio_ui.sync_cursor(app, id, 6, 0)
+    app = r.app
+    r = studio_ui.run_section(app, 6, 0)
+    app = drive(r.app)
+    print "target=<" + studio_ui.target_body(app) + ">"
+
+    banner("and the canonical file on disk was never touched")
+    after_size = file_size(of)
+    after_text = read(of)
+    print "  size unchanged:  " + string(after_size = before_size)
+    print "  bytes unchanged: " + string(after_text = before_text)
+
+    banner("an overlay survives a close and a relaunch")
+    studio.persist(app)
+    again = studio.launch(home)
+    ov2 = studio_ui.overlays(again)
+    print "edits restored: " + count(ov2.edits)
+    for each e in ov2.edits
+      print "  " + e.branch + " / " + e.section_id
+    end for
+    ' The branch tree comes back too, or the overlay would be addressed to a
+    ' branch that no longer exists — which is why the two live in the same record.
+    print "branches restored: " + count(studio_ui.branch_tree(again).branches)
+
+    banner("the baseline still runs the file")
+    brows2 = studio_ui.branch_rows(app)
+    app = brows2.app
+    r = studio_ui.sync_cursor(app, id, 0, 0)
+    app = r.app
+    brows2 = studio_ui.branch_rows(app)
+    app = brows2.app
+    r = studio_ui.activate_branch_row(app, brows2.rows, 0, "")
+    app = r.app
+    print "action=" + r.action
+    r = studio_ui.sync_cursor(app, id, 6, 0)
+    app = r.app
+    r = studio_ui.run_section(app, 6, 0)
+    app = drive(r.app)
+    print "target=<" + studio_ui.target_body(app) + ">"
+  end if
+
+  ' ---- overlay_conflict: §9.3, the part that must not guess ----------------
+  if mode = "overlay_conflict" then
+    cf(file) = projdir + "/conflicted.bas"
+    write(cf, "threshold = 0.5\n\nfunction score(t)\n  return t * 100\nend function\n\nprint \"score is \" + score(threshold)\n")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "conflicted.bas"))
+    app = r.app
+    app.clock_fixed = 1000
+    id = studio_docs.active_doc(app.dm).id
+
+    r = studio_ui.sync_cursor(app, id, 0, 0)
+    app = r.app
+    brows = studio_ui.branch_rows(app)
+    app = brows.app
+    r = studio_ui.activate_branch_row(app, brows.rows, count(brows.rows) - 1, "Robust")
+    app = r.app
+    r = studio_ui.sync_cursor(app, id, 2, 0)
+    app = r.app
+    b = studio_ui.begin_overlay(app)
+    app = b.app
+    r = studio_ui.save_overlay(app, "function score(t)\n  if t < 0 then\n    return 0\n  end if\n  return t * 1000\nend function")
+    app = r.app
+
+    banner("now the user edits the SAME section canonically")
+    app.dm = studio_docs.edit(app.dm, id, "threshold = 0.5\n\nfunction score(t)\n  return t * 7\nend function\n\nprint \"score is \" + score(threshold)\n")
+    c = studio_ui.overlay_conflicts(app)
+    app = c.app
+    for each p in c.problems
+      print "  " + p.name + " / " + p.section_id + ": " + p.why + " — " + p.detail
+    end for
+
+    banner("promote is refused while it conflicts, and says what to do")
+    r = studio_ui.promote_overlay(app)
+    app = r.app
+    print "action=" + r.action + " — " + r.detail
+
+    banner("compare shows exactly what the overlay is shadowing")
+    d = studio_ui.overlay_diff(app)
+    app = d.app
+    for each l in d.lines
+      print l
+    end for
+
+    banner("rebase is the explicit act, and it does not claim to merge")
+    r = studio_ui.rebase_overlay(app)
+    app = r.app
+    print "action=" + r.action + " — " + r.detail
+    c2 = studio_ui.overlay_conflicts(app)
+    app = c2.app
+    print "conflicts now: " + count(c2.problems)
+
+    banner("and now promote writes it into the document — as an unsaved edit")
+    r = studio_ui.promote_overlay(app)
+    app = r.app
+    print "action=" + r.action + " — " + r.detail
+    print "the document now reads:"
+    for each l in split(studio_docs.active_doc(app.dm).content, "\n")
+      print "    |" + l
+    end for
+    print "dirty (promote is an edit, not a save): " + string(studio_docs.is_dirty(studio_docs.active_doc(app.dm)))
+    print "the file on disk still says:"
+    for each l in split(read(cf), "\n")
+      print "    |" + l
+    end for
+    print "overlay after promote: " + count(studio_overlays.for_branch(studio_ui.overlays(app), studio_ui.active_branch(app).id))
+
+    ' The acceptance criterion's second half (§9.2/§18): once promoted and SAVED,
+    ' the experiment is an ordinary working-tree edit — nothing about it is
+    ' special any more, which is the point of promoting it.
+    banner("Save turns it into an ordinary working-tree edit")
+    r = studio_ui.save_active(app, "")
+    app = r.app
+    print "action=" + r.action + " " + r.detail
+    on_disk = read(cf)
+    print "the file on disk now says:"
+    for each l in split(on_disk, "\n")
+      print "    |" + l
+    end for
+    buffered = studio_docs.active_doc(app.dm).content
+    print "buffer and file agree: " + string(on_disk = buffered)
+    print "dirty: " + string(studio_docs.is_dirty(studio_docs.active_doc(app.dm)))
   end if
 
   ' ---- table: the tabular tier, end to end through the run path ------------

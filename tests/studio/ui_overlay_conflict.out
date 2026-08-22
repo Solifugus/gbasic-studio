@@ -1,0 +1,58 @@
+== now the user edits the SAME section canonically ==
+  Robust / sec-2: changed — the canonical text moved after this overlay was written
+== promote is refused while it conflicts, and says what to do ==
+action=refused — 1 conflict(s) — rebase or discard first
+== compare shows exactly what the overlay is shadowing ==
+Robust against the file:
+  sec-2:
+    1 line(s) unchanged above
+    -   return t * 7
+    +   if t < 0 then
+    +     return 0
+    +   end if
+    +   return t * 1000
+    1 line(s) unchanged below
+== rebase is the explicit act, and it does not claim to merge ==
+action=overlay-rebased — 1 section(s) now shadow the current text
+conflicts now: 0
+== and now promote writes it into the document — as an unsaved edit ==
+action=overlay-promoted — 1 section(s) — unsaved, as any edit is
+the document now reads:
+    |threshold = 0.5
+    |
+    |function score(t)
+    |  if t < 0 then
+    |    return 0
+    |  end if
+    |  return t * 1000
+    |end function
+    |
+    |print "score is " + score(threshold)
+    |
+dirty (promote is an edit, not a save): true
+the file on disk still says:
+    |threshold = 0.5
+    |
+    |function score(t)
+    |  return t * 100
+    |end function
+    |
+    |print "score is " + score(threshold)
+    |
+overlay after promote: 0
+== Save turns it into an ordinary working-tree edit ==
+action=saved doc-1
+the file on disk now says:
+    |threshold = 0.5
+    |
+    |function score(t)
+    |  if t < 0 then
+    |    return 0
+    |  end if
+    |  return t * 1000
+    |end function
+    |
+    |print "score is " + score(threshold)
+    |
+buffer and file agree: true
+dirty: false

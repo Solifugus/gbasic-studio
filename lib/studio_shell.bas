@@ -653,14 +653,48 @@ library studio_shell
     ' can resolve it against the array that produced the widgets.
     function branch_pane()
         box = gtk.box("v", 4)
-        head = studio_shell._wrapped(gtk.label("Branches — alternate continuations below this point; the code is the same in each"))
+        head = studio_shell._wrapped(gtk.label("Branches — alternate continuations below this point"))
         list = gtk.listbox()
         bind_btn = gtk.button("Bind name = value")
         bind_btn.halign = gi.enum("Gtk.Align.START")
         box.append(head)
         box.append(list)
         box.append(bind_btn)
-        return { box: box, list: list, bind: bind_btn, rows: [] }
+        ' STU-9: the overlay strip. A row of buttons rather than a listbox,
+        ' because unlike the branches these are FIXED acts, not data — the set
+        ' never changes, only whether each one is currently allowed, and every
+        ' refusal comes back as a status line saying why.
+        obox = gtk.box("h", 4)
+        edit_btn = gtk.button("Overlay this section")
+        save_btn = gtk.button("Save overlay")
+        cmp_btn = gtk.button("Compare")
+        reb_btn = gtk.button("Rebase")
+        prom_btn = gtk.button("Promote")
+        disc_btn = gtk.button("Discard")
+        obox.append(edit_btn)
+        obox.append(save_btn)
+        obox.append(cmp_btn)
+        obox.append(reb_btn)
+        obox.append(prom_btn)
+        obox.append(disc_btn)
+        box.append(obox)
+        ' The overlay BUFFER. A real editor, not a label: an overlay is code the
+        ' user types, and it cannot go in the source editor because that buffer
+        ' shows the canonical document — a window that displayed non-canonical text
+        ' as the file would be the one thing §2.1 forbids. So the experiment gets
+        ' its own editor, visibly separate from the file, which is also what
+        ' "visibly marked experimental" means in practice.
+        ed = sourceeditor.create()
+        ed.set_language("gbasic")
+        box.append(gtk.scrolled(ed.view()))
+        ' Where compare prints and a conflict is spelled out. Monospaced because
+        ' it holds source lines.
+        diff = studio_shell._mono(gtk.label(""))
+        box.append(diff)
+        return { box: box, list: list, bind: bind_btn, rows: [],
+                 edit: edit_btn, save: save_btn, cmp: cmp_btn,
+                 rebase: reb_btn, promote: prom_btn, discard: disc_btn,
+                 editor: ed, diff: diff }
     end function
 
     ' Rebuild the selector from the shared row model, exactly as the nav pane is
@@ -675,13 +709,25 @@ library studio_shell
             if r.selected then
                 mark = " * "
             end if
-            text = mark + r.label
+            text = mark + r.label + studio_ui.overlay_mark(r)
             if r.stale then
                 text = text + "   [ancestry changed]"
             end if
             shell.bpane.list.append(studio_shell._left(gtk.label(text)))
         end for
         shell.bpane.rows = br.rows
+        ' STU-9: conflicts are SURFACED on every redraw, never acted on (§9.3).
+        ' A conflict that only appeared when you pressed Promote would be a
+        ' conflict you found by trying to lose work.
+        c = studio_ui.overlay_conflicts(app)
+        app = c.app
+        if count(c.problems) > 0 then
+            lines = []
+            for each p in c.problems
+                lines = append(lines, p.name + " / " + p.section_id + ": " + p.detail)
+            end for
+            shell.bpane.diff.label = join(lines, "\n")
+        end if
         return { shell: shell, app: app }
     end function
 

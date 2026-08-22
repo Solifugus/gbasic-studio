@@ -9,9 +9,9 @@ library — and nothing in gBASIC depends on Studio.
 ## Status
 
 **The model and persistence layer are built and tested, and the shell now
-responds to input.** Phases STU-0 through STU-8 are complete — STU-0..STU-6 are
-the design's MVP, STU-7 added exploratory branching and STU-8 rich viewers and
-the tabular tier;
+responds to input.** Phases STU-0 through STU-9 are complete — STU-0..STU-6 are
+the design's MVP, STU-7 and STU-9 are the two kinds of exploratory branch, and
+STU-8 added rich viewers and the tabular tier;
 STU-2B wired the first interactions on top of them, STU-2C made a cold start go
 all the way through, STU-2D made the browser editable, STU-2E made Run work, and
 STU-5A′ pointed the panes at the caret.
@@ -113,6 +113,40 @@ A branch is **not a Git branch** — not stored, surfaced or created as one. If 
 code above a branch point changes, the branch is flagged `[ancestry changed]` and
 stays selected: Studio surfaces stale state rather than acting on it, and
 re-anchoring is a separate deliberate click.
+
+**Code-overlay branches (STU-9).** The other half of branching: experiment with
+*downstream code* without touching the file. An overlay changes only what is
+below the branch point, lives in Studio metadata, is visibly marked
+experimental, and is never a second `.bas` and never a Git branch.
+
+```
+    Baseline
+  * Robust [experimental: 1 section(s)]
+    +
+
+  the branch runs:   score is 500
+  the baseline runs: score is 50
+  the file on disk:  byte-identical, throughout
+```
+
+**How an overlay is represented was the open question** (design Q5), and the
+answer decides everything downstream. Not a textual diff — that needs a patch
+engine, and "does this hunk still apply?" is a fuzzy question whose wrong answers
+are silent misapplications. Not an AST patch — the platform exposes structure,
+not a rewritable tree. An overlay is a **per-section replacement text** stamped
+with the fingerprint of the canonical section it was written against. So:
+applying is the splice the run pipeline already does, and a **conflict is a hash
+comparison** — no context matching, no fuzz, no judgement. The cost is that an
+overlay replaces whole sections, which is also the unit Studio executes, anchors
+and files results against.
+
+**Rebase does not claim to be a merge.** There is nothing to merge — an overlay
+*is* the whole section — so accepting it *shadows* the canonical change, and
+Compare is where that stays visible. An overlay whose section was deleted cannot
+be rebased onto anything: it is reported unresolved and left for you to discard,
+never dropped silently. **Promote** is refused outright while anything conflicts,
+and writes into the buffer as an ordinary unsaved edit — Studio's rule is that
+you save your own edits.
 
 **Rich viewers a library registers for its own types (STU-8).** Structural
 dispatch sees a `stats.ols` result as a record holding six unrelated arrays, and

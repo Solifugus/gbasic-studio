@@ -1,0 +1,46 @@
+an overlay needs a branch: the baseline is the file
+  action=refused — the baseline is the file itself — make a branch to experiment on
+making a branch, then overlaying the section below it
+  action=branched
+  action=overlay-began on sec-2
+the overlay editor opened with the canonical text:
+    |function score(t)
+    |  return t * 100
+    |end function
+typing into it, for real
+  action=overlay-saved
+the selector marks it experimental:
+    Baseline
+  * Robust [experimental: 1 section(s)]
+    +
+comparing
+    |Robust against the file:
+    |  sec-2:
+    |    1 line(s) unchanged above
+    |    -   return t * 100
+    |    +   return t * 1000
+    |    1 line(s) unchanged below
+running the branch
+  target=<score is 500
+>
+the source editor still shows the FILE:
+    |threshold = 0.5
+    |
+    |function score(t)
+    |  return t * 100
+    |end function
+    |
+    |print "score is " + score(threshold)
+    |
+promoting
+  action=overlay-promoted — 1 section(s) — unsaved, as any edit is
+and NOW the source editor shows it, as an unsaved edit:
+    |threshold = 0.5
+    |
+    |function score(t)
+    |  return t * 1000
+    |end function
+    |
+    |print "score is " + score(threshold)
+    |
+app-exited

@@ -47,7 +47,7 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 143 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 153 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 7 cases, headless AND offline (scripted transport)
 ```
 
@@ -57,7 +57,7 @@ so. The suite builds the sibling gBASIC first when `GBASIC` points into a source
 tree, so an interpreter change is what gets tested rather than a stale binary.
 Display tiers (`sections_gui`, `sessions_gui`, `results_gui`, `ui_gui`,
 `ui_gui_cold`, `ui_gui_new`, `ui_gui_name`, `ui_gui_solo`, `ui_gui_run`,
-`ui_gui_cursor`, `ui_gui_open`, `ui_gui_branch`, `ui_gui_table`) SKIP cleanly
+`ui_gui_cursor`, `ui_gui_open`, `ui_gui_branch`, `ui_gui_table`, `ui_gui_overlay`) SKIP cleanly
 without GTK 4 or a display.
 `ui_gui_new` is the only case that spans two processes: the GUI builds a project
 from nothing and closes, and a second interpreter run reopens the same home —
@@ -94,6 +94,9 @@ lib/studio_viewers.bas  STU-8 library-registered rich viewers: declarative
                         `.viewers` sidecars, read and never evaluated
 lib/studio_table.bas    STU-8 the tabular tier: what is a table, and where its
                         rows come from (a capture sample, or a fetched export)
+lib/studio_overlays.bas STU-9 code-overlay branches: per-section replacement
+                        text, stamped with the canonical fingerprint it was
+                        written against; projected, never written to the .bas
 lib/studio_drafts.bas   unsaved buffers across a close; conflict-aware, keyed by
                         a hash of the text the buffer was based on
 lib/studio_history.bas  the semantic action log — a closed vocabulary, bounded
@@ -216,6 +219,32 @@ Two consequences worth knowing before you touch the shell:
 - `_DATAGRID` and `_STUDIO_TABLE` are program globals assigned AFTER the display
   loads in `app/studio.bas`. `load` is not hoisted, and `datagrid` pulls in `gi`,
   which the headless modes must never touch.
+- An overlay is a SECTION-SCOPED FULL-TEXT REPLACEMENT (design Q5, decided in
+  STU-9), not a textual diff and not an AST patch. That choice is what makes
+  conflict a hash comparison (`base_fp` vs the section's fingerprint now) instead
+  of a context-matching heuristic — and a heuristic that guesses wrong silently
+  misapplies an edit, which §9.3 exists to forbid. The cost: an overlay replaces
+  WHOLE sections, so section granularity is conflict granularity.
+- `base_fp` is stamped when the overlay is BEGUN and never re-stamped on save.
+  Moving it on save would silently resolve a conflict the user was never told
+  about. Only `rebase` moves it, deliberately, and reports how many it moved.
+- Rebase is NOT a merge and must not be described as one. An overlay is a whole
+  section, so accepting it SHADOWS the canonical change; `overlay_diff` is where
+  the shadowed text stays visible.
+- Promote is refused while ANY edit conflicts. A partial promote writes half an
+  experiment into the file and leaves the other half in metadata — a state
+  nothing later can describe. Promote marks the document dirty rather than
+  writing to disk: it is an edit, and the user saves edits.
+- An overlay branch's results are judged against `studio_ui.branch_sections` —
+  the projection's outline — not the canonical one. Judging them against
+  canonical marks every result stale the moment an overlay exists, which is noise
+  dressed as honesty.
+- The overlay has its OWN editor in the branch pane. It cannot share the source
+  editor: that buffer shows the canonical document, and a window displaying
+  non-canonical text as the file is the one thing §2.1 forbids.
+- If an overlay changes a section so its id no longer re-matches (renaming the
+  function it replaces), the run REFUSES. Running the nearest thing would run
+  different code under the id the results are filed against.
 - A Studio branch is NOT a Git branch — not stored, surfaced or created as one
   (design §2.3), and `branches_not_git` greps the source to keep it that way.
   A state-only branch differs from its siblings ONLY by the bindings it injects;

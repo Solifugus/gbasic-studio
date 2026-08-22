@@ -1,0 +1,12 @@
+the section an overlay replaces can be deleted outright:
+overlay: 1 section(s), 1 conflict(s)
+  gone sec-2
+            the section this replaces is no longer in the file
+
+-- rebase cannot invent a section to sit on, and refuses to drop it silently
+   rebased: 0
+   unresolved: sec-2 — the section this replaces is no longer in the file
+   the edit is still there for the user to look at: 1
+
+-- discarding is the explicit act (§9.2)
+   edits now: 0

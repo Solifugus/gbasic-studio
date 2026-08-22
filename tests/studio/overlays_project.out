@@ -1,0 +1,34 @@
+sections:
+  sec-1 statements [0,15)
+  sec-2 function [17,64)
+  sec-3 statements [66,102)
+
+an overlay begins as a COPY of what is there, not a blank buffer:
+-- canonical sec-2
+   |function score(t)
+   |  return t * 100
+   |end function
+
+overlay: 1 section(s), 0 conflict(s)
+  ok      sec-2
+
+-- the branch's projection
+   |threshold = 0.5
+   |
+   |function score(t)
+   |  if t < 0 then
+   |    return 0
+   |  end if
+   |  return t * 100
+   |end function
+   |
+   |print "score is " + score(threshold)
+   |
+
+and the canonical text is untouched by projecting it:
+  same object: true
+
+-- the projection is REAL source: it re-derives into sections
+   sec-1 statements
+   sec-2 function
+   sec-3 statements

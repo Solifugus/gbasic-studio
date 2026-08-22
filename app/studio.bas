@@ -631,6 +631,81 @@ function on_bind()
     return nothing
 end function
 
+' ---- STU-9: the overlay acts ------------------------------------------------
+'
+' Adapters, all six. The DECISIONS -- may this branch carry an overlay, does this
+' section sit below the point, does anything conflict, may this be promoted --
+' live in studio_ui, where the headless suite presses them directly.
+'
+' The editor is the NAME FIELD's bigger sibling here: an overlay's text comes out
+' of the active editor buffer, so "Overlay this section" loads the section into it
+' and "Save overlay" takes what is there. That keeps the overlay editable with the
+' editor the user already has, and keeps this a two-line read like every other
+' handler.
+function on_overlay_edit()
+    r = studio_ui.begin_overlay(G.app)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    if r.action = "overlay-began" then
+        G.shell.bpane.editor.set_text(r.text)
+    end if
+    if r.action = "overlay-open" then
+        G.shell.bpane.editor.set_text(r.text)
+    end if
+    redraw()
+    return nothing
+end function
+
+' Save what the OVERLAY EDITOR holds. Its own editor, not the source one: the
+' source buffer shows the canonical document, and a window displaying
+' non-canonical text as the file is the one thing §2.1 forbids.
+function on_overlay_save()
+    r = studio_ui.save_overlay(G.app, G.shell.bpane.editor.get_text())
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    redraw()
+    return nothing
+end function
+
+function on_overlay_compare()
+    d = studio_ui.overlay_diff(G.app)
+    G.app = d.app
+    G.shell.bpane.diff.label = join(d.lines, "\n")
+    G.last_action = "overlay-compared"
+    G.last_detail = count(d.lines) + " line(s)"
+    redraw()
+    return nothing
+end function
+
+function on_overlay_rebase()
+    r = studio_ui.rebase_overlay(G.app)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    redraw()
+    return nothing
+end function
+
+function on_overlay_promote()
+    r = studio_ui.promote_overlay(G.app)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    redraw()
+    return nothing
+end function
+
+function on_overlay_discard()
+    r = studio_ui.discard_overlay(G.app)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    redraw()
+    return nothing
+end function
+
 function on_stop()
     r = studio_ui.stop_run(G.app)
     G.app = r.app
@@ -673,6 +748,12 @@ function wire_shell()
     gi.connect(sh.bpane.bind, "clicked", on_bind)
     gi.connect(sh.tpane.list, "row-activated", on_table_row)
     gi.connect(sh.tpane.fetch, "clicked", on_fetch_table)
+    gi.connect(sh.bpane.edit, "clicked", on_overlay_edit)
+    gi.connect(sh.bpane.save, "clicked", on_overlay_save)
+    gi.connect(sh.bpane.cmp, "clicked", on_overlay_compare)
+    gi.connect(sh.bpane.rebase, "clicked", on_overlay_rebase)
+    gi.connect(sh.bpane.promote, "clicked", on_overlay_promote)
+    gi.connect(sh.bpane.discard, "clicked", on_overlay_discard)
     return nothing
 end function
 
@@ -1178,6 +1259,103 @@ function studio_shell_click_table_row(idx)
     return nothing
 end function
 
+' STU-9: the whole overlay cycle, clicked for real.
+'
+' What only this tier can reach: that the overlay editor is a REAL editable
+' buffer (text typed into it comes back out through get_text), that the six
+' buttons are connected, and that a promote reaches the source editor's buffer
+' through the ordinary redraw rather than through a path of its own.
+function stu9_step()
+    sess = studio_ui.exec_session(G.app)
+    if sess != nothing then
+        if studio_session.is_active(sess) then
+            return true
+        end if
+    end if
+    G.phase = G.phase + 1
+    if G.phase = 1 then
+        print "an overlay needs a branch: the baseline is the file"
+        G.shell.bpane.edit.activate()
+        return true
+    end if
+    if G.phase = 2 then
+        print "  action=" + G.last_action + " — " + G.last_detail
+        print "making a branch, then overlaying the section below it"
+        G.shell.name_entry.text = "Robust"
+        studio_shell_click_branch_row(count(G.shell.bpane.rows) - 1)
+        return true
+    end if
+    if G.phase = 3 then
+        print "  action=" + G.last_action
+        stu9_caret(2)
+        G.shell.bpane.edit.activate()
+        return true
+    end if
+    if G.phase = 4 then
+        print "  action=" + G.last_action + " on " + G.last_detail
+        print "the overlay editor opened with the canonical text:"
+        stu9_show(G.shell.bpane.editor.get_text())
+        print "typing into it, for real"
+        G.shell.bpane.editor.set_text("function score(t)\n  return t * 1000\nend function")
+        G.shell.bpane.save.activate()
+        return true
+    end if
+    if G.phase = 5 then
+        print "  action=" + G.last_action
+        print "the selector marks it experimental:"
+        stu9_caret(0)
+        return true
+    end if
+    if G.phase = 6 then
+        for each r in G.shell.bpane.rows
+            mark = "  "
+            if r.selected then
+                mark = "* "
+            end if
+            print "  " + mark + r.label + studio_ui.overlay_mark(r)
+        end for
+        print "comparing"
+        G.shell.bpane.cmp.activate()
+        return true
+    end if
+    if G.phase = 7 then
+        stu9_show(G.shell.bpane.diff.label)
+        print "running the branch"
+        stu9_caret(6)
+        G.shell.bar.run.activate()
+        return true
+    end if
+    if G.phase = 8 then
+        print "  target=<" + studio_ui.target_body(G.app) + ">"
+        print "the source editor still shows the FILE:"
+        stu9_show(studio_shell.editor_for(G.shell, G.app.dm.active).get_text())
+        print "promoting"
+        G.shell.bpane.promote.activate()
+        return true
+    end if
+    print "  action=" + G.last_action + " — " + G.last_detail
+    print "and NOW the source editor shows it, as an unsaved edit:"
+    stu9_show(studio_shell.editor_for(G.shell, G.app.dm.active).get_text())
+    G.app_ref.quit()
+    return false
+end function
+
+function stu9_show(text)
+    for each l in split(text, "\n")
+        print "    |" + l
+    end for
+    return nothing
+end function
+
+' Move the REAL caret, which is what the panes and the overlay acts read.
+function stu9_caret(line)
+    ed = studio_shell.editor_for(G.shell, G.app.dm.active)
+    if ed != nothing then
+        ed.set_cursor(line, 0)
+    end if
+    return nothing
+end function
+
 ' Synthesise a real row-activated on the selector.
 function studio_shell_click_branch_row(idx)
     row = G.shell.bpane.list.get_row_at_index(idx)
@@ -1238,6 +1416,9 @@ function on_activate(gtkapp)
         state("a cold home")
         gi.timeout(400, stu2g_step)
         return nothing
+    end if
+    if G.stu9 then
+        gi.timeout(500, stu9_step)
     end if
     if G.stu8 then
         gi.timeout(500, stu8_step)
@@ -1721,6 +1902,7 @@ program main(args)
     G.stu2g = false
     G.stu7 = false
     G.stu8 = false
+    G.stu9 = false
     G.last_table_kind = ""
     G.fetch_action = ""
     G.table_win = nothing
@@ -1776,6 +1958,18 @@ program main(args)
     end if
 
     ' STU-7: the inline branch selector, clicked for real.
+    if mode = "stu9_smoke" then
+        G.stu9 = true
+        projdir = args[2]
+        G.app = studio.create_registered_workspace(G.app, "ws")
+        ws = G.app.model.workspace
+        ws = studio_model.add_project(ws, "Alpha", projdir)
+        G.app = studio.set_workspace(G.app, ws)
+        ro = studio.open_from_browser(G.app, "proj-1", projdir + "/branchy.bas")
+        G.app = ro.app
+        G.app.clock_fixed = 1000
+    end if
+
     if mode = "stu8_smoke" then
         G.stu8 = true
         projdir = args[2]

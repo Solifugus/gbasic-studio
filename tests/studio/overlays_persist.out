@@ -1,0 +1,13 @@
+round trip: 2 edit(s)
+  br-1: 1
+  br-2: 1
+  text survives: true
+
+-- a malformed store yields an empty overlay, not a raise
+  nothing: 0
+  wrong shape: 0
+  half-formed edits are dropped one by one:
+  kept: 1
+
+-- dropping a whole branch takes its overlay with it
+  after drop_branch(br-1): 1

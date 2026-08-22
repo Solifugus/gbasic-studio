@@ -1,0 +1,5 @@
+an overlay may only touch what is BELOW its branch point (§9.2)
+  sec-1: out-of-scope — this section is not below the branch point
+
+so only the one below it applies:
+  sec-2
