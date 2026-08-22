@@ -47,6 +47,20 @@ library studio_ui
     load studio_table
     load studio_git
 
+    ' Entries the browser does not show.
+    '
+    ' `.git` is the one that matters and it is not merely noise: it is a
+    ' directory of thousands of files that a user can EXPAND, and filetree scans
+    ' an expanded directory eagerly. One curious click on a real repository would
+    ' have walked every loose object in it.
+    '
+    ' Dotfiles generally are hidden for the ordinary reason — `.gbasic/` is
+    ' Studio's own metadata (§2.2 says unobtrusive) and a project browser that
+    ' leads with four dot-directories is showing plumbing before content.
+    function hidden_entry(name)
+        return left(name, 1) = "."
+    end function
+
     ' ---- the browser row model ---------------------------------------------
 
     ' The visible browser rows, in display order. Each row:
@@ -78,6 +92,9 @@ library studio_ui
         end if
         nodes = filetree.scan(proj.path, ws.nav.expanded)
         for each r in filetree.flatten(nodes)
+            if studio_ui.hidden_entry(r.name) then
+                continue
+            end if
             indent = "  "
             i = 0
             while i < r.depth

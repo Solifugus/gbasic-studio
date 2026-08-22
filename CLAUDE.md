@@ -322,6 +322,29 @@ Two consequences worth knowing before you touch the shell:
   state), so `app/studio.bas` carries one two-line wrapper per tool that reads
   the global and calls the dispatcher — the same adapter rule as a signal
   handler, for the same reason.
+- **`wrap = true` DOES NOT MAKE A LABEL WRAP.** A wrapping label still reports
+  its natural width as the whole text on one line, and a GtkScrolledWindow asks
+  for natural size — so it hands the label that width and the text runs off the
+  edge. `_wrapped` therefore also sets `max_width_chars`, which caps the NATURAL
+  width and nothing else (given more room the label still uses it). Every heading
+  in the right-hand pane was cut off mid-word for three phases because of this,
+  and no golden could see it: the asserted text is identical whether the widget
+  wrapped it or clipped it.
+- The right-hand and output scrollers are `studio_shell._vscroll` — vertical
+  policy only. A horizontal policy of AUTOMATIC is what lets a child take its
+  natural width and overflow.
+- A horizontal row of buttons has a hard width budget: the right column is about
+  320px. Six buttons do not fit; the overlay strip is two rows of three. And a
+  button label must not collide with an existing one — shortening "Save overlay"
+  to "Save" gave the window two Saves doing different things to the same
+  document.
+- The browser hides dotfiles (`studio_ui.hidden_entry`). `.git` is not merely
+  noise: it is expandable, and `filetree` scans an expanded directory eagerly, so
+  one click would walk every loose object in a real repository.
+- **LOOK AT THE WINDOW.** Every defect in this section was found by taking a
+  screenshot and reading it, in about a minute, with 163 tests passing. Display
+  goldens assert TEXT; they cannot see alignment, wrapping, clipping, visibility,
+  or a control that is off-screen.
 - Labels: `studio_shell._left` aligns, `_wrapped` also wraps, `_mono` also
   selects and monospaces. `gtk.label` CENTRES, which is right for a title and
   wrong for a browser row whose indentation encodes depth, for program output,

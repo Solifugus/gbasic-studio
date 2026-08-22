@@ -90,6 +90,20 @@ library studio_shell
         lbl = studio_shell._left(lbl)
         lbl.wrap = true
         lbl.wrap_mode = gi.enum("Pango.WrapMode.WORD_CHAR")
+        ' `wrap` alone does not make a label wrap. A wrapping label still reports
+        ' its NATURAL width as the whole text on one line, so a container that
+        ' asks for natural size — a GtkScrolledWindow does — hands it that width
+        ' and the text runs off the edge instead of folding.
+        '
+        ' `max_width_chars` caps the natural width and nothing else: given more
+        ' room the label still uses it. This is the difference between the right
+        ' pane reading "Branches — alternate continuations below this poi" with
+        ' the rest gone, and reading as a paragraph.
+        '
+        ' Invisible to every golden. The text a test asserts is identical whether
+        ' the widget wrapped it or clipped it, which is why five phases of panes
+        ' were built this way before anyone looked at the window.
+        lbl.max_width_chars = 44
         return lbl
     end function
 
@@ -507,12 +521,12 @@ library studio_shell
 
         vsplit = gtk.paned("v")
         vsplit.set_start_child(book)
-        vsplit.set_end_child(gtk.scrolled(under))
+        vsplit.set_end_child(studio_shell._vscroll(under))
         vsplit.position = 380
 
         rsplit = gtk.paned("h")
         rsplit.set_start_child(vsplit)
-        rsplit.set_end_child(gtk.scrolled(beside))
+        rsplit.set_end_child(studio_shell._vscroll(beside))
         rsplit.position = 620
         split.set_end_child(rsplit)
 
@@ -551,6 +565,26 @@ library studio_shell
         ' may point at. After the record exists, because it is what names them.
         shell.teach_css = studio_shell.install_teaching_css(shell)
         return shell
+    end function
+
+    ' A scroller that scrolls VERTICALLY ONLY.
+    '
+    ' This is not a preference. A GtkScrolledWindow with automatic horizontal
+    ' policy gives its child the child's NATURAL width, and a wrapping label's
+    ' natural width is its whole text on one line — so a label that was told to
+    ' wrap never does, the column overflows, and every heading in the right-hand
+    ' pane gets cut off mid-word at the window edge. Looking at the window is the
+    ' only way anyone finds this: the text is identical either way to a golden,
+    ' and every one of them passed.
+    '
+    ' NEVER on the horizontal policy makes the viewport impose its own width,
+    ' which is what gives a wrapping label something to wrap to.
+    function _vscroll(child)
+        s = gtk.scrolled(child)
+        never = gi.enum("Gtk.PolicyType.NEVER")
+        auto = gi.enum("Gtk.PolicyType.AUTOMATIC")
+        s.set_policy(never, auto)
+        return s
     end function
 
     ' Show the window. Call it after the first refresh, never before.
@@ -656,7 +690,10 @@ library studio_shell
 
     function results_pane()
         box = gtk.box("v", 4)
-        head = studio_shell._wrapped(gtk.label("Results — the section at the cursor"))
+        ' The BODY already opens with "Results — sec-N", so a header saying
+        ' "Results" too put the word on two consecutive lines. The header says
+        ' what the pane is keyed to; the body says which section that is.
+        head = studio_shell._wrapped(gtk.label("For the section at the cursor"))
         body = studio_shell._mono(gtk.label(""))
         box.append(head)
         box.append(body)
@@ -682,20 +719,30 @@ library studio_shell
         ' because unlike the branches these are FIXED acts, not data — the set
         ' never changes, only whether each one is currently allowed, and every
         ' refusal comes back as a status line saying why.
-        obox = gtk.box("h", 4)
-        edit_btn = gtk.button("Overlay this section")
+        ' TWO rows of three. Six buttons in one horizontal row is 640px of
+        ' controls in a 320px column: the last two simply were not on screen, and
+        ' a button nobody can see is a feature nobody has. Shorter labels too —
+        ' "Overlay this section" was the widest thing in the pane.
+        edit_btn = gtk.button("Overlay")
+        ' NOT "Save". The toolbar already has a Save, and that one writes the
+        ' FILE -- two buttons with one word doing different things to the same
+        ' document is a worse defect than the crowding that tempted me to shorten
+        ' it. It fits in the two-row layout, so there was never a trade to make.
         save_btn = gtk.button("Save overlay")
         cmp_btn = gtk.button("Compare")
         reb_btn = gtk.button("Rebase")
         prom_btn = gtk.button("Promote")
         disc_btn = gtk.button("Discard")
-        obox.append(edit_btn)
-        obox.append(save_btn)
-        obox.append(cmp_btn)
-        obox.append(reb_btn)
-        obox.append(prom_btn)
-        obox.append(disc_btn)
-        box.append(obox)
+        orow1 = gtk.box("h", 4)
+        orow1.append(edit_btn)
+        orow1.append(save_btn)
+        orow1.append(cmp_btn)
+        orow2 = gtk.box("h", 4)
+        orow2.append(reb_btn)
+        orow2.append(prom_btn)
+        orow2.append(disc_btn)
+        box.append(orow1)
+        box.append(orow2)
         ' The overlay BUFFER. A real editor, not a label: an overlay is code the
         ' user types, and it cannot go in the source editor because that buffer
         ' shows the canonical document — a window that displayed non-canonical text
@@ -704,7 +751,13 @@ library studio_shell
         ' "visibly marked experimental" means in practice.
         ed = sourceeditor.create()
         ed.set_language("gbasic")
-        box.append(gtk.scrolled(ed.view()))
+        ed_scroll = gtk.scrolled(ed.view())
+        ed_scroll.set_size_request(-1, 140)
+        ' Hidden until there is an overlay to edit. It was permanently on screen
+        ' as an empty box with a lone line-number "1" in it, taking a fifth of the
+        ' right-hand column from every user who has never made an overlay.
+        ed_scroll.set_visible(false)
+        box.append(ed_scroll)
         ' Where compare prints and a conflict is spelled out. Monospaced because
         ' it holds source lines.
         diff = studio_shell._mono(gtk.label(""))
@@ -712,7 +765,7 @@ library studio_shell
         return { box: box, list: list, bind: bind_btn, rows: [],
                  edit: edit_btn, save: save_btn, cmp: cmp_btn,
                  rebase: reb_btn, promote: prom_btn, discard: disc_btn,
-                 editor: ed, diff: diff }
+                 editor: ed, editor_scroll: ed_scroll, diff: diff }
     end function
 
     ' Rebuild the selector from the shared row model, exactly as the nav pane is

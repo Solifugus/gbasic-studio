@@ -675,9 +675,11 @@ function on_overlay_edit()
     G.last_detail = r.detail
     if r.action = "overlay-began" then
         G.shell.bpane.editor.set_text(r.text)
+        G.shell.bpane.editor_scroll.set_visible(true)
     end if
     if r.action = "overlay-open" then
         G.shell.bpane.editor.set_text(r.text)
+        G.shell.bpane.editor_scroll.set_visible(true)
     end if
     redraw()
     return nothing
@@ -726,6 +728,9 @@ end function
 function on_overlay_discard()
     r = studio_ui.discard_overlay(G.app)
     G.app = r.app
+    if r.action = "overlay-discarded" then
+        G.shell.bpane.editor_scroll.set_visible(false)
+    end if
     G.last_action = r.action
     G.last_detail = r.detail
     redraw()
