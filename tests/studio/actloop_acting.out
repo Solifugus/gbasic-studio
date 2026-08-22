@@ -1,0 +1,21 @@
+-- the acting system prompt states the permission model, because the
+   model has to be able to explain a refusal to the user
+  names the tiers:        true
+  says stop, not retry:   true
+  forbids routing around: true
+
+-- a scripted provider that edits the buffer
+  rounds=1
+  text=I replaced the buffer. It is unsaved.
+  tool calls: edit_document -> true
+
+-- the buffer really changed
+  <print "written by the agent"
+>
+-- and it is UNSAVED, exactly as if the user had typed it
+  dirty: true
+  the file on disk still says: <print "the original"
+>
+
+-- every act is in the history, with the agent named as the actor
+  agent_action edit_document — synced doc-1->dirty

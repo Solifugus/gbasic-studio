@@ -113,6 +113,29 @@ if sed -n '/function _perform/,/^    end function/p' lib/studio_tools.bas \
 fi
 printf 'PASS agent_parity (every act calls the same studio_ui operation the window does)\n'
 
+# STU-10 provider selection (§15) and the ACTING agent loop. Offline: the
+# transport is a function, so a scripted provider drives real tool calls against
+# a real app and the tests assert what Studio actually did.
+#
+# ANTHROPIC_API_KEY / OPENAI_API_KEY are UNSET for these: the provider summary
+# reports where a key came from, so a developer with one exported would see a
+# different answer than CI and the golden would be about the machine.
+LOOP=tests/drivers/actloop.bas
+for m in providers acting gated; do
+    h="$tmproot/loop_$m"; pj="$tmproot/loop_${m}_proj"
+    rm -rf "$h" "$pj"; mkdir -p "$h" "$pj"
+    : >"$stdout_file"
+    if ! timeout 60 env -u ANTHROPIC_API_KEY -u OPENAI_API_KEY \
+            "$GBASIC" "$LOOP" "$m" "$h" "$pj" >"$stdout_file" 2>/dev/null; then
+        cat "$stdout_file"; fail "actloop_$m (nonzero exit)"
+    fi
+    if diff -u "tests/studio/actloop_$m.out" "$stdout_file"; then
+        printf 'PASS actloop_%s\n' "$m"
+    else
+        fail "actloop_$m (output diff)"
+    fi
+done
+
 # STU-10 secrets (§16, design Q13). The property is a NEGATIVE one -- that a
 # secret is not on disk in the clear -- so the tests read the actual file and
 # look for it.
@@ -193,6 +216,10 @@ printf 'PASS agent_no_eval (model text is never evaluated as source)\n'
 
 # Offline by construction: nothing in the agent path names a transport, a URL or
 # a key. The provider handle is built by the CALLER and injected.
+# studio_providers is DELIBERATELY excluded: naming providers is its whole job.
+# What must stay true is that the agent LOOP does not know about one -- the
+# handle is built by the caller and injected, which is what makes every test on
+# this page runnable with no network and no key.
 if grep -nE 'https?://|api_key|ANTHROPIC_API_KEY|OPENAI_API_KEY' lib/studio_agent.bas lib/studio_tools.bas lib/studio_history.bas; then
     fail "agent_offline (the agent path hardcodes a provider or a key)"
 fi

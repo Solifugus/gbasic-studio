@@ -1,0 +1,31 @@
+-- with nothing configured
+  anthropic (Anthropic) — no key
+      model: claude-sonnet-4-20250514
+  openai (OpenAI) — no key
+      model: gpt-4o
+  local (Local model) — needs no key
+      model: llama3.1
+
+-- a provider with no key is a VALUE, not a raise: the window has to
+   keep working for someone who has not configured an assistant.
+  ok=false — Anthropic has no key: store one as "anthropic" or set ANTHROPIC_API_KEY
+
+-- storing a key changes where it comes from, and it SAYS so
+  ok=true source=store
+  anthropic (Anthropic) — key from the secret store
+      model: claude-sonnet-4-20250514
+  openai (OpenAI) — no key
+      model: gpt-4o
+  local (Local model) — needs no key
+      model: llama3.1
+
+-- the local provider needs no key at all. For anyone who cannot send
+   their source to a third party it is not a lesser case, it is the
+   only one.
+  ok=true source=not-needed
+
+-- an unknown provider lists the real ones
+  no provider named "gemini"; there is anthropic, openai, local
+
+-- and the model is overridable per resolve
+  default: claude-sonnet-4-20250514

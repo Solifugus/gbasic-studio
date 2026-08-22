@@ -117,6 +117,59 @@ library studio_agent
         return { ok: true, text: r.text, rounds: rounds, why: "" }
     end function
 
+    ' ---- STU-10: acting -----------------------------------------------------
+
+    ' The system prompt for an agent that can ACT.
+    '
+    ' It states the permission model rather than hiding it, because the model has
+    ' to be able to explain a refusal to the user. A tool that comes back
+    ' "needs confirmation" is not an error the model should retry — it is a
+    ' message to pass on, and a model that does not know that will loop.
+    '
+    ' NO IN-LOOP CONFIRMATION PROMPT, and this is a deliberate limitation worth
+    ' stating: confirmation is granted by POLICY, not by a dialog. A dialog is an
+    ' async surface no test can press, which is the same reason Studio has no
+    ' confirmation dialogs anywhere — names come from a header field and Delete
+    ' takes two clicks. So a gated act comes back refused, the model tells the
+    ' user what it wanted to do, and the user either raises the autonomy for the
+    ' session or does the thing themselves.
+    function act_system_prompt()
+        lines = []
+        lines = append(lines, "You are the assistant inside gBASIC Studio, an IDE for the gBASIC language.")
+        lines = append(lines, "You can observe the user's project AND act in it, through the same operations")
+        lines = append(lines, "the user's own buttons perform. You have no other way to affect anything.")
+        lines = append(lines, "")
+        lines = append(lines, "PERMISSIONS. Every tool sits in one of three tiers:")
+        lines = append(lines, "  read      observing. Always allowed.")
+        lines = append(lines, "  local     reversible: navigate, edit a buffer, run a section, make a branch.")
+        lines = append(lines, "  external  not undoable by Studio: save over a file, delete, rename.")
+        lines = append(lines, "The user sets how much autonomy each tier has. If a tool answers that it needs")
+        lines = append(lines, "confirmation or is denied, that is not an error to retry and not a limit to")
+        lines = append(lines, "work around: STOP, and tell the user plainly what you wanted to do and why.")
+        lines = append(lines, "")
+        lines = append(lines, "An edit you make is UNSAVED, exactly as if the user had typed it. Say so.")
+        lines = append(lines, "Never work around a refusal by another route -- for instance by writing a file")
+        lines = append(lines, "through a tool that was not refused. If you cannot do the thing you were asked,")
+        lines = append(lines, "say that instead.")
+        lines = append(lines, "")
+        lines = append(lines, "Be concrete and brief. Name the file and the section you acted on.")
+        return join(lines, "\n")
+    end function
+
+    ' Ask, with acting allowed. Same shape as `ask`; the difference is which
+    ' system prompt is sent and which tools the CALLER put in the handle — this
+    ' library never assembles a tool, because only the caller has the app.
+    function act(m, app, log, question)
+        msgs = []
+        msgs = append(msgs, { role: "user", content: studio_agent.context_text(app, log) + "\n\nRequest: " + question })
+        r = llm.run_tools(m, studio_agent.act_system_prompt(), msgs)
+        rounds = 0
+        if has(r, "rounds") then
+            rounds = r.rounds
+        end if
+        return { ok: true, text: r.text, rounds: rounds, why: "" }
+    end function
+
     ' The default question, so the button has something to press.
     function default_question()
         return "Where was I?"

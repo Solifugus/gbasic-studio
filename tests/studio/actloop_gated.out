@@ -1,0 +1,14 @@
+-- the model asked to delete a file
+  tool calls: delete_path -> false
+  what it told the user: I cannot delete that: it needs your confirmation.
+
+-- the file is still there
+  exists: true
+
+-- and the attempt is in the audit trail, refusal and all
+  delete_path — needs-confirm: delete_path is an external action and needs confirmation
+
+-- NOTE, and it is a real limitation: there is no in-loop confirmation
+   prompt. Confirmation is granted by POLICY, not by a dialog — a
+   dialog is an async surface no test can press, which is why Studio
+   has none anywhere. The agent stops and tells the user instead.
