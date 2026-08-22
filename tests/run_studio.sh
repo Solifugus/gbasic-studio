@@ -157,6 +157,38 @@ else
 fi
 
 # ==========================================================================
+# STU-8 — library-registered rich viewers. Sidecar discovery, validation,
+# descriptor matching, specificity and rendering. Declarative JSON in, display
+# lines out: no GTK, no child process, no display, and nothing evaluated.
+VIEW=tests/drivers/viewers.bas
+run_viewers() { # mode
+    local mode="$1" h
+    h="$tmproot/vw_$mode"
+    rm -rf "$h"; mkdir -p "$h"
+    : >"$stdout_file"
+    if ! timeout 60 "$GBASIC" "$VIEW" "$mode" "$h" >"$stdout_file" 2>&1; then
+        cat "$stdout_file"; fail "viewers_$mode (nonzero exit)"
+    fi
+    if diff -u "tests/studio/viewers_$mode.out" "$stdout_file"; then
+        printf 'PASS viewers_%s\n' "$mode"
+    else
+        fail "viewers_$mode (output diff)"
+    fi
+}
+for m in registry match render problems precedence; do
+    run_viewers "$m"
+done
+
+# The registration convention is DECLARATIVE (design Q11, boundary §6.2). A sidecar
+# is read, never run: if the registry ever grew a way to execute what a library
+# ships, a viewer file would be arbitrary code with Studio's privileges, and the
+# core language would have acquired display semantics by the back door.
+if grep -nE 'process\.start|\beval\b|load *\(' lib/studio_viewers.bas; then
+    fail "viewers_declarative (the registry executes something)"
+fi
+printf 'PASS viewers_declarative (sidecars are read, never run)\n'
+
+# ==========================================================================
 # STU-7 — exploratory branching, state-only. Pure model logic over plain data:
 # tree operations, selection, nesting, bindings, staleness and persistence. No
 # child process and no display, so it runs everywhere the backbone does.

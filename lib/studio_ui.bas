@@ -42,6 +42,7 @@ library studio_ui
     load studio_session
     load studio_results
     load studio_branches
+    load studio_viewers
 
     ' ---- the browser row model ---------------------------------------------
 
@@ -1379,6 +1380,10 @@ library studio_ui
         ab0 = studio_ui.active_branch(app)
         app = ab0.app
         sess.branch = ab0.id
+        ' STU-8: the recognition table the variable epilogue is compiled against.
+        ' It is derived from the registry, so a run only pays for the deeper
+        ' capture when some library actually registered a viewer.
+        sess.detail_rules = studio_viewers.capture_rules(studio_ui.viewers_of(app))
         sess = studio_session.run(sess, st, doc.content, sid)
 
         ab = studio_ui.active_branch(app)
@@ -1858,6 +1863,21 @@ library studio_ui
         return studio_results.capture(app.paths.home, o.store, o.result.result_id, name)
     end function
 
+    ' The library-registered viewers this app carries. An app record built before
+    ' STU-8 — every headless fixture that predates it — has no `viewers` slot, and
+    ' answers an empty registry rather than raising: a missing viewer must degrade
+    ' to the structural preview, which is what Studio showed before viewers
+    ' existed.
+    function viewers_of(app)
+        if not has(app, "viewers") then
+            return studio_viewers.create()
+        end if
+        if app.viewers = nothing then
+            return studio_viewers.create()
+        end if
+        return app.viewers
+    end function
+
     ' The results pane's body: the history for the section AT THE CURSOR, judged
     ' against the sections as they are now — so a result recorded before an edit
     ' is marked as describing text that has since changed.
@@ -1870,7 +1890,7 @@ library studio_ui
             return "(no section at the cursor)"
         end if
         ab = studio_ui.active_branch(v.app)
-        return studio_results.view_in(app.paths.home, v.store, v.st, v.sid, ab.id)
+        return studio_results.view_with(app.paths.home, v.store, v.st, v.sid, ab.id, studio_ui.viewers_of(app))
     end function
 
     ' ---- cold state (STU-5 §10.3) -------------------------------------------

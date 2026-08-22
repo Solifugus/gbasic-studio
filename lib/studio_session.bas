@@ -144,6 +144,11 @@ library studio_session
             ' STU-7: branch bindings to splice in, [ { offset, text } ]. Empty
             ' unless a caller has a branch selected.
             binds: [],
+            ' STU-8: the recognition table the variable epilogue is compiled
+            ' against, supplied by the caller as plain data. Empty means no
+            ' registered viewer exists, which is every run until a library ships
+            ' a sidecar — and the epilogue then generates nothing at all.
+            detail_rules: [],
             branch: "",
             vars_before_marker: "",
             vars_before_fixed: "",
@@ -356,7 +361,101 @@ library studio_session
     end function
 
     function _vars_epilogue(marker)
-        return studio_session._vars_epilogue_opt(marker, false)
+        return studio_session._vars_epilogue_opt(marker, false, [])
+    end function
+
+    ' How many elements of a STU-8 detail array the capture may carry. The same
+    ' reasoning as `preview_rows`, at a different bound: a registered viewer reads
+    ' a coefficient table, not a dataset, and the DataGrid tier is what a dataset
+    ' is for.
+    function detail_rows()
+        return 200
+    end function
+
+    ' A gBASIC array literal of strings, for the generated recognition table.
+    ' Built with `quote`, not with hand-written quotation marks: these names come
+    ' out of a JSON file a library shipped, and a name carrying a quote character
+    ' would otherwise end the literal early and turn declarative metadata into
+    ' generated code — which is exactly the property STU-8 promises it is not.
+    function _str_array(names)
+        parts = []
+        for each n in names
+            parts = append(parts, quote(n))
+        end for
+        return "[" + join(parts, ", ") + "]"
+    end function
+
+    ' STU-8: the code that recognizes a registered type and brings back the fields
+    ' its viewer reads AS VALUES.
+    '
+    ' It has to run HERE, in the child, because here is the only place the value
+    ' exists. Studio can recognize a shape from the preview after the fact, but it
+    ' cannot extract from it: the preview stringifies, so `coefficients` arrives as
+    ' the text "[1.2, 0.48]" and a table built from that would be a table built by
+    ' parsing display text.
+    '
+    ' `rules` is compiled, never executed: Studio passes plain data
+    ' (`studio_viewers.capture_rules`) and this writes gBASIC that tests `has` and
+    ' reads `reflect.field`. Nothing from the sidecar reaches an evaluator.
+    function _detail_fn(rules)
+        p = studio_session.vars_prefix()
+        lim = studio_session.detail_rows()
+        cell = studio_session.preview_cell()
+        lines = []
+        lines = append(lines, "function " + p + "_dv(v)")
+        lines = append(lines, "  if reflect.category(v) = \"foreign\" then")
+        lines = append(lines, "    return \"(live)\"")
+        lines = append(lines, "  end if")
+        lines = append(lines, "  if reflect.category(v) != \"container\" then")
+        lines = append(lines, "    return v")
+        lines = append(lines, "  end if")
+        lines = append(lines, "  if reflect.kind(v) = \"record\" then")
+        lines = append(lines, "    return " + p + "_txt(v)")
+        lines = append(lines, "  end if")
+        lines = append(lines, "  " + p + "_n = reflect.count(v)")
+        lines = append(lines, "  if " + p + "_n > " + lim + " then")
+        lines = append(lines, "    " + p + "_n = " + lim)
+        lines = append(lines, "  end if")
+        lines = append(lines, "  " + p + "_o = []")
+        lines = append(lines, "  " + p + "_i = 0")
+        lines = append(lines, "  while " + p + "_i < " + p + "_n")
+        lines = append(lines, "    " + p + "_e = reflect.element(v, " + p + "_i)")
+        lines = append(lines, "    if reflect.category(" + p + "_e) = \"scalar\" then")
+        lines = append(lines, "      " + p + "_o = append(" + p + "_o, " + p + "_e)")
+        lines = append(lines, "    else")
+        lines = append(lines, "      " + p + "_o = append(" + p + "_o, " + p + "_txt(" + p + "_e))")
+        lines = append(lines, "    end if")
+        lines = append(lines, "    " + p + "_i = " + p + "_i + 1")
+        lines = append(lines, "  end while")
+        lines = append(lines, "  return " + p + "_o")
+        lines = append(lines, "end function")
+        lines = append(lines, "function " + p + "_dtl(v)")
+        lines = append(lines, "  if not is_record(v) then")
+        lines = append(lines, "    return {}")
+        lines = append(lines, "  end if")
+        ' Rules arrive most-specific first, and the first match wins -- which is
+        ' the same winner `studio_viewers.best_for` picks, without sorting inside
+        ' generated code.
+        for each r in rules
+            lines = append(lines, "  " + p + "_ok = true")
+            lines = append(lines, "  for each " + p + "_f in " + studio_session._str_array(r.fields))
+            lines = append(lines, "    if not has(v, " + p + "_f) then")
+            lines = append(lines, "      " + p + "_ok = false")
+            lines = append(lines, "    end if")
+            lines = append(lines, "  end for")
+            lines = append(lines, "  if " + p + "_ok then")
+            lines = append(lines, "    " + p + "_d = {}")
+            lines = append(lines, "    for each " + p + "_f in " + studio_session._str_array(r.detail))
+            lines = append(lines, "      if has(v, " + p + "_f) then")
+            lines = append(lines, "        " + p + "_d[" + p + "_f] = " + p + "_dv(reflect.field(v, " + p + "_f))")
+            lines = append(lines, "      end if")
+            lines = append(lines, "    end for")
+            lines = append(lines, "    return " + p + "_d")
+            lines = append(lines, "  end if")
+        end for
+        lines = append(lines, "  return {}")
+        lines = append(lines, "end function")
+        return join(lines, "\n") + "\n"
     end function
 
     ' `with_preview` adds a BOUNDED sample of each value: scalars whole (to a cell
@@ -367,7 +466,7 @@ library studio_session
     ' The row loop is bounded at the LIMIT, not at the container's length: walking
     ' a million-element array to keep fifty of them would be exactly the
     ' auto-materialization `reflect.inspect` is shallow to avoid.
-    function _vars_epilogue_opt(marker, with_preview)
+    function _vars_epilogue_opt(marker, with_preview, rules)
         p = studio_session.vars_prefix()
         cell = studio_session.preview_cell()
         rows = studio_session.preview_rows()
@@ -440,6 +539,9 @@ library studio_session
             lines = append(lines, "  end while")
             lines = append(lines, "  return { cols: cs, rows: rr, text: \"\", more: n - lim }")
             lines = append(lines, "end function")
+            if count(rules) > 0 then
+                lines = append(lines, studio_session._detail_fn(rules))
+            end if
         end if
         lines = append(lines, "print \"" + marker + "\"")
         lines = append(lines, p + "_o = []")
@@ -450,6 +552,9 @@ library studio_session
         entry = "{ name: " + p + "_n, kind: " + p + "_d.kind, type: " + p + "_d.type, category: " + p + "_d.category, serializable: " + p + "_d.serializable, count: " + p + "_d.count"
         if with_preview then
             entry = entry + ", preview: " + p + "_prev(" + p + "_v)"
+            if count(rules) > 0 then
+                entry = entry + ", detail: " + p + "_dtl(" + p + "_v)"
+            end if
         end if
         lines = append(lines, "    " + p + "_o = append(" + p + "_o, " + entry + " })")
         lines = append(lines, "  end if")
@@ -611,7 +716,7 @@ library studio_session
     ' `binds` is STU-7's branch bindings: [ { offset, text } ], each at the line
     ' start of a branch point. Empty for a document with no branch selected,
     ' which is every document until someone makes one.
-    function materialize_text(source, section, sections, nonce, vars_marker, before_marker, binds)
+    function materialize_text(source, section, sections, nonce, vars_marker, before_marker, binds, rules)
         prefix_end = section.end_offset
 
         ' Will the prefix execute a program block? Any section with `program:`
@@ -671,7 +776,7 @@ library studio_session
         ' document is accounted for (so the map's document segments are already
         ' fixed) and BEFORE any `end program`, because nothing after that runs.
         if vars_marker != "" then
-            body = body + studio_session._vars_epilogue_opt(vars_marker, true)
+            body = body + studio_session._vars_epilogue_opt(vars_marker, true, rules)
             appended = studio_session._tag(appended, "vars")
         end if
 
@@ -869,7 +974,7 @@ library studio_session
 
         session = studio_session._to(session, "materializing")
 
-        m = studio_session.materialize_text(source, target, sections, session.marker, session.vars_marker, session.vars_before_marker, session.binds)
+        m = studio_session.materialize_text(source, target, sections, session.marker, session.vars_marker, session.vars_before_marker, session.binds, session.detail_rules)
         session.appended = m.appended
         session.map = m.map
         session.hoisted = m.hoisted

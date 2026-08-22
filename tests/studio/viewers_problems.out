@@ -1,0 +1,11 @@
+registry: 1 viewer(s) from 1 source(s)
+  mixed <- 1 viewer(s)
+  ok matches record with a
+  problem: broken.viewers: not valid JSON
+  problem: empty.viewers: no viewers
+  problem: mixed.viewers: a viewer has no name
+  problem: mixed.viewers: nofields: match has no fields
+  problem: mixed.viewers: badblock: unknown layout block "chart"
+
+-- one library's broken sidecar does not stop another's from loading
+  viewers: 5  problems: 5

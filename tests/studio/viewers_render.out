@@ -1,0 +1,32 @@
+  OLS regression
+    observations  100
+    R²            0.8421
+    adj. R²       0.8405
+    df            97
+    terms (3):
+      term  coef       s.e.      t       p
+      0     1.203104   0.114023  10.551  <0.0001
+      1     0.48719    0.031089  15.671  0
+      2     -0.009312  0.004402  -2.115  0.0372
+
+-- matched on shape, but the result predates the viewer: no detail
+  lines: 0 (falls back to the structural preview)
+
+-- a column the detail does not carry drops the whole table, not a row
+  OLS regression
+    observations  100
+    R²            0.8421
+    adj. R²       0.8405
+    df            97
+
+-- unequal columns are shown to the shortest, and say so
+  OLS regression
+    observations  100
+    R²            0.8421
+    adj. R²       0.8405
+    df            97
+    terms (2):
+      term  coef      s.e.      t       p
+      0     1.203104  0.114023  10.551  <0.0001
+      1     0.48719   0.031089  15.671  0
+      (columns of unequal length; shown to the shortest)

@@ -1,0 +1,79 @@
+{
+  "schema": 1,
+  "library": "stats",
+  "viewers": [
+    {
+      "name": "regression",
+      "title": "OLS regression",
+      "match": {
+        "kind": "record",
+        "fields": ["coefficients", "std_errors", "t_values", "p_values", "r_squared"]
+      },
+      "layout": [
+        { "block": "fields", "items": [
+            { "label": "observations", "field": "n" },
+            { "label": "R²",       "field": "r_squared",     "places": 4 },
+            { "label": "adj. R²",  "field": "adj_r_squared", "places": 4 },
+            { "label": "df",           "field": "df" } ] },
+        { "block": "parallel", "label": "terms", "columns": [
+            { "title": "term",  "index": true },
+            { "title": "coef",  "field": "coefficients", "places": 6 },
+            { "title": "s.e.",  "field": "std_errors",   "places": 6 },
+            { "title": "t",     "field": "t_values",     "places": 3 },
+            { "title": "p",     "field": "p_values",     "places": 4, "min": 0.0001 } ] }
+      ]
+    },
+    {
+      "name": "logit",
+      "title": "Logistic regression",
+      "match": {
+        "kind": "record",
+        "fields": ["coefficients", "std_errors", "z_values", "p_values", "pseudo_r2", "link"]
+      },
+      "layout": [
+        { "block": "fields", "items": [
+            { "label": "observations", "field": "n" },
+            { "label": "link",         "field": "link" },
+            { "label": "pseudo R²", "field": "pseudo_r2", "places": 4 },
+            { "label": "log-lik",      "field": "log_likelihood", "places": 4 },
+            { "label": "AIC",          "field": "aic", "places": 3 },
+            { "label": "converged",    "field": "converged" } ] },
+        { "block": "parallel", "label": "terms", "columns": [
+            { "title": "term", "index": true },
+            { "title": "coef", "field": "coefficients", "places": 6 },
+            { "title": "s.e.", "field": "std_errors",   "places": 6 },
+            { "title": "z",    "field": "z_values",     "places": 3 },
+            { "title": "p",    "field": "p_values",     "places": 4, "min": 0.0001 } ] }
+      ]
+    },
+    {
+      "name": "ttest",
+      "title": "t-test",
+      "match": { "kind": "record", "fields": ["statistic", "df", "p_value", "se"] },
+      "layout": [
+        { "block": "fields", "items": [
+            { "label": "t",  "field": "statistic", "places": 4 },
+            { "label": "df", "field": "df" },
+            { "label": "p",  "field": "p_value", "places": 5, "min": 0.00001 },
+            { "label": "se", "field": "se", "places": 5 },
+            { "label": "mean", "field": "mean", "places": 5 },
+            { "label": "mean 1", "field": "mean1", "places": 5 },
+            { "label": "mean 2", "field": "mean2", "places": 5 } ] }
+      ]
+    },
+    {
+      "name": "confidence_interval",
+      "title": "Confidence interval",
+      "match": { "kind": "record", "fields": ["mean", "lower", "upper", "margin", "level"] },
+      "layout": [
+        { "block": "fields", "items": [
+            { "label": "level",  "field": "level" },
+            { "label": "mean",   "field": "mean",   "places": 5 },
+            { "label": "lower",  "field": "lower",  "places": 5 },
+            { "label": "upper",  "field": "upper",  "places": 5 },
+            { "label": "margin", "field": "margin", "places": 5 },
+            { "label": "df",     "field": "df" } ] }
+      ]
+    }
+  ]
+}

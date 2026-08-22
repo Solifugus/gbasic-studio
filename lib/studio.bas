@@ -22,6 +22,7 @@ library studio
     ' working entirely once these libraries live in separate projects.
     load studio_docs
     load studio_drafts
+    load studio_viewers
     load studio_model
     load persist
     ' ---- paths -------------------------------------------------------------
@@ -287,6 +288,11 @@ library studio
         r = studio_drafts.restore(app.paths.home, app.dm)
         app.dm = r.dm
         app.diagnostics = append(app.diagnostics, "drafts:" + count(r.restored) + " conflicts:" + count(r.conflicts))
+        ' STU-8: the library-registered viewers, read once per process. A sidecar
+        ' is a library's declaration about its own types, so it changes when the
+        ' library is installed, not while Studio runs.
+        app.viewers = studio_viewers.load_path(studio_viewers.default_path())
+        app.diagnostics = append(app.diagnostics, "viewers:" + count(app.viewers.viewers) + " problems:" + count(app.viewers.problems))
         return app
     end function
 

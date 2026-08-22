@@ -43,6 +43,11 @@ esac
 
 export GBASIC
 export GBASIC_PATH="lib:$GBASIC_STDLIB"
+# STU-8: a library ships viewer metadata for its own types beside itself, so the
+# registry has to know where the stdlib is -- and where Studio's bundled copies
+# are, since a stock install has no library-shipped sidecar yet.
+export GBASIC_STDLIB
+export GBASIC_STUDIO_VIEWERS="$PWD/viewers"
 # Only pass a third argument when there is one: several modes read args[2] as
 # their own parameter, and handing them an empty string is not the same as
 # handing them nothing.

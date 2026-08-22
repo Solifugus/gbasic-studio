@@ -77,6 +77,9 @@
 ' persist reads through the try_decode builtin).
 library studio_results
 
+    ' Dependencies are declared, not assumed.
+    load studio_viewers
+
 
     ' Dependencies, declared rather than assumed. A library that calls into
     ' another must load it: relying on the caller to have done so turns a
@@ -620,6 +623,14 @@ library studio_results
     ' *because it raised*, and that is different information from a section that
     ' ran and genuinely defined nothing.
     function vars_lines(home, store, result)
+        return studio_results.vars_lines_with(home, store, result, studio_viewers.create())
+    end function
+
+    ' STU-8: the same lines, with a chance for a LIBRARY-REGISTERED viewer to
+    ' replace the structural preview of a variable it recognizes. The registry is
+    ' a parameter rather than a global because the pane, the tools surface and the
+    ' tests all read results and only one of them has an app to hold it.
+    function vars_lines_with(home, store, result, reg)
         out = []
         status = result["vars_status"]
         if status = unknown then
@@ -668,9 +679,23 @@ library studio_results
         out = append(out, head)
         for each v in marked
             out = append(out, "    " + studio_results.var_line(v))
-            for each pl in studio_results.preview_lines(v)
-                out = append(out, pl)
-            end for
+            ' A registered viewer REPLACES the structural preview; it does not add
+            ' to it. Showing both would print the same numbers twice, once read
+            ' correctly and once read as unrelated lists.
+            rich = []
+            spec = studio_viewers.best_for(reg, v)
+            if spec != nothing then
+                rich = studio_viewers.render(spec, v, "      ")
+            end if
+            if count(rich) > 0 then
+                for each rl in rich
+                    out = append(out, rl)
+                end for
+            else
+                for each pl in studio_results.preview_lines(v)
+                    out = append(out, pl)
+                end for
+            end if
         end for
         return out
     end function
@@ -845,6 +870,11 @@ library studio_results
     end function
 
     function view_in(home, store, sections, section_id, branch)
+        return studio_results.view_with(home, store, sections, section_id, branch, studio_viewers.create())
+    end function
+
+    ' STU-8: the same view, with the library-registered viewers in hand.
+    function view_with(home, store, sections, section_id, branch, reg)
         hist = studio_results.history_in(store, section_id, branch)
         if count(hist) = 0 then
             if store.status = "corrupt" then
@@ -868,7 +898,7 @@ library studio_results
         if count(latest.truncated) > 0 then
             lines = append(lines, "  truncated: " + join(latest.truncated, ","))
         end if
-        for each vl in studio_results.vars_lines(home, store, latest)
+        for each vl in studio_results.vars_lines_with(home, store, latest, reg)
             lines = append(lines, vl)
         end for
         for each a in latest.attribution

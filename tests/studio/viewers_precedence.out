@@ -1,0 +1,4 @@
+winner: regression -- OLS regression (shipped by the library)
+  (six required fields beats the bundled five)
+  OLS regression (shipped by the library)
+    n  100
