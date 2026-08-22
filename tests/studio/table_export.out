@@ -1,0 +1,26 @@
+source: export
+  columns: id | name | score
+  rows: 1200 of 1200
+  sampled: false
+  decoded so far: 0
+
+-- reading the file decoded NO rows: they are strings until asked for
+  [700][1] = row 700   decoded: 1
+  [700][2] = 1050   decoded: 1 (cached; the row was not decoded twice)
+  [3][0] = 3     decoded: 2
+
+-- a capped export knows it is capped
+caption: customers: 1200 of 900000 rows (sampled — the run that made them has ended)
+
+-- a corrupt line is a blank row, not a dead grid
+  [0][0] = "ok"
+  [1][0] = ""
+
+-- a file that is not an export at all yields an empty source
+  kind: none
+
+-- and a missing export is the normal state: nobody has fetched yet
+  kind: none
+  path: tables/-proj-a-bas-264365408.customers.rows
+  a name that is not an identifier cannot escape the directory:
+  path: tables/-proj-a-bas-264365408.______etc_x.rows

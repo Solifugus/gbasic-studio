@@ -43,6 +43,7 @@ library studio_ui
     load studio_results
     load studio_branches
     load studio_viewers
+    load studio_table
 
     ' ---- the browser row model ---------------------------------------------
 
@@ -1384,6 +1385,17 @@ library studio_ui
         ' It is derived from the registry, so a run only pays for the deeper
         ' capture when some library actually registered a viewer.
         sess.detail_rules = studio_viewers.capture_rules(studio_ui.viewers_of(app))
+        ' STU-8: if this run was asked for by a table fetch, it also writes that
+        ' variable's rows out. Set on the app rather than passed in, because the
+        ' run is started through the SAME function the Run button uses — one run
+        ' path, so an export can never be taken by a run that differs from the
+        ' one the user sees results from.
+        tf = app["table_fetch"]
+        if tf != unknown then
+            if tf != nothing then
+                sess.table = { name: tf.name, path: tf.path, cap: studio_table.export_cap(), chunk: studio_table.export_chunk() }
+            end if
+        end if
         sess = studio_session.run(sess, st, doc.content, sid)
 
         ab = studio_ui.active_branch(app)
@@ -1891,6 +1903,91 @@ library studio_ui
         end if
         ab = studio_ui.active_branch(v.app)
         return studio_results.view_with(app.paths.home, v.store, v.st, v.sid, ab.id, studio_ui.viewers_of(app))
+    end function
+
+    ' ---- STU-8: the tabular tier -------------------------------------------
+    '
+    ' Design §7 has Studio OFFER a view rather than assume one. These are the
+    ' offers, the opening, and the fetch — all over plain data, so the window's
+    ' part stays "read a row index, call one of these, ask for a redraw".
+
+    ' What the latest result for the section at the caret can be opened as. One
+    ' row per variable that has any affordance at all; a section whose variables
+    ' are all scalars produces none, and the pane shows nothing rather than an
+    ' empty table button.
+    function table_rows(app)
+        o = studio_ui.output_source(app)
+        app = o.app
+        rows = []
+        if o.kind != "stored" then
+            return { app: app, rows: rows }
+        end if
+        for each v in studio_results.vars_of(app.paths.home, o.store, o.result)
+            t = studio_table.tier(v)
+            if t != "none" then
+                rows = append(rows, { name: v.name, tier: t, count: studio_table.row_count(v),
+                                      label: studio_table.offer_line(v), var: v })
+            end if
+        end for
+        return { app: app, rows: rows }
+    end function
+
+    ' Open one. An EXPORT is preferred over the capture sample whenever one
+    ' exists, and the two are not interchangeable: the sample is fifty rows the
+    ' run happened to keep, the export is the table. `caption` says which is on
+    ' screen, always — the failure this guards against is a grid captioned with a
+    ' number it cannot actually show.
+    function open_table(app, rows, index)
+        if index < 0 then
+            return { app: app, action: "no-table", detail: "", src: studio_table._empty_source(), caption: "" }
+        end if
+        if index >= count(rows) then
+            return { app: app, action: "no-table", detail: "", src: studio_table._empty_source(), caption: "" }
+        end if
+        row = rows[index]
+        doc = studio_docs.active_doc(app.dm)
+        src = studio_table._empty_source()
+        if doc != nothing then
+            src = studio_table.read_export(app.paths.home, doc.path, row.name)
+        end if
+        if src.kind = "none" then
+            src = studio_table.from_preview(row.var)
+        end if
+        cap = studio_table.caption(row.name, src)
+        return { app: app, action: "table", detail: cap, src: src, caption: cap }
+    end function
+
+    ' Fetch the whole thing. This RUNS THE SECTION AGAIN, and says so: under the
+    ' replay model there is no other way to get data out of a run that has ended,
+    ' and a button that silently re-executed someone's code would be a worse
+    ' surprise than a slow one.
+    '
+    ' It is an ordinary run in every other respect — same section, same source,
+    ' same branch bindings — with one extra epilogue that writes the variable out.
+    ' That matters for correctness, not tidiness: an export taken from a
+    ' differently-configured run would be a table of numbers that never coexisted.
+    function fetch_table(app, rows, index)
+        if index < 0 then
+            return { app: app, action: "no-table", detail: "", active: false }
+        end if
+        if index >= count(rows) then
+            return { app: app, action: "no-table", detail: "", active: false }
+        end if
+        row = rows[index]
+        doc = studio_docs.active_doc(app.dm)
+        if doc = nothing then
+            return { app: app, action: "no-doc", detail: "", active: false }
+        end if
+        persist.ensure_dir(studio_table.tables_dir(app.paths.home))
+        path = studio_table.export_path(app.paths.home, doc.path, row.name)
+        app["table_fetch"] = { name: row.name, path: path }
+        r = studio_ui.run_section(app, doc.cursor.line, doc.cursor.column)
+        app = r.app
+        app["table_fetch"] = nothing
+        if r.action = "running" then
+            return { app: app, action: "fetching", detail: row.name + " -> " + row.count + " rows", active: true }
+        end if
+        return { app: app, action: r.action, detail: r.detail, active: r.active }
     end function
 
     ' ---- cold state (STU-5 §10.3) -------------------------------------------

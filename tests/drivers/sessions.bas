@@ -231,7 +231,7 @@ program main(args)
     src = prog_src()
     secs = sections_for(src)
     first = secs.sections[0]
-    m = studio_session.materialize_text(src, first, secs, "", "", "", [], [])
+    m = studio_session.materialize_text(src, first, secs, "", "", "", [], [], { name: "", path: "", cap: 0, chunk: 500 })
     print "appended=" + m.appended
     print "materialized=<" + m.text + ">"
     sess = studio_session.create("doc-1", scratch)
@@ -429,14 +429,14 @@ program main(args)
     secs1 = sections_for(src1)
     sess = studio_session.create("doc-1", scratch)
     last1 = secs1.sections[count(secs1.sections) - 1]
-    m1 = studio_session.materialize_text(src1, last1, secs1, "", "", "", [], [])
+    m1 = studio_session.materialize_text(src1, last1, secs1, "", "", "", [], [], { name: "", path: "", cap: 0, chunk: 500 })
     print "run1_prefix_bytes=" + byte_count(m1.text)
     sess = run_and_show("run 1", sess, secs1, src1, last1.id)
 
     src2 = "print \"one\"\n\nfunction add(a, b)\n  return a + b\nend function\n\nprint add(2, 3)\n\nprint \"CHANGED\"\n"
     secs2 = studio_sections.refresh(secs1, src2)
     last2 = secs2.sections[count(secs2.sections) - 1]
-    m2 = studio_session.materialize_text(src2, last2, secs2, "", "", "", [], [])
+    m2 = studio_session.materialize_text(src2, last2, secs2, "", "", "", [], [], { name: "", path: "", cap: 0, chunk: 500 })
     print "run2_prefix_bytes=" + byte_count(m2.text)
     print "same_section_id=" + (last1.id = last2.id)
     sess = run_and_show("run 2 after edit", sess, secs2, src2, last2.id)
@@ -503,7 +503,7 @@ program main(args)
     src = hoist_after_src()
     secs = sections_for(src)
     first = secs.sections[0]
-    m = studio_session.materialize_text(src, first, secs, "", "", "", [], [])
+    m = studio_session.materialize_text(src, first, secs, "", "", "", [], [], { name: "", path: "", cap: 0, chunk: 500 })
     print "appended=" + m.appended
     print "hoisted=" + count(m.hoisted)
     for each h in m.hoisted
@@ -622,7 +622,7 @@ program main(args)
     src = hoist_after_src()
     secs = sections_for(src)
     target = secs.sections[2]
-    m = studio_session.materialize_text(src, target, secs, "@@nonce@@", "", "", [], [])
+    m = studio_session.materialize_text(src, target, secs, "@@nonce@@", "", "", [], [], { name: "", path: "", cap: 0, chunk: 500 })
     print "-- marker + generated + hoist map"
     print "marker_line=" + m.map.marker_line
     print "segments=" + count(m.map.segments)
@@ -640,7 +640,7 @@ program main(args)
     print "-- no marker (section 1), no hoist"
     src2 = split_src()
     secs2 = sections_for(src2)
-    m2 = studio_session.materialize_text(src2, secs2.sections[0], secs2, "", "", "", [], [])
+    m2 = studio_session.materialize_text(src2, secs2.sections[0], secs2, "", "", "", [], [], { name: "", path: "", cap: 0, chunk: 500 })
     print "marker_line=" + m2.map.marker_line
     print "segments=" + count(m2.map.segments)
     r = studio_session.map_line(m2.map, 1)

@@ -149,6 +149,9 @@ library studio_session
             ' registered viewer exists, which is every run until a library ships
             ' a sidecar — and the epilogue then generates nothing at all.
             detail_rules: [],
+            ' STU-8: when non-empty, this run also writes one variable's rows out
+            ' to `path`. An ordinary run has no name here and generates nothing.
+            table: { name: "", path: "", cap: 1000000, chunk: 500 },
             branch: "",
             vars_before_marker: "",
             vars_before_fixed: "",
@@ -563,6 +566,103 @@ library studio_session
         return join(lines, "\n") + "\n"
     end function
 
+    ' STU-8: the code that writes ONE named variable's rows out to a file.
+    '
+    ' It runs beside the variable epilogue, at the same point and for the same
+    ' reason: this is the only moment the value exists. A finished run cannot be
+    ' asked for its data afterwards, so "show me the whole table" is necessarily a
+    ' request to run the section again — and this is what the second run does
+    ' differently.
+    '
+    ' Whole-file text I/O is all gBASIC has, so rows are buffered into chunks and
+    ' appended a chunk at a time. A per-row append would be one syscall per row,
+    ' which for the row counts this exists to serve is not a slow export but a
+    ' hung window.
+    '
+    ' The first line is a HEADER — columns, the logical row count, and how many
+    ' rows were actually written. Studio needs all three: without the logical
+    ' count it cannot tell a complete export from a capped one, and a grid that
+    ' cannot tell those apart presents a truncation as a dataset.
+    function _table_fn(name, path, cap, chunk)
+        p = studio_session.vars_prefix()
+        cell = studio_session.preview_cell()
+        lines = []
+        lines = append(lines, "function " + p + "_tc(v)")
+        lines = append(lines, "  if reflect.category(v) = \"foreign\" then")
+        lines = append(lines, "    return \"(live)\"")
+        lines = append(lines, "  end if")
+        lines = append(lines, "  " + p + "_s = string(v)")
+        lines = append(lines, "  if len(" + p + "_s) > " + cell + " then")
+        lines = append(lines, "    return mid(" + p + "_s, 0, " + cell + ") + \"...\"")
+        lines = append(lines, "  end if")
+        lines = append(lines, "  return " + p + "_s")
+        lines = append(lines, "end function")
+        lines = append(lines, "function " + p + "_tbl(v, path)")
+        lines = append(lines, "  " + p + "_f(file) = path")
+        lines = append(lines, "  if reflect.category(v) != \"container\" then")
+        lines = append(lines, "    write(" + p + "_f, encode({ cols: [], n: 0, rows: 0 }) + \"\\n\")")
+        lines = append(lines, "    return 0")
+        lines = append(lines, "  end if")
+        lines = append(lines, "  " + p + "_n = reflect.count(v)")
+        lines = append(lines, "  " + p + "_lim = " + p + "_n")
+        lines = append(lines, "  if " + p + "_lim > " + cap + " then")
+        lines = append(lines, "    " + p + "_lim = " + cap)
+        lines = append(lines, "  end if")
+        lines = append(lines, "  " + p + "_cs = [\"value\"]")
+        lines = append(lines, "  " + p + "_tab = false")
+        lines = append(lines, "  if " + p + "_n > 0 then")
+        lines = append(lines, "    " + p + "_e0 = reflect.element(v, 0)")
+        lines = append(lines, "    if reflect.kind(" + p + "_e0) = \"record\" then")
+        lines = append(lines, "      " + p + "_cs = reflect.fields(" + p + "_e0)")
+        lines = append(lines, "      " + p + "_tab = true")
+        lines = append(lines, "    end if")
+        lines = append(lines, "  end if")
+        lines = append(lines, "  write(" + p + "_f, encode({ cols: " + p + "_cs, n: " + p + "_n, rows: " + p + "_lim }) + \"\\n\")")
+        lines = append(lines, "  " + p + "_buf = []")
+        lines = append(lines, "  " + p + "_i = 0")
+        lines = append(lines, "  while " + p + "_i < " + p + "_lim")
+        lines = append(lines, "    " + p + "_e = reflect.element(v, " + p + "_i)")
+        lines = append(lines, "    " + p + "_row = []")
+        lines = append(lines, "    if " + p + "_tab then")
+        lines = append(lines, "      for each " + p + "_c in " + p + "_cs")
+        lines = append(lines, "        " + p + "_cv = \"\"")
+        lines = append(lines, "        if is_record(" + p + "_e) then")
+        lines = append(lines, "          if has(" + p + "_e, " + p + "_c) then")
+        lines = append(lines, "            " + p + "_cv = " + p + "_tc(reflect.field(" + p + "_e, " + p + "_c))")
+        lines = append(lines, "          end if")
+        lines = append(lines, "        end if")
+        lines = append(lines, "        " + p + "_row = append(" + p + "_row, " + p + "_cv)")
+        lines = append(lines, "      end for")
+        lines = append(lines, "    else")
+        lines = append(lines, "      " + p + "_row = [" + p + "_tc(" + p + "_e)]")
+        lines = append(lines, "    end if")
+        lines = append(lines, "    " + p + "_buf = append(" + p + "_buf, encode(" + p + "_row))")
+        lines = append(lines, "    if count(" + p + "_buf) >= " + chunk + " then")
+        lines = append(lines, "      append(" + p + "_f, join(" + p + "_buf, \"\\n\") + \"\\n\")")
+        lines = append(lines, "      " + p + "_buf = []")
+        lines = append(lines, "    end if")
+        lines = append(lines, "    " + p + "_i = " + p + "_i + 1")
+        lines = append(lines, "  end while")
+        lines = append(lines, "  if count(" + p + "_buf) > 0 then")
+        lines = append(lines, "    append(" + p + "_f, join(" + p + "_buf, \"\\n\") + \"\\n\")")
+        lines = append(lines, "  end if")
+        lines = append(lines, "  return " + p + "_lim")
+        lines = append(lines, "end function")
+        ' A variable that is not there is not an error worth killing the run over:
+        ' the section may have been edited since the offer was drawn, and an empty
+        ' export reads correctly as "nothing to show".
+        lines = append(lines, p + "_tok = false")
+        lines = append(lines, "for each " + p + "_tn in reflect.variables()")
+        lines = append(lines, "  if " + p + "_tn = " + quote(name) + " then")
+        lines = append(lines, "    " + p + "_tok = true")
+        lines = append(lines, "  end if")
+        lines = append(lines, "end for")
+        lines = append(lines, "if " + p + "_tok then")
+        lines = append(lines, "  " + p + "_tw = " + p + "_tbl(reflect.get(" + quote(name) + "), " + quote(path) + ")")
+        lines = append(lines, "end if")
+        return join(lines, "\n") + "\n"
+    end function
+
     ' Declarations whose meaning does not depend on where in the file they sit --
     ' see the hoisting rule in materialize_text.
     function _hoistable_kind(kind)
@@ -716,7 +816,7 @@ library studio_session
     ' `binds` is STU-7's branch bindings: [ { offset, text } ], each at the line
     ' start of a branch point. Empty for a document with no branch selected,
     ' which is every document until someone makes one.
-    function materialize_text(source, section, sections, nonce, vars_marker, before_marker, binds, rules)
+    function materialize_text(source, section, sections, nonce, vars_marker, before_marker, binds, rules, table)
         prefix_end = section.end_offset
 
         ' Will the prefix execute a program block? Any section with `program:`
@@ -778,6 +878,14 @@ library studio_session
         if vars_marker != "" then
             body = body + studio_session._vars_epilogue_opt(vars_marker, true, rules)
             appended = studio_session._tag(appended, "vars")
+        end if
+
+        ' STU-8: the table export, for the run someone asked to fetch a whole
+        ' variable with. Same position and same constraint as the epilogue above —
+        ' before any `end program`, because nothing after that runs.
+        if table.name != "" then
+            body = body + studio_session._table_fn(table.name, table.path, table.cap, table.chunk)
+            appended = studio_session._tag(appended, "table")
         end if
 
         anc = section.anchor.ancestry
@@ -974,7 +1082,7 @@ library studio_session
 
         session = studio_session._to(session, "materializing")
 
-        m = studio_session.materialize_text(source, target, sections, session.marker, session.vars_marker, session.vars_before_marker, session.binds, session.detail_rules)
+        m = studio_session.materialize_text(source, target, sections, session.marker, session.vars_marker, session.vars_before_marker, session.binds, session.detail_rules, session.table)
         session.appended = m.appended
         session.map = m.map
         session.hoisted = m.hoisted

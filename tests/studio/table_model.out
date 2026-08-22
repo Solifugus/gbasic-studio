@@ -1,0 +1,16 @@
+a 50000-row table, 0 rows decoded by opening it
+
+-- half one: the NATIVE model serves the count and hands out lazy row
+   proxies. Row requests are bounded by what is asked for, not by the
+   table's size.
+  model count: 50000
+
+-- half two: Studio decodes a row when a cell of it is asked for, and
+   not before. 300 rows spread across the table:
+  row requests: 300
+  rows decoded: 300
+  id sum:       7445100
+  table size:   50000 rows, of which 49700 were never touched
+
+-- scrolling back over the same rows costs nothing
+  rows decoded after a second pass: 300

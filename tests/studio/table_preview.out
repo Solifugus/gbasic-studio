@@ -1,0 +1,17 @@
+source: preview
+  columns: id | name | score
+  rows: 50 of 48291
+  sampled: true
+  decoded so far: 0
+
+caption: customers: 50 of 48291 rows (sampled — the run that made them has ended)
+
+-- the rows it does hold read correctly
+  [0][1] = row 0
+  [49][2] = 73.5
+
+-- past what it holds is blank, not a raise
+  [4000][0] = ""
+
+-- a complete small table says nothing about sampling
+caption: names: 3 rows

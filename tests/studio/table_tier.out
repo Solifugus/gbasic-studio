@@ -1,0 +1,15 @@
+-- Studio must not assume every large structure is a table (design §7)
+  total  tier=none  offers=(none)
+  config  tier=none  offers=[Inspect]
+  empty  tier=none  offers=[Inspect]
+  names  tier=modest  offers=[Inspect] [Table]
+    names: 12 rows (table)
+  customers  tier=large  offers=[Inspect] [Table]
+    customers: 48291 rows (DataGrid)
+
+-- the fork is on the count the CHILD saw, not on how many rows
+   the capture kept: 500 rows is the line
+  just_under  tier=modest  offers=[Inspect] [Table]
+    just_under: 500 rows (table)
+  just_over  tier=large  offers=[Inspect] [Table]
+    just_over: 501 rows (DataGrid)

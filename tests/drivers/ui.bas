@@ -77,6 +77,13 @@ end function
 ' Index of the first nav row whose kind matches and whose label ends with `suffix`.
 ' Tests address rows the way a user does — by what they see — so an index shift
 ' shows up as a changed action rather than a silently different row.
+' STU-8: a row source's shape, minus the paths, which are temp directories.
+function show_source(src)
+  for each l in studio_table.summary(src)
+    print l
+  end for
+end function
+
 function row_index(rows, kind, suffix)
   i = 0
   while i < count(rows)
@@ -100,6 +107,7 @@ program main(args)
   load studio_docs
   load studio
   load studio_ui
+  load studio_table
   load studio_drafts
   load studio_branches
 
@@ -671,6 +679,63 @@ program main(args)
     app = r.app
     app = drive(app)
     print studio_ui.results_body(app)
+  end if
+
+  ' ---- table: the tabular tier, end to end through the run path ------------
+  if mode = "table" then
+    tf(file) = projdir + "/table.bas"
+    write(tf, "rows = []\nn = 0\nwhile n < 1200\n  rows = append(rows, { id: n, name: \"row \" + n, score: n * 1.5 })\n  n = n + 1\nend while\ntotal = count(rows)\n")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "table.bas"))
+    app = r.app
+    app.clock_fixed = 1000
+    id = studio_docs.active_doc(app.dm).id
+    r = studio_ui.sync_cursor(app, id, 0, 0)
+    app = r.app
+
+    banner("nothing has run, so there is nothing to offer")
+    t = studio_ui.table_rows(app)
+    app = t.app
+    print "offers: " + count(t.rows)
+
+    print "-> Run"
+    r = studio_ui.run_section(app, 0, 0)
+    app = drive(r.app)
+
+    banner("what the result can be opened as")
+    t = studio_ui.table_rows(app)
+    app = t.app
+    for each row in t.rows
+      print "  " + row.label
+    end for
+
+    banner("opening one WITHOUT fetching shows the capture sample, and says so")
+    o = studio_ui.open_table(app, t.rows, 0)
+    app = o.app
+    print "caption: " + o.caption
+    show_source(o.src)
+
+    banner("fetching runs the section again and writes the whole table out")
+    f = studio_ui.fetch_table(app, t.rows, 0)
+    app = f.app
+    print "action=" + f.action + " " + f.detail
+    app = drive(app)
+
+    banner("now the same click opens the whole table")
+    t2 = studio_ui.table_rows(app)
+    app = t2.app
+    o2 = studio_ui.open_table(app, t2.rows, 0)
+    app = o2.app
+    print "caption: " + o2.caption
+    show_source(o2.src)
+
+    banner("and it is still lazy: a cell decodes its row and no others")
+    c = studio_table.cell(o2.src, 1100, 1)
+    print "  [1100][1] = " + c.text + "   rows decoded: " + c.src.decodes
+
+    banner("an index nobody offered is refused, not guessed at")
+    o3 = studio_ui.open_table(app, t2.rows, 9)
+    print "action=" + o3.action
   end if
 
   ' ---- cursor: the panes follow the caret, not the last run ----------------

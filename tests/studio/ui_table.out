@@ -1,0 +1,27 @@
+== nothing has run, so there is nothing to offer ==
+offers: 0
+-> Run
+   exec: run: finished [sec-1] — exit 0
+== what the result can be opened as ==
+  rows: 1200 rows (DataGrid)
+== opening one WITHOUT fetching shows the capture sample, and says so ==
+caption: rows: 50 of 1200 rows (sampled — the run that made them has ended)
+source: preview
+  columns: id | name | score
+  rows: 50 of 1200
+  sampled: true
+  decoded so far: 0
+== fetching runs the section again and writes the whole table out ==
+action=fetching rows -> 1200 rows
+   exec: run: finished [sec-1] — exit 0
+== now the same click opens the whole table ==
+caption: rows: 1200 rows
+source: export
+  columns: id | name | score
+  rows: 1200 of 1200
+  sampled: false
+  decoded so far: 0
+== and it is still lazy: a cell decodes its row and no others ==
+  [1100][1] = row 1100   rows decoded: 1
+== an index nobody offered is refused, not guessed at ==
+action=no-table

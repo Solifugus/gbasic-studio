@@ -622,6 +622,33 @@ library studio_results
     ' `absent` is worth a line of its own. A section that raised left no variables
     ' *because it raised*, and that is different information from a section that
     ' ran and genuinely defined nothing.
+    ' The MARKED variables of a result — the same array the pane's lines are built
+    ' from, handed back as data. STU-8's table offers need the shapes, not the
+    ' rendering, and deriving them twice would let the two readings drift.
+    ' Answers an empty array for every state `vars_lines` reports in words:
+    ' a caller asking "what can I open" has nothing to open in any of them.
+    function vars_of(home, store, result)
+        status = result["vars_status"]
+        if status = unknown then
+            return []
+        end if
+        if status != "captured" then
+            return []
+        end if
+        if studio_results.capture_bytes(result, "vars") = 0 then
+            return []
+        end if
+        r = try_decode(studio_results.capture(home, store, result.result_id, "vars"))
+        if not r.ok then
+            return []
+        end if
+        if not is_array(r.value) then
+            return []
+        end if
+        before = studio_results._before_vars(home, store, result)
+        return studio_results.mark_changes(before, r.value)
+    end function
+
     function vars_lines(home, store, result)
         return studio_results.vars_lines_with(home, store, result, studio_viewers.create())
     end function
@@ -664,8 +691,7 @@ library studio_results
             out = append(out, "  variables: none")
             return out
         end if
-        before = studio_results._before_vars(home, store, result)
-        marked = studio_results.mark_changes(before, r.value)
+        marked = studio_results.vars_of(home, store, result)
         changed = 0
         for each v in marked
             if v.change != "same" then

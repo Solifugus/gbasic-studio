@@ -189,6 +189,35 @@ fi
 printf 'PASS viewers_declarative (sidecars are read, never run)\n'
 
 # ==========================================================================
+# STU-8 — the tabular tier. What gets a table affordance, where its rows come
+# from, and the virtualization claim MEASURED rather than asserted. Headless;
+# the `model` tier additionally needs the native GListModel adapter, which is
+# behind gio-2.0 and skips cleanly without it.
+TBL=tests/drivers/table.bas
+run_table() { # mode
+    local mode="$1" h
+    h="$tmproot/tb_$mode"
+    rm -rf "$h"; mkdir -p "$h"
+    : >"$stdout_file"
+    if ! timeout 120 "$GBASIC" "$TBL" "$mode" "$h" >"$stdout_file" 2>&1; then
+        cat "$stdout_file"; fail "table_$mode (nonzero exit)"
+    fi
+    if diff -u "tests/studio/table_$mode.out" "$stdout_file"; then
+        printf 'PASS table_%s\n' "$mode"
+    else
+        fail "table_$mode (output diff)"
+    fi
+}
+for m in tier preview export; do
+    run_table "$m"
+done
+if timeout 30 "$GBASIC" tests/drivers/have_rowmodel.bas >/dev/null 2>&1; then
+    run_table model
+else
+    printf 'SKIP table_model (interpreter has no native row-model adapter)\n'
+fi
+
+# ==========================================================================
 # STU-7 — exploratory branching, state-only. Pure model logic over plain data:
 # tree operations, selection, nesting, bindings, staleness and persistence. No
 # child process and no display, so it runs everywhere the backbone does.
@@ -731,7 +760,7 @@ run_ui() { # mode
 for m in rows open expand project bounds tabs edit save newproj refresh \
          newfile newfolder adopt exit \
          names rename delete closetab notice \
-         run runstop runerr cursor drafts branch; do
+         run runstop runerr cursor drafts branch table; do
     run_ui "$m"
 done
 
