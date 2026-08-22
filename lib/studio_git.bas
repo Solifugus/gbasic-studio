@@ -11,8 +11,9 @@
 ' `process.run` RAISES when the executable is missing, and gBASIC cannot catch a
 ' raise. So Studio cannot ask "is git installed?" by trying to run it — the
 ' question would be answered by crashing the window of every user who does not
-' have it. The only safe way is to look for the file: walk PATH and ask
-' `file_type`, which answers `unknown` instead of raising.
+' have it. The only safe way is to LOOK for the file without running it — which
+' is what `process.which` (0.1.0-rc3) does, and why it exists: this module's
+' hand-rolled PATH walk was its prototype and its motivation.
 '
 ' That is not defensive coding, it is the whole reason git can be optional at all.
 '
@@ -40,6 +41,21 @@ library studio_git
 
     ' ---- finding the executable --------------------------------------------
 
+    ' `process.which` (gBASIC 0.1.0-rc3) rather than a hand-rolled PATH walk.
+    ' This module used to carry its own walk, twice revised: `file_type` turned
+    ' out to be newer than the then-released interpreter and crashed there, and
+    ' the `exists` fallback could not tell a program from a directory. `which`
+    ' mirrors execvp's own rules and demands a regular file with execute
+    ' permission, so both defects go away — and every program with an optional
+    ' external tool now gets the same answer from the same place instead of
+    ' rediscovering the same holes.
+    '
+    ' THIS IS WHY STUDIO NOW REQUIRES gBASIC 0.1.0-rc3. The dependency cannot be
+    ' probed around: an older interpreter also lacks `has_builtin`, so there is
+    ' no way to ask "do I have process.which?" without crashing — you cannot
+    ' probe for the prober. A hard floor stated in the README is honest; a
+    ' fallback that silently kept the weaker walk on old builds would mean the
+    ' fixed defects were still shipping, just only to some people.
     function exe()
         v = env("GBASIC_STUDIO_GIT")
         if is_string(v) then
@@ -47,37 +63,11 @@ library studio_git
                 return v
             end if
         end if
-        return studio_git._on_path("git")
-    end function
-
-    ' The first entry on PATH where something of that name exists.
-    '
-    ' `exists` rather than `file_type`, and the difference matters for a reason
-    ' that is not about elegance: `file_type` is NEWER than the released gBASIC.
-    ' Studio built against the development interpreter worked and the same source
-    ' raised "undefined variable: file_type" on the installed one — found by the
-    ' release check, which is what the release check is for. `exists` is in both.
-    '
-    ' The cost is a narrower guarantee, stated rather than hidden: `exists` cannot
-    ' tell a program from a directory, so a DIRECTORY named `git` earlier on PATH
-    ' than the real one would be picked and then fail to launch. That is a strange
-    ' machine, and the failure is loud rather than silent — but it is a real edge
-    ' and `file_type` closed it, so this is worth revisiting once the platform
-    ' release catches up.
-    function _on_path(name)
-        p = env("PATH")
-        if not is_string(p) then
+        w = process.which("git")
+        if is_unknown(w) then
             return ""
         end if
-        for each dir in split(p, ":")
-            if dir != "" then
-                cand(file) = dir + "/" + name
-                if exists(cand) then
-                    return dir + "/" + name
-                end if
-            end if
-        end for
-        return ""
+        return w
     end function
 
     function available()

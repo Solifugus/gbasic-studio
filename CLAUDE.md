@@ -98,8 +98,9 @@ lib/studio_overlays.bas STU-9 code-overlay branches: per-section replacement
                         text, stamped with the canonical fingerprint it was
                         written against; projected, never written to the .bas
 lib/studio_git.bas      STU-11 optional git over `process.run` — found by
-                        LOOKING for the executable, because process.run raises
-                        when it is missing and gBASIC cannot catch a raise
+                        `process.which` (never by running it), because
+                        process.run raises on a missing executable and gBASIC
+                        cannot catch a raise
 lib/studio_drafts.bas   unsaved buffers across a close; conflict-aware, keyed by
                         a hash of the text the buffer was based on
 lib/studio_history.bas  the semantic action log — a closed vocabulary, bounded
@@ -285,10 +286,13 @@ Two consequences worth knowing before you touch the shell:
 - `agent_widgets` keeps `studio_teaching.registry()` and `studio_shell.teachable()`
   the same set. A registry entry the shell cannot resolve is a teaching request
   that reports success and draws nothing.
-- Git is found by walking PATH and asking `file_type`, NEVER by running it.
-  `process.run` raises on a missing executable and gBASIC cannot catch a raise,
-  so "is git installed?" asked by trying would crash the window of everyone who
-  does not have it. This is why git can be optional at all.
+- Git is found by `process.which`, NEVER by running it. `process.run` raises on
+  a missing executable and gBASIC cannot catch a raise, so "is git installed?"
+  asked by trying would crash the window of everyone who does not have it. This
+  is why git can be optional at all — and why **Studio requires gBASIC
+  0.1.0-rc3**: `which` cannot be probed around on older builds (they lack
+  `has_builtin` too; you cannot probe for the prober), so the floor is stated
+  rather than worked around.
 - Git reads happen on the FULL redraw, never in `refresh_run`. That is the run
   poller at sixteen ticks a second, and forking `git status` at that rate is a
   worse version of the mistake refresh_run exists to avoid. Detection is cached

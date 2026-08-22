@@ -341,4 +341,12 @@ reimplementing it: `source_outline` (structural sections), `try_decode` (reading
 JSON that may be corrupt without raising), `process.start`/`poll`/`read`/`stop`
 (running a section in a child), `--line-buffered` and `print to error` (getting
 that child's output promptly and separably), `atomic_replace` (crash-safe
-writes), and the `persist`, `filetree`, `gtk`, `sourceeditor` and `gi` libraries.
+writes), `process.which` (finding an optional tool without risking the raise
+that running a missing one causes), and the `persist`, `filetree`, `gtk`,
+`sourceeditor` and `gi` libraries.
+
+**Studio requires gBASIC 0.1.0-rc3 or later.** The floor is `process.which`,
+and it cannot be probed around: an older interpreter also lacks `has_builtin`,
+so there is no way to ask "do I have it?" without crashing — you cannot probe
+for the prober. A build that is too old fails loudly at the first git
+detection rather than degrading.
