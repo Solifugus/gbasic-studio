@@ -1393,7 +1393,7 @@ library studio_ui
         tf = app["table_fetch"]
         if tf != unknown then
             if tf != nothing then
-                sess.table = { name: tf.name, path: tf.path, cap: studio_table.export_cap(), chunk: studio_table.export_chunk() }
+                sess.table = { name: tf.name, path: tf.path, cap: studio_table.export_cap(), chunk: studio_table.export_chunk(), stamp: tf.stamp }
             end if
         end if
         sess = studio_session.run(sess, st, doc.content, sid)
@@ -1937,6 +1937,20 @@ library studio_ui
     ' run happened to keep, the export is the table. `caption` says which is on
     ' screen, always — the failure this guards against is a grid captioned with a
     ' number it cannot actually show.
+    ' The stamp the CURRENT view expects an export to carry: the fingerprint of
+    ' the section the result describes, and the branch it ran on.
+    function table_stamp(app, o)
+        v = studio_ui.view_for(app)
+        app = v.app
+        sec = studio_sections.section_by_id(v.st, o.result.section_id)
+        fp = o.result.section_fingerprint
+        if sec != nothing then
+            fp = studio_results.fingerprint_of(sec)
+        end if
+        ab = studio_ui.active_branch(app)
+        return { app: ab.app, stamp: studio_table.stamp_for(fp, ab.id) }
+    end function
+
     function open_table(app, rows, index)
         if index < 0 then
             return { app: app, action: "no-table", detail: "", src: studio_table._empty_source(), caption: "" }
@@ -1948,7 +1962,13 @@ library studio_ui
         doc = studio_docs.active_doc(app.dm)
         src = studio_table._empty_source()
         if doc != nothing then
-            src = studio_table.read_export(app.paths.home, doc.path, row.name)
+            o = studio_ui.output_source(app)
+            app = o.app
+            if o.kind = "stored" then
+                ts = studio_ui.table_stamp(app, o)
+                app = ts.app
+                src = studio_table.matching_export(app.paths.home, doc.path, row.name, ts.stamp)
+            end if
         end if
         if src.kind = "none" then
             src = studio_table.from_preview(row.var)
@@ -1980,7 +2000,19 @@ library studio_ui
         end if
         persist.ensure_dir(studio_table.tables_dir(app.paths.home))
         path = studio_table.export_path(app.paths.home, doc.path, row.name)
-        app["table_fetch"] = { name: row.name, path: path }
+        ' The stamp is taken from the section as it is NOW, which is the same
+        ' fingerprint the result this run is about to record will carry. Taking it
+        ' from the old result instead would stamp the new export with the identity
+        ' of the code it replaced.
+        o = studio_ui.output_source(app)
+        app = o.app
+        stamp = ""
+        if o.kind = "stored" then
+            ts = studio_ui.table_stamp(app, o)
+            app = ts.app
+            stamp = ts.stamp
+        end if
+        app["table_fetch"] = { name: row.name, path: path, stamp: stamp }
         r = studio_ui.run_section(app, doc.cursor.line, doc.cursor.column)
         app = r.app
         app["table_fetch"] = nothing

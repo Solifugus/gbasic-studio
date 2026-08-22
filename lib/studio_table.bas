@@ -143,9 +143,22 @@ library studio_table
 
     ' ---- row sources -------------------------------------------------------
 
+    ' What an export is an export OF. Without this, an export is keyed only by
+    ' document and variable name — so editing the code, re-running, and opening
+    ' the table again would serve rows produced by source that no longer exists,
+    ' captioned with their own row count and no hint that they describe a
+    ' different program. That is the same class of dishonesty as a sampled grid
+    ' captioned with a total, and this architecture makes it just as easy.
+    '
+    ' The section's content fingerprint and the branch, which together are what a
+    ' result already records about itself (STU-3 anchors, STU-7 branches).
+    function stamp_for(fingerprint, branch)
+        return fingerprint + "|" + branch
+    end function
+
     function _empty_source()
         return { kind: "none", cols: [], n: 0, known: 0, sampled: false,
-                 lines: [], rows: [], cache: {}, decodes: 0, path: "" }
+                 lines: [], rows: [], cache: {}, decodes: 0, path: "", stamp: "" }
     end function
 
     ' The rows Studio already has, straight off the capture. No file, no re-run,
@@ -201,6 +214,11 @@ library studio_table
         end while
         src.kind = "export"
         src.path = path
+        if has(head, "stamp") then
+            if is_string(head.stamp) then
+                src.stamp = head.stamp
+            end if
+        end if
         src.cols = head.cols
         src.lines = body
         src.n = head.n
@@ -354,6 +372,25 @@ library studio_table
             return studio_table._empty_source()
         end if
         return studio_table.from_export(read(f), path)
+    end function
+
+    ' The export for a variable, but only if it is an export of THIS run's code on
+    ' THIS branch. A stamp that does not match is not an error and not a thing to
+    ' repair silently — it is an export of something else, and the answer is to
+    ' fall back to the sample the current result actually carries.
+    '
+    ' An unstamped export (written before stamps existed) is treated as
+    ' mismatched. Assuming it belongs would be assuming exactly what cannot be
+    ' checked.
+    function matching_export(home, doc_path, name, stamp)
+        src = studio_table.read_export(home, doc_path, name)
+        if src.kind = "none" then
+            return src
+        end if
+        if src.stamp = stamp then
+            return src
+        end if
+        return studio_table._empty_source()
     end function
 
 end library

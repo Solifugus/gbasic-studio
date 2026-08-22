@@ -151,7 +151,7 @@ library studio_session
             detail_rules: [],
             ' STU-8: when non-empty, this run also writes one variable's rows out
             ' to `path`. An ordinary run has no name here and generates nothing.
-            table: { name: "", path: "", cap: 1000000, chunk: 500 },
+            table: { name: "", path: "", cap: 1000000, chunk: 500, stamp: "" },
             branch: "",
             vars_before_marker: "",
             vars_before_fixed: "",
@@ -583,7 +583,7 @@ library studio_session
     ' rows were actually written. Studio needs all three: without the logical
     ' count it cannot tell a complete export from a capped one, and a grid that
     ' cannot tell those apart presents a truncation as a dataset.
-    function _table_fn(name, path, cap, chunk)
+    function _table_fn(name, path, cap, chunk, stamp)
         p = studio_session.vars_prefix()
         cell = studio_session.preview_cell()
         lines = []
@@ -597,10 +597,10 @@ library studio_session
         lines = append(lines, "  end if")
         lines = append(lines, "  return " + p + "_s")
         lines = append(lines, "end function")
-        lines = append(lines, "function " + p + "_tbl(v, path)")
+        lines = append(lines, "function " + p + "_tbl(v, path, stamp)")
         lines = append(lines, "  " + p + "_f(file) = path")
         lines = append(lines, "  if reflect.category(v) != \"container\" then")
-        lines = append(lines, "    write(" + p + "_f, encode({ cols: [], n: 0, rows: 0 }) + \"\\n\")")
+        lines = append(lines, "    write(" + p + "_f, encode({ cols: [], n: 0, rows: 0, stamp: stamp }) + \"\\n\")")
         lines = append(lines, "    return 0")
         lines = append(lines, "  end if")
         lines = append(lines, "  " + p + "_n = reflect.count(v)")
@@ -617,7 +617,7 @@ library studio_session
         lines = append(lines, "      " + p + "_tab = true")
         lines = append(lines, "    end if")
         lines = append(lines, "  end if")
-        lines = append(lines, "  write(" + p + "_f, encode({ cols: " + p + "_cs, n: " + p + "_n, rows: " + p + "_lim }) + \"\\n\")")
+        lines = append(lines, "  write(" + p + "_f, encode({ cols: " + p + "_cs, n: " + p + "_n, rows: " + p + "_lim, stamp: stamp }) + \"\\n\")")
         lines = append(lines, "  " + p + "_buf = []")
         lines = append(lines, "  " + p + "_i = 0")
         lines = append(lines, "  while " + p + "_i < " + p + "_lim")
@@ -658,7 +658,7 @@ library studio_session
         lines = append(lines, "  end if")
         lines = append(lines, "end for")
         lines = append(lines, "if " + p + "_tok then")
-        lines = append(lines, "  " + p + "_tw = " + p + "_tbl(reflect.get(" + quote(name) + "), " + quote(path) + ")")
+        lines = append(lines, "  " + p + "_tw = " + p + "_tbl(reflect.get(" + quote(name) + "), " + quote(path) + ", " + quote(stamp) + ")")
         lines = append(lines, "end if")
         return join(lines, "\n") + "\n"
     end function
@@ -884,7 +884,7 @@ library studio_session
         ' variable with. Same position and same constraint as the epilogue above —
         ' before any `end program`, because nothing after that runs.
         if table.name != "" then
-            body = body + studio_session._table_fn(table.name, table.path, table.cap, table.chunk)
+            body = body + studio_session._table_fn(table.name, table.path, table.cap, table.chunk, table.stamp)
             appended = studio_session._tag(appended, "table")
         end if
 

@@ -736,6 +736,31 @@ program main(args)
     banner("an index nobody offered is refused, not guessed at")
     o3 = studio_ui.open_table(app, t2.rows, 9)
     print "action=" + o3.action
+
+    ' The failure this guards against: an export is keyed by document and
+    ' variable name, so editing the code and running again would otherwise serve
+    ' rows produced by source that no longer exists — captioned with their own row
+    ' count, and with nothing to say they describe a different program.
+    banner("editing the code and running again abandons the old export")
+    app = studio.edit_document(app, id, "rows = []\nn = 0\nwhile n < 1300\n  rows = append(rows, { id: n, name: \"row \" + n, score: n * 2 })\n  n = n + 1\nend while\ntotal = count(rows)\n")
+    r = studio_ui.sync_cursor(app, id, 0, 0)
+    app = r.app
+    r = studio_ui.run_section(app, 0, 0)
+    app = drive(r.app)
+    t3 = studio_ui.table_rows(app)
+    app = t3.app
+    o4 = studio_ui.open_table(app, t3.rows, 0)
+    app = o4.app
+    print "caption: " + o4.caption
+    print "  (the 1200-row export is still on disk; it is an export of other code)"
+
+    banner("fetching again re-stamps it, and the whole table comes back")
+    f2 = studio_ui.fetch_table(app, t3.rows, 0)
+    app = drive(f2.app)
+    t4 = studio_ui.table_rows(app)
+    app = t4.app
+    o5 = studio_ui.open_table(app, t4.rows, 0)
+    print "caption: " + o5.caption
   end if
 
   ' ---- cursor: the panes follow the caret, not the last run ----------------

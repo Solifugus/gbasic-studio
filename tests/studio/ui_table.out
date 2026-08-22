@@ -25,3 +25,10 @@ source: export
   [1100][1] = row 1100   rows decoded: 1
 == an index nobody offered is refused, not guessed at ==
 action=no-table
+== editing the code and running again abandons the old export ==
+   exec: run: finished [sec-1] — exit 0
+caption: rows: 50 of 1300 rows (sampled — the run that made them has ended)
+  (the 1200-row export is still on disk; it is an export of other code)
+== fetching again re-stamps it, and the whole table comes back ==
+   exec: run: finished [sec-1] — exit 0
+caption: rows: 1300 rows
