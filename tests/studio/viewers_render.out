@@ -4,10 +4,10 @@
     adj. R²       0.8405
     df            97
     terms (3):
-      term  coef       s.e.      t       p
-      0     1.203104   0.114023  10.551  <0.0001
-      1     0.48719    0.031089  15.671  0
-      2     -0.009312  0.004402  -2.115  0.0372
+      term  coef     s.e.    t       p
+      0     1.2031   0.114   10.551  <0.0001
+      1     0.4872   0.0311  15.671  0
+      2     -0.0093  0.0044  -2.115  0.0372
 
 -- matched on shape, but the result predates the viewer: no detail
   lines: 0 (falls back to the structural preview)
@@ -26,7 +26,7 @@
     adj. R²       0.8405
     df            97
     terms (2):
-      term  coef      s.e.      t       p
-      0     1.203104  0.114023  10.551  <0.0001
-      1     0.48719   0.031089  15.671  0
+      term  coef    s.e.    t       p
+      0     1.2031  0.114   10.551  <0.0001
+      1     0.4872  0.0311  15.671  0
       (columns of unequal length; shown to the shortest)

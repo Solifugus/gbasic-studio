@@ -17,8 +17,8 @@
             { "label": "df",           "field": "df" } ] },
         { "block": "parallel", "label": "terms", "columns": [
             { "title": "term",  "index": true },
-            { "title": "coef",  "field": "coefficients", "places": 6 },
-            { "title": "s.e.",  "field": "std_errors",   "places": 6 },
+            { "title": "coef",  "field": "coefficients", "places": 4 },
+            { "title": "s.e.",  "field": "std_errors",   "places": 4 },
             { "title": "t",     "field": "t_values",     "places": 3 },
             { "title": "p",     "field": "p_values",     "places": 4, "min": 0.0001 } ] }
       ]
@@ -40,8 +40,8 @@
             { "label": "converged",    "field": "converged" } ] },
         { "block": "parallel", "label": "terms", "columns": [
             { "title": "term", "index": true },
-            { "title": "coef", "field": "coefficients", "places": 6 },
-            { "title": "s.e.", "field": "std_errors",   "places": 6 },
+            { "title": "coef", "field": "coefficients", "places": 4 },
+            { "title": "s.e.", "field": "std_errors",   "places": 4 },
             { "title": "z",    "field": "z_values",     "places": 3 },
             { "title": "p",    "field": "p_values",     "places": 4, "min": 0.0001 } ] }
       ]
