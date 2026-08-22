@@ -113,6 +113,44 @@ if sed -n '/function _perform/,/^    end function/p' lib/studio_tools.bas \
 fi
 printf 'PASS agent_parity (every act calls the same studio_ui operation the window does)\n'
 
+# STU-10 secrets (§16, design Q13). The property is a NEGATIVE one -- that a
+# secret is not on disk in the clear -- so the tests read the actual file and
+# look for it.
+#
+# The store SKIPs, rather than failing, on an interpreter built without
+# libcrypto: aes_gcm sits behind HAVE_LIBCRYPTO, and a build without it is a
+# build where the honest behaviour is to refuse to store anything at all.
+SEC=tests/drivers/secrets.bas
+if "$GBASIC" tests/drivers/have_crypto.bas >/dev/null 2>&1; then
+    for m in roundtrip onhurt refusals redact; do
+        h="$tmproot/sec_$m"
+        rm -rf "$h"; mkdir -p "$h"
+        : >"$stdout_file"
+        if ! timeout 60 "$GBASIC" "$SEC" "$m" "$h" >"$stdout_file" 2>/dev/null; then
+            cat "$stdout_file"; fail "secrets_$m (nonzero exit)"
+        fi
+        if diff -u "tests/studio/secrets_$m.out" "$stdout_file"; then
+            printf 'PASS secrets_%s\n' "$m"
+        else
+            fail "secrets_$m (output diff)"
+        fi
+    done
+else
+    printf 'SKIP secrets_* (this gBASIC was built without libcrypto)\n'
+fi
+
+# A key must never be written to disk by Studio. The store is ciphertext beside
+# nothing that opens it; a key file next to its own lock protects against almost
+# nothing, and writing one would let this claim to be encrypted while being, in
+# practice, obfuscated.
+# Matches a WRITE whose target is a key, or any literal .key path -- not merely
+# the word "key", which appears in key_from_hex, key_bytes and key_var and made
+# the first version of this fail on its own source.
+if grep -nE 'write[[:space:]]*\([[:space:]]*[a-z_]*key|"[^"]*\.key"|key_path[[:space:]]*\(' lib/studio_secrets.bas; then
+    fail "secrets_no_key_file (the store writes a key)"
+fi
+printf 'PASS secrets_no_key_file (the key comes from the environment and is never stored)\n'
+
 # STU-10 teaching (§13): which widgets an agent may point at, which gestures each
 # can perform, and the refusals — all plain data, no display.
 TEACH=tests/drivers/teach.bas
