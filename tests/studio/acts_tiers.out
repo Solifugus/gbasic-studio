@@ -10,6 +10,8 @@ every tool, and the tier its REVERSIBILITY puts it in:
   read  section_variables
   read  recent_actions
   read  where_was_i
+  read  git_status
+  read  git_history
   read  list_widgets
   local  open_document
   local  select_document
@@ -24,6 +26,7 @@ every tool, and the tier its REVERSIBILITY puts it in:
   external  save_document
   external  delete_path
   local  point_at
+  local  git_commit
   external  rename_path
 
 -- a name that is not a tool has no tier, and answers the strictest thing

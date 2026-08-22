@@ -29,6 +29,7 @@ library studio_tools
     load studio_ui
     load studio_permissions
     load studio_teaching
+    load studio_git
 
     function schema_version()
         return 1
@@ -84,6 +85,12 @@ library studio_tools
         ' A READ, and it lives with the reads: asking what an agent may point at
         ' changes nothing. Putting it in act_registry would have made `is_act`
         ' true for it, routing it to a dispatcher with no branch for it.
+        out = append(out, { name: "git_status",
+            description: "The working-tree status of the active project's repository, if it is one: which files are modified, added, deleted or untracked.",
+            schema: studio_tools._obj() })
+        out = append(out, { name: "git_history",
+            description: "Recent commits in the active project's repository: author, when, and subject.",
+            schema: { type: "object", properties: { limit: { type: "number" } }, required: [] } })
         out = append(out, { name: "list_widgets",
             description: "The parts of the window an agent may point at, and which gestures each can perform.",
             schema: studio_tools._obj() })
@@ -154,6 +161,16 @@ library studio_tools
                                     gesture: { type: "string" },
                                     detail: { type: "string" } },
                       required: ["widget", "gesture"] } })
+        ' STU-11: git, at the tier its reversibility earns. `git_commit` is
+        ' `local` -- a commit stays in this repository and someone who knows git
+        ' can undo it. Pushing is not here at all: the agent has no tool that
+        ' reaches a remote, which is a stronger statement than gating one.
+        out = append(out, { name: "git_commit", tier: "local",
+            description: "Stage the named paths and commit them with a message. Only affects this repository; nothing is pushed.",
+            schema: { type: "object",
+                      properties: { message: { type: "string" },
+                                    paths: { type: "array", items: { type: "string" } } },
+                      required: ["message"] } })
         out = append(out, { name: "rename_path", tier: "external",
             description: "Rename the file or folder selected in the browser.",
             schema: { type: "object", properties: { name: { type: "string" } }, required: ["name"] } })
@@ -360,6 +377,27 @@ library studio_tools
             return { app: app, ok: true, why: "", value: c,
                      action: "pointed", detail: studio_teaching.describe(c) }
         end if
+        if name = "git_commit" then
+            g = studio_ui.git_state(app)
+            app = g.app
+            if g.state != "repo" then
+                return studio_tools._fail(app, name, "this project is not a git repository")
+            end if
+            msg = args["message"]
+            if not is_string(msg) then
+                return studio_tools._fail(app, name, "git_commit needs a message")
+            end if
+            paths = args["paths"]
+            if not is_array(paths) then
+                paths = []
+            end if
+            r = studio_git.commit(g.root, msg, paths)
+            if not r.ok then
+                return studio_tools._fail(app, name, r.why)
+            end if
+            return { app: app, ok: true, why: "", value: { committed: count(paths) },
+                     action: "committed", detail: msg }
+        end if
         if name = "rename_path" then
             nm = args["name"]
             if not is_string(nm) then
@@ -505,6 +543,24 @@ library studio_tools
         end if
         if name = "list_widgets" then
             return studio_tools._ok(studio_teaching.registry())
+        end if
+        if name = "git_status" then
+            g = studio_ui.git_state(app)
+            if g.state != "repo" then
+                return { ok: false, why: "this project is not a git repository", value: nothing }
+            end if
+            return studio_tools._ok(studio_git.status(g.root))
+        end if
+        if name = "git_history" then
+            g = studio_ui.git_state(app)
+            if g.state != "repo" then
+                return { ok: false, why: "this project is not a git repository", value: nothing }
+            end if
+            lim = args["limit"]
+            if not is_number(lim) then
+                lim = 10
+            end if
+            return studio_tools._ok(studio_git.history(g.root, lim))
         end if
 
         ' The three that take a section id. A missing or unknown id is reported,

@@ -1285,6 +1285,41 @@ function studio_shell_click_table_row(idx)
     return nothing
 end function
 
+' STU-11: git, quiet and engaged, in one window.
+'
+' The claim §18 makes is about ABSENCE -- that someone who does not use git never
+' sees it -- and absence is the one thing a headless test cannot check. This
+' opens a project that is not a repository, looks at the pane, then opens one
+' that is, and looks again.
+function stu11_step()
+    G.phase = G.phase + 1
+    if G.phase = 1 then
+        print "a project that is NOT a repository:"
+        print "  pane visible: " + string(G.shell.gpane.box.get_visible())
+        print "  status label: " + quote(studio_ui.git_label(G.app))
+        print "opening a repository as a second project, the way the header"
+        print "field does it"
+        r = studio_ui.adopt_folder(G.app, G.repo)
+        G.app = r.app
+        G.last_action = r.action
+        G.last_detail = r.detail
+        redraw()
+        return true
+    end if
+    if G.phase = 2 then
+        print "  action=" + G.last_action
+        print "  pane visible: " + string(G.shell.gpane.box.get_visible())
+        print "  status label: " + quote(studio_ui.git_label(G.app))
+        print "what the pane says:"
+        for each l in split(G.shell.gpane.body.label, "\n")
+            print "    " + l
+        end for
+        return true
+    end if
+    G.app_ref.quit()
+    return false
+end function
+
 ' STU-10: teaching, drawn for real.
 '
 ' What only this tier can reach: that a cue built by studio_teaching resolves to a
@@ -1521,6 +1556,9 @@ function on_activate(gtkapp)
         state("a cold home")
         gi.timeout(400, stu2g_step)
         return nothing
+    end if
+    if G.stu11 then
+        gi.timeout(600, stu11_step)
     end if
     if G.stu10 then
         gi.timeout(600, stu10_step)
@@ -2012,6 +2050,8 @@ program main(args)
     G.stu8 = false
     G.stu9 = false
     G.stu10 = false
+    G.stu11 = false
+    G.repo = ""
     G.last_table_kind = ""
     G.fetch_action = ""
     G.table_win = nothing
@@ -2067,6 +2107,17 @@ program main(args)
     end if
 
     ' STU-7: the inline branch selector, clicked for real.
+    if mode = "stu11_smoke" then
+        G.stu11 = true
+        projdir = args[2]
+        G.repo = args[3]
+        G.app = studio.create_registered_workspace(G.app, "ws")
+        ws = G.app.model.workspace
+        ws = studio_model.add_project(ws, "Plain", projdir)
+        G.app = studio.set_workspace(G.app, ws)
+        G.app.clock_fixed = 1000
+    end if
+
     if mode = "stu10_smoke" then
         G.stu10 = true
         projdir = args[2]

@@ -45,6 +45,7 @@ library studio_ui
     load studio_overlays
     load studio_viewers
     load studio_table
+    load studio_git
 
     ' ---- the browser row model ---------------------------------------------
 
@@ -2085,6 +2086,90 @@ library studio_ui
         bs = studio_ui.branch_sections(app)
         app = bs.app
         return studio_results.view_with(app.paths.home, v.store, bs.st, v.sid, ab.id, studio_ui.viewers_of(app))
+    end function
+
+    ' ---- STU-11: git, and staying quiet about it ----------------------------
+    '
+    ' §18: git is optional and VISUALLY QUIET when not needed. So the whole
+    ' surface is one function that answers "is there anything to say", and the
+    ' shell shows a pane only when there is.
+    '
+    ' The repository is detected from the ACTIVE PROJECT's root, not from
+    ' Studio's home or the process's working directory: a workspace can hold
+    ' projects in different repositories, or in none, and asking about the wrong
+    ' one would report someone else's changes as this project's.
+    function git_root(app)
+        ws = app.model.workspace
+        if ws = nothing then
+            return ""
+        end if
+        for each p in ws.projects
+            if p.id = ws.active_project then
+                return p.path
+            end if
+        end for
+        return ""
+    end function
+
+    ' Cached on the app, because detection SPAWNS A PROCESS and the panes are
+    ' redrawn on every caret move. Without this, moving the cursor would fork
+    ' `git rev-parse` at typing rate.
+    '
+    ' The cache is keyed on the project path alone and is NOT invalidated by
+    ' edits: whether a directory is a repository does not change while someone
+    ' types. The status inside it does, which is why `git_lines` re-reads that and
+    ' only that.
+    function git_state(app)
+        root = studio_ui.git_root(app)
+        if root = "" then
+            return { app: app, state: "none", root: "", branch: "" }
+        end if
+        cached = app["gitstate"]
+        if cached != unknown then
+            if cached != nothing then
+                if cached.path = root then
+                    return { app: app, state: cached.state, root: cached.root, branch: cached.branch }
+                end if
+            end if
+        end if
+        d = studio_git.detect(root)
+        app["gitstate"] = { path: root, state: d.state, root: d.root, branch: d.branch }
+        return { app: app, state: d.state, root: d.root, branch: d.branch }
+    end function
+
+    ' Whether the window should show a git pane at all. False when git is not
+    ' installed AND false when this project is not a repository — two different
+    ' reasons for the same quiet, which is the point of §18.
+    function git_engaged(app)
+        g = studio_ui.git_state(app)
+        return { app: g.app, engaged: g.state = "repo" }
+    end function
+
+    ' What the pane says. Read fresh every redraw: the status is exactly the
+    ' thing that changes while someone works.
+    function git_lines(app)
+        g = studio_ui.git_state(app)
+        app = g.app
+        if g.state != "repo" then
+            return { app: app, lines: [] }
+        end if
+        return { app: app, lines: studio_git.summary(g.root) }
+    end function
+
+    ' One line for the status bar. Quiet means QUIET: outside a repository this
+    ' is the empty string, and the status bar shows nothing rather than "git:
+    ' none", which would be Studio mentioning git to someone who does not use it
+    ' every time they clicked anything.
+    function git_label(app)
+        g = studio_ui.git_state(app)
+        app = g.app
+        if g.state != "repo" then
+            return ""
+        end if
+        if g.branch = "" then
+            return "git: no commits yet"
+        end if
+        return "git: " + g.branch
     end function
 
     ' ---- STU-9: the overlay interactions ------------------------------------

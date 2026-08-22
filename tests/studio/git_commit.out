@@ -1,0 +1,10 @@
+-- a commit with no message is refused BEFORE git is invoked
+  ok=false — a commit needs a message
+  (git commit with no -m opens an editor; an editor Studio cannot see
+   would hang the child until the timeout killed it, which the user
+   would experience as a commit that silently did nothing)
+
+-- committing the working tree
+  ok=true
+  changes now: 1
+  newest commit: a commit from the test

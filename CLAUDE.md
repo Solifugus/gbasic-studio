@@ -47,7 +47,7 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 153 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 163 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 29 cases, headless AND offline (scripted transport)
 ```
 
@@ -57,7 +57,7 @@ so. The suite builds the sibling gBASIC first when `GBASIC` points into a source
 tree, so an interpreter change is what gets tested rather than a stale binary.
 Display tiers (`sections_gui`, `sessions_gui`, `results_gui`, `ui_gui`,
 `ui_gui_cold`, `ui_gui_new`, `ui_gui_name`, `ui_gui_solo`, `ui_gui_run`,
-`ui_gui_cursor`, `ui_gui_open`, `ui_gui_branch`, `ui_gui_table`, `ui_gui_overlay`, `ui_gui_teach`) SKIP cleanly
+`ui_gui_cursor`, `ui_gui_open`, `ui_gui_branch`, `ui_gui_table`, `ui_gui_overlay`, `ui_gui_teach`, `ui_gui_git`) SKIP cleanly
 without GTK 4 or a display.
 `ui_gui_new` is the only case that spans two processes: the GUI builds a project
 from nothing and closes, and a second interpreter run reopens the same home —
@@ -97,6 +97,9 @@ lib/studio_table.bas    STU-8 the tabular tier: what is a table, and where its
 lib/studio_overlays.bas STU-9 code-overlay branches: per-section replacement
                         text, stamped with the canonical fingerprint it was
                         written against; projected, never written to the .bas
+lib/studio_git.bas      STU-11 optional git over `process.run` — found by
+                        LOOKING for the executable, because process.run raises
+                        when it is missing and gBASIC cannot catch a raise
 lib/studio_drafts.bas   unsaved buffers across a close; conflict-aware, keyed by
                         a hash of the text the buffer was based on
 lib/studio_history.bas  the semantic action log — a closed vocabulary, bounded
@@ -282,6 +285,25 @@ Two consequences worth knowing before you touch the shell:
 - `agent_widgets` keeps `studio_teaching.registry()` and `studio_shell.teachable()`
   the same set. A registry entry the shell cannot resolve is a teaching request
   that reports success and draws nothing.
+- Git is found by walking PATH and asking `file_type`, NEVER by running it.
+  `process.run` raises on a missing executable and gBASIC cannot catch a raise,
+  so "is git installed?" asked by trying would crash the window of everyone who
+  does not have it. This is why git can be optional at all.
+- Git reads happen on the FULL redraw, never in `refresh_run`. That is the run
+  poller at sixteen ticks a second, and forking `git status` at that rate is a
+  worse version of the mistake refresh_run exists to avoid. Detection is cached
+  on the app (`gitstate`), keyed on the project path: whether a directory is a
+  repository does not change while someone types.
+- Outside a repository `git_label` is the EMPTY STRING, not "git: none".
+  Mentioning git to someone who does not use it, on every click, is what §18
+  asks Studio not to do.
+- `git_not_branches` asserts that `studio_branches` and `studio_overlays` never
+  spawn a process. Stated that way on purpose: the first version grepped for the
+  word "branch" beside a comma and fired on the overlay's own list of record
+  keys. A tripwire that trips on its own vocabulary is one someone deletes.
+- The agent has NO tool that reaches a remote. Not a gated one — none. That is a
+  stronger statement than gating it, and `git_commit` is `local` because a commit
+  stays in this repository and someone who knows git can undo it.
 - A Studio branch is NOT a Git branch — not stored, surfaced or created as one
   (design §2.3), and `branches_not_git` greps the source to keep it that way.
   A state-only branch differs from its siblings ONLY by the bindings it injects;

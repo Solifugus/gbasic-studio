@@ -1,0 +1,15 @@
+which permission tier each operation belongs in (STU-10 §17).
+git makes the line sharp: everything that stays in this repository is
+recoverable by someone who knows git; everything that reaches a REMOTE
+is visible to other people the moment it lands.
+
+  read  detect
+  read  status
+  read  diff
+  read  history
+  read  branches
+  local  init
+  local  stage
+  local  commit
+  external  push
+  external  pull

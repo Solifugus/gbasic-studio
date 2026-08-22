@@ -1,0 +1,9 @@
+ok=true commits=1
+  Test  first commit  (hash 40 chars, short 7)
+
+branches=1
+  * main
+
+-- these are GIT branches. Studio's exploratory branches are a
+   different thing entirely (§2.3) and nothing here creates, switches
+   or names a ref on their behalf.

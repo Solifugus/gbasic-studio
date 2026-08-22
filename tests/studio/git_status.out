@@ -1,0 +1,6 @@
+ok=true changes=2
+  [ M] modified: tracked.bas
+  [??] untracked: untracked.bas
+
+-- git's two columns are KEPT, not flattened: 'staged AND modified
+   since' is a real state and one letter cannot say it.

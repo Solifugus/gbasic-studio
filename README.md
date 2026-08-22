@@ -9,11 +9,11 @@ library — and nothing in gBASIC depends on Studio.
 ## Status
 
 **The model and persistence layer are built and tested, and the shell now
-responds to input.** Phases STU-0 through STU-10 are complete — STU-0..STU-6 are
+responds to input.** Phases STU-0 through STU-11 are complete — STU-0..STU-6 are
 the design's MVP, STU-7 and STU-9 are the two kinds of exploratory branch,
-STU-8 added rich viewers and the tabular tier, and STU-10 gave the assistant
-the ability to act under a permission model. Only git integration (STU-11)
-remains.
+STU-8 added rich viewers and the tabular tier, STU-10 gave the assistant the ability to
+act under a permission model, and STU-11 added optional git. **The plan's phases
+are all complete.**
 STU-2B wired the first interactions on top of them, STU-2C made a cold start go
 all the way through, STU-2D made the browser editable, STU-2E made Run work, and
 STU-5A′ pointed the panes at the caret.
@@ -197,6 +197,21 @@ when a cell of them is bound. Both halves are measured rather than asserted: the
 display tier runs the same interaction over a 1,200-row table and a 12,000-row
 one and requires byte-identical output — the bind count is a function of the
 window, not of the table.
+
+**Git, when you use it and invisible when you don't (STU-11).** Status, diff,
+history, branches and commit, all over `process.run` invoking `git` — no bespoke
+binding. Outside a repository the pane is not collapsed, it is **not there**, and
+the status bar says nothing at all: Studio mentioning git to someone who doesn't
+use it, on every click, is precisely what the design asks it not to do.
+
+Git is found by **looking for the executable** on `PATH`, never by running it —
+`process.run` raises when a program is missing and gBASIC cannot catch a raise,
+so asking the question by trying would crash the window of everyone without git.
+That single constraint is why git can be optional at all.
+
+A Studio exploratory branch is still **not** a Git branch. The one crossover is
+that a promoted overlay becomes an ordinary working-tree edit — which Git sees
+because it *is* one, not because Studio told it anything.
 
 **An assistant that can act, under permissions you set (STU-10).** The agent
 performs the *same semantic operations your buttons do* — it calls into the same

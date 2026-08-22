@@ -157,6 +157,70 @@ else
 fi
 
 # ==========================================================================
+# STU-11 — optional git, over process.run. A fixture repository built by
+# `git init` in a temp directory: no network, no display, and nothing that
+# touches the developer's own repository.
+#
+# The fixture is built HERE rather than in the driver. Building it with
+# process.run from inside the driver would make every case depend on the very
+# thing it is testing, so a broken process.run would look like a broken parser.
+#
+# Each mode gets a FRESH repository: `commit` mutates the fixture, and a mode
+# that inherits another's mutations is a mode whose golden depends on the order
+# the loop happens to run in.
+GITD=tests/drivers/git.bas
+if command -v git >/dev/null 2>&1; then
+    mkgitrepo() { # dir
+        local d="$1"
+        rm -rf "$d"; mkdir -p "$d/sub"
+        git -C "$d" init -q -b main .
+        git -C "$d" config user.email test@example.invalid
+        git -C "$d" config user.name Test
+        printf 'print "one"\n' > "$d/tracked.bas"
+        printf 'x\n'           > "$d/sub/deep.bas"
+        git -C "$d" add -A
+        git -C "$d" -c commit.gpgsign=false commit -q -m "first commit"
+        printf 'print "one"\nprint "two"\n' > "$d/tracked.bas"
+        printf 'y\n'                        > "$d/untracked.bas"
+    }
+    for m in quiet detect status history diff commit tiers; do
+        gh="$tmproot/git_$m"; gr="$tmproot/git_${m}_repo"
+        rm -rf "$gh"; mkdir -p "$gh"
+        mkgitrepo "$gr"
+        : >"$stdout_file"
+        if ! timeout 120 "$GBASIC" "$GITD" "$m" "$gh" "$gr" >"$stdout_file" 2>&1; then
+            cat "$stdout_file"; fail "git_$m (nonzero exit)"
+        fi
+        if diff -u "tests/studio/git_$m.out" "$stdout_file"; then
+            printf 'PASS git_%s\n' "$m"
+        else
+            fail "git_$m (output diff)"
+        fi
+    done
+else
+    printf 'SKIP git_* (git is not installed)\n'
+fi
+
+# A Studio exploratory branch is NOT a git branch (§2.3, §9). The one crossover
+# the design allows is a PROMOTED overlay becoming an ordinary working-tree edit
+# -- which git sees because it IS one, not because Studio told it anything.
+# Checked against the source: the failure would be a `git branch`/`checkout`
+# invocation added to make Studio branches "real", which is the exact thing the
+# design forbids.
+# Stated as "these modules never spawn anything", which is precise. The first
+# version grepped for the WORD "branch" next to a comma and caught
+# `["branch", "section_id", ...]` -- a list of record keys in the overlay's own
+# persistence check. A tripwire that fires on its own vocabulary is one someone
+# eventually deletes.
+if grep -nE 'process\.(run|start)|refs/heads' lib/studio_branches.bas lib/studio_overlays.bas; then
+    fail "git_not_branches (a Studio branch reaches for a git ref)"
+fi
+if grep -nE 'studio_branches\.|studio_overlays\.' lib/studio_git.bas; then
+    fail "git_not_branches (the git layer knows about Studio branches)"
+fi
+printf 'PASS git_not_branches (Studio branches and git refs stay separate)\n'
+
+# ==========================================================================
 # STU-9 — code-overlay branches. Projection, scope, conflict, rebase, promote,
 # discard and persistence, over plain data. No child process and no display.
 OVL=tests/drivers/overlays.bas
@@ -1043,6 +1107,36 @@ if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
         fi
     fi
 
+    # STU-11: git, quiet and engaged, in one window. The claim §18 makes is about
+    # ABSENCE -- that someone who does not use git never sees it -- and absence
+    # is the one thing a headless test cannot check. This opens a project that is
+    # not a repository, looks at the pane, then adopts one that is.
+    if command -v git >/dev/null 2>&1; then
+        g11_home="$tmproot/ui_gui_git"; g11_proj="$tmproot/ui_gui_git_proj"
+        g11_repo="$tmproot/ui_gui_git_repo"
+        rm -rf "$g11_home" "$g11_proj"; mkdir -p "$g11_home" "$g11_proj"
+        printf 'print "plain"\n' > "$g11_proj/plain.bas"
+        mkgitrepo "$g11_repo"
+        : >"$stdout_file"
+        if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
+                "$GBASIC" "$APP" stu11_smoke "$g11_home" "$g11_proj" "$g11_repo" \
+                >"$stdout_file" 2>/dev/null; then
+            if diff -u tests/studio/ui_gui_git.out "$stdout_file"; then
+                printf 'PASS ui_gui_git (quiet outside a repo, present inside one)\n'
+            else
+                fail "ui_gui_git (output diff)"
+            fi
+        else
+            if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
+                printf 'SKIP ui_gui_git (GTK 4 typelib not available)\n'
+            else
+                cat "$stdout_file"; fail "ui_gui_git (nonzero exit)"
+            fi
+        fi
+    else
+        printf 'SKIP ui_gui_git (git is not installed)\n'
+    fi
+
     # STU-10: teaching, drawn for real. The headless tier proves what a cue
     # MEANS; nothing below the widget boundary can prove it was DRAWN — that the
     # name resolved to a widget the shell holds, that the class landed on it, and
@@ -1190,6 +1284,7 @@ else
     printf 'SKIP ui_gui_table (no display)\n'
     printf 'SKIP ui_gui_overlay (no display)\n'
     printf 'SKIP ui_gui_teach (no display)\n'
+    printf 'SKIP ui_gui_git (no display)\n'
 fi
 
 printf 'run_studio: all cases passed\n'

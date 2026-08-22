@@ -1,0 +1,9 @@
+ok=true
+  --- a/tracked.bas
+  +++ b/tracked.bas
+  @@ -1 +1,2 @@
+  +print "two"
+
+-- the diff is git's own text. Studio does not re-render it: every
+   developer already reads this format, and a prettier one would be
+   a different format to learn.

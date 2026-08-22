@@ -10,6 +10,8 @@
   read  section_variables
   read  recent_actions
   read  where_was_i
+  read  git_status
+  read  git_history
   read  list_widgets
   local  open_document
   local  select_document
@@ -24,8 +26,9 @@
   external  save_document
   external  delete_path
   local  point_at
+  local  git_commit
   external  rename_path
-count=26
+count=29
 -- the read path still refuses an act outright
   delete_path changes things; call it through invoke
 -- current_project

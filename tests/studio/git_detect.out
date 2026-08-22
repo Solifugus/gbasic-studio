@@ -1,0 +1,10 @@
+state:  repo
+root:   true
+branch: main
+
+-- a subdirectory resolves to the same root
+  state: repo  same root: true
+
+-- the root is asked of git, not guessed from a .git folder: a
+   worktree, a submodule and an external git-dir all have none where
+   a naive check would look.

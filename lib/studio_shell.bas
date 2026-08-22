@@ -17,6 +17,7 @@ library studio_shell
     ' STU-8: the tabular tier and the general virtualized grid it opens into.
     load studio_table
     load studio_teaching
+    load studio_git
     load datagrid
 
 
@@ -125,6 +126,13 @@ library studio_shell
         rr = studio_shell.refresh_run(shell, app)
         shell = rr.shell
         app = rr.app
+        ' STU-11: git goes in the FULL redraw, never in refresh_run. Reading
+        ' status spawns a process, and refresh_run is what the run poller calls
+        ' sixteen times a second — forking `git status` at that rate would be a
+        ' worse version of the mistake refresh_run exists to avoid.
+        fg = studio_shell._fill_git(shell, app)
+        shell = fg.shell
+        app = fg.app
         line = studio_shell.status_text(app)
         if notice != "" then
             line = notice
@@ -489,10 +497,12 @@ library studio_shell
 
         bpane = studio_shell.branch_pane()
         tpane = studio_shell.table_pane()
+        gpane = studio_shell.git_pane()
         beside = gtk.box("v", 4)
         beside.append(bpane.box)
         beside.append(rpane.box)
         beside.append(tpane.box)
+        beside.append(gpane.box)
         beside.append(apane.box)
 
         vsplit = gtk.paned("v")
@@ -529,7 +539,7 @@ library studio_shell
                  delete_btn: delete_btn, close_btn: close_btn,
                  save_btn: save_btn, refresh_btn: refresh_btn,
                  bar: bar, pane: pane, rpane: rpane, apane: apane, bpane: bpane,
-                 tpane: tpane,
+                 tpane: tpane, gpane: gpane,
                  ' STU-5 decoration state: which outline revision each document's
                  ' gutter marks were drawn for, and the one live highlight tag.
                  marked: {}, hl_tag: nothing, hl_doc: "",
@@ -736,6 +746,39 @@ library studio_shell
             end for
             shell.bpane.diff.label = join(lines, "\n")
         end if
+        return { shell: shell, app: app }
+    end function
+
+    ' ---- STU-11: the git pane, which is usually not there -------------------
+    '
+    ' §18 asks for git to be VISUALLY QUIET when not needed, and the honest
+    ' reading of that is not "a collapsed expander" — it is that someone who does
+    ' not use git should never see the word. So the pane is built once and its
+    ' VISIBILITY is driven by whether the active project is a repository.
+    '
+    ' Built once rather than created and destroyed: a widget that comes and goes
+    ' would reflow the whole right-hand column every time the project changed,
+    ' and `set_visible` is what GTK provides for exactly this.
+    function git_pane()
+        box = gtk.box("v", 4)
+        head = studio_shell._wrapped(gtk.label("Git"))
+        body = studio_shell._mono(gtk.label(""))
+        box.append(head)
+        box.append(body)
+        box.set_visible(false)
+        return { box: box, head: head, body: body }
+    end function
+
+    function _fill_git(shell, app)
+        e = studio_ui.git_engaged(app)
+        app = e.app
+        shell.gpane.box.set_visible(e.engaged)
+        if not e.engaged then
+            return { shell: shell, app: app }
+        end if
+        g = studio_ui.git_lines(app)
+        app = g.app
+        shell.gpane.body.label = join(g.lines, "\n")
         return { shell: shell, app: app }
     end function
 

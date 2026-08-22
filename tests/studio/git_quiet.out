@@ -1,0 +1,13 @@
+-- outside a repository, the pane is one line
+git: not a repository
+
+  detect: none
+
+-- and a directory that does not exist is refused, not raised
+  ok=false — nowhere is not a directory
+
+-- git is found by LOOKING for it, never by trying to run it:
+   process.run raises when the executable is missing, and gBASIC
+   cannot catch a raise, so asking the question by running git would
+   crash the window of every user who does not have it.
+  available: true
