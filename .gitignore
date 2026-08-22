@@ -1,3 +1,9 @@
 # Studio's own runtime home, if created inside the checkout
 .gbasic-studio/
 *.tmp
+# Editor swap files. One of these got committed in 744fe6c by a `git add -A`,
+# which is the exact hazard that flag carries: it stages whatever happens to be
+# in the tree, including a live editor buffer.
+*.swp
+*.swo
+*~
