@@ -693,12 +693,13 @@ library studio_viewers
     ' it in the CAPTURE would destroy the value; rounding belongs here, in the
     ' viewer, where it is a presentation choice a declaration made.
     '
-    ' A declaration asking for more precision than `string(number)` will render is
-    ' not an error here, but it IS a portability trap: gBASIC releases differ in
-    ' how many significant digits `string` emits (6 on the installed build at the
-    ' time of writing, full expansion on the development one), so a `places` that
-    ' needs more than six significant digits renders differently on different
-    ' interpreters. The bundled sidecar stays inside that bound on purpose.
+    ' Precision note, settled 2026-08-22: `string(number)` renders the shortest
+    ' decimal that reads back as the same double, on every gBASIC from 0.1.0-rc3
+    ' on. (Earlier releases emitted 6 significant digits; that skew once made a
+    ' viewer golden interpreter-dependent, which is why this comment exists.)
+    ' `places` is therefore purely a DISPLAY choice now — the bundled sidecar
+    ' keeps `places: 4` because a coefficient table is read by eye, not because
+    ' any interpreter would truncate it.
     ' `min` is the other half of the same idea, and it is not decoration: a
     ' p-value of 1e-7 rounded to four places prints as `0`, which reads as
     ' "exactly zero" — a claim the number does not make. Below the declared
