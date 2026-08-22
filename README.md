@@ -9,7 +9,9 @@ library — and nothing in gBASIC depends on Studio.
 ## Status
 
 **The model and persistence layer are built and tested, and the shell now
-responds to input.** Phases STU-0 through STU-6 — the design's MVP — are complete;
+responds to input.** Phases STU-0 through STU-8 are complete — STU-0..STU-6 are
+the design's MVP, STU-7 added exploratory branching and STU-8 rich viewers and
+the tabular tier;
 STU-2B wired the first interactions on top of them, STU-2C made a cold start go
 all the way through, STU-2D made the browser editable, STU-2E made Run work, and
 STU-5A′ pointed the panes at the caret.
@@ -111,6 +113,54 @@ A branch is **not a Git branch** — not stored, surfaced or created as one. If 
 code above a branch point changes, the branch is flagged `[ancestry changed]` and
 stays selected: Studio surfaces stale state rather than acting on it, and
 re-anchoring is a separate deliberate click.
+
+**Rich viewers a library registers for its own types (STU-8).** Structural
+dispatch sees a `stats.ols` result as a record holding six unrelated arrays, and
+shows six unrelated arrays. A statistician reads it as R² and then a coefficient
+table — coef, s.e., t and p *across* from each term. Only the library that
+produced those four parallel arrays knows they are one table, so a library may
+ship a declarative sidecar named after itself — `stats.bas` alongside
+`stats.viewers` — holding JSON, never code. Studio reads it; Studio never
+evaluates it. That is the whole registration protocol: no core-language change,
+no import hook, nothing a library must do at run time. gBASIC still has no idea
+what "display" means.
+
+```
+    m record[11]
+      OLS regression
+        observations  100
+        R²            0.8421
+        adj. R²       0.8405
+        terms (3):
+          term  coef       s.e.      t       p
+          0     1.203104   0.114023  10.551  <0.0001
+          1     0.48719    0.031089  15.671  0.0002
+          2     -0.009312  0.004402  -2.115  0.0372
+```
+
+Matching is over the *descriptor*, never a value: under the replay model the
+child that computed the regression exited before the pane was drawn. Extraction
+therefore cannot happen in Studio either — the preview stringifies — so a
+viewer's `detail` list is compiled into the run's variable epilogue and the
+values are fetched in the child, where they still exist.
+
+**Tables, and what a sample is (STU-8).** Studio does not assume every large
+structure is a table: a record has fields, not rows. What is recognizably tabular
+gets an offer, and opening it shows *the rows Studio has* — which after a
+finished run is a bounded sample, because the child that held the array is gone.
+The caption says so in the same breath as the total: `50 of 48,291 rows (sampled
+— the run that made them has ended)`. A grid captioned with a number it cannot
+show is a lie told by omission, and it is the exact lie this architecture makes
+easy.
+
+**Fetch all rows** re-runs the section with an export epilogue, through the same
+function the Run button uses, so an export can never come from a run that differs
+from the one you are reading results from. Past a few hundred rows the grid is
+the general `DataGrid` (a virtualized `GtkColumnView`), and rows are decoded only
+when a cell of them is bound. Both halves are measured rather than asserted: the
+display tier runs the same interaction over a 1,200-row table and a 12,000-row
+one and requires byte-identical output — the bind count is a function of the
+window, not of the table.
 
 **A read-only assistant (STU-6).** Studio keeps a semantic action history — files
 opened, sections selected and run, errors raised, in its own vocabulary rather

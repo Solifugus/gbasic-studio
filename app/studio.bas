@@ -523,6 +523,93 @@ function tool_fn_for(name)
     error "agent_tools: no callable for tool '" + name + "'"
 end function
 
+' ---- STU-8: the two callbacks a virtual DataGrid needs -----------------------
+'
+' Adapters, in the same sense a signal handler is one: read the global, call one
+' studio_table function, hand back a plain value. The decision about what a cell
+' contains is in studio_table, where a headless test calls it directly.
+'
+' `table_cell` WRITES the global back because decoding is what fills the cache;
+' dropping the returned source would re-decode the same row on every bind, which
+' is the difference between scrolling a million-row table and not.
+function table_count()
+    if _STUDIO_TABLE.src = nothing then
+        return 0
+    end if
+    return _STUDIO_TABLE.src.known
+end function
+
+function table_cell(idx, col)
+    if _STUDIO_TABLE.src = nothing then
+        return ""
+    end if
+    r = studio_table.cell(_STUDIO_TABLE.src, idx, col)
+    _STUDIO_TABLE.src = r.src
+    return r.text
+end function
+
+' A table offer was clicked: open it.
+'
+' ONE TABLE WINDOW AT A TIME, and that is a constraint rather than a preference.
+' A virtual grid's cell callback is handed (index, ordinal) and nothing else — it
+' cannot tell which grid is asking — so every grid in the process reads the same
+' `_STUDIO_TABLE.src`. Two windows open at once would therefore be two grids over
+' ONE source: the second would quietly repaint the first with its own rows the
+' moment anything scrolled. Replacing the window keeps the invariant the callback
+' actually has, instead of leaving a second view that lies as soon as it is
+' touched.
+function on_table_row(box, row)
+    idx = row.get_index()
+    r = studio_ui.open_table(G.app, G.shell.tpane.rows, idx)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    if r.action = "table" then
+        if G.table_win != nothing then
+            G.table_win.destroy()
+        end if
+        ' The registry holds a grid's view, selection, native model and every
+        ' column's factory for as long as the grid lives — that is what lets
+        ' factories stay internal. Dropping the window without this would leave
+        ' all of it retained, once per table the user ever opened.
+        if G.table_grid != nothing then
+            datagrid.destroy(G.table_grid)
+        end if
+        _STUDIO_TABLE.src = r.src
+        tw = studio_shell.table_window(G.app_ref, r.caption, r.src, table_count, table_cell)
+        G.last_table_kind = tw.kind
+        G.table_win = tw.window
+        G.table_grid = tw.grid
+        tw.window.present()
+    end if
+    redraw()
+    return nothing
+end function
+
+' Fetch the whole table. This RE-RUNS the section, which is the only way to get
+' data out of a run that has ended, and the status line says so rather than
+' leaving the user to wonder why their program printed again.
+function on_fetch_table()
+    idx = G.shell.tpane.list.get_selected_row()
+    n = 0
+    if idx != nothing then
+        n = idx.get_index()
+    end if
+    r = studio_ui.fetch_table(G.app, G.shell.tpane.rows, n)
+    G.app = r.app
+    ' Kept apart from `last_action` for the display tier's benefit: the run poller
+    ' overwrites `last_action` the moment the child finishes, so for a fast table
+    ' the click's own outcome is gone before anything can read it.
+    G.fetch_action = r.action
+    G.last_action = r.action
+    G.last_detail = r.detail
+    if r.active then
+        gi.timeout(60, on_run_poll)
+    end if
+    redraw()
+    return nothing
+end function
+
 ' A branch row was clicked. Same adapter shape as a browser row: read the index,
 ' let the rows that were drawn decide what it means.
 function on_branch_row(box, row)
@@ -584,6 +671,8 @@ function wire_shell()
     gi.connect(sh.apane.ask, "clicked", on_ask_agent)
     gi.connect(sh.bpane.list, "row-activated", on_branch_row)
     gi.connect(sh.bpane.bind, "clicked", on_bind)
+    gi.connect(sh.tpane.list, "row-activated", on_table_row)
+    gi.connect(sh.tpane.fetch, "clicked", on_fetch_table)
     return nothing
 end function
 
@@ -992,6 +1081,103 @@ function stu7_step()
     return false
 end function
 
+' STU-8: the tabular tier, clicked for real.
+'
+' What the headless suite cannot reach is exactly what this checks: that the
+' offers pane is filled by the SAME redraw the rest of the window uses, that a
+' click on an offer row reaches the dispatcher with the index the user hit, and —
+' the part no plain-data test can assert — that a virtual DataGrid built over a
+' Studio row source actually BINDS cells, through GTK's own factory, reading
+' through the two-line adapters.
+'
+' MEASURING BINDS. The counters are reset BEFORE the widget tree is built, never
+' after: GtkColumnView realizes and binds its visible rows when the view is first
+' given a size, not at present() and not when the main loop runs. Resetting after
+' present zeroes work that has already happened and makes a healthy grid look
+' like it never bound. That is the documented DataGrid measurement artifact, and
+' repeating it here would have turned a passing grid into a failing test.
+function stu8_step()
+    ' NEVER advance while a run is in flight. The first version of this stepped
+    ' on a fixed timer and passed twice before a bigger table made the run outlast
+    ' the interval — after which every later phase read a window that was still
+    ' mid-run: the offers pane was empty (a live session is not a stored result),
+    ' so the click that should have opened a table opened nothing. A display tier
+    ' that depends on how fast the machine is does not test what it claims to.
+    sess = studio_ui.exec_session(G.app)
+    if sess != nothing then
+        if studio_session.is_active(sess) then
+            return true
+        end if
+    end if
+    G.phase = G.phase + 1
+    if G.phase = 1 then
+        print "before any run, the offers pane has nothing to offer: " + count(G.shell.tpane.rows)
+        print "clicking Run"
+        G.shell.bar.run.activate()
+        return true
+    end if
+    if G.phase = 2 then
+        print "offers after the run: " + count(G.shell.tpane.rows)
+        for each r in G.shell.tpane.rows
+            print "  tier=" + r.tier
+        end for
+        print "clicking the offer"
+        datagrid.reset_accesses()
+        studio_shell_click_table_row(0)
+        return true
+    end if
+    if G.phase = 3 then
+        print "action=" + G.last_action + " tier=" + G.last_table_kind
+        print "  a sample fits in a grid of labels, so no DataGrid was built"
+        print "  cells bound by GTK: " + stu8_bounded(datagrid.accesses())
+        print "clicking Fetch all rows"
+        G.shell.tpane.fetch.activate()
+        return true
+    end if
+    if G.phase = 4 then
+        print "fetch action=" + G.fetch_action
+        print "opening it again, now that the whole table is on disk"
+        datagrid.reset_accesses()
+        studio_shell_click_table_row(0)
+        return true
+    end if
+    print "action=" + G.last_action + " tier=" + G.last_table_kind
+    ' THE virtualization assertion. Not "the number is small" -- small compared to
+    ' what? -- but that it does not MOVE when the table grows: the suite runs this
+    ' tier twice, at 1,200 rows and at 12,000, and requires these two lines to
+    ' come out byte-identical. A grid that materialized its rows could not do
+    ' that.
+    print "  cells bound by GTK: " + stu8_bounded(datagrid.accesses())
+    print "  rows decoded by Studio: " + stu8_bounded(_STUDIO_TABLE.src.decodes)
+    G.app_ref.quit()
+    return false
+end function
+
+' A count reported as a BAND rather than a number. How many rows GTK realizes
+' depends on the window height, the theme's row padding and the GTK version, so a
+' golden holding the exact figure would be a golden about this machine. What the
+' test is actually asserting is that the number is bounded — some, and nowhere
+' near the whole table — and that is what this prints.
+function stu8_bounded(n)
+    if n = 0 then
+        return "none"
+    end if
+    if n < 2000 then
+        return "bounded"
+    end if
+    return "MANY (" + n + ") — grew with the table"
+end function
+
+function studio_shell_click_table_row(idx)
+    row = G.shell.tpane.list.get_row_at_index(idx)
+    if row = nothing then
+        print "  (no table row at " + idx + ")"
+        return nothing
+    end if
+    row.activate()
+    return nothing
+end function
+
 ' Synthesise a real row-activated on the selector.
 function studio_shell_click_branch_row(idx)
     row = G.shell.bpane.list.get_row_at_index(idx)
@@ -1052,6 +1238,9 @@ function on_activate(gtkapp)
         state("a cold home")
         gi.timeout(400, stu2g_step)
         return nothing
+    end if
+    if G.stu8 then
+        gi.timeout(500, stu8_step)
     end if
     if G.stu7 then
         gi.timeout(400, stu7_step)
@@ -1531,6 +1720,11 @@ program main(args)
     G.stu2f = false
     G.stu2g = false
     G.stu7 = false
+    G.stu8 = false
+    G.last_table_kind = ""
+    G.fetch_action = ""
+    G.table_win = nothing
+    G.table_grid = nothing
     G.open_target = ""
     G.save_on_exit = false
     ' STU-6: the semantic action history. Loaded here, appended by the handlers,
@@ -1582,6 +1776,18 @@ program main(args)
     end if
 
     ' STU-7: the inline branch selector, clicked for real.
+    if mode = "stu8_smoke" then
+        G.stu8 = true
+        projdir = args[2]
+        G.app = studio.create_registered_workspace(G.app, "ws")
+        ws = G.app.model.workspace
+        ws = studio_model.add_project(ws, "Alpha", projdir)
+        G.app = studio.set_workspace(G.app, ws)
+        ro = studio.open_from_browser(G.app, "proj-1", projdir + "/tabular.bas")
+        G.app = ro.app
+        G.app.clock_fixed = 1000
+    end if
+
     if mode = "stu7_smoke" then
         G.stu7 = true
         projdir = args[2]
@@ -1710,7 +1916,22 @@ program main(args)
     load studio_tools
     load studio_agent
     load studio_shell
+    load studio_table
+    load datagrid
     gi.require("Gtk", "4.0")
+
+    ' STU-8: the DataGrid's per-grid state has to be reachable from a factory
+    ' "bind" signal that GTK invokes with only (factory, item). gBASIC has no
+    ' closures, so the component finds its grid through a program global — one
+    ' line, at program scope, exactly as datagrid.bas documents. It goes AFTER the
+    ' loads, not beside the other globals: `load` is not hoisted, and datagrid is
+    ' loaded here rather than at the top because it pulls in gi, which the
+    ' headless modes must never touch.
+    _DATAGRID = datagrid.new_registry()
+    ' And the same shape for the row source behind a virtual grid: the cell
+    ' callback is handed (index, ordinal) and nothing else, so the source it reads
+    ' — and the decode cache it fills — live here.
+    _STUDIO_TABLE = { src: nothing }
 
     ' STU-2C: an existing directory can be opened as a project from the command
     ' line — `./studio gui <home> <folder>`. There is no button for it, because a

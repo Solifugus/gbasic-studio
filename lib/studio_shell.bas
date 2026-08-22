@@ -14,6 +14,10 @@
 ' tests never touch it.
 library studio_shell
 
+    ' STU-8: the tabular tier and the general virtualized grid it opens into.
+    load studio_table
+    load datagrid
+
 
     ' Dependencies, declared rather than assumed. A library that calls into
     ' another must load it: relying on the caller to have done so turns a
@@ -158,6 +162,12 @@ library studio_shell
         fb = studio_shell._fill_branches(shell, app)
         shell = fb.shell
         app = fb.app
+        ' STU-8: the table offers belong here rather than in `refresh`, because a
+        ' run is exactly what changes them — a section that has just finished is
+        ' the moment its variables become openable.
+        ft = studio_shell._fill_tables(shell, app)
+        shell = ft.shell
+        app = ft.app
         d = studio_shell._decorate(shell, app)
         return { shell: d.shell, app: d.app }
     end function
@@ -477,9 +487,11 @@ library studio_shell
         under.append(pane.box)
 
         bpane = studio_shell.branch_pane()
+        tpane = studio_shell.table_pane()
         beside = gtk.box("v", 4)
         beside.append(bpane.box)
         beside.append(rpane.box)
+        beside.append(tpane.box)
         beside.append(apane.box)
 
         vsplit = gtk.paned("v")
@@ -516,6 +528,7 @@ library studio_shell
                  delete_btn: delete_btn, close_btn: close_btn,
                  save_btn: save_btn, refresh_btn: refresh_btn,
                  bar: bar, pane: pane, rpane: rpane, apane: apane, bpane: bpane,
+                 tpane: tpane,
                  ' STU-5 decoration state: which outline revision each document's
                  ' gutter marks were drawn for, and the one live highlight tag.
                  marked: {}, hl_tag: nothing, hl_doc: "",
@@ -670,6 +683,117 @@ library studio_shell
         end for
         shell.bpane.rows = br.rows
         return { shell: shell, app: app }
+    end function
+
+    ' ---- STU-8: the table offers, and the grid window ----------------------
+    '
+    ' Design §7 has Studio OFFER a view rather than assume one, so this is a list
+    ' of offers and not a grid: only variables that are recognizably tabular get a
+    ' row at all, and a section whose variables are all scalars shows none.
+    '
+    ' A listbox for the same reason the file browser and the branch selector are
+    ' listboxes: the rows are DATA that changes with every run, and a listbox has
+    ' an index a click reports, so the dispatcher resolves it against the array
+    ' that produced the widgets rather than deriving them a second time.
+    function table_pane()
+        box = gtk.box("v", 4)
+        head = studio_shell._wrapped(gtk.label("Tables — results the section left behind that can be opened as a table"))
+        list = gtk.listbox()
+        fetch_btn = gtk.button("Fetch all rows (runs the section again)")
+        fetch_btn.halign = gi.enum("Gtk.Align.START")
+        box.append(head)
+        box.append(list)
+        box.append(fetch_btn)
+        return { box: box, list: list, fetch: fetch_btn, rows: [] }
+    end function
+
+    function _fill_tables(shell, app)
+        t = studio_ui.table_rows(app)
+        app = t.app
+        studio_shell._clear_listbox(shell.tpane.list)
+        for each r in t.rows
+            shell.tpane.list.append(studio_shell._left(gtk.label("   " + r.label)))
+        end for
+        if count(t.rows) = 0 then
+            shell.tpane.list.append(studio_shell._left(gtk.label("   (nothing tabular in the latest run)")))
+        end if
+        shell.tpane.rows = t.rows
+        return { shell: shell, app: app }
+    end function
+
+    ' The grid window. TWO TIERS, and the fork is the design's (§7), not a
+    ' convenience: a modest table is a grid of labels and needs no native
+    ' component at all, while a large one goes through the DataGrid — the single
+    ' justified native piece, and a general gBASIC component rather than a Studio
+    ' grid.
+    '
+    ' The caption is not decoration. It is where a sampled source admits to being
+    ' one, and it is drawn from the same `studio_table.caption` the headless
+    ' goldens assert, so the window cannot quietly say something kinder than the
+    ' model does.
+    '
+    ' A virtual grid's cell callback cannot close over this source — gBASIC
+    ' functions do not close over state — so the caller supplies `count_fn` and
+    ' `cell_fn`, which are the two-line adapters in app/studio.bas that read the
+    ' program global. Same rule as a signal handler, for the same reason.
+    function table_window(gtkapp, caption, src, count_fn, cell_fn)
+        win = gtk.application_window(gtkapp)
+        win.title = "gBASIC Studio — table"
+        win.default_width = 900
+        win.default_height = 600
+        outer = gtk.box("v", 6)
+        outer.append(studio_shell._wrapped(gtk.label(caption)))
+        if src.kind = "none" then
+            outer.append(studio_shell._left(gtk.label("(nothing to show)")))
+            win.set_child(outer)
+            return { window: win, grid: nothing, kind: "empty" }
+        end if
+        kind = "labels"
+        grid = nothing
+        if src.known > studio_table.modest_rows() then
+            kind = "datagrid"
+            grid = datagrid.create_virtual(count_fn, cell_fn)
+            ordinal = 0
+            for each c in src.cols
+                grid = datagrid.add_column(grid, { title: c, index: ordinal })
+                ordinal = ordinal + 1
+            end for
+            outer.append(gtk.scrolled(datagrid.widget(grid)))
+        else
+            outer.append(gtk.scrolled(studio_shell._label_grid(src)))
+        end if
+        win.set_child(outer)
+        return { window: win, grid: grid, kind: kind }
+    end function
+
+    ' The modest tier: one label per cell. Bounded by construction — nothing
+    ' reaches this branch with more rows than `modest_rows()`, which is what keeps
+    ' "a widget per cell" from being the wrong answer.
+    function _label_grid(src)
+        g = gi.new("Gtk.Grid")
+        g.set_column_spacing(12)
+        g.set_row_spacing(2)
+        ordinal = 0
+        for each c in src.cols
+            g.attach(studio_shell._left(gtk.label(c)), ordinal, 0, 1, 1)
+            ordinal = ordinal + 1
+        end for
+        i = 0
+        while i < src.known
+            r = studio_table.row_at(src, i)
+            src = r.src
+            ordinal = 0
+            for each c in src.cols
+                text = ""
+                if ordinal < count(r.row) then
+                    text = string(r.row[ordinal])
+                end if
+                g.attach(studio_shell._mono(gtk.label(text)), ordinal, i + 1, 1, 1)
+                ordinal = ordinal + 1
+            end for
+            i = i + 1
+        end while
+        return g
     end function
 
     ' ---- STU-6: the agent pane ---------------------------------------------

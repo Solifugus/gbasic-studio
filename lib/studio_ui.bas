@@ -1984,10 +1984,21 @@ library studio_ui
         r = studio_ui.run_section(app, doc.cursor.line, doc.cursor.column)
         app = r.app
         app["table_fetch"] = nothing
-        if r.action = "running" then
-            return { app: app, action: "fetching", detail: row.name + " -> " + row.count + " rows", active: true }
+        ' Any outcome in which the run actually STARTED reports as a fetch. It
+        ' would be wrong to key this on "running": whether the child is still
+        ' alive by the time the call returns is a race with how fast the section
+        ' is, and a button whose reported action depends on that would say two
+        ' different things about the same click.
+        if r.action = "refused" then
+            return { app: app, action: r.action, detail: r.detail, active: r.active }
         end if
-        return { app: app, action: r.action, detail: r.detail, active: r.active }
+        if r.action = "no-doc" then
+            return { app: app, action: r.action, detail: r.detail, active: r.active }
+        end if
+        if r.action = "no-section" then
+            return { app: app, action: r.action, detail: r.detail, active: r.active }
+        end if
+        return { app: app, action: "fetching", detail: row.name + " -> " + row.count + " rows", active: r.active }
     end function
 
     ' ---- cold state (STU-5 §10.3) -------------------------------------------

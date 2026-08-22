@@ -1,0 +1,15 @@
+before any run, the offers pane has nothing to offer: 0
+clicking Run
+offers after the run: 1
+  tier=large
+clicking the offer
+action=table tier=labels
+  a sample fits in a grid of labels, so no DataGrid was built
+  cells bound by GTK: none
+clicking Fetch all rows
+fetch action=fetching
+opening it again, now that the whole table is on disk
+action=table tier=datagrid
+  cells bound by GTK: bounded
+  rows decoded by Studio: bounded
+app-exited

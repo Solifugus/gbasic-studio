@@ -983,6 +983,57 @@ if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
         fi
     fi
 
+    # STU-8: the tabular tier, clicked for real -- and the virtualization
+    # assertion, which is the reason this tier runs TWICE.
+    #
+    # "The grid bound few cells" is not a claim about anything: few compared to
+    # what? The claim that means something is that the number DOES NOT MOVE when
+    # the table grows. So the same interaction runs over a 1,200-row table and a
+    # 12,000-row one, and both must produce byte-identical output. A grid that
+    # materialized its rows could not do that. (Checked by hand at 60,000 too;
+    # two sizes is what the suite pays for.)
+    #
+    # The driver waits on the RUN rather than on a timer. The first version
+    # stepped on a fixed interval and passed twice before a bigger table made a
+    # run outlast it -- after which every later phase read a window still mid-run,
+    # where the offers pane is empty because a live session is not a stored
+    # result. A display tier that depends on machine speed does not test what it
+    # claims to.
+    #
+    # The counters are reset BEFORE the widget tree is built, never after:
+    # GtkColumnView binds its visible rows when the view is first given a size,
+    # not at present(). Resetting after present zeroes work already done and makes
+    # a healthy grid look like it never bound -- the documented DataGrid
+    # measurement artifact, not to be repeated.
+    t8_ok=1
+    for t8_n in 1200 12000; do
+        t8_home="$tmproot/ui_gui_table_$t8_n"; t8_proj="$tmproot/ui_gui_table_${t8_n}_proj"
+        rm -rf "$t8_home" "$t8_proj"; mkdir -p "$t8_home" "$t8_proj"
+        printf 'rows = []\nn = 0\nwhile n < %s\n  rows = append(rows, { id: n, name: "row " + n, score: n * 1.5 })\n  n = n + 1\nend while\nprint "built " + count(rows)\n' \
+            "$t8_n" > "$t8_proj/tabular.bas"
+        : >"$stdout_file"
+        if timeout 240 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
+                "$GBASIC" "$APP" stu8_smoke "$t8_home" "$t8_proj" \
+                >"$stdout_file" 2>/dev/null; then
+            if ! diff -u tests/studio/ui_gui_table.out "$stdout_file"; then
+                t8_ok=0
+                printf '    (above diff is the %s-row run)\n' "$t8_n"
+            fi
+        else
+            if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
+                printf 'SKIP ui_gui_table (GTK 4 typelib not available)\n'
+                t8_ok=2
+                break
+            fi
+            cat "$stdout_file"; fail "ui_gui_table (nonzero exit at $t8_n rows)"
+        fi
+    done
+    if [ "$t8_ok" = 1 ]; then
+        printf 'PASS ui_gui_table (a virtualized grid, identical at 1,200 and 12,000 rows)\n'
+    elif [ "$t8_ok" = 0 ]; then
+        fail "ui_gui_table (output diff)"
+    fi
+
     # Two Studio windows at once. This is a regression test for a real defect,
     # not a stress test: `gtk.application(id)` defaults to SINGLE-INSTANCE, so a
     # second Studio used to print nothing and quietly hand its "activate" to the
@@ -1022,6 +1073,7 @@ else
     printf 'SKIP ui_gui_cursor (no display)\n'
     printf 'SKIP ui_gui_open (no display)\n'
     printf 'SKIP ui_gui_branch (no display)\n'
+    printf 'SKIP ui_gui_table (no display)\n'
 fi
 
 printf 'run_studio: all cases passed\n'

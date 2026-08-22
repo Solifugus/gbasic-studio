@@ -47,7 +47,7 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 132 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 143 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 7 cases, headless AND offline (scripted transport)
 ```
 
@@ -57,7 +57,8 @@ so. The suite builds the sibling gBASIC first when `GBASIC` points into a source
 tree, so an interpreter change is what gets tested rather than a stale binary.
 Display tiers (`sections_gui`, `sessions_gui`, `results_gui`, `ui_gui`,
 `ui_gui_cold`, `ui_gui_new`, `ui_gui_name`, `ui_gui_solo`, `ui_gui_run`,
-`ui_gui_cursor`, `ui_gui_open`, `ui_gui_branch`) SKIP cleanly without GTK 4 or a display.
+`ui_gui_cursor`, `ui_gui_open`, `ui_gui_branch`, `ui_gui_table`) SKIP cleanly
+without GTK 4 or a display.
 `ui_gui_new` is the only case that spans two processes: the GUI builds a project
 from nothing and closes, and a second interpreter run reopens the same home —
 because a process asserting its own memory cannot show that anything reached
@@ -89,6 +90,10 @@ lib/studio_ui.bas       what an interaction MEANS — the browser/tab row models
 lib/studio_branches.bas STU-7 state-only branches: a tree of alternate
                         continuations, each a set of BINDINGS replayed over
                         identical source; anchored to its shared ancestry
+lib/studio_viewers.bas  STU-8 library-registered rich viewers: declarative
+                        `.viewers` sidecars, read and never evaluated
+lib/studio_table.bas    STU-8 the tabular tier: what is a table, and where its
+                        rows come from (a capture sample, or a fetched export)
 lib/studio_drafts.bas   unsaved buffers across a close; conflict-aware, keyed by
                         a hash of the text the buffer was based on
 lib/studio_history.bas  the semantic action log — a closed vocabulary, bounded
@@ -183,6 +188,34 @@ Two consequences worth knowing before you touch the shell:
   after the newline, so the final chunk must be newline-closed BEFORE it is
   measured or the target's own last line gets no map segment and its diagnostics
   come back unmapped.
+- A viewer sidecar is DECLARATIVE. `studio_viewers` reads JSON and never runs
+  anything; `viewers_declarative` greps for that. If the registry ever grew a way
+  to execute what a library ships, a viewer file would be arbitrary code with
+  Studio's privileges and the core language would have acquired display semantics
+  by the back door (§6.2).
+- Viewer matching is over the DESCRIPTOR, never a value — Studio holds no values,
+  because the child exited. Extraction happens in the child instead:
+  `studio_viewers.capture_rules` is compiled into the variable epilogue by
+  `studio_session._detail_fn`, which writes gBASIC that calls `has` and
+  `reflect.field`. Field names go in through `quote`, not hand-written quotation
+  marks, or a name carrying a quote would end the literal early and turn
+  declarative metadata into generated code.
+- A registered viewer that matches on shape but finds no `detail` renders NOTHING
+  and falls back to the structural preview. Every result recorded before the
+  viewer existed is in that state; it is normal, not a fault.
+- A table opened without a fetch is a SAMPLE, and `studio_table.caption` is where
+  it admits that. Do not caption a grid with a total it cannot show.
+- Fetch goes through `studio_ui.run_section`, the same function the Run button
+  uses, with one extra insertion. Do not add a second run path: an export taken
+  by a differently-bound run would be a table of numbers that never coexisted.
+- The DataGrid virtualization test runs the SAME interaction at two table sizes
+  and requires byte-identical output. "Few cells bound" is not a claim; "the
+  number does not move when the table grows tenfold" is. Reset
+  `datagrid.accesses()` BEFORE building the widget tree — GtkColumnView binds
+  when the view is first given a size, not at `present()`.
+- `_DATAGRID` and `_STUDIO_TABLE` are program globals assigned AFTER the display
+  loads in `app/studio.bas`. `load` is not hoisted, and `datagrid` pulls in `gi`,
+  which the headless modes must never touch.
 - A Studio branch is NOT a Git branch — not stored, surfaced or created as one
   (design §2.3), and `branches_not_git` greps the source to keep it that way.
   A state-only branch differs from its siblings ONLY by the bindings it injects;
