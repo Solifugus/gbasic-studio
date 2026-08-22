@@ -50,9 +50,20 @@ library studio_git
         return studio_git._on_path("git")
     end function
 
-    ' The first entry on PATH that is actually a file. `file_type` is the only way
-    ' to ask without raising — `file_size` raises on a directory and `exists`
-    ' cannot tell a directory from a program.
+    ' The first entry on PATH where something of that name exists.
+    '
+    ' `exists` rather than `file_type`, and the difference matters for a reason
+    ' that is not about elegance: `file_type` is NEWER than the released gBASIC.
+    ' Studio built against the development interpreter worked and the same source
+    ' raised "undefined variable: file_type" on the installed one — found by the
+    ' release check, which is what the release check is for. `exists` is in both.
+    '
+    ' The cost is a narrower guarantee, stated rather than hidden: `exists` cannot
+    ' tell a program from a directory, so a DIRECTORY named `git` earlier on PATH
+    ' than the real one would be picked and then fail to launch. That is a strange
+    ' machine, and the failure is loud rather than silent — but it is a real edge
+    ' and `file_type` closed it, so this is worth revisiting once the platform
+    ' release catches up.
     function _on_path(name)
         p = env("PATH")
         if not is_string(p) then
@@ -60,9 +71,9 @@ library studio_git
         end if
         for each dir in split(p, ":")
             if dir != "" then
-                cand = dir + "/" + name
-                if file_type(cand) = "file" then
-                    return cand
+                cand(file) = dir + "/" + name
+                if exists(cand) then
+                    return dir + "/" + name
                 end if
             end if
         end for
@@ -87,8 +98,9 @@ library studio_git
         if root = "" then
             return { ok: false, code: -1, out: "", err: "", why: "no directory to run git in" }
         end if
-        if file_type(root) != "folder" then
-            return { ok: false, code: -1, out: "", err: "", why: root + " is not a directory" }
+        rd(file) = root
+        if not exists(rd) then
+            return { ok: false, code: -1, out: "", err: "", why: root + " does not exist" }
         end if
         r = process.run({ command: g, args: args, cwd: root, timeout: studio_git.timeout_s() })
         if r.timed_out then

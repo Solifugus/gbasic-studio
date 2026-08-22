@@ -4,7 +4,7 @@ git: not a repository
   detect: none
 
 -- and a directory that does not exist is refused, not raised
-  ok=false — nowhere is not a directory
+  ok=false — nowhere does not exist
 
 -- git is found by LOOKING for it, never by trying to run it:
    process.run raises when the executable is missing, and gBASIC
