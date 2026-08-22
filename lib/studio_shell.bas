@@ -154,6 +154,10 @@ library studio_shell
         shell.pane.target.label = studio_ui.target_body(app)
         shell.pane.errors.label = studio_ui.error_body(app)
         shell.rpane.body.label = studio_ui.results_body(app)
+        shell.bar.branch.label = studio_ui.branch_label(app)
+        fb = studio_shell._fill_branches(shell, app)
+        shell = fb.shell
+        app = fb.app
         d = studio_shell._decorate(shell, app)
         return { shell: d.shell, app: d.app }
     end function
@@ -472,7 +476,9 @@ library studio_shell
         under.append(bar.box)
         under.append(pane.box)
 
+        bpane = studio_shell.branch_pane()
         beside = gtk.box("v", 4)
+        beside.append(bpane.box)
         beside.append(rpane.box)
         beside.append(apane.box)
 
@@ -509,7 +515,7 @@ library studio_shell
                  name_entry: name_entry, open_btn: open_btn, rename_btn: rename_btn,
                  delete_btn: delete_btn, close_btn: close_btn,
                  save_btn: save_btn, refresh_btn: refresh_btn,
-                 bar: bar, pane: pane, rpane: rpane, apane: apane,
+                 bar: bar, pane: pane, rpane: rpane, apane: apane, bpane: bpane,
                  ' STU-5 decoration state: which outline revision each document's
                  ' gutter marks were drawn for, and the one live highlight tag.
                  marked: {}, hl_tag: nothing, hl_doc: "",
@@ -554,15 +560,20 @@ library studio_shell
         ' The strip is one horizontal row, so this cannot wrap; ellipsize instead,
         ' which at least SAYS it was cut rather than stopping mid-word.
         standing.ellipsize = gi.enum("Pango.EllipsizeMode.END")
+        branch = studio_shell._left(gtk.label("branch: baseline"))
+        branch.ellipsize = gi.enum("Pango.EllipsizeMode.END")
         bar.append(run_btn)
         bar.append(halt_btn)
         bar.append(force_btn)
         bar.append(state)
         bar.append(section)
         bar.append(standing)
+        ' The branch is NOT appended: the selector pane names it a few inches
+        ' away, and a fifth label turned the strip into two ellipsized stubs.
+        ' The widget stays so a caller can read the text without the pane.
         ' `stop` is a gBASIC keyword and cannot be a record key, hence `halt`.
         return { box: bar, run: run_btn, halt: halt_btn, force: force_btn,
-                 state: state, section: section, standing: standing }
+                 state: state, section: section, standing: standing, branch: branch }
     end function
 
     ' These three moved to studio_ui in STU-2E and stayed here as delegates. They
@@ -619,6 +630,46 @@ library studio_shell
         box.append(head)
         box.append(body)
         return { box: box, head: head, body: body }
+    end function
+
+    ' ---- STU-7: the inline branch selector (§9.1) ---------------------------
+    '
+    ' Mutually-exclusive rows at the branch point. A GtkListBox rather than a row
+    ' of buttons for the same reason the file browser is one: the rows are DATA
+    ' that changes, and a listbox has an index a click reports, so the dispatcher
+    ' can resolve it against the array that produced the widgets.
+    function branch_pane()
+        box = gtk.box("v", 4)
+        head = studio_shell._wrapped(gtk.label("Branches — alternate continuations below this point; the code is the same in each"))
+        list = gtk.listbox()
+        bind_btn = gtk.button("Bind name = value")
+        bind_btn.halign = gi.enum("Gtk.Align.START")
+        box.append(head)
+        box.append(list)
+        box.append(bind_btn)
+        return { box: box, list: list, bind: bind_btn, rows: [] }
+    end function
+
+    ' Rebuild the selector from the shared row model, exactly as the nav pane is
+    ' rebuilt from its own — and the rows are stored so a later click resolves
+    ' against what was actually drawn.
+    function _fill_branches(shell, app)
+        br = studio_ui.branch_rows(app)
+        app = br.app
+        studio_shell._clear_listbox(shell.bpane.list)
+        for each r in br.rows
+            mark = "   "
+            if r.selected then
+                mark = " * "
+            end if
+            text = mark + r.label
+            if r.stale then
+                text = text + "   [ancestry changed]"
+            end if
+            shell.bpane.list.append(studio_shell._left(gtk.label(text)))
+        end for
+        shell.bpane.rows = br.rows
+        return { shell: shell, app: app }
     end function
 
     ' ---- STU-6: the agent pane ---------------------------------------------

@@ -99,6 +99,19 @@ Those first two used to look identical, which mattered: **Save on a `~` tab
 overwrites whatever else wrote the file**, so it now takes two clicks and says
 what it is about to do.
 
+**Exploratory branching, state-only (STU-7).** At a section boundary you can keep
+alternate continuations and switch between them. Everything *above* the branch
+point is shared ancestry; everything below may diverge. A state-only branch runs
+**identical source** — what differs is the bindings it injects at its point, so
+the same file answers `score is 50` on the baseline, `25` on one branch and `90`
+on another, and the file on disk never changes. Each branch keeps its own run
+history rather than interleaving with its siblings.
+
+A branch is **not a Git branch** — not stored, surfaced or created as one. If the
+code above a branch point changes, the branch is flagged `[ancestry changed]` and
+stays selected: Studio surfaces stale state rather than acting on it, and
+re-anchoring is a separate deliberate click.
+
 **A read-only assistant (STU-6).** Studio keeps a semantic action history — files
 opened, sections selected and run, errors raised, in its own vocabulary rather
 than as keystrokes — and an assistant answers *"where was I?"* from it. The
@@ -155,7 +168,7 @@ workspace instead:
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 130 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 132 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 7 cases, headless AND offline — no network, no key
 ```
 

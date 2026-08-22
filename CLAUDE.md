@@ -47,7 +47,7 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 130 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 132 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 7 cases, headless AND offline (scripted transport)
 ```
 
@@ -57,7 +57,7 @@ so. The suite builds the sibling gBASIC first when `GBASIC` points into a source
 tree, so an interpreter change is what gets tested rather than a stale binary.
 Display tiers (`sections_gui`, `sessions_gui`, `results_gui`, `ui_gui`,
 `ui_gui_cold`, `ui_gui_new`, `ui_gui_name`, `ui_gui_solo`, `ui_gui_run`,
-`ui_gui_cursor`, `ui_gui_open`) SKIP cleanly without GTK 4 or a display.
+`ui_gui_cursor`, `ui_gui_open`, `ui_gui_branch`) SKIP cleanly without GTK 4 or a display.
 `ui_gui_new` is the only case that spans two processes: the GUI builds a project
 from nothing and closes, and a second interpreter run reopens the same home —
 because a process asserting its own memory cannot show that anything reached
@@ -177,6 +177,12 @@ Two consequences worth knowing before you touch the shell:
   shell, so the headless suite can assert what a run reports. `studio_shell`
   keeps the old names as delegates only because the STU-4/5A display goldens
   print through them.
+- `materialize_text` splices a LIST of insertions in offset order — the boundary
+  marker, the before-scope dump, and any branch bindings — and the line map falls
+  out of the same pass. A section's `end_offset` stops at its last statement, not
+  after the newline, so the final chunk must be newline-closed BEFORE it is
+  measured or the target's own last line gets no map segment and its diagnostics
+  come back unmapped.
 - A Studio branch is NOT a Git branch — not stored, surfaced or created as one
   (design §2.3), and `branches_not_git` greps the source to keep it that way.
   A state-only branch differs from its siblings ONLY by the bindings it injects;

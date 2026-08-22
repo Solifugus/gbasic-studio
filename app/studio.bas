@@ -523,6 +523,27 @@ function tool_fn_for(name)
     error "agent_tools: no callable for tool '" + name + "'"
 end function
 
+' A branch row was clicked. Same adapter shape as a browser row: read the index,
+' let the rows that were drawn decide what it means.
+function on_branch_row(box, row)
+    idx = row.get_index()
+    r = studio_ui.activate_branch_row(G.app, G.shell.bpane.rows, idx, G.shell.name_entry.text)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    redraw()
+    return nothing
+end function
+
+function on_bind()
+    r = studio_ui.bind_selected(G.app, G.shell.name_entry.text)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    redraw()
+    return nothing
+end function
+
 function on_stop()
     r = studio_ui.stop_run(G.app)
     G.app = r.app
@@ -561,6 +582,8 @@ function wire_shell()
     gi.connect(sh.bar.halt, "clicked", on_stop)
     gi.connect(sh.bar.force, "clicked", on_force_stop)
     gi.connect(sh.apane.ask, "clicked", on_ask_agent)
+    gi.connect(sh.bpane.list, "row-activated", on_branch_row)
+    gi.connect(sh.bpane.bind, "clicked", on_bind)
     return nothing
 end function
 
@@ -920,6 +943,66 @@ function stu2g_step()
     return false
 end function
 
+' ---- STU-7 display tier ----------------------------------------------------
+'
+' The selector is a listbox of DATA, so its rows can be activated the same way a
+' browser row is — which is the whole reason it is a listbox and not a row of
+' buttons built per branch.
+function stu7_step()
+    G.phase = G.phase + 1
+    if G.phase = 1 then
+        print "rows as drawn:"
+        for each r in G.shell.bpane.rows
+            mark = "  "
+            if r.selected then
+                mark = "* "
+            end if
+            print "  " + mark + r.kind + " " + r.label
+        end for
+        print "typing a name and clicking +"
+        G.shell.name_entry.text = "Low"
+        studio_shell_click_branch_row(count(G.shell.bpane.rows) - 1)
+        return true
+    end if
+    if G.phase = 2 then
+        print "action=" + G.last_action + " status=" + G.shell.status.label
+        print "  " + studio_ui.branch_label(G.app)
+        print "binding a value onto it"
+        G.shell.name_entry.text = "threshold = 0.25"
+        G.shell.bpane.bind.activate()
+        return true
+    end if
+    if G.phase = 3 then
+        print "action=" + G.last_action + " status=" + G.shell.status.label
+        print "rows now:"
+        for each r in G.shell.bpane.rows
+            mark = "  "
+            if r.selected then
+                mark = "* "
+            end if
+            print "  " + mark + r.kind + " " + r.label
+        end for
+        print "clicking Baseline"
+        studio_shell_click_branch_row(0)
+        return true
+    end if
+    print "action=" + G.last_action + " status=" + G.shell.status.label
+    print "  " + G.shell.bar.branch.label
+    G.app_ref.quit()
+    return false
+end function
+
+' Synthesise a real row-activated on the selector.
+function studio_shell_click_branch_row(idx)
+    row = G.shell.bpane.list.get_row_at_index(idx)
+    if row = nothing then
+        print "  (no branch row at " + idx + ")"
+        return nothing
+    end if
+    row.activate()
+    return nothing
+end function
+
 ' The cold-home path: an empty home renders "(no workspace open)", and New
 ' Project is the only thing that can move it. If this button does not work, a
 ' new user has no way into Studio at all.
@@ -968,6 +1051,10 @@ function on_activate(gtkapp)
     if G.stu2g then
         state("a cold home")
         gi.timeout(400, stu2g_step)
+        return nothing
+    end if
+    if G.stu7 then
+        gi.timeout(400, stu7_step)
         return nothing
     end if
     if G.stu2e then
@@ -1443,6 +1530,7 @@ program main(args)
     G.stu2e = false
     G.stu2f = false
     G.stu2g = false
+    G.stu7 = false
     G.open_target = ""
     G.save_on_exit = false
     ' STU-6: the semantic action history. Loaded here, appended by the handlers,
@@ -1491,6 +1579,20 @@ program main(args)
     if mode = "stu2g_smoke" then
         G.stu2g = true
         G.open_target = args[2]
+    end if
+
+    ' STU-7: the inline branch selector, clicked for real.
+    if mode = "stu7_smoke" then
+        G.stu7 = true
+        projdir = args[2]
+        G.app = studio.create_registered_workspace(G.app, "ws")
+        ws = G.app.model.workspace
+        ws = studio_model.add_project(ws, "Alpha", projdir)
+        G.app = studio.set_workspace(G.app, ws)
+        ro = studio.open_from_browser(G.app, "proj-1", projdir + "/branchy.bas")
+        G.app = ro.app
+        G.app.dm = studio_docs.set_cursor(G.app.dm, ro.id, 7, 1)
+        G.app.clock_fixed = 1000
     end if
 
     ' STU-2E: Run Section, clicked for real, with a document open and its cursor

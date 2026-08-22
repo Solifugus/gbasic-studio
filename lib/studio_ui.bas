@@ -859,6 +859,21 @@ library studio_ui
         if action = "refreshed" then
             return "refreshed"
         end if
+        if action = "branched" then
+            return "branched: " + studio_ui._token_leaf(detail, 1)
+        end if
+        if action = "on-branch" then
+            return "on branch " + leaf
+        end if
+        if action = "baseline" then
+            return "back to the baseline"
+        end if
+        if action = "bound" then
+            return "bound " + detail
+        end if
+        if action = "no-branch" then
+            return "select a branch first — the baseline takes no bindings"
+        end if
         if action = "running" then
             return "running " + detail
         end if
@@ -936,6 +951,12 @@ library studio_ui
             return true
         end if
         if action = "adopted" then
+            return true
+        end if
+        if action = "branched" then
+            return true
+        end if
+        if action = "bound" then
             return true
         end if
         if action = "activated" then
@@ -1171,6 +1192,136 @@ library studio_ui
         end if
         b = bi.chain[n - 1]
         return { app: bi.app, id: b.id, name: b.name }
+    end function
+
+    ' ---- the inline selector's row model (§9.1) -----------------------------
+    '
+    ' Mutually-exclusive inline buttons at the branch point, exactly one selected,
+    ' plus a "+" to make another. Derived ONCE like the browser's rows, and both
+    ' the renderer and the click dispatcher consume the same array — a second,
+    ' independently-derived list would drift the moment a branch was added
+    ' between a render and a click.
+    '
+    ' The BASELINE is always first and always present: it is the document as
+    ' written, with no bindings, and it is what a point falls back to. Without a
+    ' row for it there would be no way back from a branch.
+    function branch_rows(app)
+        v = studio_ui.view_for(app)
+        app = v.app
+        doc = studio_docs.active_doc(app.dm)
+        if doc = nothing then
+            return { app: app, rows: [], point: "" }
+        end if
+        if v.sid = "" then
+            return { app: app, rows: [], point: "" }
+        end if
+        tree = studio_ui.branch_tree(app)
+        sel = studio_branches.selected_at(tree, v.sid)
+        rows = []
+        rows = append(rows, { kind: "baseline", id: "", label: "Baseline",
+                              selected: sel = "", stale: false })
+        for each b in studio_branches.at_point(tree, doc.id, v.sid)
+            rows = append(rows, { kind: "branch", id: b.id, label: b.name,
+                                  selected: sel = b.id,
+                                  stale: studio_branches.is_stale(tree, b, v.st) })
+        end for
+        rows = append(rows, { kind: "add", id: "", label: "+", selected: false, stale: false })
+        return { app: app, rows: rows, point: v.sid }
+    end function
+
+    ' Click row `index` of what was rendered. `name` is the header field, which
+    ' names a new branch the way it names a new file.
+    function activate_branch_row(app, rows, index, name)
+        if index < 0 then
+            return { app: app, action: "out-of-range", detail: "" }
+        end if
+        if index >= count(rows) then
+            return { app: app, action: "out-of-range", detail: "" }
+        end if
+        br = studio_ui.branch_rows(app)
+        app = br.app
+        point = br.point
+        if point = "" then
+            return { app: app, action: "no-section", detail: "" }
+        end if
+        row = rows[index]
+        tree = studio_ui.branch_tree(app)
+        if row.kind = "baseline" then
+            tree = studio_branches.clear_point(tree, point)
+            return { app: studio_ui.set_branch_tree(app, tree), action: "baseline", detail: point }
+        end if
+        if row.kind = "add" then
+            doc = studio_docs.active_doc(app.dm)
+            v = studio_ui.view_for(app)
+            app = v.app
+            nm = trim(name)
+            if nm = "" then
+                nm = "Branch " + (count(studio_branches.at_point(tree, doc.id, point)) + 1)
+            end if
+            ' A new branch nests under whatever is selected ABOVE this point, so
+            ' making one inside a branch keeps it inside that branch.
+            parent = ""
+            chain = studio_branches.selected_chain(tree, doc.id, v.st)
+            for each c in chain
+                if c.point != point then
+                    parent = c.id
+                end if
+            end for
+            a = studio_branches.add(tree, doc.id, point, nm, parent, v.st)
+            tree = studio_branches.select(a.tree, a.id).tree
+            return { app: studio_ui.set_branch_tree(app, tree), action: "branched", detail: a.id + " " + nm }
+        end if
+        tree = studio_branches.select(tree, row.id).tree
+        return { app: studio_ui.set_branch_tree(app, tree), action: "on-branch", detail: row.id }
+    end function
+
+    ' Bind the header field's `name = value` onto the selected branch. The field
+    ' carries both because a binding IS a name and a value, and a second field
+    ' would be a second thing to explain.
+    function bind_selected(app, text)
+        br = studio_ui.branch_rows(app)
+        app = br.app
+        if br.point = "" then
+            return { app: app, action: "no-section", detail: "" }
+        end if
+        tree = studio_ui.branch_tree(app)
+        id = studio_branches.selected_at(tree, br.point)
+        if id = "" then
+            return { app: app, action: "no-branch", detail: "" }
+        end if
+        eq = find(text, "=")
+        if eq = nothing then
+            return { app: app, action: "invalid", detail: "write it as name = value" }
+        end if
+        nm = trim(mid(text, 0, eq))
+        val = trim(mid(text, eq + 1, len(text) - eq - 1))
+        r = studio_branches.bind(tree, id, nm, val)
+        if r.action != "bound" then
+            return { app: app, action: r.action, detail: r.detail }
+        end if
+        return { app: studio_ui.set_branch_tree(app, r.tree), action: "bound", detail: nm + " = " + val }
+    end function
+
+    ' One line naming the selected branch, for the strip.
+    function branch_label(app)
+        br = studio_ui.branch_rows(app)
+        app = br.app
+        if br.point = "" then
+            return "branch: (none)"
+        end if
+        for each r in br.rows
+            if r.selected then
+                if r.kind = "baseline" then
+                    return "branch: baseline"
+                end if
+                line = "branch: " + r.label
+                if r.stale then
+                    line = line + " [ancestry changed]"
+                end if
+                return line
+            end if
+        end for
+        return "branch: baseline"
     end function
 
     ' Start a run for the active document's section at (line0, column0).

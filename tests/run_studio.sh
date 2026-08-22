@@ -897,6 +897,31 @@ if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
         fi
     fi
 
+    # STU-7: the inline branch selector, clicked for real. The rows are DATA in a
+    # listbox, so a click reports an index the dispatcher resolves against the
+    # array that produced the widgets — the same property the file browser has,
+    # and the reason the selector is not a row of per-branch buttons.
+    b7_home="$tmproot/ui_gui_branch"; b7_proj="$tmproot/ui_gui_branch_proj"
+    mkdir -p "$b7_home" "$b7_proj"
+    printf 'threshold = 0.5\n\nfunction score(t)\n  return t * 100\nend function\n\nprint "score is " + score(threshold)\n' \
+        > "$b7_proj/branchy.bas"
+    : >"$stdout_file"
+    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
+            "$GBASIC" "$APP" stu7_smoke "$b7_home" "$b7_proj" \
+            >"$stdout_file" 2>/dev/null; then
+        if diff -u tests/studio/ui_gui_branch.out "$stdout_file"; then
+            printf 'PASS ui_gui_branch (the selector clicked through real signals)\n'
+        else
+            fail "ui_gui_branch (output diff)"
+        fi
+    else
+        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
+            printf 'SKIP ui_gui_branch (GTK 4 typelib not available)\n'
+        else
+            cat "$stdout_file"; fail "ui_gui_branch (nonzero exit)"
+        fi
+    fi
+
     # Two Studio windows at once. This is a regression test for a real defect,
     # not a stress test: `gtk.application(id)` defaults to SINGLE-INSTANCE, so a
     # second Studio used to print nothing and quietly hand its "activate" to the
@@ -935,6 +960,7 @@ else
     printf 'SKIP ui_gui_run (no display)\n'
     printf 'SKIP ui_gui_cursor (no display)\n'
     printf 'SKIP ui_gui_open (no display)\n'
+    printf 'SKIP ui_gui_branch (no display)\n'
 fi
 
 printf 'run_studio: all cases passed\n'

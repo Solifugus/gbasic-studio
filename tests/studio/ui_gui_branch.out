@@ -1,0 +1,16 @@
+rows as drawn:
+  * baseline Baseline
+    add +
+typing a name and clicking +
+action=branched status=branched: Low
+  branch: Low
+binding a value onto it
+action=bound status=bound threshold = 0.25
+rows now:
+    baseline Baseline
+  * branch Low
+    add +
+clicking Baseline
+action=baseline status=back to the baseline
+  branch: baseline
+app-exited
