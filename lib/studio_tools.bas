@@ -28,6 +28,7 @@ library studio_tools
     load studio_history
     load studio_ui
     load studio_permissions
+    load studio_teaching
 
     function schema_version()
         return 1
@@ -79,6 +80,12 @@ library studio_tools
             schema: studio_tools._obj() })
         out = append(out, { name: "where_was_i",
             description: "A reconstruction of the user's working context: last file, last section, last run, last error.",
+            schema: studio_tools._obj() })
+        ' A READ, and it lives with the reads: asking what an agent may point at
+        ' changes nothing. Putting it in act_registry would have made `is_act`
+        ' true for it, routing it to a dispatcher with no branch for it.
+        out = append(out, { name: "list_widgets",
+            description: "The parts of the window an agent may point at, and which gestures each can perform.",
             schema: studio_tools._obj() })
         for each a in studio_tools.act_registry()
             out = append(out, a)
@@ -137,6 +144,16 @@ library studio_tools
         out = append(out, { name: "delete_path", tier: "external",
             description: "Delete the file or folder selected in the browser. Not undoable by Studio.",
             schema: studio_tools._obj() })
+        ' Teaching (§13). `local` rather than `read`: it changes what the user
+        ' sees and can take the keyboard, which is not an observation — but it is
+        ' entirely reversible, so it does not belong beside deleting a file.
+        out = append(out, { name: "point_at", tier: "local",
+            description: "Draw the user's attention to a part of the window: highlight, pulse, focus, reveal, or annotate a line range of the editor. Names a widget, not a position.",
+            schema: { type: "object",
+                      properties: { widget: { type: "string" },
+                                    gesture: { type: "string" },
+                                    detail: { type: "string" } },
+                      required: ["widget", "gesture"] } })
         out = append(out, { name: "rename_path", tier: "external",
             description: "Rename the file or folder selected in the browser.",
             schema: { type: "object", properties: { name: { type: "string" } }, required: ["name"] } })
@@ -318,6 +335,31 @@ library studio_tools
             r = studio_ui.delete_selected(app, ws.nav.selected_path)
             return studio_tools._done(app, r, { deleted: r.detail })
         end if
+        if name = "point_at" then
+            w = args["widget"]
+            if not is_string(w) then
+                return studio_tools._fail(app, name, "point_at needs a widget")
+            end if
+            g = args["gesture"]
+            if not is_string(g) then
+                return studio_tools._fail(app, name, "point_at needs a gesture")
+            end if
+            d = args["detail"]
+            if not is_string(d) then
+                d = ""
+            end if
+            c = studio_teaching.cue(w, g, d)
+            if not c.ok then
+                return studio_tools._fail(app, name, c.why)
+            end if
+            ' The cue is left ON THE APP for the shell to render on its next
+            ' redraw. The library cannot touch a widget and must not try: a
+            ' teaching gesture is a decision here and a rendering there, which is
+            ' the same split every interaction in Studio already has.
+            app["teach"] = c
+            return { app: app, ok: true, why: "", value: c,
+                     action: "pointed", detail: studio_teaching.describe(c) }
+        end if
         if name = "rename_path" then
             nm = args["name"]
             if not is_string(nm) then
@@ -460,6 +502,9 @@ library studio_tools
         end if
         if name = "where_was_i" then
             return studio_tools._ok(studio_history.orientation(log))
+        end if
+        if name = "list_widgets" then
+            return studio_tools._ok(studio_teaching.registry())
         end if
 
         ' The three that take a section id. A missing or unknown id is reported,

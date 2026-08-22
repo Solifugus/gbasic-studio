@@ -10,6 +10,7 @@
   read  section_variables
   read  recent_actions
   read  where_was_i
+  read  list_widgets
   local  open_document
   local  select_document
   local  move_cursor
@@ -22,8 +23,9 @@
   local  create_folder
   external  save_document
   external  delete_path
+  local  point_at
   external  rename_path
-count=24
+count=26
 -- the read path still refuses an act outright
   delete_path changes things; call it through invoke
 -- current_project

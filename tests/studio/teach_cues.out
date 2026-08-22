@@ -1,0 +1,20 @@
+-- pointing at things, the way §13 describes
+  pulse gutter (source) for 1200ms
+  highlight run_button (control)
+  focus name_field (control)
+  reveal results (pane)
+  annotate editor (source) at 12-18
+  annotate editor (source) at 7
+
+-- a bad widget name LISTS the real ones, so a model can correct itself
+  refused: no widget named "run_panel"; there is browser, tabs, editor, gutter, run_strip, output, results, branches, tables, assistant, name_field, run_button, save_button, new_file_button, new_folder_button, overlay_strip
+
+-- so does a bad gesture
+  refused: no gesture named "wiggle"; there is highlight, pulse, focus, reveal, annotate
+
+-- and a gesture a widget cannot perform says what it can
+  refused: browser is a pane, which cannot annotate; it can highlight, pulse, reveal
+  refused: results is a pane, which cannot focus; it can highlight, pulse, reveal
+
+-- focus and highlight are not interchangeable: one takes the keyboard
+   away from someone mid-sentence, which is why a pane cannot focus.

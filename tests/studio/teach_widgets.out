@@ -1,0 +1,33 @@
+widgets an agent may point at:
+  browser (pane) — the project file browser
+      can: highlight, pulse, reveal
+  tabs (pane) — the row of open document tabs
+      can: highlight, pulse, reveal
+  editor (source) — the source editor for the active document
+      can: highlight, pulse, focus, reveal, annotate
+  gutter (source) — the editor's gutter, where section boundaries are marked
+      can: highlight, pulse, focus, reveal, annotate
+  run_strip (pane) — the run controls and the state of the current run
+      can: highlight, pulse, reveal
+  output (pane) — the prefix, target and error output panes
+      can: highlight, pulse, reveal
+  results (pane) — the results pane for the section at the caret
+      can: highlight, pulse, reveal
+  branches (pane) — the branch selector for the section at the caret
+      can: highlight, pulse, reveal
+  tables (pane) — the table offers for the latest run
+      can: highlight, pulse, reveal
+  assistant (pane) — the assistant pane
+      can: highlight, pulse, reveal
+  name_field (control) — the header field that names new files, folders and branches
+      can: highlight, pulse, focus
+  run_button (control) — the Run button
+      can: highlight, pulse, focus
+  save_button (control) — the Save button
+      can: highlight, pulse, focus
+  new_file_button (control) — the New File button
+      can: highlight, pulse, focus
+  new_folder_button (control) — the New Folder button
+      can: highlight, pulse, focus
+  overlay_strip (control) — the overlay acts: edit, save, compare, rebase, promote, discard
+      can: highlight, pulse, focus

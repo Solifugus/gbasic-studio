@@ -114,6 +114,10 @@ function redraw()
         gi.connect(ed.buffer, "notify::cursor-position", on_cursor_moved)
     end for
     G.redrawing = false
+    ' STU-10: a teaching cue is drawn AFTER the redraw, and outside the
+    ' re-entrancy guard. It touches widgets the redraw has just rebuilt, and
+    ' drawing it inside would point at a pane the reconciler is about to replace.
+    draw_cue()
     return nothing
 end function
 
@@ -629,6 +633,28 @@ function on_bind()
     G.last_detail = r.detail
     redraw()
     return nothing
+end function
+
+' ---- STU-10: teaching, drawn -----------------------------------------------
+'
+' A cue left on the app by the `point_at` tool is rendered on the next redraw and
+' consumed there. This is the adapter: one call, and — for a pulse — one timeout
+' whose callback clears the class again. The callback cannot close over the
+' widget, so the shell holds it and this reads the global, exactly as every other
+' handler does.
+function draw_cue()
+    r = studio_shell.apply_cue(G.shell, G.app)
+    G.shell = r.shell
+    G.app = r.app
+    if G.shell.pulsing != nothing then
+        gi.timeout(studio_teaching.pulse_ms(), end_pulse)
+    end if
+    return nothing
+end function
+
+function end_pulse()
+    G.shell = studio_shell.clear_pulse(G.shell)
+    return false
 end function
 
 ' ---- STU-9: the overlay acts ------------------------------------------------
@@ -1259,6 +1285,85 @@ function studio_shell_click_table_row(idx)
     return nothing
 end function
 
+' STU-10: teaching, drawn for real.
+'
+' What only this tier can reach: that a cue built by studio_teaching resolves to a
+' widget the shell actually holds, that the CSS class lands ON that widget, that a
+' pulse takes it off again by itself, and that an annotation puts a real
+' GtkTextTag over the editor. The headless tier proves what a cue MEANS; nothing
+' below the widget boundary can prove it was drawn.
+function stu10_step()
+    ' Never advance while a pulse is still running. The first version checked
+    ' that the class had been removed on a fixed interval and raced the timeout —
+    ' the same mistake STU-8's tier made, and the reason that one waits on its
+    ' run instead of on a clock.
+    if G.shell.pulsing != nothing then
+        return true
+    end if
+    G.phase = G.phase + 1
+    if G.phase = 1 then
+        print "every widget the agent may point at resolves to a real one:"
+        missing = 0
+        for each nm in studio_shell.teachable()
+            if studio_shell.teach_widget(G.shell, nm) = nothing then
+                if nm != "editor" then
+                    if nm != "gutter" then
+                        print "  UNRESOLVED: " + nm
+                        missing = missing + 1
+                    end if
+                end if
+            end if
+        end for
+        print "  unresolved: " + missing + " (editor and gutter are the source itself)"
+        print "pointing at the Run button"
+        stu10_point("run_button", "highlight", "")
+        return true
+    end if
+    if G.phase = 2 then
+        print "  has the class: " + string(G.shell.bar.run.has_css_class(studio_teaching.css_class("highlight")))
+        print "pulsing the name field"
+        stu10_point("name_field", "pulse", "")
+        ' Checked in the SAME phase: the cue is drawn synchronously inside the
+        ' redraw, so the class is on by the time this returns. Checking it in the
+        ' next phase would be checking it after the timeout might already have
+        ' fired.
+        print "  has the class: " + string(G.shell.name_entry.has_css_class(studio_teaching.css_class("pulse")))
+        return true
+    end if
+    if G.phase = 3 then
+        print "  and the pulse took it off again by itself: " + string(not G.shell.name_entry.has_css_class(studio_teaching.css_class("pulse")))
+        print "annotating lines 2-4 of the editor"
+        stu10_point("editor", "annotate", "2-4")
+        return true
+    end if
+    if G.phase = 4 then
+        print "  a tag is on the buffer: " + string(G.shell.teach_tag != nothing)
+        print "pointing at something that is not there"
+        stu10_point("run_panel", "highlight", "")
+        return true
+    end if
+    print "  action=" + G.last_action + " — " + G.last_detail
+    G.app_ref.quit()
+    return false
+end function
+
+' Point through the TOOL, not by calling the shell: what this tier is for is the
+' whole path, from a tool call an agent could have made to a class on a widget.
+function stu10_point(widget, gesture, detail)
+    pol = studio_permissions.effective({ local: "auto" }, nothing, nothing)
+    cue_args = { widget: widget, gesture: gesture, detail: detail }
+    r = studio_tools.invoke(G.app, G.log, pol, "point_at", cue_args, "")
+    G.app = r.app
+    G.log = r.log
+    G.last_action = "point_at"
+    G.last_detail = r.why
+    if r.ok then
+        G.last_detail = studio_teaching.describe(r.value)
+    end if
+    redraw()
+    return nothing
+end function
+
 ' STU-9: the whole overlay cycle, clicked for real.
 '
 ' What only this tier can reach: that the overlay editor is a REAL editable
@@ -1416,6 +1521,9 @@ function on_activate(gtkapp)
         state("a cold home")
         gi.timeout(400, stu2g_step)
         return nothing
+    end if
+    if G.stu10 then
+        gi.timeout(600, stu10_step)
     end if
     if G.stu9 then
         gi.timeout(500, stu9_step)
@@ -1903,6 +2011,7 @@ program main(args)
     G.stu7 = false
     G.stu8 = false
     G.stu9 = false
+    G.stu10 = false
     G.last_table_kind = ""
     G.fetch_action = ""
     G.table_win = nothing
@@ -1958,6 +2067,18 @@ program main(args)
     end if
 
     ' STU-7: the inline branch selector, clicked for real.
+    if mode = "stu10_smoke" then
+        G.stu10 = true
+        projdir = args[2]
+        G.app = studio.create_registered_workspace(G.app, "ws")
+        ws = G.app.model.workspace
+        ws = studio_model.add_project(ws, "Alpha", projdir)
+        G.app = studio.set_workspace(G.app, ws)
+        ro = studio.open_from_browser(G.app, "proj-1", projdir + "/branchy.bas")
+        G.app = ro.app
+        G.app.clock_fixed = 1000
+    end if
+
     if mode = "stu9_smoke" then
         G.stu9 = true
         projdir = args[2]
@@ -2111,6 +2232,8 @@ program main(args)
     load studio_agent
     load studio_shell
     load studio_table
+    load studio_teaching
+    load studio_permissions
     load datagrid
     gi.require("Gtk", "4.0")
 

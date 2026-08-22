@@ -16,6 +16,7 @@ library studio_shell
 
     ' STU-8: the tabular tier and the general virtualized grid it opens into.
     load studio_table
+    load studio_teaching
     load datagrid
 
 
@@ -522,7 +523,7 @@ library studio_shell
         ' GTK allocate scrolled windows that have no child yet, and it complains
         ' ("GtkGizmo (slider) reported min width -2"). The caller presents after
         ' the first refresh — see `present` below.
-        return { window: win, status: status, nav: nav, notebook: book,
+        shell = { window: win, status: status, nav: nav, notebook: book,
                  new_btn: new_btn, file_btn: file_btn, folder_btn: folder_btn,
                  name_entry: name_entry, open_btn: open_btn, rename_btn: rename_btn,
                  delete_btn: delete_btn, close_btn: close_btn,
@@ -532,7 +533,14 @@ library studio_shell
                  ' STU-5 decoration state: which outline revision each document's
                  ' gutter marks were drawn for, and the one live highlight tag.
                  marked: {}, hl_tag: nothing, hl_doc: "",
+                 ' STU-10 teaching state: what currently carries a class.
+                 pulsing: nothing, pulse_class: "", highlighted: nothing, highlight_class: "",
+                 teach_tag: nothing,
                  rows: [], pages: [], welcome: false }
+        ' STU-10: the teaching stylesheet, installed once on each widget an agent
+        ' may point at. After the record exists, because it is what names them.
+        shell.teach_css = studio_shell.install_teaching_css(shell)
+        return shell
     end function
 
     ' Show the window. Call it after the first refresh, never before.
@@ -729,6 +737,210 @@ library studio_shell
             shell.bpane.diff.label = join(lines, "\n")
         end if
         return { shell: shell, app: app }
+    end function
+
+    ' ---- STU-10: teaching, rendered ----------------------------------------
+    '
+    ' §13 requires this to be GENERALIZED — a facility over named widgets, not a
+    ' special path. So it is: a lookup from the cue's widget name to a widget the
+    ' shell already built, then one of four generic GTK operations. Nothing here
+    ' exists only for teaching, and nothing native is involved.
+    '
+    '   highlight  a CSS class on the widget
+    '   pulse      the same class, removed again by a gi.timeout
+    '   focus      grab_focus
+    '   reveal     grab_focus on a pane, which scrolls its scroller to it
+    '   annotate   a temporary GtkTextTag over a line range of the editor
+    '
+    ' The cue was already validated by studio_teaching — a widget that cannot
+    ' perform a gesture was refused before it got here — so this renders rather
+    ' than decides. What it still checks is that the NAME resolves to a live
+    ' widget: the registry is a list a human maintains, and a pane that got
+    ' renamed in the shell without being renamed there would otherwise fail
+    ' silently, which is the failure mode teaching can least afford.
+    function teach_widget(shell, name)
+        if name = "browser" then
+            return shell.nav
+        end if
+        if name = "tabs" then
+            return shell.notebook
+        end if
+        if name = "run_strip" then
+            return shell.bar.box
+        end if
+        if name = "output" then
+            return shell.pane.box
+        end if
+        if name = "results" then
+            return shell.rpane.box
+        end if
+        if name = "branches" then
+            return shell.bpane.box
+        end if
+        if name = "tables" then
+            return shell.tpane.box
+        end if
+        if name = "assistant" then
+            return shell.apane.box
+        end if
+        if name = "name_field" then
+            return shell.name_entry
+        end if
+        if name = "run_button" then
+            return shell.bar.run
+        end if
+        if name = "save_button" then
+            return shell.save_btn
+        end if
+        if name = "new_file_button" then
+            return shell.file_btn
+        end if
+        if name = "new_folder_button" then
+            return shell.folder_btn
+        end if
+        if name = "overlay_strip" then
+            return shell.bpane.edit
+        end if
+        return nothing
+    end function
+
+    ' Which widget names this shell can actually resolve. Compared against
+    ' studio_teaching.registry() by a test, so a widget the agent is told it may
+    ' point at and a widget the window can find are kept the same set.
+    function teachable()
+        return ["browser", "tabs", "editor", "gutter", "run_strip", "output",
+                "results", "branches", "tables", "assistant", "name_field",
+                "run_button", "save_button", "new_file_button",
+                "new_folder_button", "overlay_strip"]
+    end function
+
+    ' Install the teaching stylesheet, once, at build time.
+    '
+    ' PER WIDGET, not display-wide. The usual way to do this is
+    ' `Gtk.StyleContext.add_provider_for_display`, and the `gi` bridge cannot
+    ' reach it — it is a static class function, and gi.invoke does not resolve
+    ' those. A widget's own style context takes a provider, so the stylesheet goes
+    ' on each teachable widget instead. That is better scoping than the
+    ' conventional answer would have given: no display-wide state, nothing to
+    ' leak into another window, and the styles exist exactly where they are used.
+    '
+    ' Once, at build time, and not per gesture: a provider added on each teaching
+    ' request would stack one per request for the life of the process.
+    function install_teaching_css(shell)
+        prov = gi.new("Gtk.CssProvider")
+        prov.load_from_string(studio_teaching.css())
+        for each name in studio_shell.teachable()
+            w = studio_shell.teach_widget(shell, name)
+            if w != nothing then
+                ' Bound rather than chained: gBASIC does not accept a method call
+                ' on the result of a method call as a statement.
+                ctx = w.get_style_context()
+                ctx.add_provider(prov, 600)
+            end if
+        end for
+        return prov
+    end function
+
+    ' Render a cue. Four generic operations, none of which exists only for
+    ' teaching.
+    '
+    ' A pulse removes its own class through a gi.timeout, which is the same
+    ' mechanism the run poller uses. The timeout callback cannot close over the
+    ' widget — gBASIC functions do not close over state — so the shell keeps the
+    ' pulsing widget on itself and the program's one-line callback clears it.
+    function apply_cue(shell, app)
+        c = app["teach"]
+        if c = unknown then
+            return { shell: shell, app: app, drawn: false }
+        end if
+        if c = nothing then
+            return { shell: shell, app: app, drawn: false }
+        end if
+        if not c.ok then
+            return { shell: shell, app: app, drawn: false }
+        end if
+        ' The cue is consumed. A cue left on the app would be re-applied by every
+        ' later redraw, so the window would keep pointing at something the agent
+        ' said once, forever.
+        app["teach"] = nothing
+        if c.widget = "editor" or c.widget = "gutter" then
+            if c.gesture = "annotate" then
+                return { shell: studio_shell._annotate(shell, app, c), app: app, drawn: true }
+            end if
+        end if
+        w = studio_shell.teach_widget(shell, c.widget)
+        if w = nothing then
+            return { shell: shell, app: app, drawn: false }
+        end if
+        if c.gesture = "focus" then
+            w.grab_focus()
+            return { shell: shell, app: app, drawn: true }
+        end if
+        if c.gesture = "reveal" then
+            ' A pane has no scroll-to of its own; focusing it makes its scroller
+            ' bring it into view, which is what "reveal" means here.
+            w.grab_focus()
+            return { shell: shell, app: app, drawn: true }
+        end if
+        cls = studio_teaching.css_class(c.gesture)
+        if cls = "" then
+            return { shell: shell, app: app, drawn: false }
+        end if
+        studio_shell.clear_pulse(shell)
+        w.add_css_class(cls)
+        if c.gesture = "pulse" then
+            shell.pulsing = w
+            shell.pulse_class = cls
+        else
+            shell.highlighted = w
+            shell.highlight_class = cls
+        end if
+        return { shell: shell, app: app, drawn: true }
+    end function
+
+    ' End a pulse. Called by the program's timeout callback, and again before any
+    ' new gesture — two pulses at once would leave the first one's class on a
+    ' widget with nothing left to remove it.
+    function clear_pulse(shell)
+        if shell.pulsing != nothing then
+            shell.pulsing.remove_css_class(shell.pulse_class)
+            shell.pulsing = nothing
+            shell.pulse_class = ""
+        end if
+        return shell
+    end function
+
+    function clear_highlight(shell)
+        if shell.highlighted != nothing then
+            shell.highlighted.remove_css_class(shell.highlight_class)
+            shell.highlighted = nothing
+            shell.highlight_class = ""
+        end if
+        return shell
+    end function
+
+    ' A temporary tag over a line range of the active editor. The same GtkTextTag
+    ' facility STU-5's section tint uses, over a different range and with a
+    ' different name.
+    function _annotate(shell, app, c)
+        ed = studio_shell.editor_for(shell, app.dm.active)
+        if ed = nothing then
+            return shell
+        end if
+        r = studio_teaching.range_of(c.detail)
+        if not r.ok then
+            return shell
+        end if
+        ' The editor's own highlight facility, the one STU-5's section tint uses,
+        ' over a different range and in a different colour. A previous annotation
+        ' is removed first: two live tags over overlapping ranges leave a colour
+        ' nobody chose.
+        if shell.teach_tag != nothing then
+            ed.unhighlight(shell.teach_tag)
+            shell.teach_tag = nothing
+        end if
+        shell.teach_tag = ed.highlight(r.first, r.last, studio_teaching.annotate_colour())
+        return shell
     end function
 
     ' ---- STU-8: the table offers, and the grid window ----------------------

@@ -113,6 +113,31 @@ if sed -n '/function _perform/,/^    end function/p' lib/studio_tools.bas \
 fi
 printf 'PASS agent_parity (every act calls the same studio_ui operation the window does)\n'
 
+# STU-10 teaching (§13): which widgets an agent may point at, which gestures each
+# can perform, and the refusals — all plain data, no display.
+TEACH=tests/drivers/teach.bas
+for m in widgets cues ranges css; do
+    : >"$stdout_file"
+    if ! timeout 60 "$GBASIC" "$TEACH" "$m" >"$stdout_file" 2>&1; then
+        cat "$stdout_file"; fail "teach_$m (nonzero exit)"
+    fi
+    if diff -u "tests/studio/teach_$m.out" "$stdout_file"; then
+        printf 'PASS teach_%s\n' "$m"
+    else
+        fail "teach_$m (output diff)"
+    fi
+done
+
+# The set an agent is TOLD it may point at and the set the window can actually
+# resolve must be the same set. They live in two files and nothing but this keeps
+# them together; a registry entry the shell cannot find is a teaching request that
+# reports success and draws nothing.
+if "$GBASIC" tests/drivers/widgetcheck.bas; then
+    printf 'PASS agent_widgets (the teachable set is the same in both files)\n'
+else
+    fail "agent_widgets (the registry and the shell disagree)"
+fi
+
 # 3. ONE GATE. Every act reaches the world through `invoke`, which decides
 #    permission before dispatching. `call` -- the read path -- must refuse an act
 #    outright rather than quietly performing it ungated.

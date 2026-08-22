@@ -1,0 +1,13 @@
+an annotation names a range, and a malformed one is REFUSED —
+defaulting to line 0 would point confidently at the wrong place.
+  "12" -> lines 12..12
+  "12-18" -> lines 12..18
+  "0-0" -> lines 0..0
+  " 5 " -> lines 5..5
+  "" -> an annotation needs a line or a line range
+  "x" -> "x" is not a line or a line range
+  "12-" -> "12-" is not a line or a line range
+  "-4" -> "-4" is not a line or a line range
+  "18-12" -> the range 18-12 ends before it starts
+  "1-2-3" -> "1-2-3" is not a line or a line range
+  "1.5" -> "1.5" is not a line or a line range

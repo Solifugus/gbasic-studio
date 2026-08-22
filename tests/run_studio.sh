@@ -516,6 +516,7 @@ fi
 # only its basename is ever printed).
 if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
     sec_home="$tmproot/sec_gui"
+    rm -rf "$sec_home"
     mkdir -p "$sec_home"
     : >"$stdout_file"
     if timeout 120 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
@@ -695,6 +696,7 @@ fi
 # mailbox -- drives the session to completion while the loop stays live.
 if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
     sess_home="$tmproot/sess_gui"
+    rm -rf "$sess_home"
     mkdir -p "$sess_home"
     : >"$stdout_file"
     if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
@@ -727,6 +729,7 @@ fi
 # pinned exactly as the headless cases pin it, so the golden is byte-stable.
 if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
     res_home="$tmproot/res_gui"
+    rm -rf "$res_home"
     mkdir -p "$res_home"
     : >"$stdout_file"
     if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
@@ -816,6 +819,25 @@ else
     printf 'SKIP ui_memory (valgrind not installed)\n'
 fi
 
+# A NOTE ON THESE DISPLAY TIERS, recorded because establishing it cost time.
+#
+# Every tier below now starts from a CLEAN home. Several did not: they relied on
+# $tmproot being fresh, which it is per suite run -- so this changes nothing about
+# a normal run, and everything about re-running one tier by hand, where a stale
+# home reads as a defect in the code.
+#
+# It is NOT a fix for a known bug, and must not be read as one. `ui_gui_name`
+# failed here exactly once, showing the wrong project active and a collapsed tree
+# after a delete. It did not reproduce in a second full suite run, nor in eight
+# standalone runs under CPU load. The ordering hypothesis is ruled out: it runs
+# before the tiers added that day. No mechanism has been established.
+#
+# What every tier here has in common is that it steps on fixed gi.timeout
+# intervals rather than waiting on state. That pattern has produced three
+# confirmed flakes in this suite already (ui_gui_table, ui_gui_teach, and a
+# fetch_table report that depended on how fast a run finished), and it is the
+# first thing to change if this recurs.
+
 # STU-2B display tier (OPTIONAL; SKIPs, never fails, without GTK 4 or a display).
 # stderr is discarded like the other loop-running tiers: GTK emits allocation
 # warnings that vary by version and theme, and baking those into a byte-exact
@@ -823,6 +845,7 @@ fi
 # GTK CRITICAL abort instead, which surfaces as a nonzero exit.
 if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
     ui_home="$tmproot/ui_gui"; ui_proj="$tmproot/ui_gui_proj"
+    rm -rf "$ui_home" "$ui_proj"
     mkdir -p "$ui_home"; mkproj_ui "$ui_proj"
     : >"$stdout_file"
     if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
@@ -845,6 +868,7 @@ if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
     # and New Project is the only control that can move it. If this one button is
     # not wired there is no way into Studio at all.
     cold_home="$tmproot/ui_gui_cold"
+    rm -rf "$cold_home"
     mkdir -p "$cold_home"
     : >"$stdout_file"
     if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
@@ -869,6 +893,7 @@ if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
     # closing saved it. The reopen is a separate interpreter run on purpose: a
     # process asserting its own in-memory state cannot show anything reached disk.
     c2_home="$tmproot/ui_gui_new"
+    rm -rf "$c2_home"
     mkdir -p "$c2_home"
     : >"$stdout_file"
     if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
@@ -896,6 +921,7 @@ if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
     # is an ordinary property, which is why the name is a field and not a dialog:
     # a test can type into it.
     d2_home="$tmproot/ui_gui_name"; d2_proj="$tmproot/ui_gui_name_proj"
+    rm -rf "$d2_home" "$d2_proj"
     mkdir -p "$d2_home"; mkproj_ui "$d2_proj"
     : >"$stdout_file"
     if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
@@ -919,6 +945,7 @@ if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
     # state. That the poll is installed and that it STOPS is the part no headless
     # loop can show.
     e5_home="$tmproot/ui_gui_run"; e5_proj="$tmproot/ui_gui_run_proj"
+    rm -rf "$e5_home" "$e5_proj"
     mkdir -p "$e5_home" "$e5_proj"
     printf 'print "one"\n\nfunction add(a, b)\n  return a + b\nend function\n\nprint add(2, 3)\n' \
         > "$e5_proj/runme.bas"
@@ -943,6 +970,7 @@ if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
     # other tier would notice a disconnected cursor handler; `set_cursor` moves
     # the real caret and GTK emits the real "notify::cursor-position".
     f5_home="$tmproot/ui_gui_cursor"; f5_proj="$tmproot/ui_gui_cursor_proj"
+    rm -rf "$f5_home" "$f5_proj"
     mkdir -p "$f5_home" "$f5_proj"
     printf 'print "one"\n\nfunction add(a, b)\n  return a + b\nend function\n\nprint add(2, 3)\n' \
         > "$f5_proj/runme.bas"
@@ -968,6 +996,7 @@ if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
     # with no synthesisable signal, so the same button behind a chooser would be
     # the one control in this window no test could press.
     og_home="$tmproot/ui_gui_open"; og_proj="$tmproot/ui_gui_open_proj"
+    rm -rf "$og_home" "$og_proj"
     mkdir -p "$og_home" "$og_proj/src"
     printf 'print "in the opened folder"\n' > "$og_proj/thing.bas"
     printf 'y\n' > "$og_proj/src/b.bas"
@@ -993,6 +1022,7 @@ if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
     # array that produced the widgets — the same property the file browser has,
     # and the reason the selector is not a row of per-branch buttons.
     b7_home="$tmproot/ui_gui_branch"; b7_proj="$tmproot/ui_gui_branch_proj"
+    rm -rf "$b7_home" "$b7_proj"
     mkdir -p "$b7_home" "$b7_proj"
     printf 'threshold = 0.5\n\nfunction score(t)\n  return t * 100\nend function\n\nprint "score is " + score(threshold)\n' \
         > "$b7_proj/branchy.bas"
@@ -1010,6 +1040,35 @@ if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
             printf 'SKIP ui_gui_branch (GTK 4 typelib not available)\n'
         else
             cat "$stdout_file"; fail "ui_gui_branch (nonzero exit)"
+        fi
+    fi
+
+    # STU-10: teaching, drawn for real. The headless tier proves what a cue
+    # MEANS; nothing below the widget boundary can prove it was DRAWN — that the
+    # name resolved to a widget the shell holds, that the class landed on it, and
+    # that a pulse takes itself off again.
+    #
+    # The driver waits on the PULSE rather than on a timer, for the reason
+    # ui_gui_table waits on its run: a check that races a timeout passes on a
+    # fast machine and reports a defect on a slow one.
+    t10_home="$tmproot/ui_gui_teach"; t10_proj="$tmproot/ui_gui_teach_proj"
+    rm -rf "$t10_home" "$t10_proj"; mkdir -p "$t10_home" "$t10_proj"
+    printf 'threshold = 0.5\n\nfunction score(t)\n  return t * 100\nend function\n\nprint "score is " + score(threshold)\n' \
+        > "$t10_proj/branchy.bas"
+    : >"$stdout_file"
+    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
+            "$GBASIC" "$APP" stu10_smoke "$t10_home" "$t10_proj" \
+            >"$stdout_file" 2>/dev/null; then
+        if diff -u tests/studio/ui_gui_teach.out "$stdout_file"; then
+            printf 'PASS ui_gui_teach (a cue reaches a real widget and clears itself)\n'
+        else
+            fail "ui_gui_teach (output diff)"
+        fi
+    else
+        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
+            printf 'SKIP ui_gui_teach (GTK 4 typelib not available)\n'
+        else
+            cat "$stdout_file"; fail "ui_gui_teach (nonzero exit)"
         fi
     fi
 
@@ -1130,6 +1189,7 @@ else
     printf 'SKIP ui_gui_branch (no display)\n'
     printf 'SKIP ui_gui_table (no display)\n'
     printf 'SKIP ui_gui_overlay (no display)\n'
+    printf 'SKIP ui_gui_teach (no display)\n'
 fi
 
 printf 'run_studio: all cases passed\n'

@@ -1,0 +1,18 @@
+the classes the shell toggles, defined in one place so a stylesheet
+and a renderer cannot disagree about their names:
+  highlight -> studio-teach-highlight
+  pulse     -> studio-teach-pulse
+  focus     -> "" (no class; focus is grab_focus)
+
+.studio-teach-highlight {
+  outline: 2px solid #d08770;
+  outline-offset: -2px;
+}
+.studio-teach-pulse {
+  outline: 3px solid #d08770;
+  outline-offset: -3px;
+  background-color: alpha(#d08770, 0.15);
+}
+
+annotation tint: #ffe9b0
+pulse duration: 1200ms

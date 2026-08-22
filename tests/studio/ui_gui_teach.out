@@ -1,0 +1,12 @@
+every widget the agent may point at resolves to a real one:
+  unresolved: 0 (editor and gutter are the source itself)
+pointing at the Run button
+  has the class: true
+pulsing the name field
+  has the class: true
+  and the pulse took it off again by itself: true
+annotating lines 2-4 of the editor
+  a tag is on the buffer: true
+pointing at something that is not there
+  action=point_at — no widget named "run_panel"; there is browser, tabs, editor, gutter, run_strip, output, results, branches, tables, assistant, name_field, run_button, save_button, new_file_button, new_folder_button, overlay_strip
+app-exited

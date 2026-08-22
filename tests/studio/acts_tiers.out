@@ -10,6 +10,7 @@ every tool, and the tier its REVERSIBILITY puts it in:
   read  section_variables
   read  recent_actions
   read  where_was_i
+  read  list_widgets
   local  open_document
   local  select_document
   local  move_cursor
@@ -22,6 +23,7 @@ every tool, and the tier its REVERSIBILITY puts it in:
   local  create_folder
   external  save_document
   external  delete_path
+  local  point_at
   external  rename_path
 
 -- a name that is not a tool has no tier, and answers the strictest thing
