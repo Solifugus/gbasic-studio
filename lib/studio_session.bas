@@ -675,6 +675,15 @@ library studio_session
         if kind = "library" then
             return true
         end if
+        ' PLAT-WEB-5: a `server` declarative block is pre-registered exactly
+        ' like a function (its handlers are hidden function registrations and
+        ' the name binds to inert data before the program body runs), so the
+        ' interpreter is position-blind to it and STU-4B's set moves with the
+        ' platform's -- tests/run_pre_registration.sh over there is the
+        ' tripwire that keeps the two in step.
+        if kind = "server" then
+            return true
+        end if
         return false
     end function
 

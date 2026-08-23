@@ -52,16 +52,17 @@ prefix keeps its line numbers.
 
 ### What qualifies as hoistable
 
-Exactly the top-level `function`, `modifier` and `library` declarations — and only
-when **the prefix contains a program block that will execute**.
+Exactly the top-level `function`, `modifier`, `library` and (since PLAT-WEB-5)
+`server` declarations — and only when **the prefix contains a program block that
+will execute**.
 
 That condition is not a heuristic; it is the precise condition under which the
 interpreter *already* treats these declarations as position-independent:
 
 - `eval_program` (`src/eval.c`) pre-registers every top-level non-attached
-  `function` and every `modifier` **before** running the program block, regardless
-  of where in the file they appear, and `register_method_bodies_in` walks the whole
-  root for dotted-def bodies.
+  `function`, every `modifier` and every `server` block **before** running the
+  program block, regardless of where in the file they appear, and
+  `register_method_bodies_in` walks the whole root for dotted-def bodies.
 - `library` resolution scans the root AST, so `load` finds a library declared
   anywhere. Verified: a program block's `load helper` resolves a `library helper`
   written after `end program`.
