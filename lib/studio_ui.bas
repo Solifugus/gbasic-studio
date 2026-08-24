@@ -1635,7 +1635,7 @@ library studio_ui
         ex.session = studio_session.finalize(ex.session, ex.secs, ex.src)
         home = app.paths.home
         ex.store = studio_results.add_result(home, ex.store, studio_session.to_result(ex.session, ex.secs))
-        studio_results.save(home, ex.store)
+        save_result = studio_results.save(home, ex.store)
         app.exec = ex
         ' The panes read through app.view's cached store, and that store has just
         ' gained a result. Handing over the one we already have in memory beats

@@ -2,6 +2,6 @@
 ' a build without it must SKIP the virtualization tier rather than fail it.
 program main(args)
   m = rowmodel.new(1)
-  rowmodel.set_count(m, 3)
+  set_count_result = rowmodel.set_count(m, 3)
   print "rowmodel:" + rowmodel.count(m)
 end program

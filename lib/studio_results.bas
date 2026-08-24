@@ -255,7 +255,7 @@ library studio_results
         })
         ' The index is now authoritative, so anything it does not reference is
         ' leftover from an interrupted write and can go.
-        studio_results.sweep_captures(home, store)
+        swept = studio_results.sweep_captures(home, store)
         return store
     end function
 

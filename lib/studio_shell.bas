@@ -304,7 +304,7 @@ library studio_shell
                 ' past the last line. Every editor puts it at the top instead —
                 ' and STU-2E made it matter, because Run reads the caret to decide
                 ' which section to run.
-                ed.set_cursor(0, 0)
+                set_cursor_result = ed.set_cursor(0, 0)
                 ' STU-5: line marks are invisible until the view is told to show
                 ' them and the category has attributes to draw with.
                 vw = ed.view()
@@ -982,7 +982,7 @@ library studio_shell
         if cls = "" then
             return { shell: shell, app: app, drawn: false }
         end if
-        studio_shell.clear_pulse(shell)
+        clear_pulse_result = studio_shell.clear_pulse(shell)
         w.add_css_class(cls)
         if c.gesture = "pulse" then
             shell.pulsing = w

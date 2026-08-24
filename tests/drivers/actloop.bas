@@ -103,7 +103,7 @@ program main(args)
     print "  ok=" + string(r.ok) + " — " + r.why
     print ""
     print "-- storing a key changes where it comes from, and it SAYS so"
-    studio_secrets.put(home, k, "anthropic", "sk-ant-NOT-REAL-000000000000000000")
+    put_result = studio_secrets.put(home, k, "anthropic", "sk-ant-NOT-REAL-000000000000000000")
     r2 = studio_providers.resolve(home, k, "anthropic", "")
     print "  ok=" + string(r2.ok) + " source=" + r2.source
     for each l in studio_providers.summary(home, k)

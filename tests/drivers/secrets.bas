@@ -53,12 +53,12 @@ program main(args)
     print "  ok=" + string(g2.ok) + " — " + g2.why
     print ""
     print "-- dropping one"
-    studio_secrets.drop(home, key, "openai")
+    drop_result = studio_secrets.drop(home, key, "openai")
     print "  stored now: " + join(studio_secrets.names(home, key), ", ")
   end if
 
   if mode = "onhurt" then
-    studio_secrets.put(home, key, "anthropic", secret)
+    put_result = studio_secrets.put(home, key, "anthropic", secret)
     text = file_text(studio_secrets.store_path(home))
     print "THE POINT OF ALL THIS: the secret is not in the file."
     print ""
@@ -114,7 +114,7 @@ program main(args)
   end if
 
   if mode = "redact" then
-    studio_secrets.put(home, key, "anthropic", secret)
+    put_result = studio_secrets.put(home, key, "anthropic", secret)
     print "a secret can arrive in a log by accident — an error quoting a request,"
     print "a tool argument echoed back. Redaction is the last line, not the first."
     print ""
@@ -124,7 +124,7 @@ program main(args)
     print ""
     print "-- a short secret is NOT redacted: it would match everywhere and turn"
     print "   ordinary text into a wall of markers."
-    studio_secrets.put(home, key, "pin", "42")
+    put_result = studio_secrets.put(home, key, "pin", "42")
     print "  " + studio_secrets.redact("the answer is 42, on line 42", home, key)
     print ""
     print "-- and the summary shows names and LENGTHS, never a prefix: the first"

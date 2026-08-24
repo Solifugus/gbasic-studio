@@ -329,7 +329,8 @@ library studio
         ' next launch has no document to attach to, which is harmless. The other
         ' order would leave a workspace naming documents whose unsaved text was
         ' never written.
-        studio_drafts.capture(app.paths.home, app.dm)
+        ' The effect is on disk; the returned index is informational here.
+        drafts_index = studio_drafts.capture(app.paths.home, app.dm)
         saved = studio.shutdown(app)
         studio.save_registry(app)
         saved = append(saved, "registry")

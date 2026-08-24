@@ -66,7 +66,7 @@ program main(args)
     print studio_history.summary(log)
 
     print "-- persisted and reopened"
-    studio_history.save(home, log)
+    written = studio_history.save(home, log)
     back = studio_history.open(home)
     print studio_history.summary(back)
     print "identical=" + (json_encode(back.events) = json_encode(log.events))
@@ -100,7 +100,7 @@ program main(args)
     print "the newest event survives: " + studio_history.last_of(log, "error_raised").detail
     print "the oldest kept is seq " + log.events[0].seq
     ' Bounded on disk as well as in memory.
-    studio_history.save(home, log)
+    save_result = studio_history.save(home, log)
     f(file) = studio_history.path(home)
     print "store under 200k=" + (file_size(f) < 200000)
   end if

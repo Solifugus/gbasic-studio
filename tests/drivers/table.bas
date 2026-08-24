@@ -159,7 +159,7 @@ program main(args)
     print "   proxies. Row requests are bounded by what is asked for, not by the"
     print "   table's size."
     m = rowmodel.new(1)
-    rowmodel.set_count(m, src.known)
+    set_count_result = rowmodel.set_count(m, src.known)
     print "  model count: " + rowmodel.count(m)
     rowmodel.reset_requests(m)
     print ""

@@ -577,7 +577,7 @@ function on_table_row(box, row)
         ' factories stay internal. Dropping the window without this would leave
         ' all of it retained, once per table the user ever opened.
         if G.table_grid != nothing then
-            datagrid.destroy(G.table_grid)
+            destroy_result = datagrid.destroy(G.table_grid)
         end if
         _STUDIO_TABLE.src = r.src
         tw = studio_shell.table_window(G.app_ref, r.caption, r.src, table_count, table_cell)
@@ -1496,7 +1496,7 @@ end function
 function stu9_caret(line)
     ed = studio_shell.editor_for(G.shell, G.app.dm.active)
     if ed != nothing then
-        ed.set_cursor(line, 0)
+        set_cursor_result = ed.set_cursor(line, 0)
     end if
     return nothing
 end function
@@ -1675,7 +1675,7 @@ function on_run_tick()
         ' back, and rendered, so the pane is showing persisted state and not the
         ' live session it happens to sit next to.
         G.store = studio_results.add_result(G.home, G.store, studio_session.to_result(G.sess, G.secs))
-        studio_results.save(G.home, G.store)
+        save_result = studio_results.save(G.home, G.store)
         reloaded = studio_results.open(G.home, G.doc_path)
         G.rpane.body.label = studio_shell.results_text(G.home, reloaded, G.secs, G.sid)
         print "results-pane-after=<" + G.rpane.body.label + ">"
@@ -1734,7 +1734,7 @@ program main(args)
     if mode = "roundtrip" then
         app = studio.startup(home)
         app = build_canned(app)
-        studio.shutdown(app)
+        shutdown_result = studio.shutdown(app)
         app2 = studio.startup(home)
         print studio.summary(app2)
         return
@@ -1746,7 +1746,7 @@ program main(args)
         i = 0
         ok = true
         while i < 30
-            studio.shutdown(app)
+            shutdown_result = studio.shutdown(app)
             chk = studio.startup(home)
             w = chk.model.workspace
             if w = nothing then
@@ -1762,7 +1762,7 @@ program main(args)
         i = 0
         while i < 50
             a = studio.startup(home)
-            studio.shutdown(a)
+            shutdown_result = studio.shutdown(a)
             i = i + 1
         end while
         print "cycles_done=50"
@@ -1810,11 +1810,11 @@ program main(args)
     if mode = "stu1_registry" then
         app = studio.launch(home)
         app = studio.create_registered_workspace(app, "one")
-        studio.persist(app)
+        saved = studio.persist(app)
         app = studio.create_registered_workspace(app, "two")
-        studio.persist(app)
+        saved = studio.persist(app)
         app = studio.create_registered_workspace(app, "three")
-        studio.persist(app)
+        saved = studio.persist(app)
         print studio.nav_summary(app)
         return
     end if
@@ -1823,7 +1823,7 @@ program main(args)
         i = 0
         while i < 50
             a = studio.launch(home)
-            studio.persist(a)
+            persist_result = studio.persist(a)
             i = i + 1
         end while
         print "cycles_done=50"
@@ -1908,7 +1908,7 @@ program main(args)
         app = r.app
         app = studio.set_document_cursor(app, r.id, 1, 3)
         app = studio.set_active_document(app, "doc-1")
-        studio.persist(app)
+        persist_result = studio.persist(app)
         print "-- relaunch --"
         app2 = studio.launch(home)
         print studio.docs_summary(app2)
@@ -1928,7 +1928,7 @@ program main(args)
         app = studio.create_registered_workspace(app, "ws")
         r = studio.open_file(app, "p", projdir + "/a.bas")
         app = r.app
-        studio.persist(app)
+        persist_result = studio.persist(app)
         print "persisted id=" + r.id
         return
     end if
@@ -1999,7 +1999,7 @@ program main(args)
             a = s2.app
             c2 = studio.close_document(a, rr.id, "discard")
             a = c2.app
-            studio.persist(a)
+            persist_result = studio.persist(a)
             i = i + 1
         end while
         print "cycles_done=40"
@@ -2358,7 +2358,7 @@ program main(args)
             print to error "warning: " + unsaved + " document(s) had unsaved changes; Studio does not keep drafts"
         end if
         saved = studio.persist(G.app)
-        studio_history.save(home, G.log)
+        save_result = studio_history.save(home, G.log)
         print "saved=" + join(saved, ",")
     end if
     print "app-exited"

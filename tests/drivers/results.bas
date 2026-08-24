@@ -169,7 +169,7 @@ program main(args)
     last = secs.sections[count(secs.sections) - 1]
     store = studio_results.open(home, "/proj/p.bas")
     store = run_and_record(home, store, pinned_session("doc-1", scratch, 1000), secs, src, last.id)
-    studio_results.save(home, store)
+    save_result = studio_results.save(home, store)
 
     r = studio_results.latest_for(store, last.id)
     print "-- viewer dispatch"
@@ -203,7 +203,7 @@ program main(args)
     sess = pinned_session("doc-1", scratch, 1000)
     last = secs.sections[count(secs.sections) - 1]
     store = run_and_record(home, store, sess, secs, src, last.id)
-    studio_results.save(home, store)
+    save_result = studio_results.save(home, store)
     print "recorded=" + count(store.results)
 
     ' Simulated restart: nothing carried over but the home directory.
@@ -228,7 +228,7 @@ program main(args)
     store = run_and_record(home, store, pinned_session("doc-1", scratch, 1100), secs, src, first.id)
     store = run_and_record(home, store, pinned_session("doc-1", scratch, 1200), secs, src, last.id)
     store = run_and_record(home, store, pinned_session("doc-1", scratch, 1300), secs, src, last.id)
-    studio_results.save(home, store)
+    save_result = studio_results.save(home, store)
 
     print "total=" + count(store.results)
     print "-- all results, newest first"
@@ -282,7 +282,7 @@ program main(args)
     mid_sec = secs.sections[1]
     store = studio_results.open(home, "/proj/a.bas")
     store = run_and_record(home, store, pinned_session("doc-1", scratch, 1000), secs, src, mid_sec.id)
-    studio_results.save(home, store)
+    save_result = studio_results.save(home, store)
     print "recorded=" + count(store.results)
 
     ' 1. REMOVED: the declaration is deleted, so its id goes stale.
@@ -344,7 +344,7 @@ program main(args)
     sess2 = studio_session.run(sess2, good, base_src(), "sec-999")
     print "state=" + sess2.state + " reason=" + sess2.reason
     store = studio_results.add_result(home, store, studio_session.to_result(sess2, good))
-    studio_results.save(home, store)
+    save_result = studio_results.save(home, store)
 
     print "-- stored refusals"
     for each r in store.results
@@ -361,7 +361,7 @@ program main(args)
     store = studio_results.open(home, "/proj/a.bas")
     last = secs.sections[count(secs.sections) - 1]
     store = run_and_record(home, store, pinned_session("doc-1", scratch, 1000), secs, src, last.id)
-    studio_results.save(home, store)
+    save_result = studio_results.save(home, store)
     r = store.results[0]
     print "outcome=" + r.outcome + " exit=" + r.exit_code + " signal=" + r.signal + " success=" + r.success
     restored = studio_results.open(home, "/proj/a.bas")
@@ -379,7 +379,7 @@ program main(args)
     print "cap=" + studio_results.capture_cap()
     r = studio_session.to_result(sess, secs)
     store = studio_results.add_result(home, store, r)
-    studio_results.save(home, store)
+    save_result = studio_results.save(home, store)
 
     stored = store.results[0]
     text = studio_results.capture(home, store, stored.result_id, "out_target")
@@ -415,7 +415,7 @@ program main(args)
       store = run_and_record(home, store, pinned_session("doc-1", scratch, 1000 + i), secs, src, last.id)
       i = i + 1
     end while
-    studio_results.save(home, store)
+    save_result = studio_results.save(home, store)
 
     print "target_kept=" + count(studio_results.history_for(store, last.id))
     print "other_kept=" + count(studio_results.history_for(store, other.id))
@@ -499,8 +499,8 @@ program main(args)
     store_b = studio_results.open(home, "/proj/b.bas")
     store_a = studio_results.add_result(home, store_a, studio_session.to_result(sa, secs_a))
     store_b = studio_results.add_result(home, store_b, studio_session.to_result(sb, secs_b))
-    studio_results.save(home, store_a)
-    studio_results.save(home, store_b)
+    save_result = studio_results.save(home, store_a)
+    save_result = studio_results.save(home, store_b)
     pa = studio_results.store_path(home, "/proj/a.bas")
     pb = studio_results.store_path(home, "/proj/b.bas")
     print "distinct_files=" + (pa != pb)
@@ -518,7 +518,7 @@ program main(args)
     fb(file) = pb
     before_b = read(fb)
     store_a = studio_results.add_result(home, store_a, studio_session.to_result(sa, secs_a))
-    studio_results.save(home, store_a)
+    save_result = studio_results.save(home, store_a)
     after_b = read(fb)
     print "b_untouched_by_a_write=" + (before_b = after_b)
     print "a_grew=" + (count(studio_results.open(home, "/proj/a.bas").results) = 2)
@@ -545,7 +545,7 @@ program main(args)
     secs = sections_for(src)
     last = secs.sections[count(secs.sections) - 1]
     store = run_and_record(home, store, pinned_session("doc-1", scratch, 1000), secs, src, last.id)
-    studio_results.save(home, store)
+    save_result = studio_results.save(home, store)
     print "after_write=" + count(studio_results.open(home, "/proj/a.bas").results)
 
     ' A corrupt store must not raise, and must not pretend to hold results.
@@ -593,7 +593,7 @@ program main(args)
     }
     store = studio_results.open(home, "/proj/u.bas")
     store = studio_results.add_result(home, store, r)
-    studio_results.save(home, store)
+    save_result = studio_results.save(home, store)
 
     s = store.results[0]
     ot = studio_results.capture(home, store, s.result_id, "out_target")
@@ -628,7 +628,7 @@ program main(args)
     last = secs.sections[count(secs.sections) - 1]
     store = studio_results.open(home, "/proj/a.bas")
     store = run_and_record(home, store, pinned_session("doc-1", scratch, 1000), secs, src, last.id)
-    studio_results.save(home, store)
+    save_result = studio_results.save(home, store)
 
     raw = persist.read_status(studio_results.store_path(home, "/proj/a.bas"))
     print "status=" + raw.status
