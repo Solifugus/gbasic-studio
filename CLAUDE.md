@@ -171,6 +171,14 @@ Two consequences worth knowing before you touch the shell:
   fifth `studio_results` capture (schema 2); a version-1 store still loads, and
   `capture_bytes` answers 0 for a capture a stored result does not have, because
   a caller comparing `unknown > 0` raises.
+  A capture is `encode`d by the child and read back with `try_decode`, so it
+  carries whatever the user's program computed — including a non-finite number,
+  which `number("1e308") * 10` produces with no diagnostic. **Below gBASIC
+  0.1.0-rc7 `decode` refused the `inf`/`nan` that its own `encode` wrote**, so
+  such a capture came back `ok: false` and the inspector blamed the file rather
+  than the value. Fixed in the language (gBASIC DOGFOOD item 2), not here;
+  nothing in Studio changed, and the floor is still rc3 — a capture holding an
+  overflowed number is simply unreadable on rc3 through rc6.
 - A run lives in `app.exec` — beside `app.dm`, live state the shutdown pipeline
   does not write, because a half-finished child process is not something to
   restore into. The section and the SOURCE are fixed when Run is pressed and kept
