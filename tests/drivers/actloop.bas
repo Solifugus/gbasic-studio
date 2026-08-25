@@ -129,7 +129,7 @@ program main(args)
     ws = app.model.workspace
     ws = studio_model.add_project(ws, "Alpha", projdir)
     app = studio.set_workspace(app, ws)
-    tf(file) = projdir + "/target.bas"
+    tf{file} = projdir + "/target.bas"
     write(tf, "print \"the original\"\n")
     rows = studio_ui.nav_rows(app)
     i = 0
@@ -186,7 +186,7 @@ program main(args)
     ws = app.model.workspace
     ws = studio_model.add_project(ws, "Alpha", projdir)
     app = studio.set_workspace(app, ws)
-    tf(file) = projdir + "/precious.bas"
+    tf{file} = projdir + "/precious.bas"
     write(tf, "print \"do not delete me\"\n")
     ws = studio_model.set_selected_path(app.model.workspace, projdir + "/precious.bas")
     app = studio.set_workspace(app, ws)

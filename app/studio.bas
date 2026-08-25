@@ -1944,12 +1944,12 @@ program main(args)
         r = studio.open_file(app, "p", projdir + "/c.bas")
         app = r.app
         ' a: clean, changed on disk; b: dirty, changed on disk; c: deleted
-        ea(file) = projdir + "/a.bas"
+        ea{file} = projdir + "/a.bas"
         write(ea, "external change to a\n")
         app = studio.edit_document(app, "doc-2", "my unsaved edits\n")
-        eb(file) = projdir + "/b.bas"
+        eb{file} = projdir + "/b.bas"
         write(eb, "external change to b\n")
-        ec(file) = projdir + "/c.bas"
+        ec{file} = projdir + "/c.bas"
         delete(ec)
         cp = studio.checkpoint_documents(app)
         app = cp.app

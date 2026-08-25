@@ -428,7 +428,7 @@ program main(args)
 
     ' Eviction must take the capture FILES with it, or the index shrinks while the
     ' disk does not -- the retention bound would be fiction.
-    cd(dir) = studio_results.capture_dir(home, "/proj/a.bas")
+    cd{dir} = studio_results.capture_dir(home, "/proj/a.bas")
     live_ids = []
     for each r in restored.results
       live_ids = append(live_ids, r.result_id)
@@ -454,7 +454,7 @@ program main(args)
     print "orphan_capture_files=" + orphans
 
     ' And a file left behind by an interrupted write is swept on the next save.
-    stray(file) = studio_results.capture_path(home, "/proj/a.bas", "res-9999", "out_target")
+    stray{file} = studio_results.capture_path(home, "/proj/a.bas", "res-9999", "out_target")
     write(stray, "left over from a crash")
     print "stray_written=" + exists(stray)
     swept = studio_results.save(home, restored)
@@ -515,7 +515,7 @@ program main(args)
 
     ' Non-clobbering, tested rather than inferred: snapshot B's file, write A
     ' again, and require B's bytes to be untouched.
-    fb(file) = pb
+    fb{file} = pb
     before_b = read(fb)
     store_a = studio_results.add_result(home, store_a, studio_session.to_result(sa, secs_a))
     save_result = studio_results.save(home, store_a)
@@ -551,7 +551,7 @@ program main(args)
     ' A corrupt store must not raise, and must not pretend to hold results.
     print "-- corrupt store"
     p = studio_results.store_path(home, "/proj/c.bas")
-    f(file) = p
+    f{file} = p
     write(f, "{ this is not json")
     bad = studio_results.open(home, "/proj/c.bas")
     print "status=" + bad.status
@@ -652,9 +652,9 @@ program main(args)
     ' validator -- and is kept for write amplification (the index is rewritten
     ' whole on every save) and lazy reads (captures load only when displayed).
     print "-- on disk"
-    idx(file) = studio_results.store_path(home, "/proj/a.bas")
+    idx{file} = studio_results.store_path(home, "/proj/a.bas")
     print "index_bytes_under_1k=" + (file_size(idx) < 1024)
-    cd(dir) = studio_results.capture_dir(home, "/proj/a.bas")
+    cd{dir} = studio_results.capture_dir(home, "/proj/a.bas")
     names = []
     for each e in list(cd)
       if e.type != "folder" then

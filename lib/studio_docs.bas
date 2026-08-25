@@ -121,7 +121,7 @@ library studio_docs
     ' (a number, JSON-persistable — a datetime is not). A missing path is not an
     ' error here.
     function _state(path)
-        ref(file) = path
+        ref{file} = path
         present = exists(ref)
         if not present then
             return { exists: false, is_dir: false, size: 0, mtime: 0 }
@@ -143,7 +143,7 @@ library studio_docs
     function _is_dir(path)
         parent = studio_docs._dirname(path)
         base = studio_docs._basename(path)
-        d(dir) = parent
+        d{dir} = parent
         for each e in list(d)
             if e.name = base then
                 return e.type = "folder"
@@ -231,7 +231,7 @@ library studio_docs
             return { dm: dm, id: id, status: "opened_missing" }
         end if
 
-        ref(file) = path
+        ref{file} = path
         text = read(ref)
         doc = studio_docs._make_doc(id, project_id, path, name, text, false, st.size, st.mtime)
         dm.docs = append(dm.docs, doc)
@@ -315,12 +315,12 @@ library studio_docs
         end if
         doc = dm.docs[idx]
         parent = studio_docs._dirname(doc.path)
-        pref(file) = parent
+        pref{file} = parent
         parent_ok = exists(pref)
         if not parent_ok then
             return { dm: dm, status: "error" }
         end if
-        target(file) = doc.path
+        target{file} = doc.path
         write(target, doc.content)
         doc.saved_content = doc.content
         doc.missing = false
@@ -454,7 +454,7 @@ library studio_docs
             dm.docs[idx] = doc
             return { dm: dm, status: "missing" }
         end if
-        ref(file) = doc.path
+        ref{file} = doc.path
         text = read(ref)
         doc.content = text
         doc.saved_content = text
@@ -534,7 +534,7 @@ library studio_docs
                 if not st.exists then
                     doc = studio_docs._make_doc(m.id, m.project_id, m.path, m.display_name, "", true, 0, 0)
                 else
-                    ref(file) = m.path
+                    ref{file} = m.path
                     text = read(ref)
                     doc = studio_docs._make_doc(m.id, m.project_id, m.path, m.display_name, text, false, st.size, st.mtime)
                 end if

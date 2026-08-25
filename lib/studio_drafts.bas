@@ -140,12 +140,12 @@ library studio_drafts
         for each e in index.drafts
             keep = append(keep, e.key + ".txt")
         end for
-        d(dir) = studio_drafts.dir(home)
+        d{dir} = studio_drafts.dir(home)
         for each entry in list(d)
             if entry.type != "folder" then
                 if entry.name != "index.json" then
                     if not contains(keep, entry.name) then
-                        f(file) = studio_drafts.dir(home) + "/" + entry.name
+                        f{file} = studio_drafts.dir(home) + "/" + entry.name
                         delete(f)
                     end if
                 end if
@@ -206,7 +206,7 @@ library studio_drafts
             if e = nothing then
                 out = append(out, d)
             else
-                f(file) = studio_drafts.text_path(home, d.path)
+                f{file} = studio_drafts.text_path(home, d.path)
                 if not exists(f) then
                     ' The index named a draft whose text is gone. Nothing to
                     ' restore and nothing to report — a missing draft is not a

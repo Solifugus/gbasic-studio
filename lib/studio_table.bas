@@ -367,7 +367,7 @@ library studio_table
     ' is the normal state — nobody has asked for the full table yet.
     function read_export(home, doc_path, name)
         path = studio_table.export_path(home, doc_path, name)
-        f(file) = path
+        f{file} = path
         if not exists(f) then
             return studio_table._empty_source()
         end if

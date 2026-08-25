@@ -446,7 +446,7 @@ program main(args)
     ' Scratch lifecycle: a finished run leaves nothing behind, and a sweep clears
     ' whatever a crashed Studio did leave.
     persist.ensure_dir(scratch)
-    d(dir) = scratch
+    d{dir} = scratch
     src = base_src()
     secs = sections_for(src)
     sess = studio_session.create("doc-1", scratch)
@@ -458,8 +458,8 @@ program main(args)
     print "files_left_after_run=" + count(list(d))
 
     ' Simulate a crashed Studio: two orphaned prefixes.
-    a(file) = scratch + "/run-doc-9-1.bas"
-    b(file) = scratch + "/run-doc-9-2.bas"
+    a{file} = scratch + "/run-doc-9-1.bas"
+    b{file} = scratch + "/run-doc-9-2.bas"
     write(a, "print 1\n")
     write(b, "print 2\n")
     print "orphans_before_sweep=" + count(list(d))

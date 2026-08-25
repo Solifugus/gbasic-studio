@@ -101,7 +101,7 @@ program main(args)
     print "the oldest kept is seq " + log.events[0].seq
     ' Bounded on disk as well as in memory.
     save_result = studio_history.save(home, log)
-    f(file) = studio_history.path(home)
+    f{file} = studio_history.path(home)
     print "store under 200k=" + (file_size(f) < 200000)
   end if
 
@@ -112,7 +112,7 @@ program main(args)
     ws = app.model.workspace
     ws = studio_model.add_project(ws, "Alpha", projdir)
     app = studio.set_workspace(app, ws)
-    tf(file) = projdir + "/three.bas"
+    tf{file} = projdir + "/three.bas"
     write(tf, "print \"one\"\n\nfunction add(a, b)\n  return a + b\nend function\n\nsum = add(2, 3)\nprint sum\n")
     rows = studio_ui.nav_rows(app)
     i = 0
@@ -200,7 +200,7 @@ program main(args)
     ws = app.model.workspace
     ws = studio_model.add_project(ws, "Alpha", projdir)
     app = studio.set_workspace(app, ws)
-    tf(file) = projdir + "/three.bas"
+    tf{file} = projdir + "/three.bas"
     write(tf, "print \"one\"\n\nfunction add(a, b)\n  return a + b\nend function\n\nsum = add(2, 3)\nprint sum\n")
     rows = studio_ui.nav_rows(app)
     i = 0

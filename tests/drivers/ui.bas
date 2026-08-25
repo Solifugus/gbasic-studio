@@ -48,7 +48,7 @@ function act(label, r)
 end function
 
 function read_file_text(p)
-  f(file) = p
+  f{file} = p
   return read(f)
 end function
 
@@ -317,7 +317,7 @@ program main(args)
     banner("clean again, and the tab marker is gone")
     show(app)
 
-    f(file) = projdir + "/main.bas"
+    f{file} = projdir + "/main.bas"
     print "on disk: " + read(f)
   end if
 
@@ -335,7 +335,7 @@ program main(args)
     ' empty browser and is indistinguishable from a broken one.
     ws = app.model.workspace
     p1 = studio_model.project_by_id(ws, ws.active_project)
-    pd(file) = p1.path
+    pd{file} = p1.path
     print "project dir created=" + exists(pd)
     print "project dir leaf=" + studio_ui._leaf(p1.path)
 
@@ -588,7 +588,7 @@ program main(args)
     rows = studio_ui.nav_rows(app)
     r = studio_ui.activate_row(app, rows, row_index(rows, "dir", "docs"))
     app = r.app
-    e(file) = projdir + "/docs/guide.md"
+    e{file} = projdir + "/docs/guide.md"
     delete(e)
     r = studio_ui.delete_selected(app, "")
     app = act("Delete the now-empty docs (first click)", r)
@@ -637,7 +637,7 @@ program main(args)
     ' Written here rather than added to the shared fixture: a new file in
     ' mkproj_ui would put a new row in every other ui_* golden.
     ' Three sections, so a run of the last one replays the two before it.
-    rf(file) = projdir + "/runme.bas"
+    rf{file} = projdir + "/runme.bas"
     write(rf, "print \"one\"\n\nfunction add(a, b)\n  return a + b\nend function\n\nsum = add(2, 3)\nprint sum\n")
 
     rows = studio_ui.nav_rows(app)
@@ -684,7 +684,7 @@ program main(args)
 
   ' ---- overlay: code-overlay branches, end to end through the run path -----
   if mode = "overlay" then
-    of(file) = projdir + "/overlaid.bas"
+    of{file} = projdir + "/overlaid.bas"
     write(of, "threshold = 0.5\n\nfunction score(t)\n  return t * 100\nend function\n\nprint \"score is \" + score(threshold)\n")
     rows = studio_ui.nav_rows(app)
     r = studio_ui.activate_row(app, rows, row_index(rows, "file", "overlaid.bas"))
@@ -808,7 +808,7 @@ program main(args)
 
   ' ---- overlay_conflict: §9.3, the part that must not guess ----------------
   if mode = "overlay_conflict" then
-    cf(file) = projdir + "/conflicted.bas"
+    cf{file} = projdir + "/conflicted.bas"
     write(cf, "threshold = 0.5\n\nfunction score(t)\n  return t * 100\nend function\n\nprint \"score is \" + score(threshold)\n")
     rows = studio_ui.nav_rows(app)
     r = studio_ui.activate_row(app, rows, row_index(rows, "file", "conflicted.bas"))
@@ -891,7 +891,7 @@ program main(args)
 
   ' ---- table: the tabular tier, end to end through the run path ------------
   if mode = "table" then
-    tf(file) = projdir + "/table.bas"
+    tf{file} = projdir + "/table.bas"
     write(tf, "rows = []\nn = 0\nwhile n < 1200\n  rows = append(rows, { id: n, name: \"row \" + n, score: n * 1.5 })\n  n = n + 1\nend while\ntotal = count(rows)\n")
     rows = studio_ui.nav_rows(app)
     r = studio_ui.activate_row(app, rows, row_index(rows, "file", "table.bas"))
@@ -973,7 +973,7 @@ program main(args)
 
   ' ---- cursor: the panes follow the caret, not the last run ----------------
   if mode = "cursor" then
-    cf(file) = projdir + "/three.bas"
+    cf{file} = projdir + "/three.bas"
     write(cf, "print \"one\"\n\nfunction add(a, b)\n  return a + b\nend function\n\nprint add(2, 3)\n")
     rows = studio_ui.nav_rows(app)
     r = studio_ui.activate_row(app, rows, row_index(rows, "file", "three.bas"))
@@ -1085,7 +1085,7 @@ program main(args)
 
     ' A caret in a document with nothing runnable in it at all.
     banner("an empty document")
-    ef(file) = projdir + "/empty.bas"
+    ef{file} = projdir + "/empty.bas"
     write(ef, "")
     rows = studio_ui.nav_rows(app)
     r = studio_ui.activate_row(app, rows, row_index(rows, "file", "empty.bas"))
@@ -1100,7 +1100,7 @@ program main(args)
   ' of it, so the raw capture is EMPTY — a pane showing only stderr reported
   ' "(none)" about a run that had just failed.
   if mode = "runerr" then
-    ef(file) = projdir + "/bad.bas"
+    ef{file} = projdir + "/bad.bas"
     write(ef, "print \"Hello\"\n\nx = 0\nwhile x < 3\n  print \"Counting \" + X\n  x = x + 1\nend while\n")
     rows = studio_ui.nav_rows(app)
     r = studio_ui.activate_row(app, rows, row_index(rows, "file", "bad.bas"))
@@ -1127,7 +1127,7 @@ program main(args)
     print "-> a tick with nothing running: " + studio_ui.tick_run(app).action
 
     ' Never ends on its own, so only a stop can finish it.
-    lf(file) = projdir + "/loop.bas"
+    lf{file} = projdir + "/loop.bas"
     write(lf, "print \"started\"\n\nwhile true\n  sleep(0.05)\nend while\n")
 
     rows = studio_ui.nav_rows(app)
@@ -1191,7 +1191,7 @@ program main(args)
     app2 = studio.edit_document(app2, id, "typed again\n")
     persist_result = studio.persist(app2)
     ' Someone else edits the file while Studio is closed.
-    w(file) = projdir + "/main.bas"
+    w{file} = projdir + "/main.bas"
     write(w, "changed by someone else\n")
     app3 = studio.launch(home)
     d4 = studio_docs.doc_by_id(app3.dm, id)
@@ -1218,7 +1218,7 @@ program main(args)
   ' The whole claim of a state-only branch: the SAME code, run twice, producing
   ' different answers because the bindings injected at the branch point differ.
   if mode = "branch" then
-    bf(file) = projdir + "/branchy.bas"
+    bf{file} = projdir + "/branchy.bas"
     write(bf, "threshold = 0.5\n\nfunction score(t)\n  return t * 100\nend function\n\nprint \"score is \" + score(threshold)\n")
     rows = studio_ui.nav_rows(app)
     r = studio_ui.activate_row(app, rows, row_index(rows, "file", "branchy.bas"))
@@ -1343,9 +1343,9 @@ program main(args)
 
     ' main.bas: clean here, changed on disk -> reloads.
     ' README.md: dirty here, changed on disk -> a conflict, buffer preserved.
-    a(file) = projdir + "/main.bas"
+    a{file} = projdir + "/main.bas"
     write(a, "changed on disk while Studio was clean\n")
-    b(file) = projdir + "/README.md"
+    b{file} = projdir + "/README.md"
     write(b, "changed on disk while Studio was dirty\n")
     app = studio.edit_document(app, "doc-2", "my unsaved edits\n")
 

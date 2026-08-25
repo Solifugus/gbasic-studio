@@ -152,11 +152,11 @@ program main(args)
   if mode = "problems" then
     home = args[1]
     persist.ensure_dir(home)
-    bad(file) = home + "/broken.viewers"
+    bad{file} = home + "/broken.viewers"
     write(bad, "{ not json")
-    empty(file) = home + "/empty.viewers"
+    empty{file} = home + "/empty.viewers"
     write(empty, "{ \"schema\": 1 }")
-    mixed(file) = home + "/mixed.viewers"
+    mixed{file} = home + "/mixed.viewers"
     write(mixed, join([
       "{ \"library\": \"mixed\", \"viewers\": [",
       "  { \"name\": \"ok\", \"match\": { \"fields\": [\"a\"] } },",
@@ -164,7 +164,7 @@ program main(args)
       "  { \"name\": \"nofields\", \"match\": {} },",
       "  { \"name\": \"badblock\", \"match\": { \"fields\": [\"a\"] }, \"layout\": [ { \"block\": \"chart\" } ] } ] }"
     ], "\n"))
-    ignored(file) = home + "/notes.txt"
+    ignored{file} = home + "/notes.txt"
     write(ignored, "not addressed to the registry")
     reg = studio_viewers.load_path([home])
     show(scrub(studio_viewers.summary(reg), home))
@@ -178,7 +178,7 @@ program main(args)
     home = args[1]
     persist.ensure_dir(home)
     ' A library ships its own sidecar for a type Studio also bundles one for.
-    own(file) = home + "/stats.viewers"
+    own{file} = home + "/stats.viewers"
     write(own, join([
       "{ \"library\": \"stats\", \"viewers\": [",
       "  { \"name\": \"regression\",",

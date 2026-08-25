@@ -182,7 +182,7 @@ library studio_secrets
     ' and the third one especially must not read as "you have no secrets".
     function load_all(home, key)
         path = studio_secrets.store_path(home)
-        f(file) = path
+        f{file} = path
         if not exists(f) then
             return { ok: true, status: "empty", values: {} }
         end if
@@ -224,7 +224,7 @@ library studio_secrets
         end if
         persist.ensure_dir(home)
         path = studio_secrets.store_path(home)
-        tmp(file) = path + ".tmp"
+        tmp{file} = path + ".tmp"
         ' Written as hex rather than raw bytes: the store travels through backups
         ' and editors that mangle binary, and a corrupted secret store is
         ' indistinguishable from a wrong key.

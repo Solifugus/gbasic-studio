@@ -169,7 +169,7 @@ program main(args)
     show(tree, secs)
 
     raw = studio_branches.to_persist(tree)
-    f(file) = home + "/branches.json"
+    f{file} = home + "/branches.json"
     write(f, json_encode(raw))
     back = studio_branches.from_persist(try_decode(read(f)).value)
     print "== after a round trip through JSON =="

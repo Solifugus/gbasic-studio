@@ -117,7 +117,7 @@ library studio_viewers
 
     function load_dir(reg, dir)
         names = []
-        d(dir) = dir
+        d{dir} = dir
         for each e in list(d)
             if e.type = "file" then
                 if studio_viewers._is_sidecar(e.name) then
@@ -145,7 +145,7 @@ library studio_viewers
     ' anyway would fail later, in the renderer, where the message would be about
     ' a missing field rather than about a malformed declaration.
     function load_file(reg, path)
-        f(file) = path
+        f{file} = path
         if not exists(f) then
             reg.problems = append(reg.problems, path + ": missing")
             return reg

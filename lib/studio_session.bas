@@ -598,7 +598,7 @@ library studio_session
         lines = append(lines, "  return " + p + "_s")
         lines = append(lines, "end function")
         lines = append(lines, "function " + p + "_tbl(v, path, stamp)")
-        lines = append(lines, "  " + p + "_f(file) = path")
+        lines = append(lines, "  " + p + "_f{file} = path")
         lines = append(lines, "  if reflect.category(v) != \"container\" then")
         lines = append(lines, "    write(" + p + "_f, encode({ cols: [], n: 0, rows: 0, stamp: stamp }) + \"\\n\")")
         lines = append(lines, "    return 0")
@@ -1101,7 +1101,7 @@ library studio_session
         persist.write_text_atomic(path, m.text)
         session.prefix_path = path
 
-        pf(file) = path
+        pf{file} = path
         if not exists(pf) then
             session = studio_session._to(session, "failed")
             session.reason = "materialize-failed"
@@ -1592,7 +1592,7 @@ library studio_session
         if session.prefix_path = "" then
             return session
         end if
-        f(file) = session.prefix_path
+        f{file} = session.prefix_path
         if exists(f) then
             delete(f)
         end if
@@ -1607,15 +1607,15 @@ library studio_session
     function sweep_scratch(scratch_dir)
         ' `exists` wants a FILE reference even when the path is a directory (same
         ' quirk persist.ensure_dir documents).
-        probe(file) = scratch_dir
+        probe{file} = scratch_dir
         if not exists(probe) then
             return 0
         end if
-        d(dir) = scratch_dir
+        d{dir} = scratch_dir
         removed = 0
         for each e in list(d)
             if e.type != "folder" then
-                f(file) = scratch_dir + "/" + e.name
+                f{file} = scratch_dir + "/" + e.name
                 if exists(f) then
                     delete(f)
                     removed = removed + 1

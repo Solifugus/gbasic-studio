@@ -500,7 +500,7 @@ library studio_ui
         if problem != "" then
             return { name: "", action: "invalid", detail: problem }
         end if
-        probe(file) = dir + "/" + wanted
+        probe{file} = dir + "/" + wanted
         taken = exists(probe)
         if taken then
             return { name: "", action: "exists", detail: dir + "/" + wanted }
@@ -512,7 +512,7 @@ library studio_ui
         n = 1
         while n < 1000
             cand = prefix + n + suffix
-            probe(file) = dir + "/" + cand
+            probe{file} = dir + "/" + cand
             taken = exists(probe)
             if taken then
                 n = n + 1
@@ -619,7 +619,7 @@ library studio_ui
             return { app: app, action: "invalid", detail: problem }
         end if
         wanted = trim(name)
-        src(file) = sel
+        src{file} = sel
         there = exists(src)
         if there = false then
             return { app: app, action: "missing", detail: sel }
@@ -629,7 +629,7 @@ library studio_ui
         if dest = sel then
             return { app: app, action: "unchanged", detail: sel }
         end if
-        dst(file) = dest
+        dst{file} = dest
         taken = exists(dst)
         if taken then
             return { app: app, action: "exists", detail: dest }
@@ -754,7 +754,7 @@ library studio_ui
             return { app: app, action: "armed", detail: sel, armed: sel }
         end if
 
-        ref(file) = sel
+        ref{file} = sel
         there = exists(ref)
         if there = false then
             ws = studio_model.set_selected_path(ws, "")
@@ -764,7 +764,7 @@ library studio_ui
 
         isdir = studio_docs._is_dir(sel)
         if isdir then
-            d(dir) = sel
+            d{dir} = sel
             if count(list(d)) > 0 then
                 ' Recursive deletion is a different promise from "delete this",
                 ' and it deserves a confirmation that names what goes with it.
@@ -1011,7 +1011,7 @@ library studio_ui
         if path = "" then
             return { app: app, action: "none", detail: "" }
         end if
-        probe(file) = path
+        probe{file} = path
         there = exists(probe)
         isdir = false
         if there then

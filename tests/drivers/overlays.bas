@@ -169,7 +169,7 @@ program main(args)
     ov = studio_overlays.put(ov, "br-1", target, studio_overlays.base_fp(st, target), robust_score())
     ov = studio_overlays.put(ov, "br-2", target, studio_overlays.base_fp(st, target), "function score(t)\n  return t * 2")
     persist.ensure_dir(home)
-    f(file) = home + "/overlays.json"
+    f{file} = home + "/overlays.json"
     write(f, encode(studio_overlays.to_persist(ov)))
     back = studio_overlays.from_persist(try_decode(read(f)).value)
     print "round trip: " + count(back.edits) + " edit(s)"

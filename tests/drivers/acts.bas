@@ -175,7 +175,7 @@ program main(args)
     ws = app.model.workspace
     ws = studio_model.set_selected_path(ws, projdir + "/doomed.bas")
     app = studio.set_workspace(app, ws)
-    probe(file) = projdir + "/doomed.bas"
+    probe{file} = projdir + "/doomed.bas"
     print "the file exists: " + string(exists(probe))
 
     print ""

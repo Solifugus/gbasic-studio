@@ -57,7 +57,7 @@ function write_export(path, n, written)
     buf = append(buf, encode([string(i), "row " + i, string(i * 1.5)]))
     i = i + 1
   end while
-  f(file) = path
+  f{file} = path
   write(f, join(buf, "\n") + "\n")
   return path
 end function
@@ -108,7 +108,7 @@ program main(args)
   if mode = "export" then
     persist.ensure_dir(home)
     path = write_export(home + "/rows.export", 1200, 1200)
-    f(file) = path
+    f{file} = path
     src = studio_table.from_export(read(f), path)
     show(studio_table.summary(src))
     print ""
@@ -127,7 +127,7 @@ program main(args)
     print "caption: " + studio_table.caption("customers", capped)
     print ""
     print "-- a corrupt line is a blank row, not a dead grid"
-    bad(file) = home + "/bad.export"
+    bad{file} = home + "/bad.export"
     write(bad, "{\"cols\":[\"a\",\"b\"],\"n\":2,\"rows\":2}\n[\"ok\",\"fine\"]\nnot json\n")
     bsrc = studio_table.from_export(read(bad), home + "/bad.export")
     r = studio_table.cell(bsrc, 0, 0)
@@ -136,7 +136,7 @@ program main(args)
     print "  [1][0] = \"" + r.text + "\""
     print ""
     print "-- a file that is not an export at all yields an empty source"
-    junk(file) = home + "/junk.export"
+    junk{file} = home + "/junk.export"
     write(junk, "hello\n")
     print "  kind: " + studio_table.from_export(read(junk), home + "/junk.export").kind
     print ""
@@ -151,7 +151,7 @@ program main(args)
     persist.ensure_dir(home)
     n = 50000
     path = write_export(home + "/big.export", n, n)
-    f(file) = path
+    f{file} = path
     src = studio_table.from_export(read(f), path)
     print "a " + src.n + "-row table, " + src.decodes + " rows decoded by opening it"
     print ""

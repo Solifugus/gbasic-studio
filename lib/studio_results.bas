@@ -301,7 +301,7 @@ library studio_results
         if t.text = "" then
             return { bytes: 0, cut: false }
         end if
-        f(file) = studio_results.capture_path(home, doc_path, result_id, name)
+        f{file} = studio_results.capture_path(home, doc_path, result_id, name)
         write(f, t.text)
         return { bytes: byte_count(t.text), cut: t.cut }
     end function
@@ -388,7 +388,7 @@ library studio_results
 
     function _delete_captures(home, doc_path, result_id)
         for each name in studio_results.capture_names()
-            f(file) = studio_results.capture_path(home, doc_path, result_id, name)
+            f{file} = studio_results.capture_path(home, doc_path, result_id, name)
             if exists(f) then
                 delete(f)
             end if
@@ -401,7 +401,7 @@ library studio_results
     ' leaves files nothing points at, and the next save clears them.
     function sweep_captures(home, store)
         dir = studio_results.capture_dir(home, store.doc_path)
-        probe(file) = dir
+        probe{file} = dir
         if not exists(probe) then
             return 0
         end if
@@ -409,7 +409,7 @@ library studio_results
         for each r in store.results
             live = append(live, r.result_id)
         end for
-        d(dir) = dir
+        d{dir} = dir
         removed = 0
         for each e in list(d)
             if e.type != "folder" then
@@ -421,7 +421,7 @@ library studio_results
                     end if
                 end for
                 if not keep then
-                    f(file) = dir + "/" + e.name
+                    f{file} = dir + "/" + e.name
                     if exists(f) then
                         delete(f)
                         removed = removed + 1
@@ -438,7 +438,7 @@ library studio_results
     ' was empty wrote nothing, and one whose captures were evicted is gone. No JSON
     ' validation happens here, which is the whole point of the sidecar layout.
     function capture(home, store, result_id, name)
-        f(file) = studio_results.capture_path(home, store.doc_path, result_id, name)
+        f{file} = studio_results.capture_path(home, store.doc_path, result_id, name)
         if not exists(f) then
             return ""
         end if

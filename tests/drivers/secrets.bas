@@ -12,7 +12,7 @@ function show(lines)
 end function
 
 function file_text(path)
-  f(file) = path
+  f{file} = path
   if not exists(f) then
     return ""
   end if
@@ -73,7 +73,7 @@ program main(args)
     print ""
     print "-- and the key is not in the file either, because it is never written"
     print "  contains the key: " + string(find(text, "00112233") != nothing)
-    kf(file) = home + "/secrets.key"
+    kf{file} = home + "/secrets.key"
     print "  a key file exists: " + string(exists(kf))
 
     print ""

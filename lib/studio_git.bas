@@ -88,7 +88,7 @@ library studio_git
         if root = "" then
             return { ok: false, code: -1, out: "", err: "", why: "no directory to run git in" }
         end if
-        rd(file) = root
+        rd{file} = root
         if not exists(rd) then
             return { ok: false, code: -1, out: "", err: "", why: root + " does not exist" }
         end if
