@@ -2289,9 +2289,24 @@ program main(args)
     load studio_shell
     load studio_table
     load studio_teaching
+    load studio_style
     load studio_permissions
     load datagrid
     gi.require("Gtk", "4.0")
+
+    ' The window's one CSS provider. It is a program global for the same reason
+    ' `_DATAGRID` is: gBASIC functions do not close over state, and the `gi`
+    ' bridge cannot reach `Gtk.StyleContext.add_provider_for_display` — a class
+    ' static — so a provider has to be attached to each widget individually and
+    ' every builder in the shell needs to reach the same one. Building one per
+    ' widget would reparse the stylesheet thirty times at startup and stack a new
+    ' provider on the run-state label on every poll.
+    '
+    ' Assigned HERE, after the loads and before any widget exists, so every
+    ' display mode has it — including the smoke modes, which build panes without
+    ' a shell. Reading an unassigned global raises in gBASIC, so there is no lazy
+    ' version of this line.
+    _STUDIO_STYLE = studio_style.new_provider()
 
     ' STU-8: the DataGrid's per-grid state has to be reachable from a factory
     ' "bind" signal that GTK invokes with only (factory, item). gBASIC has no

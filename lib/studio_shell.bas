@@ -33,6 +33,10 @@ library studio_shell
     load studio_docs
     load studio_results
     load studio_ui
+    ' The window's appearance, in one place. Every class this file writes goes on
+    ' through `studio_style.apply`, which attaches the shared provider at the same
+    ' time — a class added without it is a name nothing renders.
+    load studio_style
     ' ---- STU-2B: redraw ------------------------------------------------------
     '
     ' A mutation redraws by calling `refresh` — there is one such function, and it
@@ -60,8 +64,42 @@ library studio_shell
     function _fill_nav(nav, app)
         rows = studio_ui.nav_rows(app)
         studio_shell._clear_listbox(nav)
+        ' With no workspace, `nav_rows` yields exactly one row — "(no workspace
+        ' open)" — and it sat in the top-left corner of a pane the height of the
+        ' window, indistinguishable from a file. Asked of the MODEL rather than by
+        ' matching the label, because the wording belongs to studio_ui and a shell
+        ' comparing strings with it is a second copy of the same decision.
+        empty = false
+        if app.model.workspace = nothing then
+            empty = true
+        end if
+        if empty then
+            ' Shrink the list to its one row and centre that in the pane, and
+            ' stop the list painting a view background while it does — a white
+            ' strip the width of the pane with one sentence in it reads as a
+            ' control someone could click.
+            nav.valign = gi.enum("Gtk.Align.CENTER")
+            nav.add_css_class(studio_style.css_class("flat"))
+        else
+            nav.valign = gi.enum("Gtk.Align.FILL")
+            nav.remove_css_class(studio_style.css_class("flat"))
+        end if
+        i = 0
         for each r in rows
-            nav.append(studio_shell._left(gtk.label(r.label)))
+            if empty then
+                nav.append(studio_shell._empty(gtk.label(r.label)))
+                ' GtkListBox wraps what it is given in a GtkListBoxRow of its
+                ' own, and the row is what paints the view background. Flatten
+                ' the row too, or the label is centred inside a white bar that
+                ' still looks like something to click.
+                lbrow = nav.get_row_at_index(i)
+                if lbrow != nothing then
+                    lbrow = studio_style.apply(lbrow, "flat")
+                end if
+            else
+                nav.append(studio_shell._left(gtk.label(r.label)))
+            end if
+            i = i + 1
         end for
         return rows
     end function
@@ -112,8 +150,59 @@ library studio_shell
     function _mono(lbl)
         lbl = studio_shell._wrapped(lbl)
         lbl.selectable = true
+        ' "monospace" is the stock class every GTK theme defines; studio_style's
+        ' own rule sets the size of the scale's monospace step.
         lbl.add_css_class("monospace")
-        return lbl
+        return studio_style.apply(lbl, "mono")
+    end function
+
+    ' ---- the visual scale ----------------------------------------------------
+    '
+    ' Four helpers, so no call site has to remember that a CSS class and its
+    ' provider are two separate things (see studio_style's header). They compose
+    ' with `_left`/`_wrapped` rather than replacing them: alignment is about what
+    ' a label CONTAINS, and these are about what it WEIGHS.
+
+    ' Explanatory prose: smaller and muted, so the controls beside it outrank it.
+    ' Everything in the right-hand column that is a sentence rather than a value
+    ' goes through here.
+    function _dim(lbl)
+        return studio_style.apply(studio_shell._wrapped(lbl), "dim")
+    end function
+
+    ' A panel heading — the short word that says which pane this is. Bold, small
+    ' and letter-spaced; it does not wrap because it is never long enough to, and
+    ' a heading that folds is a heading that has become a sentence.
+    function _head(text)
+        lbl = studio_shell._left(gtk.label(text))
+        return studio_style.apply(lbl, "head")
+    end function
+
+    ' The rule that introduces a heading. The right-hand column stacked five panes
+    ' with nothing between them, so it read as one list; this is the line that
+    ' says where one pane ends and the next begins.
+    function _rule()
+        sep = gi.new("Gtk.Separator", "orientation", gi.enum("Gtk.Orientation.HORIZONTAL"))
+        return studio_style.apply(sep, "rule")
+    end function
+
+    ' The same idea turned on its side: the divider between two groups of
+    ' toolbar buttons.
+    function _bar()
+        sep = gi.new("Gtk.Separator", "orientation", gi.enum("Gtk.Orientation.VERTICAL"))
+        sep.margin_start = studio_style.unit()
+        sep.margin_end = studio_style.unit()
+        return studio_style.attach(sep)
+    end function
+
+    ' What a pane says when it holds nothing: centred in the space it is failing
+    ' to fill, and muted, because it is a state rather than a message.
+    function _empty(lbl)
+        lbl.halign = gi.enum("Gtk.Align.CENTER")
+        lbl.valign = gi.enum("Gtk.Align.CENTER")
+        lbl.hexpand = true
+        lbl.vexpand = true
+        return studio_style.apply(lbl, "empty")
     end function
 
     ' Empty a GtkListBox by repeatedly removing row 0. `remove_all` would be one
@@ -175,6 +264,9 @@ library studio_shell
         app = v.app
         sess = studio_ui.exec_session(app)
         shell.bar.state.label = studio_ui.run_line(sess)
+        ' The same sentence, in the colour of what it says. Classes only — the
+        ' provider went on at build time, and this runs sixteen times a second.
+        studio_style.set_state(shell.bar.state, studio_style.state_class(sess))
         shell.bar.section.label = studio_ui.section_label(app)
         shell.bar.standing.label = studio_ui.standing_line(app)
         shell.pane.prefix.label = studio_ui.prefix_body(app)
@@ -266,7 +358,10 @@ library studio_shell
                 shell.pages = []
             end if
             if shell.welcome = false then
-                book.append_page(gtk.label("(no document open)"), gtk.label("Welcome"))
+                ' An empty state, not a stray line of text: centred in the pane it
+                ' is failing to fill, and muted, because it describes a situation
+                ' rather than asking for anything. The TEXT is unchanged.
+                book.append_page(studio_shell._empty(gtk.label("(no document open)")), gtk.label("Welcome"))
                 shell.welcome = true
             end if
             return { shell: shell, new_editors: new_editors }
@@ -425,14 +520,31 @@ library studio_shell
         win.title = title
         win.default_width = model.session.window.width
         win.default_height = model.session.window.height
+        ' The window's icon. `set_icon_name` resolves through the icon theme, and
+        ' the icon theme's search path is where a display-wide call would be
+        ' needed (`Gtk.IconTheme.get_for_display` is a class static the `gi`
+        ' bridge cannot reach). So the path is supplied from OUTSIDE the process
+        ' instead: `./studio` puts the repository's `share/` on XDG_DATA_DIRS,
+        ' where `share/icons/hicolor/...` holds the gBASIC mascot under this name.
+        ' Installed normally — the .desktop file in `share/applications` — the
+        ' same name resolves with nothing set at all.
+        win.set_icon_name("org.gbasic.Studio")
 
         outer = gtk.box("v", 0)
 
         ' --- header / menu strip ---
         ' The buttons are returned, not connected: `gi.connect` lives only in the
         ' entry program (see this file's header).
-        header = gtk.box("h", 6)
-        header.append(studio_shell._left(gtk.label("gBASIC Studio")))
+        '
+        ' GROUPED, with a rule between groups: ten buttons in an undifferentiated
+        ' row is a row nobody reads, they scan it for the word they want. The
+        ' groups are project, file, name, then the two that destroy something.
+        header = gtk.box("h", studio_style.unit())
+        header = studio_style.apply(header, "toolbar")
+        wordmark = studio_shell._left(gtk.label("gBASIC Studio"))
+        wordmark = studio_style.apply(wordmark, "title")
+        header.append(wordmark)
+        header.append(studio_shell._bar())
         ' The name field expanded to fill the header and pushed every button to
         ' the right; it needs a width, not all of the width.
         name_entry_width = 18
@@ -463,23 +575,59 @@ library studio_shell
         close_btn = gtk.button("Close")
         save_btn = gtk.button("Save")
         refresh_btn = gtk.button("Refresh")
+        ' Delete takes the stock destructive class. It is the only control in this
+        ' window that removes a file from disk, and it sat in a row of identical
+        ' grey buttons one pixel from Close. The class is the THEME's — red in
+        ' light, red in dark, whatever the user's accent is — not a colour of ours.
+        delete_btn.add_css_class(studio_style.css_class("destructive-action"))
+
+        ' Group 1: the project. What you press when there is nothing open yet.
         header.append(new_btn)
+        header.append(open_btn)
+        header.append(studio_shell._bar())
+        ' Group 2: the file. Make one, put it somewhere, write it, re-read it.
         header.append(file_btn)
         header.append(folder_btn)
-        header.append(name_entry)
-        header.append(open_btn)
-        header.append(rename_btn)
-        header.append(delete_btn)
-        header.append(close_btn)
         header.append(save_btn)
         header.append(refresh_btn)
+        header.append(studio_shell._bar())
+        ' Group 3: the name field and the one button that consumes it on its own.
+        ' New File, New Folder and New Project read it too, which is why it sits
+        ' between them and Rename rather than inside either group.
+        header.append(name_entry)
+        header.append(rename_btn)
+        header.append(studio_shell._bar())
+        ' Group 4: the two that take something away, at the far end where a
+        ' mis-aimed click does not land on them.
+        header.append(delete_btn)
+        header.append(close_btn)
         outer.append(header)
 
         ' --- main split: project browser | editor tab notebook ---
+        '
+        ' MARGINS. There was not one `set_margin_*` call anywhere in this
+        ' repository, which is why every pane was welded to the window frame. The
+        ' unit is studio_style.unit() — 6px — and the split takes one of them all
+        ' round, so the editor, the browser and the right column each sit on a
+        ' visible gutter instead of on the glass.
+        u = studio_style.unit()
         split = gtk.paned("h")
         split.vexpand = true
+        split.margin_start = u
+        split.margin_end = u
+        split.margin_top = u
+        split.margin_bottom = u
 
         nav = gtk.listbox()
+        ' The browser's rows carry their own indentation, so the pane only needs
+        ' to be held off its own frame.
+        nav.margin_start = u
+        nav.margin_end = u
+        nav.margin_top = u
+        ' The stylesheet has to be reachable from the list itself: `_fill_nav`
+        ' toggles the flat class on it when the workspace is empty, and a class
+        ' whose provider is not attached is a name nothing renders.
+        nav = studio_style.attach(nav)
         nav_scroll = gtk.scrolled(nav)
         split.set_start_child(nav_scroll)
         split.position = 260
@@ -505,14 +653,17 @@ library studio_shell
         ' one scroller meant the variables of a run sat below the fold with the
         ' editor still half empty. Output goes under the editor; results and the
         ' assistant go beside them.
-        under = gtk.box("v", 4)
+        under = gtk.box("v", u)
+        ' `.studio-panel` deliberately has no top padding (see studio_style), so
+        ' the console gets its gap from the divider above it here.
+        under.margin_top = u
         under.append(bar.box)
         under.append(pane.box)
 
         bpane = studio_shell.branch_pane()
         tpane = studio_shell.table_pane()
         gpane = studio_shell.git_pane()
-        beside = gtk.box("v", 4)
+        beside = gtk.box("v", u)
         beside.append(bpane.box)
         beside.append(rpane.box)
         beside.append(tpane.box)
@@ -530,10 +681,20 @@ library studio_shell
         rsplit.position = 620
         split.set_end_child(rsplit)
 
+
         outer.append(split)
 
         ' --- status bar ---
+        ' Given a rule and a tint of its own, it stops reading as a line of text
+        ' that fell off the bottom of the window.
         status = studio_shell._left(gtk.label(studio_shell.status_text(app)))
+        ' `_left` sets halign START, which gives a label its NATURAL width — and a
+        ' status bar that is only as wide as its current sentence is a floating
+        ' grey tab, not a bar. xalign keeps the text left; halign FILL makes the
+        ' bar the width of the window.
+        status.halign = gi.enum("Gtk.Align.FILL")
+        status.hexpand = true
+        status = studio_style.apply(status, "statusbar")
         outer.append(status)
 
         win.set_child(outer)
@@ -544,9 +705,15 @@ library studio_shell
         ' refresh.
         '
         ' It is deliberately NOT presented here. Presenting an empty window makes
-        ' GTK allocate scrolled windows that have no child yet, and it complains
-        ' ("GtkGizmo (slider) reported min width -2"). The caller presents after
-        ' the first refresh — see `present` below.
+        ' GTK allocate scrolled windows that have no child yet. The caller
+        ' presents after the first refresh — see `present` below.
+        '
+        ' The "GtkGizmo (slider) reported min width/height -2" pair that survives
+        ' that is NOT ours and is not fixable here: a bare GtkWindow holding one
+        ' GtkScrolledWindow around one GtkLabel prints exactly the same pair on
+        ' this GTK 4, with no paned, no policy and no margin involved. Studio has
+        ' four scrolled windows, which is why there are eight lines. Taking the
+        ' paneds off `shrink` changed nothing, so it is not a starved allocation.
         shell = { window: win, status: status, nav: nav, notebook: book,
                  new_btn: new_btn, file_btn: file_btn, folder_btn: folder_btn,
                  name_entry: name_entry, open_btn: open_btn, rename_btn: rename_btn,
@@ -611,22 +778,33 @@ library studio_shell
     ' cannot rebind a top-level scalar.
 
     function run_bar()
-        bar = gtk.box("h", 6)
+        bar = gtk.box("h", studio_style.unit())
         run_btn = gtk.button("Run Section")
+        ' The stock suggested class. Of the three buttons on this strip one is
+        ' what you came here to press and two are what you press when it goes
+        ' wrong, and they were indistinguishable.
+        run_btn.add_css_class(studio_style.css_class("suggested-action"))
         halt_btn = gtk.button("Stop")
         force_btn = gtk.button("Force Stop")
+        ' The state carried in the TEXT only — "run: running" and "run: failed" in
+        ' the same grey. The text is unchanged (the goldens assert it); the class
+        ' moves with the state, and `refresh_run` is what moves it.
         state = studio_shell._left(gtk.label("run: idle"))
+        state = studio_style.apply(state, "state-idle")
         ' STU-5A′: which section Run would run, shown BEFORE you press it rather
         ' than after. It follows the caret.
         section = studio_shell._left(gtk.label("section: (none)"))
+        section = studio_style.apply(section, "dim")
         ' STU-5 §10.3: whether what you are looking at is live in this session or
         ' a record from an earlier one.
         standing = studio_shell._left(gtk.label(""))
+        standing = studio_style.apply(standing, "dim")
         ' The strip is one horizontal row, so this cannot wrap; ellipsize instead,
         ' which at least SAYS it was cut rather than stopping mid-word.
         standing.ellipsize = gi.enum("Pango.EllipsizeMode.END")
         branch = studio_shell._left(gtk.label("branch: baseline"))
         branch.ellipsize = gi.enum("Pango.EllipsizeMode.END")
+        bar = studio_style.apply(bar, "panel")
         bar.append(run_btn)
         bar.append(halt_btn)
         bar.append(force_btn)
@@ -651,19 +829,27 @@ library studio_shell
     end function
 
     function output_pane()
-        box = gtk.box("v", 4)
-        prefix_head = studio_shell._wrapped(gtk.label("Prefix output — sections replayed before the target"))
+        box = gtk.box("v", studio_style.unit())
+        box = studio_style.apply(box, "panel")
+        ' Three sections of output with nothing to tell them apart but a sentence
+        ' each, in body weight, directly above the monospace they described. The
+        ' TEXT is untouched — a golden asserts every word of it — and the headings
+        ' now carry the heading class and a rule, so the eye finds the boundary
+        ' before it reads the sentence.
+        prefix_head = studio_style.apply(studio_shell._wrapped(gtk.label("Prefix output — sections replayed before the target")), "head")
         prefix_body = studio_shell._mono(gtk.label(""))
-        target_head = studio_shell._wrapped(gtk.label("Target output — the section you ran"))
+        target_head = studio_style.apply(studio_shell._wrapped(gtk.label("Target output — the section you ran")), "head")
         target_body = studio_shell._mono(gtk.label(""))
         ' STU-5: a section's errors had nowhere to go. The child's stderr was
         ' captured, attributed and stored, and the window showed none of it.
-        error_head = studio_shell._wrapped(gtk.label("Errors"))
+        error_head = studio_style.apply(studio_shell._wrapped(gtk.label("Errors")), "head")
         error_body = studio_shell._mono(gtk.label(""))
         box.append(prefix_head)
         box.append(prefix_body)
+        box.append(studio_shell._rule())
         box.append(target_head)
         box.append(target_body)
+        box.append(studio_shell._rule())
         box.append(error_head)
         box.append(error_body)
         return { box: box, prefix: prefix_body, target: target_body, errors: error_body }
@@ -689,12 +875,16 @@ library studio_shell
     ' described what is on screen. The mark is what stops that.
 
     function results_pane()
-        box = gtk.box("v", 4)
+        box = gtk.box("v", studio_style.unit())
+        box = studio_style.apply(box, "panel")
         ' The BODY already opens with "Results — sec-N", so a header saying
         ' "Results" too put the word on two consecutive lines. The header says
-        ' what the pane is keyed to; the body says which section that is.
-        head = studio_shell._wrapped(gtk.label("For the section at the cursor"))
+        ' what the pane is keyed to; the body says which section that is. That is
+        ' why THIS line is the pane's heading rather than a sentence under one
+        ' saying "Results": that title would be the word the body is about to say.
+        head = studio_style.apply(studio_shell._wrapped(gtk.label("For the section at the cursor")), "head")
         body = studio_shell._mono(gtk.label(""))
+        box.append(studio_shell._rule())
         box.append(head)
         box.append(body)
         return { box: box, head: head, body: body }
@@ -707,11 +897,19 @@ library studio_shell
     ' that changes, and a listbox has an index a click reports, so the dispatcher
     ' can resolve it against the array that produced the widgets.
     function branch_pane()
-        box = gtk.box("v", 4)
-        head = studio_shell._wrapped(gtk.label("Branches — alternate continuations below this point"))
+        box = gtk.box("v", studio_style.unit())
+        box = studio_style.apply(box, "panel")
+        ' A heading of its own, and the sentence that explains it DEMOTED beneath.
+        ' The right-hand column was five explanatory paragraphs stacked with no
+        ' rule between them: it read as one list, and the controls were the least
+        ' prominent thing in it. The heading is a new label; the sentence keeps
+        ' every word it had.
+        head = studio_shell._dim(gtk.label("Branches — alternate continuations below this point"))
         list = gtk.listbox()
         bind_btn = gtk.button("Bind name = value")
         bind_btn.halign = gi.enum("Gtk.Align.START")
+        box.append(studio_shell._rule())
+        box.append(studio_shell._head("Branches"))
         box.append(head)
         box.append(list)
         box.append(bind_btn)
@@ -813,9 +1011,11 @@ library studio_shell
     ' would reflow the whole right-hand column every time the project changed,
     ' and `set_visible` is what GTK provides for exactly this.
     function git_pane()
-        box = gtk.box("v", 4)
-        head = studio_shell._wrapped(gtk.label("Git"))
+        box = gtk.box("v", studio_style.unit())
+        box = studio_style.apply(box, "panel")
+        head = studio_shell._head("Git")
         body = studio_shell._mono(gtk.label(""))
+        box.append(studio_shell._rule())
         box.append(head)
         box.append(body)
         box.set_visible(false)
@@ -1050,11 +1250,14 @@ library studio_shell
     ' an index a click reports, so the dispatcher resolves it against the array
     ' that produced the widgets rather than deriving them a second time.
     function table_pane()
-        box = gtk.box("v", 4)
-        head = studio_shell._wrapped(gtk.label("Tables — results the section left behind that can be opened as a table"))
+        box = gtk.box("v", studio_style.unit())
+        box = studio_style.apply(box, "panel")
+        head = studio_shell._dim(gtk.label("Tables — results the section left behind that can be opened as a table"))
         list = gtk.listbox()
         fetch_btn = gtk.button("Fetch all rows (runs the section again)")
         fetch_btn.halign = gi.enum("Gtk.Align.START")
+        box.append(studio_shell._rule())
+        box.append(studio_shell._head("Tables"))
         box.append(head)
         box.append(list)
         box.append(fetch_btn)
@@ -1156,11 +1359,16 @@ library studio_shell
     ' in the label. There is no input field yet because there is nothing useful to
     ' type at an assistant that can only look — orientation is one question.
     function agent_pane()
-        box = gtk.box("v", 4)
-        head = studio_shell._wrapped(gtk.label("Assistant — read-only; it can see your project, not change it"))
+        box = gtk.box("v", studio_style.unit())
+        box = studio_style.apply(box, "panel")
+        head = studio_shell._dim(gtk.label("Assistant — read-only; it can see your project, not change it"))
         ask_btn = gtk.button("Where was I?")
         ask_btn.halign = gi.enum("Gtk.Align.START")
-        body = studio_shell._wrapped(gtk.label("(not configured — set ANTHROPIC_API_KEY and restart)"))
+        ' The body is prose too, until it is holding an answer — and "(not
+        ' configured …)" is the state most windows show it in.
+        body = studio_shell._dim(gtk.label("(not configured — set ANTHROPIC_API_KEY and restart)"))
+        box.append(studio_shell._rule())
+        box.append(studio_shell._head("Assistant"))
         box.append(head)
         box.append(ask_btn)
         box.append(body)

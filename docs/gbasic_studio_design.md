@@ -227,8 +227,12 @@ their own work*. Anything beyond that is out of scope.
 
 ## 4. Main workspace layout
 
-The primary window. Behavior and information architecture are specified; visual
-styling is deliberately left minimal.
+The primary window. Behavior and information architecture are specified here;
+the visual styling that renders them lives in `lib/studio_style.bas` — one
+stylesheet, a 6px spacing unit, and a type scale of four steps (body, `head`,
+`dim`, `mono`) over GTK's own named colours, so the window follows the system
+light/dark theme. This section stays a specification of WHAT the window shows;
+it does not prescribe how it looks.
 
 ```
 ┌───────────────────────────────────────────────────────────────────────┐

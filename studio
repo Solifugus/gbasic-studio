@@ -43,6 +43,12 @@ esac
 
 export GBASIC
 export GBASIC_PATH="lib:$GBASIC_STDLIB"
+# The window asks for its icon by name (org.gbasic.Studio). Adding an icon
+# directory at run time would need Gtk.IconTheme.get_for_display, a class static
+# the gi bridge cannot resolve, so the path is supplied from out here instead:
+# GTK reads XDG_DATA_DIRS for icon themes at startup, and share/ holds both the
+# hicolor icon and the .desktop entry. An installed copy needs none of this.
+export XDG_DATA_DIRS="$PWD/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
 # STU-8: a library ships viewer metadata for its own types beside itself, so the
 # registry has to know where the stdlib is -- and where Studio's bundled copies
 # are, since a stock install has no library-shipped sidecar yet.

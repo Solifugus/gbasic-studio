@@ -122,6 +122,10 @@ lib/studio_agent.bas    the agent over llm.bas — orientation (STU-6) and actin
                         testable with no network
 lib/studio_shell.bas    the GTK view — renders model state and reconciles on
                         redraw; holds no decisions
+lib/studio_style.bas    the ONE stylesheet, the shared CSS provider, and the
+                        spacing unit. Classes go on through `style.apply`, which
+                        attaches the provider at the same time
+share/                  the .desktop entry and the hicolor icon (see share/README)
 ```
 
 **The interaction rule (STU-2B), which later phases must follow.** A signal
@@ -353,6 +357,36 @@ Two consequences worth knowing before you touch the shell:
 - The browser hides dotfiles (`studio_ui.hidden_entry`). `.git` is not merely
   noise: it is expandable, and `filetree` scans an expanded directory eagerly, so
   one click would walk every loose object in a real repository.
+- **A CSS class without its provider renders nothing.** `gi` cannot call class
+  statics, so `Gdk.Display.get_default` and
+  `Gtk.StyleContext.add_provider_for_display` are both out of reach and there is
+  no display-wide stylesheet. Providers go on ONE WIDGET AT A TIME. That is why
+  `studio_style.apply(widget, class)` does both halves and why nothing calls
+  `add_css_class` directly for a Studio class — a call site that remembers only
+  the class writes a name nothing renders. The provider is the program global
+  `_STUDIO_STYLE`, assigned in `app/studio.bas` beside `_DATAGRID` for the same
+  no-closures reason; reading an unassigned global RAISES, so it is assigned
+  unconditionally in the display block rather than lazily.
+- **`letter-spacing` breaks a wrapping label the way `wrap = true` does.** A
+  label with letter-spacing reports a natural width that does NOT include the
+  spacing, so a wrapping label given its own natural width wraps inside it:
+  measured, "Errors" came back 38px and rendered as "Error-/s", and all three
+  output-pane headings folded the moment the heading class went on. `.studio-head`
+  therefore has no letter-spacing. Same blind spot as every other entry here —
+  the asserted text is identical whether the widget folded it or not.
+- **`_left` gives a label its NATURAL width**, because `halign: START` does. That
+  is right for a row and wrong for a bar: the status bar styled as a bar was a
+  grey tab the width of its current sentence. `xalign = 0` keeps the text left;
+  `halign = FILL` is what makes it span.
+- **An empty GtkListBox still paints a list.** The background is on the ROW, not
+  on the list, so flattening the listbox alone leaves a white strip with one
+  centred sentence in it — which reads as a control. `_fill_nav` flattens the row
+  it just appended as well.
+- The `GtkGizmo (slider) reported min width/height -2` warnings are NOT ours and
+  are not fixable here. A GtkWindow holding one GtkScrolledWindow around one
+  GtkLabel prints the same pair on this GTK 4 — no paned, no policy, no margin
+  involved. Studio has four scrolled windows, hence eight lines. Taking the
+  paneds off `shrink` changed nothing, so it is not a starved allocation either.
 - **LOOK AT THE WINDOW.** Every defect in this section was found by taking a
   screenshot and reading it, in about a minute, with 163 tests passing. Display
   goldens assert TEXT; they cannot see alignment, wrapping, clipping, visibility,

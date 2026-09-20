@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=gBASIC Studio
+GenericName=gBASIC IDE
+Comment=Write, run and inspect gBASIC a section at a time
+Exec=studio gui
+Icon=org.gbasic.Studio
+Terminal=false
+Categories=Development;IDE;
+Keywords=gBASIC;BASIC;IDE;editor;
+StartupNotify=true
+StartupWMClass=org.gbasic.Studio
+MimeType=text/x-gbasic;
