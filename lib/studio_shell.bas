@@ -670,17 +670,56 @@ library studio_shell
         beside.append(gpane.box)
         beside.append(apane.box)
 
+        ' FLOORS, so that "its minimum" is a size somebody can use.
+        '
+        ' A GtkScrolledWindow's minimum is near zero — that is what a scroller is
+        ' for — so refusing to shrink below the minimum is only half an answer: a
+        ' divider would still stop with the source view 38px tall, which is the
+        ' measured collapse this pair of fixes exists to stop. These are the sizes
+        ' below which a pane has stopped being a pane. Multiples of the spacing
+        ' unit, like everything else here.
+        under_scroll = studio_shell._vscroll(under)
+        under_scroll.set_size_request(-1, u * 15)
+        beside_scroll = studio_shell._vscroll(beside)
+        beside_scroll.set_size_request(u * 44, -1)
+        nav_scroll.set_size_request(u * 26, -1)
+        book.set_size_request(u * 48, u * 30)
+
         vsplit = gtk.paned("v")
         vsplit.set_start_child(book)
-        vsplit.set_end_child(studio_shell._vscroll(under))
+        vsplit.set_end_child(under_scroll)
         vsplit.position = 380
 
         rsplit = gtk.paned("h")
         rsplit.set_start_child(vsplit)
-        rsplit.set_end_child(studio_shell._vscroll(beside))
+        rsplit.set_end_child(beside_scroll)
         rsplit.position = 620
         split.set_end_child(rsplit)
 
+        ' NO PANE MAY BE ALLOCATED LESS THAN IT NEEDS.
+        '
+        ' GTK 4's `shrink-start-child` / `shrink-end-child` default to TRUE, which
+        ' lets a GtkPaned hand a child LESS than its minimum — down to nothing.
+        ' Combined with `_vscroll`'s horizontal policy of NEVER, which does not
+        ' scroll but does hold the child at its own minimum width, an underfed
+        ' pane does not reflow its contents: it CLIPS them, and it clips them from
+        ' the LEFT. Measured: `vsplit` driven to 0 left the source view 38px tall
+        ' with the code gone, and `rsplit` at 330 left the console reading
+        ' ": finished [sec-6] — exit 1" and "able: undefned_name" — the run strip
+        ' and the error message with their left-hand halves cut off. Neither is
+        ' recoverable from the keyboard: there is no scrollbar to drag, and Home
+        ' moves a caret the view will not follow sideways.
+        '
+        ' With shrink off, a divider STOPS at the minimum instead of swallowing
+        ' the pane behind it, and the window refuses to size below the sum. A pane
+        ' you cannot quite close is a much smaller problem than a pane that
+        ' disappears with your file inside it.
+        split.set_shrink_start_child(false)
+        split.set_shrink_end_child(false)
+        vsplit.set_shrink_start_child(false)
+        vsplit.set_shrink_end_child(false)
+        rsplit.set_shrink_start_child(false)
+        rsplit.set_shrink_end_child(false)
 
         outer.append(split)
 
@@ -791,10 +830,18 @@ library studio_shell
         ' moves with the state, and `refresh_run` is what moves it.
         state = studio_shell._left(gtk.label("run: idle"))
         state = studio_style.apply(state, "state-idle")
+        ' Ellipsized for the same reason `standing` is, and now for a second one:
+        ' a label that neither wraps nor ellipsizes reports its WHOLE SENTENCE as
+        ' its minimum width, so "run: finished [sec-6] — exit 1" appearing after a
+        ' run raised the console's minimum width by about 200px. That is what let
+        ' a narrow window starve the strip until it was clipped from the left.
+        ' The label text is untouched; only how it fails is.
+        state.ellipsize = gi.enum("Pango.EllipsizeMode.END")
         ' STU-5A′: which section Run would run, shown BEFORE you press it rather
         ' than after. It follows the caret.
         section = studio_shell._left(gtk.label("section: (none)"))
         section = studio_style.apply(section, "dim")
+        section.ellipsize = gi.enum("Pango.EllipsizeMode.END")
         ' STU-5 §10.3: whether what you are looking at is live in this session or
         ' a record from an earlier one.
         standing = studio_shell._left(gtk.label(""))

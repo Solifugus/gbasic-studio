@@ -357,6 +357,22 @@ Two consequences worth knowing before you touch the shell:
 - The browser hides dotfiles (`studio_ui.hidden_entry`). `.git` is not merely
   noise: it is expandable, and `filetree` scans an expanded directory eagerly, so
   one click would walk every loose object in a real repository.
+- **A STARVED PANE CLIPS FROM THE LEFT; IT DOES NOT REFLOW.** GTK 4's
+  `shrink-start-child`/`shrink-end-child` default to TRUE, so a GtkPaned will hand
+  a child LESS than its minimum — down to nothing — and `_vscroll`'s horizontal
+  policy of NEVER does not scroll but does hold the child at its own minimum
+  width. Underfed, the pane therefore clips, from the LEFT, with no scrollbar to
+  drag back. Measured on master: `rsplit` at 330 left the console reading
+  ": finished [sec-6] — exit 1" and "able: undefned_name" and blanked the editor
+  page entirely; `vsplit` at 0 left the source view 38px tall with the code gone.
+  Home does not help — the caret is off-screen in a direction the view will not
+  follow. All three paneds now have `shrink` OFF, and the notebook, browser,
+  console and right column carry `set_size_request` floors, because a scroller's
+  own minimum is near zero and "stops at the minimum" has to stop somewhere
+  usable. A run is what tips it: the run-state label's text grows, and a label
+  that neither wraps nor ellipsizes reports its whole sentence as its MINIMUM
+  width — so the run strip is ellipsized now, and the text it reports is
+  unchanged.
 - **A CSS class without its provider renders nothing.** `gi` cannot call class
   statics, so `Gdk.Display.get_default` and
   `Gtk.StyleContext.add_provider_for_display` are both out of reach and there is
