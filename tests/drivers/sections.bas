@@ -67,6 +67,7 @@ program main(args)
   load "studio_sections"
   load "persist"
   load "studio_model"
+  load "studio_projects"
 
   mode = ""
   if count(args) > 0 then
@@ -219,15 +220,22 @@ program main(args)
     st = studio_sections.refresh(st, base_src())
     show("v1 (in memory)", st)
 
-    ws = studio_model.new_workspace("ws-1", "W")
-    ws.sections = studio_sections.persist_into(ws.sections, st)
-    print "encodable=" + json_encodable(ws)
-    path = dir + "/workspace.json"
-    persist.write_atomic(path, ws)
+    ' Through the PER-PROJECT state store, which is where anchors live now. The
+    ' container changed; what is being asserted did not — that ids survive a
+    ' disk round trip and re-match against an edited source afterwards.
+    ' The store takes a KEY now, not a path: identity is resolved once, in
+    ' studio_ui, from the project file when there is one and the path when
+    ' there is not. Both spellings below go through the same function the
+    ' window does.
+    key = studio_projects.key_for("/a/project", "")
+    ps = studio_projects.empty(key)
+    ps.sections = studio_sections.persist_into(ps.sections, st)
+    print "encodable=" + json_encodable(ps)
+    saved = studio_projects.save(dir, key, ps)
+    print "saved=" + saved
 
-    r = persist.read_status(path)
-    print "read=" + r.status
-    back = studio_model.normalize_workspace(r.value)
+    back = studio_projects.open(dir, key)
+    print "read=loaded"
     st2 = studio_sections.restore_from(back.sections, "doc-1")
     show("restored from disk (anchors only)", st2)
     ' An edit happened while we were away: mul() deleted. Ids that survive must be
@@ -237,43 +245,34 @@ program main(args)
     print "stale=" + join(st2.stale_ids, ",")
 
     ' Forgetting a document clears only its slot.
-    ws.sections = studio_sections.forget(ws.sections, "doc-1")
-    print "after forget count=" + count(ws.sections)
+    ps.sections = studio_sections.forget(ps.sections, "doc-1")
+    print "after forget count=" + count(ps.sections)
   end if
 
-  ' Compatibility: a workspace written BEFORE STU-3 has no `sections` key at all.
-  ' It must normalize in, restore as an empty section state, and then accept
-  ' sections — without any migration step.
+  ' Compatibility: a state file with no `sections` key at all — which is every
+  ' one written by a Studio that did not have them yet, and also what a
+  ' half-written or hand-edited file looks like. It must read as an empty
+  ' section state and then accept sections, with no migration step.
   if mode = "compat" then
-    old = {
-      schema_version: 1,
-      id: "ws-1",
-      name: "W",
-      next_seq: 1,
-      active_project: "",
-      projects: [],
-      tabs: { order: [], active: "" },
-      nav: { selected_path: "", expanded: [] },
-      docs: { open: [], active: "", next_doc: 1 }
-    }
-    path = dir + "/old_workspace.json"
+    old = { schema_version: 1, key: "k" }
+    path = dir + "/state/" + "k" + ".json"
+    persist.ensure_dir(dir + "/state")
     persist.write_atomic(path, old)
     r = persist.read_status(path)
     print "read=" + r.status
-    raw = r.value
-    print "has sections before normalize=" + has(raw, "sections")
-    ws = studio_model.normalize_workspace(raw)
-    print "has sections after normalize=" + has(ws, "sections")
-    print "sections count=" + count(ws.sections)
+    print "has sections before=" + has(r.value, "sections")
+    ps = studio_projects.open(dir, "k")
+    print "has sections after=" + has(ps, "sections")
+    print "sections count=" + count(ps.sections)
 
-    st = studio_sections.restore_from(ws.sections, "doc-1")
-    show("restored from a pre-STU-3 workspace", st)
+    st = studio_sections.restore_from(ps.sections, "doc-1")
+    show("restored from a state file with no anchors", st)
     st = studio_sections.refresh(st, base_src())
     show("first refresh (ids minted fresh)", st)
 
     ' Unknown document in a populated bundle is also an empty state, not an error.
-    ws.sections = studio_sections.persist_into(ws.sections, st)
-    other = studio_sections.restore_from(ws.sections, "doc-999")
+    ps.sections = studio_sections.persist_into(ps.sections, st)
+    other = studio_sections.restore_from(ps.sections, "doc-999")
     show("unknown doc id", other)
   end if
 

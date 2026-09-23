@@ -1,8 +1,8 @@
 read=loaded
-has sections before normalize=false
-has sections after normalize=true
+has sections before=false
+has sections after=true
 sections count=0
--- restored from a pre-STU-3 workspace
+-- restored from a state file with no anchors
 valid=true revision=0 next_sec=1 sections=0 stale=0
 -- first refresh (ids minted fresh)
 valid=true revision=1 next_sec=5 sections=4 stale=0

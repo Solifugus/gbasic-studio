@@ -184,6 +184,110 @@ library studio_style
         return join(lines, "\n") + "\n"
     end function
 
+    ' ---- the source editor's colours ----------------------------------------
+    '
+    ' A GtkSourceView paints from a STYLE SCHEME, which is its own thing and not
+    ' the GTK theme — and nothing ever set one. So the editor sat on the light
+    ' default while every widget around it followed a dark theme, and the window
+    ' read as two applications sharing a frame. This stylesheet cannot reach it:
+    ' a scheme is a GtkSourceStyleScheme object, not CSS.
+    '
+    ' PURE, over four plain values the shell reads off the toolkit. That split is
+    ' the point: which scheme to use is a decision, and a decision that lives in
+    ' a signal handler is one no headless test can make. `scheme_for` is the
+    ' whole of it; the shell only reads `get_settings()` and hands the strings
+    ' over.
+
+    ' `classic` is what a GtkSourceBuffer picks on its own — measured, by asking
+    ' a fresh buffer for `get_style_scheme` before anything set one. So the light
+    ' editor is EXACTLY what it has always been, and `classic-dark` is that same
+    ' scheme's own dark counterpart. Naming the light one explicitly rather than
+    ' leaving it unset is the point: the two are then a matched pair chosen here,
+    ' instead of one choice and one accident.
+    function light_scheme()
+        return "classic"
+    end function
+
+    function dark_scheme()
+        return "classic-dark"
+    end function
+
+    ' `theme` is Studio's OWN setting (studio_model's `settings.theme`), which
+    ' has been persisted since STU-0 with nothing reading it. "system" defers to
+    ' the toolkit; "light" and "dark" are the user overruling it, and they win —
+    ' someone who has said which one they want is not asking to be guessed at.
+    function dark_for(theme, theme_name, prefer_dark, gtk_theme_env)
+        if theme = "dark" then
+            return true
+        end if
+        if theme = "light" then
+            return false
+        end if
+        return studio_style.toolkit_is_dark(theme_name, prefer_dark, gtk_theme_env)
+    end function
+
+    ' ONE decision, two things read it — the editor's scheme and the section
+    ' tint. Asking the toolkit twice would let a user who set `theme: "dark"` on
+    ' a light desktop get a dark editor with a light tint smeared across it.
+    function scheme_for(theme, theme_name, prefer_dark, gtk_theme_env)
+        dark = studio_style.dark_for(theme, theme_name, prefer_dark, gtk_theme_env)
+        if dark then
+            return studio_style.dark_scheme()
+        end if
+        return studio_style.light_scheme()
+    end function
+
+    ' THREE signals, because no one of them is enough — measured on this machine
+    ' rather than assumed:
+    '
+    '   `gtk-application-prefer-dark-theme`  the honest answer when it is set,
+    '       which is GNOME and anything using libadwaita. It was FALSE here in a
+    '       window that was plainly dark.
+    '   `gtk-theme-name`                     carries it for the themes that ship
+    '       a separate dark variant ("Breeze-Dark", "Adwaita-dark"). It said
+    '       "Breeze" here in the same dark window.
+    '   GTK_THEME                            the env override ("Adwaita:dark"),
+    '       which changes what is DRAWN without touching either setting above.
+    '       It is the one that was true here.
+    '
+    ' Any one of them saying dark is taken as dark. The failure this guards is
+    ' asymmetric: a light editor in a dark window is the bug being fixed, and a
+    ' dark editor in a light window is the same bug mirrored, so neither default
+    ' is safe — but only the three together got this machine right.
+    function toolkit_is_dark(theme_name, prefer_dark, gtk_theme_env)
+        if prefer_dark = true then
+            return true
+        end if
+        named = studio_style._names_dark(theme_name)
+        if named then
+            return true
+        end if
+        return studio_style._names_dark(gtk_theme_env)
+    end function
+
+    ' "Adwaita-dark", "Breeze-Dark", "Adwaita:dark" — three separators between
+    ' the same two words. Substring and case-insensitive rather than a list of
+    ' spellings, which would go stale the first time a theme invented a fourth.
+    ' `find` answers `nothing` for a string miss, not -1.
+    function _names_dark(s)
+        if not is_string(s) then
+            return false
+        end if
+        hit = find(lower(s), "dark")
+        return hit != nothing
+    end function
+
+    ' The tint over the section at the caret, which had the same problem in
+    ' smaller print: a hardcoded pale blue is a highlight on a light editor and
+    ' a smear over unreadable text on a dark one. Not CSS either — it is a
+    ' GtkTextTag background, so it cannot be an `@theme` reference.
+    function section_tint(dark)
+        if dark then
+            return "#2f3b4d"
+        end if
+        return "#eaf1fb"
+    end function
+
     ' Build the shared provider. Called ONCE, by app/studio.bas, into
     ' `_STUDIO_STYLE`.
     function new_provider()
@@ -289,6 +393,22 @@ library studio_style
             w.remove_css_class(studio_style.css_class(c))
         end for
         w.add_css_class(studio_style.css_class(name))
+        return nothing
+    end function
+
+    ' Take a widget OUT of every state class without putting it in another one.
+    ' `set_state` cannot express this — it always adds — and "no state" is not
+    ' the same as `state-idle`: idle is a colour of its own, and a widget that
+    ' already had a look (a heading, say) should get its own look back rather
+    ' than the idle one. Same no-provider reason as `set_state`: whatever put
+    ' the widget's own class on it attached the provider once, at build time.
+    function clear_state(w)
+        if w = nothing then
+            return nothing
+        end if
+        for each c in studio_style.state_classes()
+            w.remove_css_class(studio_style.css_class(c))
+        end for
         return nothing
     end function
 

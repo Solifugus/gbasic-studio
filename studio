@@ -42,6 +42,12 @@ case "$folder" in
 esac
 
 export GBASIC
+# Where the USER was when they ran this, which is not where Studio runs. The cd
+# above moves into the install tree, so a relative path typed into the window's
+# name field would otherwise resolve against Studio's own source — the one
+# answer that is never what anyone meant. The third argument below already gets
+# this treatment; the field needs the same referent.
+export GBASIC_STUDIO_CWD="$orig_pwd"
 export GBASIC_PATH="lib:$GBASIC_STDLIB"
 # The window asks for its icon by name (org.gbasic.Studio). Adding an icon
 # directory at run time would need Gtk.IconTheme.get_for_display, a class static
@@ -54,6 +60,11 @@ export XDG_DATA_DIRS="$PWD/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
 # are, since a stock install has no library-shipped sidecar yet.
 export GBASIC_STDLIB
 export GBASIC_STUDIO_VIEWERS="$PWD/viewers"
+# STU-12: New Project can write a LICENSE, and Studio does not author one -- it
+# copies the text out of share/licenses/. An installed copy keeps share/
+# somewhere else, and Studio's own working directory is never the answer, so the
+# location is supplied from out here like the viewer registry above.
+export GBASIC_STUDIO_SHARE="$PWD/share"
 # Only pass a third argument when there is one: several modes read args[2] as
 # their own parameter, and handing them an empty string is not the same as
 # handing them nothing.

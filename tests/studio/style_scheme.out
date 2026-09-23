@@ -1,0 +1,23 @@
+== Studio's own setting wins over the toolkit ==
+dark over a light desktop : classic-dark
+light over a dark desktop : classic
+
+== "system" asks the toolkit, and no ONE signal is enough ==
+prefer-dark set         : classic-dark
+theme NAME carries it   : classic-dark
+only GTK_THEME does     : classic-dark
+nothing says dark       : classic
+
+== the three spellings of the same word ==
+Adwaita-dark: true
+Breeze-Dark:  true
+Adwaita:dark: true
+Breeze:       false
+
+== an UNSET environment variable is not a string ==
+is_string=false
+dark=false
+
+== the section tint follows the same decision ==
+light: #eaf1fb
+dark:  #2f3b4d

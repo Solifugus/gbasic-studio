@@ -5,6 +5,8 @@ status=finished sec-1
 prefix=<(none)>
 target=<one
 >
+errhead=Errors
+errors=<(none)>
 Results — sec-1  (1 run(s))
 latest: res-1  finished exit 0  at 1969-12-31 19:16:40  0s
   output: <one

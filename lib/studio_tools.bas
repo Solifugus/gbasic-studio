@@ -211,7 +211,11 @@ library studio_tools
     end function
 
     function _is_refusal(action)
-        return contains(["refused", "no-doc", "no-section", "no-table", "out-of-range", "armed", "armed-save", "none", "missing", "invalid", "exists", "error", "unknown"], action)
+        ' `no-parse` and `not-gbasic` are here because `execute_section` calls
+        ' the same `studio_ui.run_section` the button does, and both are ways it
+        ' declines. An action missing from this list is reported to the model as
+        ' a SUCCESS, so the agent would be told it ran a README.
+        return contains(["refused", "no-doc", "no-section", "no-parse", "not-gbasic", "no-table", "out-of-range", "armed", "armed-save", "none", "missing", "invalid", "exists", "error", "unknown"], action)
     end function
 
     function _fail(app, name, why)

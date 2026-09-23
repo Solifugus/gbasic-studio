@@ -26,8 +26,6 @@ function build_canned(app)
     app = studio.create_workspace(app, "member-analytics")
     ws = app.model.workspace
     ws = studio_model.add_project(ws, "Analytics", "/home/u/analytics")
-    ws = studio_model.open_document(ws, "proj-1", "/home/u/analytics/load.bas")
-    ws = studio_model.open_document(ws, "proj-1", "/home/u/analytics/report.bas")
     app = studio.set_workspace(app, ws)
 
     session = app.model.session
@@ -225,15 +223,59 @@ function pane_redraw()
     return nothing
 end function
 
+' New Project opens a WINDOW that asks. The one-click `studio_ui.new_project`
+' is still there and still tested; this is the same act with the questions put.
+'
+' The window is built once and kept on the global: reopening it would otherwise
+' mint a second set of widgets over the same handlers, which is the doubling
+' `ui_gui_solo` exists to catch at the application level.
 function on_new_project()
-    r = studio_ui.new_project(G.app, G.home)
+    if G.newproj_win != nothing then
+        G.newproj_win.window.present()
+        return nothing
+    end if
+    opts = studio_ui.default_options(G.app, G.home)
+    w = studio_shell.new_project_window(G.app_ref, opts, studio_ui.license_ids())
+    gi.connect(w.create_btn, "clicked", on_create_project)
+    gi.connect(w.cancel_btn, "clicked", on_cancel_project)
+    G.newproj_win = w
+    w.window.present()
+    return nothing
+end function
+
+' ONE studio_ui call over the record the window reads back. Every decision --
+' what the name has to look like, where the directory lands, which files those
+' checkboxes mean, whether a licence can be written at all -- is in
+' `project_plan`, headless, and none of it is here.
+function on_create_project()
+    w = G.newproj_win
+    r = studio_ui.create_project(G.app, studio_shell.new_project_options(w))
     G.app = r.app
     G.last_action = r.action
     G.last_detail = r.detail
-    if r.action = "created" then
+    if r.action = "project-created" then
         note_event("project_created", r.detail, "")
+        close_newproj()
+    else
+        ' A refusal keeps the window open with what was typed still in it: the
+        ' field to change is in this window, and closing it to put the reason
+        ' in a status line behind it would hide both.
+        w.note.label = studio_ui.action_notice(r.action, r.detail)
     end if
     redraw()
+    return nothing
+end function
+
+function on_cancel_project()
+    close_newproj()
+    return nothing
+end function
+
+function close_newproj()
+    if G.newproj_win != nothing then
+        G.newproj_win.window.close()
+        G.newproj_win = nothing
+    end if
     return nothing
 end function
 
@@ -272,6 +314,20 @@ function on_open_folder()
     G.last_detail = r.detail
     if r.action = "adopted" then
         note_event("folder_opened", G.shell.name_entry.text, r.detail)
+    end if
+    redraw()
+    return nothing
+end function
+
+' Write `.gstudio.json` into the active project. An ADAPTER: no argument to
+' read off a widget, one studio_ui call, one redraw.
+function on_project_file()
+    r = studio_ui.add_project_file(G.app)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    if r.action = "project-file" then
+        note_event("file_created", r.detail, "")
     end if
     redraw()
     return nothing
@@ -425,7 +481,13 @@ end function
 ' callable with the ARGUMENTS only, so the callable is the only place the tool's
 ' own name can live. Each is two lines and does nothing but name itself and read
 ' the global — the same shape, and the same reason, as a signal handler.
-function tool_call(name, a)
+'
+' NOT `tool_call`: `llm.tool_call` is a constructor for a transcript part, and a
+' top-level function of that name shadows it for every unqualified call in this
+' file. The interpreter says so now, on stderr, on every single launch — which
+' is how it was found, and the reason eleven goldens were failing on a line
+' nobody had put there.
+function dispatch_tool(name, a)
     r = studio_tools.call(G.app, G.log, name, a)
     if r.ok then
         return r.value
@@ -436,47 +498,47 @@ function tool_call(name, a)
 end function
 
 function tool_current_project(a)
-    return tool_call("current_project", a)
+    return dispatch_tool("current_project", a)
 end function
 
 function tool_open_files(a)
-    return tool_call("open_files", a)
+    return dispatch_tool("open_files", a)
 end function
 
 function tool_active_file(a)
-    return tool_call("active_file", a)
+    return dispatch_tool("active_file", a)
 end function
 
 function tool_list_sections(a)
-    return tool_call("list_sections", a)
+    return dispatch_tool("list_sections", a)
 end function
 
 function tool_section_at_cursor(a)
-    return tool_call("section_at_cursor", a)
+    return dispatch_tool("section_at_cursor", a)
 end function
 
 function tool_run_state(a)
-    return tool_call("run_state", a)
+    return dispatch_tool("run_state", a)
 end function
 
 function tool_section_results(a)
-    return tool_call("section_results", a)
+    return dispatch_tool("section_results", a)
 end function
 
 function tool_section_output(a)
-    return tool_call("section_output", a)
+    return dispatch_tool("section_output", a)
 end function
 
 function tool_section_variables(a)
-    return tool_call("section_variables", a)
+    return dispatch_tool("section_variables", a)
 end function
 
 function tool_recent_actions(a)
-    return tool_call("recent_actions", a)
+    return dispatch_tool("recent_actions", a)
 end function
 
 function tool_where_was_i(a)
-    return tool_call("where_was_i", a)
+    return dispatch_tool("where_was_i", a)
 end function
 
 function agent_tools()
@@ -766,6 +828,7 @@ function wire_shell()
     gi.connect(sh.file_btn, "clicked", on_new_file)
     gi.connect(sh.folder_btn, "clicked", on_new_folder)
     gi.connect(sh.open_btn, "clicked", on_open_folder)
+    gi.connect(sh.projfile_btn, "clicked", on_project_file)
     gi.connect(sh.rename_btn, "clicked", on_rename)
     gi.connect(sh.delete_btn, "clicked", on_delete)
     gi.connect(sh.close_btn, "clicked", on_close_tab)
@@ -908,6 +971,12 @@ function stu2b_button_step()
         G.shell.new_btn.activate()
         return true
     end if
+    if G.phase = 4 then
+        print "New Project opened a window=" + (G.newproj_win != nothing)
+        print "clicking Create, with the window's defaults"
+        pressed = click_create_project()
+        return true
+    end if
     print "action=" + G.last_action
     state("after New Project")
     G.app_ref.quit()
@@ -920,7 +989,9 @@ end function
 ' start with nothing, and build a project, a file, its contents and a folder
 ' using only the window. STU-2B stopped after the first of those — New Project
 ' made an empty directory, an empty directory has no rows, and every other
-' control needs a row.
+' control needs a row. STU-12 closed that from the other end too: the New
+' Project window's one default is main.bas, so the dead end is now unreachable
+' unless somebody unticks it.
 '
 ' It finishes by closing the window, because the GTK loop returning is what now
 ' persists the session, and the harness reopens the same home afterwards.
@@ -932,13 +1003,23 @@ function stu2c_step()
         return true
     end if
     if G.phase = 2 then
+        print "clicking Create, with the window's defaults"
+        pressed = click_create_project()
+        return true
+    end if
+    ' New Project opens a window now, so a project costs two clicks instead of
+    ' one and everything below happens a tick later. Rather than renumber a
+    ' flow whose phase numbers appear nowhere in the golden, the ORIGINAL
+    ' numbering continues against `ph`.
+    ph = G.phase - 1
+    if ph = 2 then
         print "action=" + G.last_action
-        state("after New Project — an empty project, which is where STU-2B stopped")
+        state("after New Project — main.bas is already there, which is where STU-2B stopped")
         print "clicking New File"
         G.shell.file_btn.activate()
         return true
     end if
-    if G.phase = 3 then
+    if ph = 3 then
         print "action=" + G.last_action
         state("after New File")
         ' The new file opened into a tab, so it can be typed into immediately.
@@ -951,7 +1032,7 @@ function stu2c_step()
         G.shell.save_btn.activate()
         return true
     end if
-    if G.phase = 4 then
+    if ph = 4 then
         print "action=" + G.last_action
         state("after Save")
         print "clicking New Folder"
@@ -1051,6 +1132,11 @@ function stu2e_step()
     print "status=" + G.shell.status.label
     print "prefix=<" + G.shell.pane.prefix.label + ">"
     print "target=<" + G.shell.pane.target.label + ">"
+    ' The errors HEADING, not just the body: it is refreshed now rather than
+    ' fixed, and a heading the shell forgot to wire would report nothing while
+    ' looking exactly like a heading that had nothing to report.
+    print "errhead=" + G.shell.pane.errors_head.label
+    print "errors=<" + G.shell.pane.errors.label + ">"
     print G.shell.rpane.body.label
     G.app_ref.quit()
     return false
@@ -1134,14 +1220,102 @@ function stu2g_step()
     if G.phase = 3 then
         print "action=" + G.last_action + " status=" + G.shell.status.label
         state("activated, not duplicated")
+        ' Open Folder has now run twice over this directory and written
+        ' NOTHING into it. The project file arrives only when the button that
+        ' says so is pressed, which is the next click.
+        print "the folder Studio just opened twice is untouched"
+        state("still no project file")
+        print "clicking Project File"
+        G.shell.projfile_btn.activate()
+        return true
+    end if
+    if G.phase = 4 then
+        print "action=" + G.last_action + " status=" + path_free(G.shell.status.label)
+        state("the one dotfile the browser shows")
+        print "clicking Project File again"
+        G.shell.projfile_btn.activate()
+        return true
+    end if
+    if G.phase = 5 then
+        print "action=" + G.last_action + " status=" + G.shell.status.label
         print "clicking Open Folder on a path that is not there"
         G.shell.name_entry.text = G.open_target + "/nowhere"
         G.shell.open_btn.activate()
         return true
     end if
-    print "action=" + G.last_action + " status=" + G.shell.status.label
+    ' The status line carries the WHOLE path on purpose — a user who mistyped
+    ' `~/development/gdash` needs to see where Studio actually looked, and the
+    ' leaf is the part that hides it. This golden has to stay path-free, so the
+    ' path is reduced HERE, in what the test writes down, and not in what the
+    ' window says.
+    print "action=" + G.last_action + " status=" + path_free(G.shell.status.label)
     G.app_ref.quit()
     return false
+end function
+
+' ---- STU-12 display tier: the New Project window ---------------------------
+'
+' A window Studio builds, so every control in it can be SET and pressed. That
+' is the whole reason it is not a GtkAlertDialog: this case could not exist.
+' The form is filled, Create is clicked, and the project it made is asserted
+' from the browser rows and from the directory on disk.
+function stu12_step()
+    G.phase = G.phase + 1
+    if G.phase = 1 then
+        print "clicking New Project"
+        G.shell.new_btn.activate()
+        return true
+    end if
+    if G.phase = 2 then
+        w = G.newproj_win
+        print "the window is open=" + (w != nothing)
+        print "defaults: main=" + w.main.get_active() + " readme=" + w.readme.get_active() + " projfile=" + w.projfile.get_active() + " git=" + w.git.get_active() + " licence=" + w.license.get_selected()
+        print "clicking Create with the name emptied"
+        w.name.text = ""
+        w.create_btn.activate()
+        return true
+    end if
+    if G.phase = 3 then
+        w = G.newproj_win
+        print "action=" + G.last_action + " note=" + w.note.label
+        print "the window stayed open=" + (w != nothing)
+        print "filling the form in"
+        w.name.text = "My Thing"
+        w.location.text = G.open_target
+        w.author.text = "A. Author"
+        w.readme.set_active(true)
+        w.projfile.set_active(true)
+        ' The licence list is the one studio_ui publishes, so index 1 is MIT by
+        ' construction rather than by a number written down twice.
+        w.license.set_selected(1)
+        w.create_btn.activate()
+        return true
+    end if
+    if G.phase = 4 then
+        print "action=" + G.last_action + " status=" + path_free(G.shell.status.label)
+        print "the window closed=" + (G.newproj_win = nothing)
+        state("the new project, active")
+        print "in the tab row: " + G.shell.notebook.get_n_pages() + " page(s)"
+        G.app_ref.quit()
+        return false
+    end if
+    G.app_ref.quit()
+    return false
+end function
+
+' Every "/"-bearing token in a line, down to its last segment. Only the display
+' tiers use it; nothing in the window does.
+function path_free(line)
+    out = []
+    for each tok in split(line, " ")
+        seg = tok
+        if find(tok, "/") != nothing then
+            parts = split(tok, "/")
+            seg = ".../" + parts[count(parts) - 1]
+        end if
+        out = append(out, seg)
+    end for
+    return join(out, " ")
 end function
 
 ' ---- STU-7 display tier ----------------------------------------------------
@@ -1515,11 +1689,32 @@ end function
 ' The cold-home path: an empty home renders "(no workspace open)", and New
 ' Project is the only thing that can move it. If this button does not work, a
 ' new user has no way into Studio at all.
+' Press Create in the New Project window.
+'
+' New Project OPENS that window now rather than creating a project outright, so
+' every tier that got a project from one click needs two. The window is one
+' Studio builds, so this is the same synthesised click as every other control
+' in these tiers — which is the whole argument for not making it a dialog.
+function click_create_project()
+    if G.newproj_win = nothing then
+        print "New Project did not open a window"
+        return false
+    end if
+    G.newproj_win.create_btn.activate()
+    return true
+end function
+
 function stu2b_cold_step()
     G.phase = G.phase + 1
     if G.phase = 1 then
         print "clicking New Project on a cold home"
         G.shell.new_btn.activate()
+        return true
+    end if
+    if G.phase = 2 then
+        print "New Project opened a window=" + (G.newproj_win != nothing)
+        print "clicking Create, with the window's defaults"
+        pressed = click_create_project()
         return true
     end if
     print "action=" + G.last_action
@@ -1560,6 +1755,11 @@ function on_activate(gtkapp)
     if G.stu2g then
         state("a cold home")
         gi.timeout(400, stu2g_step)
+        return nothing
+    end if
+    if G.stu12 then
+        state("a cold home")
+        gi.timeout(400, stu12_step)
         return nothing
     end if
     if G.stu11 then
@@ -1604,15 +1804,27 @@ function on_activate(gtkapp)
         end if
         if G.sections then
             doc = studio_docs.doc_by_id(dm, G.doc_id)
-            st = studio_sections.create(G.doc_id)
+            ' Keyed the way studio_ui keys it — by PATH. Built with the minted
+            ' doc id this would persist a SECOND record for a document the
+            ' window has already filed under its path.
+            st = studio_sections.create(studio_ui.doc_key(doc))
             st = studio_sections.refresh(st, doc.content)
             print studio_sections.summary(st)
             cur = doc.cursor
             print "cursor line=" + cur.line + " col=" + cur.column + " -> " + studio_sections.section_at_position(st, doc.content, cur.line, cur.column)
-            ' Persisting through the workspace record works the same under the shell.
-            ws = G.app.model.workspace
-            ws.sections = studio_sections.persist_into(ws.sections, st)
-            print "persisted docs=" + count(ws.sections)
+            ' Persisting through the PER-PROJECT state store works the same under
+            ' the shell. (It used to go through the workspace record; when that
+            ' field went away this mutated a key that no longer existed, and
+            ' because it runs inside a GTK timer callback the raise took the
+            ' callback down and left the main loop spinning — a hang, not a
+            ' failure. Worth remembering: a smoke mode that reaches past
+            ' studio_ui fails in the least legible way there is.)
+            psr = studio_ui.project_state(G.app)
+            G.app = psr.app
+            pst = psr.state
+            pst.sections = studio_sections.persist_into(pst.sections, st)
+            G.app = studio_ui.set_project_state(G.app, pst)
+            print "persisted docs=" + count(pst.sections)
         end if
         if G.exec then
             ' STU-4: build the execution strip + output pane, resolve the section at
@@ -1807,15 +2019,36 @@ program main(args)
         return
     end if
 
-    if mode = "stu1_registry" then
+    ' A home written BEFORE the workspace was demoted: its projects live in
+    ' workspaces/<id>.json and session.json only points at it. Launching must
+    ' find them, and the old file must still be there afterwards — it is the
+    ' only copy of that state until the first clean save, and an upgrade that
+    ' tidies away a user's only copy is not an upgrade.
+    if mode = "stu1_migrate" then
+        persist.ensure_dir(home)
+        persist.ensure_dir(home + "/workspaces")
+        legacy_ws = studio_model.new_workspace("ws-1", "old-home")
+        legacy_ws = studio_model.add_project(legacy_ws, "Alpha", "/home/u/alpha")
+        legacy_ws = studio_model.add_project(legacy_ws, "Beta", "/home/u/beta")
+        legacy_ws = studio_model.set_active_project(legacy_ws, "proj-2")
+        persist.write_atomic(home + "/workspaces/ws-1.json", legacy_ws)
+        legacy_session = studio_model.default_session()
+        legacy_session.active_workspace = "ws-1"
+        persist.write_atomic(home + "/session.json", legacy_session)
+
+        print "-- launching the old home --"
         app = studio.launch(home)
-        app = studio.create_registered_workspace(app, "one")
+        print studio.summary(app)
+
+        print "-- saving it forward --"
         saved = studio.persist(app)
-        app = studio.create_registered_workspace(app, "two")
-        saved = studio.persist(app)
-        app = studio.create_registered_workspace(app, "three")
-        saved = studio.persist(app)
-        print studio.nav_summary(app)
+        print "saved=" + join(saved, ",")
+        legacy_probe{file} = home + "/workspaces/ws-1.json"
+        print "old file still there=" + exists(legacy_probe)
+
+        print "-- and the next launch reads the session, not the old file --"
+        again = studio.launch(home)
+        print studio.summary(again)
         return
     end if
 
@@ -2051,6 +2284,7 @@ program main(args)
     G.stu2e = false
     G.stu2f = false
     G.stu2g = false
+    G.stu12 = false
     G.stu7 = false
     G.stu8 = false
     G.stu9 = false
@@ -2061,6 +2295,10 @@ program main(args)
     G.fetch_action = ""
     G.table_win = nothing
     G.table_grid = nothing
+    ' STU-12: the New Project window, built once and kept, so a second click on
+    ' New Project presents the one that is already open rather than minting a
+    ' second set of widgets over the same handlers.
+    G.newproj_win = nothing
     G.open_target = ""
     G.save_on_exit = false
     ' STU-6: the semantic action history. Loaded here, appended by the handlers,
@@ -2108,6 +2346,13 @@ program main(args)
     ' STU-2C': Open Folder, typed into the name field and clicked for real.
     if mode = "stu2g_smoke" then
         G.stu2g = true
+        G.open_target = args[2]
+    end if
+
+    ' STU-12: New Project with the questions asked. `open_target` is reused as
+    ' the Location the form is pointed at.
+    if mode = "stu12_smoke" then
+        G.stu12 = true
         G.open_target = args[2]
     end if
 

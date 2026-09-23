@@ -1,14 +1,19 @@
 -- a cold home --
-nav rows=1
+nav rows=3
   [info] (no workspace open)
+  [info] New Project starts a fresh one
+  [info] or type a folder path and press Open Folder
 selected=
 tabs=0
 clicking New Project on a cold home
-action=created
+New Project opened a window=true
+clicking Create, with the window's defaults
+action=project-created
 -- after New Project --
-nav rows=2
+nav rows=3
   [info] Workspace: workspace
   [project] * Project 1
+  [file]     main.bas
 selected=
 tabs=0
 app-exited

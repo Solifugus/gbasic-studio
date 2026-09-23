@@ -156,6 +156,25 @@ library studio_shell
         return studio_style.apply(lbl, "mono")
     end function
 
+    ' A label that takes the width it is GIVEN rather than the width it wants.
+    '
+    ' `_left` sets halign START, which hands a label its NATURAL width — and
+    ' `_wrapped` caps that at `max_width_chars`, a number chosen for the
+    ' right-hand column. In the console, which is roughly twice as wide, the
+    ' result is output folded into a narrow ribbon with half the pane empty
+    ' beside it. xalign keeps the text left; halign FILL is what makes it span.
+    ' The same pair the status bar needed, for the same reason.
+    '
+    ' Safe only inside `_vscroll`, whose horizontal policy of NEVER makes the
+    ' viewport impose a width; `max_width_chars` still caps the NATURAL request,
+    ' so this does not widen the window's minimum.
+    function _fill(lbl)
+        lbl.xalign = 0
+        lbl.halign = gi.enum("Gtk.Align.FILL")
+        lbl.hexpand = true
+        return lbl
+    end function
+
     ' ---- the visual scale ----------------------------------------------------
     '
     ' Four helpers, so no call site has to remember that a CSS class and its
@@ -271,7 +290,21 @@ library studio_shell
         shell.bar.standing.label = studio_ui.standing_line(app)
         shell.pane.prefix.label = studio_ui.prefix_body(app)
         shell.pane.target.label = studio_ui.target_body(app)
-        shell.pane.errors.label = studio_ui.error_body(app)
+        errs = studio_ui.error_body(app)
+        shell.pane.errors.label = errs
+        ' Said twice on purpose: in the heading, where the eye lands, and in the
+        ' body, where the text is. A heading reading "Errors" over a pane below
+        ' the fold is indistinguishable from a heading reading "Errors" over
+        ' "(none)".
+        shell.pane.errors_head.label = studio_ui.error_heading(errs)
+        if studio_ui.error_count(errs) > 0 then
+            studio_style.set_state(shell.pane.errors_head, "state-error")
+        else
+            ' CLEARED rather than set to idle: the heading has a look of its own
+            ' and should get it back, and `state-idle` is a colour, not an
+            ' absence.
+            studio_style.clear_state(shell.pane.errors_head)
+        end if
         shell.rpane.body.label = studio_ui.results_body(app)
         shell.bar.branch.label = studio_ui.branch_label(app)
         fb = studio_shell._fill_branches(shell, app)
@@ -312,6 +345,23 @@ library studio_shell
             shell.marked[m.doc_id] = m.revision
         end if
 
+        ' The parser's marks, on the same gutter. Gated on the SIGNATURE, not on
+        ' the revision the section marks use: a failed parse does not advance the
+        ' revision (see studio_ui.error_marks), so a revision-gated redraw would
+        ' pin the error to wherever it first appeared.
+        em = studio_ui.error_marks(app)
+        app = em.app
+        if shell.errmarked[em.doc_id] != em.signature then
+            ebuf = ed.buffer
+            es = sourceeditor._iter(ebuf.get_start_iter())
+            ee = sourceeditor._iter(ebuf.get_end_iter())
+            ebuf.remove_source_marks(es, ee, "error")
+            for each ln in em.lines
+                ed.mark(ln, "error")
+            end for
+            shell.errmarked[em.doc_id] = em.signature
+        end if
+
         ' One tag at a time, removed from the editor that owns it — a tag belongs
         ' to its buffer, and switching tabs would otherwise leave the old document
         ' permanently tinted.
@@ -325,10 +375,66 @@ library studio_shell
         r = studio_ui.current_range(app)
         app = r.app
         if r.ok then
-            shell.hl_tag = ed.highlight(r.start0, r.end0, "#eaf1fb")
+            ' Same decision as the editor's scheme, in smaller print: a pale
+            ' blue tint is a highlight on a light editor and a smear over
+            ' unreadable text on a dark one.
+            dset = ed.view().get_settings()
+            dark = studio_style.dark_for(app.model.settings.theme,
+                                         dset.gtk_theme_name,
+                                         dset.gtk_application_prefer_dark_theme,
+                                         env("GTK_THEME"))
+            shell.hl_tag = ed.highlight(r.start0, r.end0, studio_style.section_tint(dark))
             shell.hl_doc = m.doc_id
         end if
         return { shell: shell, app: app }
+    end function
+
+    ' Highlight a buffer as whatever its file actually is.
+    '
+    ' Every editor was created with `set_language("gbasic")`, so a README was
+    ' syntax-highlighted as a program — `#` headings as comments and the rest as
+    ' undefined identifiers.
+    '
+    ' STUDIO decides what is gBASIC; the TOOLKIT decides everything else. A
+    ' GtkSourceLanguageManager already knows markdown, json, yaml, html, css,
+    ' python, sh, C, XML, TOML, SQL, Rust and Go, and `guess_language` is how
+    ' you ask it — so this is not a table of extensions Studio would have to
+    ' keep up to date, which is the same boundary the rest of the project draws
+    ' against the stdlib.
+    '
+    ' Through the editor's OWN manager (`ed._lm`), never a fresh one: a
+    ' GtkSourceBuffer's highlight engine calls back into the manager that
+    ' produced its language, and `sourceeditor.language()` builds a transient
+    ' one that finalizes on return — which sourceeditor's own header documents
+    ' as a GtkSourceView critical.
+    '
+    ' `ed.set_language(id)` RAISES on an id the manager does not have and gBASIC
+    ' cannot catch a raise, so everything but gBASIC goes through the object
+    ' `guess_language` returns, and `nothing` simply means no highlighting —
+    ' which is correct for a .txt, and for a Makefile, which it does not know.
+    function _set_language_for(ed, path)
+        if studio_ui.is_gbasic(path) then
+            ' Not guessed. Studio without its own highlighting is broken in a
+            ' way worth raising about, and the guess would depend on a search
+            ' path rather than on the one fact Studio is sure of.
+            ed.set_language("gbasic")
+            return nothing
+        end if
+        lang = ed._lm.guess_language(path, nothing)
+        if lang != nothing then
+            ed.buffer.set_language(lang)
+        end if
+        return nothing
+    end function
+
+    ' Resolve a style scheme id to the object a buffer wants, or `nothing`.
+    '
+    ' `GtkSource.StyleSchemeManager.get_default` is a class static and out of
+    ' reach, but a manager constructed here searches the same default path — the
+    ' installed schemes came back from `get_scheme_ids` on one.
+    function _scheme(id)
+        mgr = gi.new("GtkSource.StyleSchemeManager")
+        return mgr.get_scheme(id)
     end function
 
     ' The live editor behind a document id, or nothing. The handler that starts a
@@ -386,6 +492,17 @@ library studio_shell
         end while
         shell.pages = studio_shell._reverse(kept)
 
+        ' THE ADAPTER RULE, applied to the toolkit instead of a widget: read the
+        ' plain values, let `studio_style` decide. `Gtk.Settings.get_default` is
+        ' a class static the gi bridge cannot reach, but `get_settings()` is an
+        ' ordinary instance method on any widget and answers the same object.
+        tset = book.get_settings()
+        scheme_id = studio_style.scheme_for(app.model.settings.theme,
+                                            tset.gtk_theme_name,
+                                            tset.gtk_application_prefer_dark_theme,
+                                            env("GTK_THEME"))
+        scheme = studio_shell._scheme(scheme_id)
+
         ' Create a page for every document that does not have one yet.
         for each t in want
             have = studio_shell._page_index(shell.pages, t.doc_id)
@@ -393,7 +510,15 @@ library studio_shell
                 doc = studio_docs.doc_by_id(app.dm, t.doc_id)
                 ed = sourceeditor.create()
                 ed.set_text(doc.content)
-                ed.set_language("gbasic")
+                studio_shell._set_language_for(ed, doc.path)
+                ' A style scheme is NOT the GTK theme, and nothing was setting
+                ' one — which is why the editor stayed white inside a dark
+                ' window. `nothing` means the scheme is not installed on this
+                ' machine, and the buffer keeps its default rather than being
+                ' handed a null.
+                if scheme != nothing then
+                    ed.buffer.set_style_scheme(scheme)
+                end if
                 ' Setting a buffer's text leaves the caret at the END of it, so a
                 ' just-opened file starts scrolled to the bottom with the cursor
                 ' past the last line. Every editor puts it at the top instead —
@@ -407,10 +532,42 @@ library studio_shell
                 at = gi.new("GtkSource.MarkAttributes")
                 at.set_icon_name("media-playback-start-symbolic")
                 vw.set_mark_attributes("section", at, 1)
+                ' The parser's mark, at a HIGHER priority than the section one:
+                ' a syntax error very often sits on the first line of the thing
+                ' it broke, and the gutter draws one icon per line. The section
+                ' start is recoverable (the strip names it); the error is the
+                ' only thing that says where to look.
+                '
+                ' STUDIO SHIPS THIS ICON. `dialog-error` and
+                ' `dialog-error-symbolic` are both standard names and NEITHER
+                ' resolved here — measured, not assumed: this install's Breeze
+                ' has the first and not the second, its Adwaita has the second
+                ' and not the first, and what the gutter actually drew was GTK's
+                ' missing-icon fallback, a grey disc wide enough to sit on top
+                ' of the code. A marker that lands on the wrong icon is worse
+                ' than no marker, so the name is Studio's own and the file is in
+                ' share/icons/hicolor, which every theme inherits and `./studio`
+                ' already puts on XDG_DATA_DIRS for the window icon.
+                '
+                ' `MarkAttributes.set_background` would need a `Gdk.RGBA`, and
+                ' `gi.new` refuses it: "not an instantiable object type".
+                bad = gi.new("GtkSource.MarkAttributes")
+                bad.set_icon_name("gbasic-studio-error")
+                vw.set_mark_attributes("error", bad, 2)
                 sc = gtk.scrolled(ed.view())
                 sc.vexpand = true
                 sc.hexpand = true
                 book.append_page(sc, gtk.label(t.label))
+                ' A NEW BUFFER HAS NO MARKS, and both caches are keyed by
+                ' document id, which a closed-and-reopened file keeps. Left
+                ' alone, the cache would say "already drawn at this revision /
+                ' signature" about a buffer that was created two lines ago, and
+                ' the gutter would stay empty until something else moved.
+                ' Neither value is reachable as a real one — a revision counts
+                ' up from 1, a signature is digits and commas — so the first
+                ' decoration always draws.
+                shell.marked[t.doc_id] = -1
+                shell.errmarked[t.doc_id] = "-"
                 shell.pages = append(shell.pages, { doc_id: t.doc_id, editor: ed, child: sc })
                 new_editors = append(new_editors, { doc_id: t.doc_id, editor: ed })
             end if
@@ -561,7 +718,12 @@ library studio_shell
         ' type into it and click Rename for real. A modal dialog could not be
         ' driven by any test we can write.
         name_entry = gi.new("Gtk.Entry")
-        name_entry.placeholder_text = "name"
+        ' "name" was the whole of what this field said about itself, and Open
+        ' Folder reads it as a PATH — so the one way to open a project you
+        ' already have was spelled nowhere in the window. A placeholder is the
+        ' cheapest label there is and it is already on screen.
+        name_entry.placeholder_text = "name or path"
+        name_entry.set_tooltip_text("A name for New File / New Folder / New Project / Rename — or a folder path for Open Folder (~ works).")
         name_entry.max_width_chars = name_entry_width
         name_entry.hexpand = false
         ' Reads the name field as a PATH. A real folder chooser is a
@@ -570,6 +732,12 @@ library studio_shell
         ' is the same answer STU-2D gave for names, and a "Browse..." button that
         ' merely FILLS the field can be added later without changing any of this.
         open_btn = gtk.button("Open Folder")
+        open_btn.set_tooltip_text("Open a folder you already have as a project: type its path in the field, then press this. ~/ and relative paths work.")
+        ' The ONE control that puts a Studio file in your project directory,
+        ' and it is a button you have to find and press. Nothing else writes
+        ' `.gstudio.json` — not Open Folder, not Save, not exit.
+        projfile_btn = gtk.button("Project File")
+        projfile_btn.set_tooltip_text("Write a .gstudio.json in this project: a stable id so its saved state survives the folder moving, plus a place to list what the browser should hide and pin which gBASIC it runs under. Studio never creates this on its own.")
         rename_btn = gtk.button("Rename")
         delete_btn = gtk.button("Delete")
         close_btn = gtk.button("Close")
@@ -584,6 +752,7 @@ library studio_shell
         ' Group 1: the project. What you press when there is nothing open yet.
         header.append(new_btn)
         header.append(open_btn)
+        header.append(projfile_btn)
         header.append(studio_shell._bar())
         ' Group 2: the file. Make one, put it somewhere, write it, re-read it.
         header.append(file_btn)
@@ -755,14 +924,18 @@ library studio_shell
         ' paneds off `shrink` changed nothing, so it is not a starved allocation.
         shell = { window: win, status: status, nav: nav, notebook: book,
                  new_btn: new_btn, file_btn: file_btn, folder_btn: folder_btn,
-                 name_entry: name_entry, open_btn: open_btn, rename_btn: rename_btn,
+                 name_entry: name_entry, open_btn: open_btn,
+                 projfile_btn: projfile_btn, rename_btn: rename_btn,
                  delete_btn: delete_btn, close_btn: close_btn,
                  save_btn: save_btn, refresh_btn: refresh_btn,
                  bar: bar, pane: pane, rpane: rpane, apane: apane, bpane: bpane,
                  tpane: tpane, gpane: gpane,
                  ' STU-5 decoration state: which outline revision each document's
                  ' gutter marks were drawn for, and the one live highlight tag.
-                 marked: {}, hl_tag: nothing, hl_doc: "",
+                 ' `errmarked` is the same idea for the parser's marks, keyed on
+                 ' their line signature because a failed parse leaves the
+                 ' revision where it was.
+                 marked: {}, errmarked: {}, hl_tag: nothing, hl_doc: "",
                  ' STU-10 teaching state: what currently carries a class.
                  pulsing: nothing, pulse_class: "", highlighted: nothing, highlight_class: "",
                  teach_tag: nothing,
@@ -816,8 +989,21 @@ library studio_shell
     ' entry program owns the handlers over its global app record, because a callback
     ' cannot rebind a top-level scalar.
 
+    ' TWO ROWS, and the second one exists for one reason: the state line is the
+    ' only place a REFUSAL or a materialization FAILURE is ever written, and
+    ' those carry a whole sentence ("that section is ambiguous after the last
+    ' edit; disambiguate it first"). Sharing one horizontal row with three
+    ' buttons and two more labels, an ellipsized sentence became "run: refused
+    ' [sec-3] — that sec…" and the rest of it existed nowhere on screen. A
+    ' horizontal row has a hard width budget; a sentence does not fit in one.
+    '
+    ' So the buttons and the two SHORT labels keep the top row, and the state
+    ' line gets a row of its own, at the full width of the console, where it can
+    ' wrap instead of being cut.
     function run_bar()
-        bar = gtk.box("h", studio_style.unit())
+        u = studio_style.unit()
+        bar = gtk.box("v", u)
+        controls = gtk.box("h", u)
         run_btn = gtk.button("Run Section")
         ' The stock suggested class. Of the three buttons on this strip one is
         ' what you came here to press and two are what you press when it goes
@@ -830,13 +1016,24 @@ library studio_shell
         ' moves with the state, and `refresh_run` is what moves it.
         state = studio_shell._left(gtk.label("run: idle"))
         state = studio_style.apply(state, "state-idle")
-        ' Ellipsized for the same reason `standing` is, and now for a second one:
-        ' a label that neither wraps nor ellipsizes reports its WHOLE SENTENCE as
-        ' its minimum width, so "run: finished [sec-6] — exit 1" appearing after a
-        ' run raised the console's minimum width by about 200px. That is what let
-        ' a narrow window starve the strip until it was clipped from the left.
-        ' The label text is untouched; only how it fails is.
-        state.ellipsize = gi.enum("Pango.EllipsizeMode.END")
+        ' WRAPPING, now that it owns a row — and wrapping rather than ellipsizing
+        ' also answers the minimum-width problem the ellipsis was there for. A
+        ' label that neither wraps nor ellipsizes reports its WHOLE SENTENCE as
+        ' its minimum width, which is what let a narrow window starve the console
+        ' until it clipped from the left; a WRAPPING label reports its longest
+        ' WORD, which is smaller than the ellipsized version ever was.
+        '
+        ' `max_width_chars` for the reason `_wrapped` documents at length: `wrap`
+        ' alone leaves the natural width at the whole sentence on one line, and a
+        ' scroller hands a child its natural width. 72 rather than `_wrapped`'s
+        ' 44 because this row spans the console, which is a good deal wider than
+        ' the right-hand column that number was chosen for.
+        state.wrap = true
+        state.wrap_mode = gi.enum("Pango.WrapMode.WORD_CHAR")
+        state.max_width_chars = 72
+        ' And it SPANS the row, rather than folding at its natural width with
+        ' the rest of the console empty beside it.
+        state = studio_shell._fill(state)
         ' STU-5A′: which section Run would run, shown BEFORE you press it rather
         ' than after. It follows the caret.
         section = studio_shell._left(gtk.label("section: (none)"))
@@ -846,23 +1043,29 @@ library studio_shell
         ' a record from an earlier one.
         standing = studio_shell._left(gtk.label(""))
         standing = studio_style.apply(standing, "dim")
-        ' The strip is one horizontal row, so this cannot wrap; ellipsize instead,
-        ' which at least SAYS it was cut rather than stopping mid-word.
+        ' These two stay on the horizontal row, so they still cannot wrap;
+        ' ellipsize instead, which at least SAYS it was cut rather than stopping
+        ' mid-word. Both are short by construction — an id and a word — which is
+        ' why they are the two that stayed.
         standing.ellipsize = gi.enum("Pango.EllipsizeMode.END")
         branch = studio_shell._left(gtk.label("branch: baseline"))
         branch.ellipsize = gi.enum("Pango.EllipsizeMode.END")
         bar = studio_style.apply(bar, "panel")
-        bar.append(run_btn)
-        bar.append(halt_btn)
-        bar.append(force_btn)
+        controls.append(run_btn)
+        controls.append(halt_btn)
+        controls.append(force_btn)
+        controls.append(section)
+        controls.append(standing)
+        bar.append(controls)
+        ' Under the buttons rather than over them: it is what pressing one of
+        ' them produced, and the output headings below it read on from there.
         bar.append(state)
-        bar.append(section)
-        bar.append(standing)
         ' The branch is NOT appended: the selector pane names it a few inches
         ' away, and a fifth label turned the strip into two ellipsized stubs.
         ' The widget stays so a caller can read the text without the pane.
         ' `stop` is a gBASIC keyword and cannot be a record key, hence `halt`.
-        return { box: bar, run: run_btn, halt: halt_btn, force: force_btn,
+        return { box: bar, controls: controls, run: run_btn, halt: halt_btn,
+                 force: force_btn,
                  state: state, section: section, standing: standing, branch: branch }
     end function
 
@@ -883,14 +1086,18 @@ library studio_shell
         ' TEXT is untouched — a golden asserts every word of it — and the headings
         ' now carry the heading class and a rule, so the eye finds the boundary
         ' before it reads the sentence.
-        prefix_head = studio_style.apply(studio_shell._wrapped(gtk.label("Prefix output — sections replayed before the target")), "head")
-        prefix_body = studio_shell._mono(gtk.label(""))
-        target_head = studio_style.apply(studio_shell._wrapped(gtk.label("Target output — the section you ran")), "head")
-        target_body = studio_shell._mono(gtk.label(""))
+        prefix_head = studio_style.apply(studio_shell._fill(studio_shell._wrapped(gtk.label("Prefix output — sections replayed before the target"))), "head")
+        prefix_body = studio_shell._fill(studio_shell._mono(gtk.label("")))
+        target_head = studio_style.apply(studio_shell._fill(studio_shell._wrapped(gtk.label("Target output — the section you ran"))), "head")
+        target_body = studio_shell._fill(studio_shell._mono(gtk.label("")))
         ' STU-5: a section's errors had nowhere to go. The child's stderr was
         ' captured, attributed and stored, and the window showed none of it.
-        error_head = studio_style.apply(studio_shell._wrapped(gtk.label("Errors")), "head")
-        error_body = studio_shell._mono(gtk.label(""))
+        ' The heading is REFRESHED, not fixed: `refresh_run` rewrites it with a
+        ' count and moves it into the error colour when there is something under
+        ' it. This pane is the last of the three, so on a short window it is the
+        ' one that falls below the fold of the console scroller.
+        error_head = studio_style.apply(studio_shell._fill(studio_shell._wrapped(gtk.label("Errors"))), "head")
+        error_body = studio_shell._fill(studio_shell._mono(gtk.label("")))
         box.append(prefix_head)
         box.append(prefix_body)
         box.append(studio_shell._rule())
@@ -899,7 +1106,8 @@ library studio_shell
         box.append(studio_shell._rule())
         box.append(error_head)
         box.append(error_body)
-        return { box: box, prefix: prefix_body, target: target_body, errors: error_body }
+        return { box: box, prefix: prefix_body, target: target_body,
+                 errors: error_body, errors_head: error_head }
     end function
 
     function output_prefix_text(session)
@@ -1368,6 +1576,156 @@ library studio_shell
         end if
         win.set_child(outer)
         return { window: win, grid: grid, kind: kind }
+    end function
+
+    ' ---- STU-12: the New Project window -------------------------------------
+    '
+    ' A WINDOW Studio builds, not a system dialog. The same reason names come
+    ' from a header field and confirmations are two clicks: a GtkFileDialog or
+    ' a GtkAlertDialog is async with no signal a test can synthesise, so it
+    ' would be the one surface in this application nothing could press. Every
+    ' control here is an ordinary widget whose value can be SET, so the display
+    ' tier fills the form and clicks Create for real.
+    '
+    ' It holds no decisions. It reads an options record in and hands one back
+    ' out; what those options MEAN is `studio_ui.project_plan`, headless.
+    function new_project_window(gtkapp, opts, license_ids)
+        u = studio_style.unit()
+        win = gtk.application_window(gtkapp)
+        win.title = "gBASIC Studio — new project"
+        win.default_width = 520
+        outer = gtk.box("v", u)
+        outer.margin_start = u * 2
+        outer.margin_end = u * 2
+        outer.margin_top = u * 2
+        outer.margin_bottom = u * 2
+
+        head = studio_shell._left(gtk.label("New project"))
+        head = studio_style.apply(head, "head")
+        outer.append(head)
+
+        ' A grid, so the three fields line up on one left edge. A box of boxes
+        ' gives three labels of three different widths and three entries that
+        ' start in three different places.
+        grid = gi.new("Gtk.Grid")
+        grid.set_column_spacing(u * 2)
+        grid.set_row_spacing(u)
+        name_entry = studio_shell._field(opts.name)
+        loc_entry = studio_shell._field(opts.location)
+        author_entry = studio_shell._field(opts.author)
+        name_entry.set_tooltip_text("What the project is called. The DIRECTORY is a slug of this, so \"My Thing\" lands in my-thing.")
+        loc_entry.set_tooltip_text("The directory the project directory is made inside. ~/ and relative paths work.")
+        author_entry.set_tooltip_text("Who a licence names as the copyright holder. Taken from git's user.name when there is one.")
+        grid.attach(studio_shell._left(gtk.label("Name")), 0, 0, 1, 1)
+        grid.attach(name_entry, 1, 0, 1, 1)
+        grid.attach(studio_shell._left(gtk.label("Location")), 0, 1, 1, 1)
+        grid.attach(loc_entry, 1, 1, 1, 1)
+        grid.attach(studio_shell._left(gtk.label("Author")), 0, 2, 1, 1)
+        grid.attach(author_entry, 1, 2, 1, 1)
+        ' The LICENCE is a drop-down and the rest are checkboxes because it is
+        ' the one option with more than two answers. `Gtk.DropDown` over a
+        ' `Gtk.StringList`, both reachable through `gi.new` and both driven by
+        ' ordinary instance methods (`set_selected`) — `new_from_strings` is a
+        ' class static the bridge cannot call, the same gap as everywhere else.
+        model = gi.new("Gtk.StringList")
+        for each id in license_ids
+            model.append(id)
+        end for
+        lic = gi.new("Gtk.DropDown")
+        lic.set_model(model)
+        lic.set_selected(studio_shell._index_of(license_ids, opts.license))
+        lic.hexpand = false
+        lic.halign = gi.enum("Gtk.Align.START")
+        lic.set_tooltip_text("Studio does not write a licence of its own: it copies the text from share/licenses/ and fills in the year and the author.")
+        grid.attach(studio_shell._left(gtk.label("Licence")), 0, 3, 1, 1)
+        grid.attach(lic, 1, 3, 1, 1)
+        outer.append(grid)
+
+        ' The four files, in the order a project usually acquires them. Only
+        ' main.bas is on: a project with nothing in it scans to zero browser
+        ' rows and there is nowhere to click, which is the one default that
+        ' pays for itself. A ticked `.gstudio.json` would be Studio putting its
+        ' own file in your directory because you did not look — which is the
+        ' behaviour that file exists to avoid.
+        main_chk = studio_shell._check("main.bas — a file you can run straight away", opts.main)
+        readme_chk = studio_shell._check("README.md", opts.readme)
+        proj_chk = studio_shell._check(".gstudio.json — a stable id, an ignore list, an interpreter pin", opts.projfile)
+        git_chk = studio_shell._check("git repository — git init, and a .gitignore", opts.git)
+        outer.append(main_chk)
+        outer.append(readme_chk)
+        outer.append(proj_chk)
+        outer.append(git_chk)
+
+        note = studio_shell._wrapped(gtk.label(""))
+        note = studio_style.apply(note, "dim")
+        outer.append(note)
+
+        row = gtk.box("h", u)
+        row.halign = gi.enum("Gtk.Align.END")
+        cancel_btn = gtk.button("Cancel")
+        create_btn = gtk.button("Create")
+        create_btn.add_css_class(studio_style.css_class("suggested-action"))
+        row.append(cancel_btn)
+        row.append(create_btn)
+        outer.append(row)
+
+        win.set_child(outer)
+        return { window: win, name: name_entry, location: loc_entry,
+                 author: author_entry, license: lic, license_ids: license_ids,
+                 main: main_chk, readme: readme_chk, projfile: proj_chk,
+                 git: git_chk, note: note,
+                 create_btn: create_btn, cancel_btn: cancel_btn }
+    end function
+
+    ' Read the window back as the options record studio_ui consumes. The whole
+    ' of the widget-to-value read, in one place, so the handler that calls it is
+    ' still an adapter.
+    function new_project_options(w)
+        ids = w.license_ids
+        sel = w.license.get_selected()
+        chosen = "none"
+        if sel >= 0 then
+            if sel < count(ids) then
+                chosen = ids[sel]
+            end if
+        end if
+        return {
+            name: w.name.text,
+            location: w.location.text,
+            author: w.author.text,
+            main: w.main.get_active(),
+            readme: w.readme.get_active(),
+            projfile: w.projfile.get_active(),
+            git: w.git.get_active(),
+            license: chosen
+        }
+    end function
+
+    function _field(text)
+        e = gi.new("Gtk.Entry")
+        e.text = text
+        e.hexpand = true
+        return e
+    end function
+
+    ' `ticked`, not `on`: ON is a reserved word in gBASIC, and a parameter named
+    ' one is a parse error in a file the window cannot load.
+    function _check(label, ticked)
+        c = gi.new("Gtk.CheckButton")
+        c.label = label
+        c.set_active(ticked)
+        return c
+    end function
+
+    function _index_of(ids, want)
+        i = 0
+        while i < count(ids)
+            if ids[i] = want then
+                return i
+            end if
+            i = i + 1
+        end while
+        return 0
     end function
 
     ' The modest tier: one label per cell. Bounded by construction — nothing

@@ -52,6 +52,15 @@ function read_file_text(p)
   return read(f)
 end function
 
+' The section ids of a state, in order — what a result is filed against.
+function secids(st)
+  out = []
+  for each s in st.sections
+    out = append(out, s.id)
+  end for
+  return join(out, ",")
+end function
+
 ' `join` requires string elements, so a list of line numbers needs converting.
 function numlist(nums)
   out = []
@@ -100,6 +109,47 @@ function row_index(rows, kind, suffix)
   return -1
 end function
 
+' The plan's file list, which is the whole of what a set of options MEANS.
+function planfiles(plan)
+  out = []
+  for each f in plan.files
+    out = append(out, f.name)
+  end for
+  if count(out) = 0 then
+    return "(none)"
+  end if
+  return join(out, ",")
+end function
+
+function leafof(p)
+  parts = split(p, "/")
+  return parts[count(parts) - 1]
+end function
+
+' What is actually in a directory, sorted, so the golden does not depend on
+' the order the filesystem hands entries back.
+function dirlist(d)
+  h{dir} = d
+  names = []
+  for each e in list(h)
+    names = append(names, e.name)
+  end for
+  return sort(names)
+end function
+
+function head3(text)
+  lines = split(text, "\n")
+  out = []
+  i = 0
+  while i < 3
+    if i < count(lines) then
+      out = append(out, lines[i])
+    end if
+    i = i + 1
+  end while
+  return join(out, "\n")
+end function
+
 program main(args)
   load persist
   load filetree
@@ -111,6 +161,9 @@ program main(args)
   load studio_overlays
   load studio_drafts
   load studio_branches
+  load studio_sections
+  load studio_projects
+  load studio_projfile
 
   mode = args[0]
   home = args[1]
@@ -461,6 +514,30 @@ program main(args)
     app = act("Open Folder on an empty path", r)
     banner("untouched by all three")
     show(app)
+
+    banner("and what those two SAY, which is the whole point of them")
+    ' The full path, not its last segment: "gdash is not there" about
+    ' `~/development/gdash` blames the folder for a `~` nobody expanded. Literal
+    ' arguments, so the golden holds the sentence rather than this machine.
+    print "no folder: " + studio_ui.action_notice("no-folder", "/srv/projects/ghost")
+    print "no path:   " + studio_ui.action_notice("no-path", "")
+
+    banner("a path as a PERSON types it")
+    ' Pure over three strings, so this asserts the expansion and not whatever
+    ' HOME this machine happens to have. A GtkEntry is not a shell; before this,
+    ' the first thing anyone types was the one thing that did not work.
+    print "~             -> " + studio_ui.expand_path("~", "/home/u", "/w")
+    print "~/dev/gdash   -> " + studio_ui.expand_path("~/dev/gdash", "/home/u", "/w")
+    print "/abs/path     -> " + studio_ui.expand_path("/abs/path", "/home/u", "/w")
+    print "dev/gdash     -> " + studio_ui.expand_path("dev/gdash", "/home/u", "/w")
+    ' NOT expanded: another user's home needs a passwd lookup, and a wrong guess
+    ' is worse than a path that fails honestly.
+    print "~someone/x    -> " + studio_ui.expand_path("~someone/x", "/home/u", "/w")
+    print "(empty)       -> [" + studio_ui.expand_path("", "/home/u", "/w") + "]"
+    ' Neither is guaranteed to be set, and building a confident path out of an
+    ' empty string is how "/x" becomes a plausible answer for "~/x".
+    print "~/x, no HOME  -> " + studio_ui.expand_path("~/x", "", "/w")
+    print "rel, no cwd   -> " + studio_ui.expand_path("rel", "/home/u", "")
   end if
 
   ' ---- names: the header's name field feeding creation ---------------------
@@ -1119,6 +1196,497 @@ program main(args)
     print studio_ui.results_body(app)
   end if
 
+  ' ---- anchors: section identity must survive closing a tab ----------------
+  ' STU-3 exists so that a result recorded against sec-4 still means sec-4 after
+  ' the source is edited. It does that by RE-MATCHING sections across edits, so
+  ' the ids stop being in file order — which is the whole point.
+  '
+  ' But the persisted anchors were keyed by the document's minted id (doc-N),
+  ' and closing a tab throws that id away: reopening the same file mints doc-N+1,
+  ' finds no anchors under it, and derives a fresh state numbered in file order.
+  ' The ids then land on DIFFERENT sections than the ones the results were filed
+  ' against, so the results pane confidently shows you another function's
+  ' history. That is worse than losing them.
+  '
+  ' Anchors are keyed by PATH now, which a close does not change.
+  if mode = "anchors" then
+    af{file} = projdir + "/anchors.bas"
+    write(af, "function one()\n  return 1\nend function\n\nfunction two()\n  return 2\nend function\n")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "anchors.bas"))
+    app = r.app
+    id = studio_docs.active_doc(app.dm).id
+    vw = studio_ui.view_for(app)
+    app = vw.app
+    print "opened     : " + secids(vw.st)
+
+    banner("two edits, each inserting a function above the others")
+    ' Ids advance as sections are re-matched; after this they are deliberately
+    ' NOT in file order, which is what makes the bug visible.
+    app = studio.edit_document(app, id, "function zero()\n  return 0\nend function\n\nfunction one()\n  return 1\nend function\n\nfunction two()\n  return 2\nend function\n")
+    vw = studio_ui.view_for(app)
+    app = vw.app
+    print "after edit : " + secids(vw.st)
+    app = studio.edit_document(app, id, "function minus()\n  return -1\nend function\n\nfunction zero()\n  return 0\nend function\n\nfunction one()\n  return 1\nend function\n\nfunction two()\n  return 2\nend function\n")
+    vw = studio_ui.view_for(app)
+    app = vw.app
+    print "after edit : " + secids(vw.st)
+    before = secids(vw.st)
+    sv = studio_ui.save_active(app, "")
+    app = sv.app
+
+    banner("close the tab and open the same file again")
+    cl = studio_ui.close_active(app, true)
+    app = cl.app
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "anchors.bas"))
+    app = r.app
+    vw = studio_ui.view_for(app)
+    app = vw.app
+    print "reopened   : " + secids(vw.st)
+    print "identical to before the close=" + (secids(vw.st) = before)
+  end if
+
+  ' ---- projfile: the project's own file, which Studio never writes uninvited -
+  '
+  ' `.gstudio.json` is the opposite of the per-project state store: declared,
+  ' small, hand-edited, committed, and IN the project directory. The asserted
+  ' properties are the ones that make it acceptable to put a file there at all:
+  '   - nothing creates it but the one action that says it will
+  '   - the browser SHOWS it afterwards, alone among dotfiles
+  '   - it gives the project a stable id, and the anchors filed under the old
+  '     path key come with it rather than being silently renumbered
+  '   - the ignore list takes effect, by name, at any depth
+  if mode = "projfile" then
+    ' The clock seam, so a minted id has a shape a golden can hold.
+    app["clock_fixed"] = 1758600000
+
+    banner("nothing there, and nothing put it there")
+    print "spec: " + studio_projfile.summary(studio_projfile.read_spec(projdir))
+    rows = studio_ui.nav_rows(app)
+    print "browser sees it=" + (row_index(rows, "file", ".gstudio.json") >= 0)
+
+    banner("open a file and give it sections, filed under the PATH key")
+    pf{file} = projdir + "/work.bas"
+    write(pf, "function one()\n  return 1\nend function\n\nfunction two()\n  return 2\nend function\n")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "work.bas"))
+    app = r.app
+    id = studio_docs.active_doc(app.dm).id
+    vw = studio_ui.view_for(app)
+    app = vw.app
+    ' Re-match the ids out of file order, which is what makes a renumbering
+    ' visible rather than harmless.
+    app = studio.edit_document(app, id, "function zero()\n  return 0\nend function\n\nfunction one()\n  return 1\nend function\n\nfunction two()\n  return 2\nend function\n")
+    vw = studio_ui.view_for(app)
+    app = vw.app
+    print "sections   : " + secids(vw.st)
+    before = secids(vw.st)
+    sv = studio_ui.save_active(app, "")
+    app = sv.app
+    ps = studio_ui.project_state(app)
+    app = ps.app
+    pst = ps.state
+    pst.sections = studio_sections.persist_into(pst.sections, vw.st)
+    app = studio_ui.set_project_state(app, pst)
+    print "state docs=" + count(pst.sections)
+
+    banner("Project File")
+    r = studio_ui.add_project_file(app)
+    app = act("Project File", r)
+    print "   " + studio_ui.action_notice(r.action, safe_detail(r.detail))
+    spec = studio_projfile.read_spec(projdir)
+    print "spec: " + studio_projfile.summary(spec)
+
+    banner("the one dotfile the browser shows")
+    rows = studio_ui.nav_rows(app)
+    print "browser sees it=" + (row_index(rows, "file", ".gstudio.json") >= 0)
+    print "browser sees .hidden=" + (row_index(rows, "file", ".hidden") >= 0)
+
+    banner("the key moved, and the anchors moved with it")
+    oldk = studio_projects.key_for(projdir, "")
+    newk = studio_projects.key_for(projdir, spec.id)
+    print "key changed=" + (oldk != newk)
+    ' A fresh app, reading from disk: the in-memory cache cannot be what is
+    ' answering here.
+    app2 = studio.launch(home)
+    ws2 = app2.model.workspace
+    carried = studio_projects.open(home, newk)
+    print "carried: " + studio_projects.summary(carried)
+    ' By PATH, which is what studio_ui.doc_key answers and what the anchors
+    ' were filed under — the key INSIDE the state, unchanged by any of this.
+    ' Only the file the state lives in moved.
+    st2 = studio_sections.restore_from(carried.sections, projdir + "/work.bas")
+    st2 = studio_sections.refresh(st2, read_file_text(projdir + "/work.bas"))
+    print "restored   : " + secids(st2)
+    print "identical to before the file=" + (secids(st2) = before)
+
+    banner("asking twice does not rewrite it")
+    r = studio_ui.add_project_file(app)
+    app = act("Project File again", r)
+    print "   " + studio_ui.action_notice(r.action, r.detail)
+
+    banner("the ignore list, by name, at any depth")
+    ig{file} = projdir + "/.gstudio.json"
+    write(ig, "{\"schema_version\":1,\"id\":\"" + spec.id + "\",\"name\":\"Alpha\",\"ignore\":[\"docs\",\"*.md\"]}")
+    rows = studio_ui.nav_rows(app)
+    print "docs hidden=" + (row_index(rows, "dir", "docs") < 0)
+    print "README.md hidden=" + (row_index(rows, "file", "README.md") < 0)
+    print "main.bas still shown=" + (row_index(rows, "file", "main.bas") >= 0)
+
+    banner("a file that is not JSON at all")
+    write(ig, "this is not json")
+    print "spec: " + studio_projfile.summary(studio_projfile.read_spec(projdir))
+    rows = studio_ui.nav_rows(app)
+    print "browser recovers, rows=" + (count(rows) > 3)
+    r = studio_ui.add_project_file(app)
+    app = act("Project File over the broken one", r)
+  end if
+
+  ' ---- projpin: the one thing in .gstudio.json that changes what a run DOES -
+  '
+  ' A pinned interpreter is the reason the project file travels: a project that
+  ' needs a particular gBASIC gets it on whoever's machine, rather than
+  ' whatever their shell exported. The assertion has to be that the pin CHOSE
+  ' what ran, not merely that something ran, so the pin points at a stand-in
+  ' that records itself and then hands over to the real interpreter.
+  if mode = "projpin" then
+    real = env("GBASIC")
+    stub = home + "/pinned.sh"
+    marker = home + "/pin-marker"
+    sf{file} = stub
+    write(sf, "#!/bin/sh\nprintf 'ran\\n' >> " + quote(marker) + "\nexec " + quote(real) + " \"$@\"\n")
+    ch = process.run({ command: "chmod", args: ["+x", stub] })
+
+    ' It LOADS something. A program that needs no library would run identically
+    ' whatever GBASIC_PATH said, so the library-path half of the pin would have
+    ' nothing to prove.
+    rf{file} = projdir + "/pinned.bas"
+    write(rf, "load dates\n\nprint \"one\"\n\nfunction add(a, b)\n  return a + b\nend function\n\nsum = add(2, 3)\nprint sum\n")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "pinned.bas"))
+    app = r.app
+    app.clock_fixed = 1000
+    id = studio_docs.active_doc(app.dm).id
+
+    banner("no pin: the ambient interpreter, and nothing recorded")
+    r = studio_ui.sync_cursor(app, id, 8, 0)
+    app = r.app
+    r = studio_ui.run_section(app, 8, 0)
+    app = r.app
+    app = drive(app)
+    mk{file} = marker
+    print "the stand-in ran=" + exists(mk)
+
+    banner("pinned: the same run, through the stand-in")
+    gf{file} = projdir + "/.gstudio.json"
+    write(gf, "{\"schema_version\":1,\"id\":\"gsp-1-1\",\"interpreter\":" + quote(stub) + "}")
+    print "spec: " + studio_projfile.summary(studio_projfile.read_spec(projdir))
+    r = studio_ui.run_section(app, 8, 0)
+    app = r.app
+    app = drive(app)
+    print "the stand-in ran=" + exists(mk)
+
+    banner("a pinned library path is the path the child actually sees")
+    ' Proof that `gbasic_path` REACHES the child and REPLACES what Studio's own
+    ' launcher exported, by asking the child: the section prints its own
+    ' GBASIC_PATH. Asserting a FAILED load instead would have proved nothing —
+    ' measured, gBASIC finds its stdlib with GBASIC_PATH pointed at an empty
+    ' directory, so a program that merely loads something runs either way.
+    ef{file} = projdir + "/envy.bas"
+    write(ef, "print \"one\"\n\nfunction f()\n  return 1\nend function\n\nprint env(\"GBASIC_PATH\")\n")
+    write(gf, "{\"schema_version\":1,\"id\":\"gsp-1-1\",\"gbasic_path\":\"/pinned/libs\"}")
+    print "spec: " + studio_projfile.summary(studio_projfile.read_spec(projdir))
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "envy.bas"))
+    app = r.app
+    id2 = studio_docs.active_doc(app.dm).id
+    r = studio_ui.sync_cursor(app, id2, 6, 0)
+    app = r.app
+    r = studio_ui.run_section(app, 6, 0)
+    app = r.app
+    app = drive(app)
+    print "the child saw=<" + studio_ui.target_body(app) + ">"
+  end if
+
+  ' ---- newproj2: New Project with the questions asked ----------------------
+  '
+  ' The window collects an options record; `project_plan` says what that record
+  ' MEANS, as the exact list of files; `create_project` carries it out. The
+  ' whole of "what does ticking that box do" is therefore assertable with no
+  ' widget in sight, which is the point of the split.
+  '
+  ' Every default is the minimal one. main.bas is on because an empty project
+  ' dead-ends — no rows to click. The project file is OFF: Studio writing
+  ' `.gstudio.json` by default would be the exact behaviour that file exists to
+  ' avoid, and a box you had to untick is not consent.
+  if mode = "newproj2" then
+    app["clock_fixed"] = 1758600000
+    where = projdir + "/made"
+
+    banner("the defaults")
+    o = studio_ui.default_options(app, home)
+    o.location = where
+    o.author = "A. Author"
+    print "main=" + o.main + " projfile=" + o.projfile + " readme=" + o.readme + " git=" + o.git + " license=" + o.license
+    plan = studio_ui.project_plan(o, 1758600000)
+    print "plan: " + plan.reason + " files=" + planfiles(plan)
+
+    banner("a name, and the directory is its slug")
+    o.name = "My Thing"
+    plan = studio_ui.project_plan(o, 1758600000)
+    print "dir=" + leafof(plan.path) + " name=" + plan.name
+
+    banner("everything on")
+    o.projfile = true
+    o.readme = true
+    o.git = true
+    o.license = "MIT"
+    plan = studio_ui.project_plan(o, 1758600000)
+    print "plan: " + plan.reason + " files=" + planfiles(plan) + " git=" + plan.git + " projfile=" + plan.projfile
+
+    banner("refusals, none of which create anything")
+    bad = studio_ui.default_options(app, home)
+    bad.location = where
+    bad.name = ""
+    print "-> " + studio_ui.project_plan(bad, 1758600000).reason + ": " + studio_ui.action_notice("no-name", "")
+    bad.name = "a/b"
+    print "-> " + studio_ui.project_plan(bad, 1758600000).reason
+    bad.name = "ok"
+    bad.location = ""
+    print "-> " + studio_ui.project_plan(bad, 1758600000).reason
+    bad.location = where
+    bad.license = "MIT"
+    bad.author = ""
+    r2 = studio_ui.project_plan(bad, 1758600000)
+    print "-> " + r2.reason + ": " + studio_ui.action_notice(r2.reason, r2.detail)
+    bad.license = "Nonesuch"
+    bad.author = "A. Author"
+    r2 = studio_ui.project_plan(bad, 1758600000)
+    print "-> " + r2.reason + ": " + studio_ui.action_notice(r2.reason, r2.detail)
+    mk{file} = where
+    print "nothing was created=" + (not exists(mk))
+
+    banner("create it for real")
+    r = studio_ui.create_project(app, o)
+    app = act("Create", r)
+    show(app)
+    print "on disk: " + join(dirlist(where + "/my-thing"), " ")
+    print "-- main.bas --"
+    print read_file_text(where + "/my-thing/main.bas")
+    print "-- README.md --"
+    print read_file_text(where + "/my-thing/README.md")
+    print "-- LICENSE, first three lines --"
+    print head3(read_file_text(where + "/my-thing/LICENSE"))
+
+    banner("the same name again lands on a directory that is there")
+    r = studio_ui.create_project(app, o)
+    app = act("Create again", r)
+
+    banner("a licence copied verbatim carries no placeholder")
+    o2 = studio_ui.default_options(app, home)
+    o2.location = where
+    o2.name = "Second"
+    o2.author = ""
+    o2.license = "Apache-2.0"
+    r = studio_ui.create_project(app, o2)
+    app = act("Create Apache", r)
+    txt = read_file_text(where + "/second/LICENSE")
+    print "has a placeholder=" + (find(txt, "[fullname]") != nothing)
+    print "is the Apache licence=" + (find(txt, "Apache License") != nothing)
+  end if
+
+  ' ---- filetypes: a project is not only its .bas files ---------------------
+  ' Studio opens a README, a Makefile, a JSON fixture — they are part of the
+  ' project. But every document was handed to `source_outline` regardless, so
+  ' opening README.md answered "this file does not parse — error 1:1 unexpected
+  ' token" and marked line 1 in the gutter. A pane asserting that a markdown
+  ' document is broken gBASIC is worse than a pane saying nothing.
+  if mode = "filetypes" then
+    print "-- what counts as gBASIC --"
+    ' The suffixes are gbasic.lang's own globs, so the thing Studio runs and the
+    ' thing the editor highlights cannot drift apart.
+    print "  main.bas        -> " + studio_ui.is_gbasic("main.bas")
+    print "  lib/thing.gb    -> " + studio_ui.is_gbasic("lib/thing.gb")
+    ' Case-insensitive: the only thing a case-sensitive check would decide is
+    ' whether Studio can run README.BAS, and it can.
+    print "  SHOUT.BAS       -> " + studio_ui.is_gbasic("SHOUT.BAS")
+    print "  README.md       -> " + studio_ui.is_gbasic("README.md")
+    print "  Makefile        -> " + studio_ui.is_gbasic("Makefile")
+    ' Suffix, not substring: these two were the ways a looser check went wrong.
+    print "  notes.bas.txt   -> " + studio_ui.is_gbasic("notes.bas.txt")
+    print "  dialect.basic   -> " + studio_ui.is_gbasic("dialect.basic")
+
+    mf{file} = projdir + "/NOTES.md"
+    write(mf, "# Notes\n\nThis is *markdown*, and it is not a program.\n")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "NOTES.md"))
+    app = r.app
+
+    banner("a markdown file: open, editable, and NOT a broken program")
+    print "strip:   " + studio_ui.section_label(app)
+    print "heading: " + studio_ui.error_heading(studio_ui.error_body(app))
+    print "errors:  <" + studio_ui.error_body(app) + ">"
+    em = studio_ui.error_marks(app)
+    app = em.app
+    print "gutter:  error marks=" + numlist(em.lines) + " section marks=" + numlist(studio_ui.section_marks(app).lines)
+    r = studio_ui.run_section(app, 0, 0)
+    app = r.app
+    print "-> Run: " + r.action
+    print "   status: " + studio_ui.action_notice(r.action, r.detail)
+
+    banner("editing and saving one works exactly as before")
+    id = studio_docs.active_doc(app.dm).id
+    app = studio.edit_document(app, id, "# Notes\n\nEdited.\n")
+    print "dirty=" + studio_ui.dirty_count(app)
+    sv = studio_ui.save_active(app, "")
+    app = sv.app
+    print "save: " + sv.action + " dirty=" + studio_ui.dirty_count(app)
+    print "on disk=<" + read_file_text(projdir + "/NOTES.md") + ">"
+
+    banner("and the .bas beside it is untouched by all of this")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "main.bas"))
+    app = r.app
+    print "strip:   " + studio_ui.section_label(app)
+    print "heading: " + studio_ui.error_heading(studio_ui.error_body(app))
+    print "section marks=" + numlist(studio_ui.section_marks(app).lines)
+  end if
+
+  ' ---- badsyntax: a file that does not parse, which says so ----------------
+  ' `studio_sections.refresh` has recorded the parser's diagnostics since STU-3
+  ' and nothing displayed them. A file that does not parse yields no sections,
+  ' so the strip said "section: (none)", Run answered "the cursor is not inside
+  ' a runnable section" — true, and useless, because the cursor is plainly
+  ' inside a function — and the LINE AND COLUMN of the syntax error, the one
+  ' actionable fact in the window, was thrown away on every keystroke.
+  if mode = "badsyntax" then
+    bf{file} = projdir + "/bad_syntax.bas"
+    write(bf, "print \"one\"\n\nfunction add(a, b)\n  return a + b\nend function\n\nprint add(2, 3)\nif x = then\n")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "bad_syntax.bas"))
+    app = r.app
+    app.clock_fixed = 1000
+
+    banner("opened from cold: there are no sections because there is no parse")
+    print "strip:   " + studio_ui.section_label(app)
+    print "heading: " + studio_ui.error_heading(studio_ui.error_body(app))
+    print "errors:  <" + studio_ui.error_body(app) + ">"
+    ' The gutter. 0-based, because a text buffer counts lines from 0 and the
+    ' parser counts them from 1 — an off-by-one here puts the marker on the line
+    ' above the mistake, which is worse than no marker.
+    em = studio_ui.error_marks(app)
+    app = em.app
+    print "marks:   lines=" + numlist(em.lines) + " signature=" + em.signature
+    sm = studio_ui.section_marks(app)
+    app = sm.app
+    print "         section marks=" + numlist(sm.lines) + " (none: there are no sections)"
+    ' The caret is INSIDE add(). Blaming the cursor would send the user to move
+    ' it, which cannot help.
+    r = studio_ui.run_section(app, 3, 2)
+    app = r.app
+    print "-> Run with the caret inside add(): " + r.action
+    print "   status: " + studio_ui.action_notice(r.action, r.detail)
+
+    banner("the marks MOVE with the error and go when it is fixed")
+    ' The signature is what the shell gates its redraw on, so these three values
+    ' are the whole of "the gutter keeps up". A count would not do it: the first
+    ' two errors are both one error, on different lines.
+    id = studio_docs.active_doc(app.dm).id
+    app = studio.edit_document(app, id, "print \"one\"\n\nif q = then\n  return a + b\nend function\n")
+    em = studio_ui.error_marks(app)
+    app = em.app
+    print "moved:   lines=" + numlist(em.lines) + " signature=" + em.signature
+    app = studio.edit_document(app, id, "print \"one\"\n\nfunction add(a, b)\n  return a + b\nend function\n")
+    em = studio_ui.error_marks(app)
+    app = em.app
+    print "fixed:   lines=" + numlist(em.lines) + " signature=<" + em.signature + ">"
+    print "         section marks back=" + numlist(studio_ui.section_marks(app).lines)
+
+    banner("a file that DOES parse is unaffected — no parse line, no heading count")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "main.bas"))
+    app = r.app
+    ' Thread the view back, exactly as `studio_shell.refresh_run` does. A caller
+    ' that drops it does not merely re-parse: on the NEXT failed parse there is
+    ' no cached state to retain last-known-good sections from, so the state is
+    ' rebuilt from the workspace and comes back empty. That is the difference
+    ' between this case reaching `refused` (what the window does) and reaching
+    ' `no-parse`.
+    vw = studio_ui.view_for(app)
+    app = vw.app
+    print "strip:   " + studio_ui.section_label(app)
+    print "heading: " + studio_ui.error_heading(studio_ui.error_body(app))
+    print "errors:  <" + studio_ui.error_body(app) + ">"
+
+    banner("broken by TYPING into a file that parsed a moment ago")
+    ' On a failed parse the state keeps its last-known-good sections — it must,
+    ' or a user mid-keystroke would have every result renumbered out from under
+    ' them — but they describe the OLD text, so the caret's new byte offset need
+    ' not land in one. Either way the answer is the same sentence with the same
+    ' address, which is the point: one fact, one message, however you got here.
+    id = studio_docs.active_doc(app.dm).id
+    app = studio.edit_document(app, id, "print \"main\"\nif y = then\n")
+    r = studio_ui.sync_cursor(app, id, 0, 0)
+    app = r.app
+    vw = studio_ui.view_for(app)
+    app = vw.app
+    print "sections retained=" + count(vw.st.sections) + " valid=" + vw.st.valid
+    r = studio_ui.run_section(app, 0, 0)
+    app = r.app
+    print "-> Run: " + r.action
+    print "   status: " + studio_ui.action_notice(r.action, r.detail)
+    print "heading: " + studio_ui.error_heading(studio_ui.error_body(app))
+    print "errors:  <" + studio_ui.error_body(app) + ">"
+  end if
+
+  ' ---- runrefuse: a run Studio DECLINES, and where its sentence goes -------
+  ' `refused` and `failed` both return from `run_section` with `active` false,
+  ' so `tick_run` is never polled and `add_result` is never reached. Nothing
+  ' executed, so there is correctly no result -- but that left the message with
+  ' exactly one home, the run strip, which is a single row beside three buttons
+  ' and ellipsizes. A user saw "run: refused [sec-3] — that sec…" and the rest
+  ' of the sentence existed nowhere on screen, while the pane whose whole job is
+  ' to say what went wrong answered "(none)".
+  if mode = "runrefuse" then
+    df{file} = projdir + "/dup.bas"
+    write(df, "function mul(a, b)\n  return a * b\nend function\n\nprint mul(2, 3)\n")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "dup.bas"))
+    app = r.app
+    app.clock_fixed = 1000
+    id = studio_docs.active_doc(app.dm).id
+    r = studio_ui.sync_cursor(app, id, 1, 0)
+    app = r.app
+    print "at the caret: " + studio_ui.section_label(app)
+
+    banner("mul() duplicated verbatim — neither copy is `the` mul() any more")
+    app = studio.edit_document(app, id, "function mul(a, b)\n  return a * b\nend function\n\nfunction mul(a, b)\n  return a * b\nend function\n\nprint mul(2, 3)\n")
+    r = studio_ui.sync_cursor(app, id, 1, 0)
+    app = r.app
+    r = studio_ui.run_section(app, 1, 0)
+    app = r.app
+    print "-> Run: action=" + r.action + " active=" + r.active
+
+    banner("the strip says it in one line; the pane says it in full")
+    print "strip:   " + studio_ui.run_line(studio_ui.exec_session(app))
+    print "heading: " + studio_ui.error_heading(studio_ui.error_body(app))
+    print "errors:  <" + studio_ui.error_body(app) + ">"
+    ' NOT the previous run's output. A refusal produced none, and output from an
+    ' earlier run shown beside "refused:" reads as output of the run that was
+    ' refused.
+    print "prefix:  <" + studio_ui.prefix_body(app) + ">"
+    print "target:  <" + studio_ui.target_body(app) + ">"
+
+    banner("the heading counts, so a pane below the fold still says there is one")
+    print "nothing:  " + studio_ui.error_heading("(none)")
+    print "in flight: " + studio_ui.error_heading("(running)")
+    print "one:      " + studio_ui.error_heading("target [sec-3] 8:1  undefined variable: x")
+    ' A raw stderr capture ends in a newline; the blank line it leaves behind is
+    ' not a third error.
+    print "two:      " + studio_ui.error_heading("first\nsecond\n")
+  end if
+
   ' ---- runstop: refusal, stopping, and the states around a run -------------
   if mode = "runstop" then
     print "-> Run with nothing open: " + studio_ui.run_section(app, 0, 0).action
@@ -1239,10 +1807,16 @@ program main(args)
     print "target=<" + studio_ui.target_body(app) + ">"
 
     banner("two branches at that point, each binding threshold differently")
+    ' Keyed the way studio_ui keys them — by the document's PATH, not its minted
+    ' id. This driver reaches past studio_ui into studio_branches to build the
+    ' fixture, so it has to use the same key the window does or it builds a tree
+    ' the window cannot find. (That is the layering rule earning its keep: the
+    ' one place that skipped studio_ui is the one place this broke.)
+    dockey = studio_ui.doc_key(studio_docs.active_doc(app.dm))
     tree = studio_ui.branch_tree(app)
-    a = studio_branches.add(tree, id, point, "Low", "", v.st)
+    a = studio_branches.add(tree, dockey, point, "Low", "", v.st)
     tree = studio_branches.bind(a.tree, a.id, "threshold", "0.25").tree
-    b = studio_branches.add(tree, id, point, "High", "", v.st)
+    b = studio_branches.add(tree, dockey, point, "High", "", v.st)
     tree = studio_branches.bind(b.tree, b.id, "threshold", "0.9").tree
     app = studio_ui.set_branch_tree(app, tree)
 
@@ -1278,10 +1852,13 @@ program main(args)
     print studio_ui.results_body(app)
 
     banner("branches survive a save and a relaunch")
+    ' And they survive it keyed by PATH, so the doc id the relaunch mints for
+    ' this file — which is a different one — no longer decides whether the
+    ' branches can be found.
     persist_result = studio.persist(app)
     again = studio.launch(home)
     back = studio_ui.branch_tree(again)
-    print studio_branches.summary(back, id, v.st)
+    print studio_branches.summary(back, dockey, v.st)
   end if
 
   ' ---- notice: what the status bar says about each outcome -----------------

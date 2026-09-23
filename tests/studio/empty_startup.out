@@ -1,8 +1,7 @@
 settings.theme=system
 settings.restore_last_session=true
 settings.recent_limit=10
-session.active_workspace=
 session.window=1200x800 max=false
 session.recent=
-workspace=none
+projects=none
 diagnostics=settings:default;session:default;workspace:none

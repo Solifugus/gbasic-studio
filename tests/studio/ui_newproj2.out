@@ -1,0 +1,57 @@
+== the defaults ==
+main=true projfile=false readme=false git=false license=none
+plan: planned files=main.bas
+== a name, and the directory is its slug ==
+dir=my-thing name=My Thing
+== everything on ==
+plan: planned files=main.bas,README.md,LICENSE,.gitignore git=true projfile=true
+== refusals, none of which create anything ==
+-> no-name: give the project a name
+-> invalid
+-> no-path
+-> no-author: MIT names a copyright holder — fill in Author
+-> no-license: no text shipped for Nonesuch — check share/licenses
+nothing was created=true
+== create it for real ==
+-> Create: project-created My Thing — main.bas, README.md, LICENSE, .gitignore, .gstudio.json, git
+nav rows=7
+  [info] Workspace: ws
+  [project]   Alpha
+  [project] * My Thing
+  [file]     .gstudio.json
+  [file]     LICENSE
+  [file]     README.md
+  [file]     main.bas
+selected=
+tabs=0
+on disk: .git .gitignore .gstudio.json LICENSE README.md main.bas
+-- main.bas --
+' My Thing
+
+print "hello from My Thing"
+
+-- README.md --
+# My Thing
+
+What this is.
+
+## Running it
+
+```sh
+gbasic main.bas
+```
+
+## Licence
+
+MIT — see LICENSE.
+
+-- LICENSE, first three lines --
+MIT License
+
+Copyright (c) 2025 A. Author
+== the same name again lands on a directory that is there ==
+-> Create again: exists my-thing
+== a licence copied verbatim carries no placeholder ==
+-> Create Apache: project-created Second — main.bas, LICENSE
+has a placeholder=false
+is the Apache licence=true

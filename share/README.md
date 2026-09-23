@@ -8,13 +8,37 @@ repository told a desktop environment what Studio was.
 ```
 share/applications/org.gbasic.Studio.desktop   the desktop entry
 share/icons/hicolor/<size>/apps/org.gbasic.Studio.png   the icon, 16 … 256
+share/icons/hicolor/<size>/status/gbasic-studio-error.png   the gutter's error mark, 16/24/32
+share/licenses/<spdx-id>.txt                   the licence texts New Project can write
 ```
+
+Not everything here is a desktop file. `licenses/` is DATA the application
+reads: Studio does not author a licence, it copies one of these and fills in
+the year and the author. Its own README records where each text came from, so
+a reader can check the provenance rather than take it on trust. The directory
+is found through `GBASIC_STUDIO_SHARE`, which `./studio` exports for the same
+reason it exports `GBASIC_STUDIO_VIEWERS` — an installed copy keeps `share/`
+somewhere else, and Studio's own working directory is never the answer.
 
 The name is the application id `app/studio.bas` already registers with GTK,
 `org.gbasic.Studio`, so the entry, the icon and the window agree without anyone
 having to keep three spellings in step.
 
-The icon is the gBASIC mascot from `~/development/gbasic/docs/assets/mascot.png`,
+**Why the gutter mark is here and not a stock name.** The editor marks the line
+a parse failed on, and a `GtkSource.MarkAttributes` draws that mark from an icon
+NAME. `dialog-error` and `dialog-error-symbolic` are both standard freedesktop
+names and neither one resolved: this machine's Breeze ships the first and not
+the second, its Adwaita ships the second and not the first, and what the gutter
+actually drew was GTK's missing-icon fallback — a grey disc wide enough to sit
+on top of the code. A marker that lands on the wrong icon is worse than no
+marker, so the name is Studio's own and the file ships here, in `hicolor`, which
+every icon theme inherits.
+
+(`MarkAttributes.set_background` would have avoided icons altogether, but it
+takes a `Gdk.RGBA` and `gi.new` refuses that type: "not an instantiable object
+type". Same class of gap as the class statics below.)
+
+The application icon is the gBASIC mascot from `~/development/gbasic/docs/assets/mascot.png`,
 squared to the beaver and resampled to each hicolor size. It is a raster and not
 an SVG because the mascot is a raster; a real release should draw a vector
 version, since 16px of a 1629px illustration is a smudge no downsampler can save.

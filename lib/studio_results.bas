@@ -79,6 +79,8 @@ library studio_results
 
     ' Dependencies are declared, not assumed.
     load studio_viewers
+    ' For `path_key`, which the per-project state store shares.
+    load studio_model
 
 
     ' Dependencies, declared rather than assumed. A library that calls into
@@ -132,50 +134,11 @@ library studio_results
         return home + "/results"
     end function
 
-    ' A filesystem-safe, deterministic, collision-resistant key for a document
-    ' path: a readable tail (so a directory listing is meaningful to a human) plus
-    ' a rolling hash of the WHOLE path (so two files sharing a basename in
-    ' different directories never collide). Pure gBASIC on purpose — `sha256` is
-    ' behind HAVE_LIBCRYPTO, and results must not stop working where crypto is
-    ' compiled out.
+    ' Delegated to studio_model so the results store and the per-project state
+    ' store cannot drift into two different filenames for one path. The
+    ' implementation moved verbatim; existing stores keep their names.
     function _key(doc_path)
-        m = 1000000007
-        h = 0
-        i = 0
-        n = byte_count(doc_path)
-        while i < n
-            h = h - floor(h / m) * m
-            h = h * 131 + byte_at(doc_path, i) + 1
-            i = i + 1
-        end while
-        h = h - floor(h / m) * m
-
-        safe = ""
-        i = 0
-        while i < n
-            b = byte_at(doc_path, i)
-            ok = false
-            if b >= 48 and b <= 57 then
-                ok = true
-            end if
-            if b >= 65 and b <= 90 then
-                ok = true
-            end if
-            if b >= 97 and b <= 122 then
-                ok = true
-            end if
-            if ok then
-                safe = safe + chr(b)
-            else
-                safe = safe + "-"
-            end if
-            i = i + 1
-        end while
-        ' Keep the tail: the distinguishing part of a path is its end, not its root.
-        if len(safe) > 40 then
-            safe = right(safe, 40)
-        end if
-        return safe + "-" + h
+        return studio_model.path_key(doc_path)
     end function
 
     function store_path(home, doc_path)

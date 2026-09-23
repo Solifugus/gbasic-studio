@@ -1,0 +1,23 @@
+== opened from cold: there are no sections because there is no parse ==
+strip:   section: (this file does not parse)
+heading: Errors (1)
+errors:  <error 8:8  syntax error, unexpected THEN>
+marks:   lines=7 signature=7
+         section marks= (none: there are no sections)
+-> Run with the caret inside add(): no-parse
+   status: this file does not parse — error 8:8  syntax error, unexpected THEN
+== the marks MOVE with the error and go when it is fixed ==
+moved:   lines=2 signature=2
+fixed:   lines= signature=<>
+         section marks back=0,2
+== a file that DOES parse is unaffected — no parse line, no heading count ==
+strip:   section: sec-1 statements
+heading: Errors
+errors:  <(none)>
+== broken by TYPING into a file that parsed a moment ago ==
+sections retained=1 valid=false
+-> Run: refused
+   status: will not run it — the document does not parse; fix the errors first
+heading: Errors (2)
+errors:  <refused: the document does not parse; fix the errors first
+error 2:8  syntax error, unexpected THEN>

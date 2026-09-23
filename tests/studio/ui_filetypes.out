@@ -1,0 +1,26 @@
+-- what counts as gBASIC --
+  main.bas        -> true
+  lib/thing.gb    -> true
+  SHOUT.BAS       -> true
+  README.md       -> false
+  Makefile        -> false
+  notes.bas.txt   -> false
+  dialect.basic   -> false
+== a markdown file: open, editable, and NOT a broken program ==
+strip:   section: (not a gBASIC file)
+heading: Errors
+errors:  <(none)>
+gutter:  error marks= section marks=
+-> Run: not-gbasic
+   status: NOTES.md is not a gBASIC file — Run Section needs .bas or .gb
+== editing and saving one works exactly as before ==
+dirty=1
+save: saved dirty=0
+on disk=<# Notes
+
+Edited.
+>
+== and the .bas beside it is untouched by all of this ==
+strip:   section: sec-1 statements
+heading: Errors
+section marks=0

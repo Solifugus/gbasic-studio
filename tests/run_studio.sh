@@ -44,6 +44,10 @@ if [ -f "$gbasic_dir/Makefile" ]; then
 fi
 
 export GBASIC_PATH="lib:$GBASIC_STDLIB"
+# New Project copies a LICENSE out of share/licenses/ rather than authoring one,
+# and finds that directory the way ./studio tells it to. Without this the licence
+# cases would exercise the "no text shipped" refusal instead of the licence.
+export GBASIC_STUDIO_SHARE="$PWD/share"
 APP=app/studio.bas
 
 tmproot="$(mktemp -d)"
@@ -69,6 +73,9 @@ mkproj_ui() { # dir — the STU-2B interaction fixture: a nested tree with two
     printf 'x\n'            > "$d/src/a.bas"
     printf 'y\n'            > "$d/src/b.bas"
     printf 'z\n'            > "$d/docs/guide.md"
+    # A dotfile that stays hidden, so "the browser shows .gstudio.json" is a
+    # statement about that file and not about dotfiles generally.
+    printf 'shh\n'          > "$d/.hidden"
 }
 
 mkproj2() { # dir — deterministic source files for the document cases
@@ -106,7 +113,7 @@ run_golden "empty_startup" startup "$tmproot/empty" tests/studio/empty_startup.o
 #    the same home; restored state must equal the golden (window state included).
 home_sr="$tmproot/sr"
 timeout 60 "$GBASIC" "$APP" build "$home_sr" >"$stdout_file" 2>&1 || { cat "$stdout_file"; fail "save_restore (build)"; }
-grep -q '^saved=settings,session,workspace:ws-1$' "$stdout_file" || { cat "$stdout_file"; fail "save_restore (saved line)"; }
+grep -q '^saved=settings,session$' "$stdout_file" || { cat "$stdout_file"; fail "save_restore (saved line)"; }
 run_golden "save_restore" startup "$home_sr" tests/studio/save_restore.out
 
 # 3. Corrupt session — invalid JSON in session.json; startup recovers, no crash.
@@ -370,7 +377,7 @@ home_s1="$tmproot/s1"
 : >"$stdout_file"
 timeout 60 "$GBASIC" "$APP" stu1_build "$home_s1" "$proj_sr" >"$stdout_file" 2>&1 || { cat "$stdout_file"; fail "stu1_build (exit)"; }
 # `drafts` joined this list when unsaved buffers started surviving a close.
-grep -q '^saved=settings,session,workspace:ws-1,registry,drafts$' "$stdout_file" || { cat "$stdout_file"; fail "stu1_build (saved line)"; }
+grep -q '^saved=settings,session,drafts$' "$stdout_file" || { cat "$stdout_file"; fail "stu1_build (saved line)"; }
 run_golden "stu1_restore" stu1_restore "$home_s1" tests/studio/stu1_restore.out
 
 # 8. Missing project — scanning a non-existent project directory yields no rows
@@ -395,10 +402,13 @@ else
 fi
 rm -f "$before" "$after"
 
-# 11. Workspace registry + recent — multiple workspaces are remembered and ordered.
-run_golden "stu1_registry" stu1_registry "$tmproot/reg" tests/studio/stu1_registry.out
+# 11. A home written before the workspace was demoted: its projects lived in
+#     workspaces/<id>.json with session.json only pointing at it. They must come
+#     back, and the old file must still be there afterwards — until the first
+#     clean save it is the ONLY copy of that state.
+run_golden "stu1_migrate" stu1_migrate "$tmproot/mig" tests/studio/stu1_migrate.out
 
-# 12. Memory — 50 STU-1 launch/persist cycles (registry included) under valgrind.
+# 12. Memory — 50 STU-1 launch/persist cycles under valgrind.
 if command -v valgrind >/dev/null 2>&1; then
     vg_log="$(mktemp)"; : >"$stdout_file"
     if timeout 300 valgrind --error-exitcode=99 --leak-check=full --errors-for-leak-kinds=definite \
@@ -502,6 +512,20 @@ fi
 # edits (blank-insert/internal/rename/sibling/duplicate/delete), invalid-source
 # retention+recovery, persistence round-trip, multi-document isolation, Unicode byte
 # offsets, and repeated-refresh determinism.
+# The editor's style scheme: a pure decision over four plain values the shell
+# reads off GtkSettings. The READING is what no headless test can do; the
+# DECIDING is all of it, so all of it is here. No display needed — studio_style
+# loads `gi` but this path never calls `gi.require`.
+: >"$stdout_file"
+if ! timeout 60 "$GBASIC" tests/drivers/style.bas >"$stdout_file" 2>&1; then
+    cat "$stdout_file"; fail "style_scheme (nonzero exit)"
+fi
+if diff -u tests/studio/style_scheme.out "$stdout_file"; then
+    printf 'PASS style_scheme (which scheme, from what the toolkit says)\n'
+else
+    fail "style_scheme (output diff)"
+fi
+
 SEC=tests/drivers/sections.bas
 run_sections() { # mode
     local mode="$1"
@@ -857,7 +881,7 @@ run_ui() { # mode
 for m in rows open expand project bounds tabs edit save newproj refresh \
          newfile newfolder adopt exit \
          names rename delete closetab notice \
-         run runstop runerr cursor drafts branch table overlay overlay_conflict; do
+         run runstop runerr runrefuse badsyntax filetypes projfile projpin newproj2 anchors cursor drafts branch table overlay overlay_conflict; do
     run_ui "$m"
 done
 
@@ -1052,6 +1076,30 @@ if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
             printf 'SKIP ui_gui_cursor (GTK 4 typelib not available)\n'
         else
             cat "$stdout_file"; fail "ui_gui_cursor (nonzero exit)"
+        fi
+    fi
+
+    # STU-12: New Project with the questions asked. The window is one Studio
+    # BUILDS, so the form can be filled and Create pressed for real — a
+    # GtkAlertDialog would have made this case impossible to write.
+    np_home="$tmproot/ui_gui_newproj"; np_at="$tmproot/ui_gui_newproj_at"
+    rm -rf "$np_home" "$np_at"
+    mkdir -p "$np_home" "$np_at"
+    : >"$stdout_file"
+    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
+            "$GBASIC" "$APP" stu12_smoke "$np_home" "$np_at" \
+            >"$stdout_file" 2>/dev/null; then
+        if diff -u tests/studio/ui_gui_newproj.out "$stdout_file"; then
+            printf 'PASS ui_gui_newproj (the form filled and Create pressed for real)\n'
+        else
+            fail "ui_gui_newproj (output diff)"
+        fi
+    else
+        rc=$?
+        if grep -q 'Typelib file for namespace' "$stdout_file" 2>/dev/null; then
+            printf 'SKIP ui_gui_newproj (GTK 4 typelib not available)\n'
+        else
+            cat "$stdout_file"; fail "ui_gui_newproj (nonzero exit)"
         fi
     fi
 
@@ -1280,6 +1328,7 @@ else
     printf 'SKIP ui_gui_run (no display)\n'
     printf 'SKIP ui_gui_cursor (no display)\n'
     printf 'SKIP ui_gui_open (no display)\n'
+    printf 'SKIP ui_gui_newproj (no display)\n'
     printf 'SKIP ui_gui_branch (no display)\n'
     printf 'SKIP ui_gui_table (no display)\n'
     printf 'SKIP ui_gui_overlay (no display)\n'

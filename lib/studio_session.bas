@@ -104,6 +104,12 @@ library studio_session
             doc_id: doc_id,
             scratch_dir: scratch_dir,
             interpreter: studio_session.default_interpreter(),
+            ' Environment overrides for the child, MERGED over the inherited
+            ' one by process.start, or `nothing` to inherit it unchanged.
+            ' `nothing` and not `{}` because process.start validates the option
+            ' when the key is present at all, so an empty record would have to
+            ' be a special case at the call site anyway.
+            env: nothing,
             state: "idle",
             transitions: [],
             run_seq: 0,
@@ -1115,10 +1121,17 @@ library studio_session
         ' block-buffer it and hand us nothing until exit -- leaving the tick loop
         ' below polling an empty pipe and losing everything still buffered if the
         ' user stops the run.
-        session.handle = process.start({
+        opts = {
             command: session.interpreter,
             args: ["--line-buffered", "--json-diagnostics", path]
-        })
+        }
+        ' Only when there is one: process.start validates `env` whenever the
+        ' key exists, and `nothing` is not a record, so passing it always would
+        ' raise on every run that pins nothing — which is nearly all of them.
+        if session.env != nothing then
+            opts.env = session.env
+        end if
+        session.handle = process.start(opts)
         session = studio_session._to(session, "running")
         return session
     end function

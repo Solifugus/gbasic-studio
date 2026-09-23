@@ -1,0 +1,14 @@
+at the caret: section: sec-1 function mul
+== mul() duplicated verbatim — neither copy is `the` mul() any more ==
+-> Run: action=refused active=false
+== the strip says it in one line; the pane says it in full ==
+strip:   run: refused [sec-3] — that section is ambiguous after the last edit; disambiguate it first
+heading: Errors (1)
+errors:  <refused: that section is ambiguous after the last edit; disambiguate it first>
+prefix:  <(the run did not start)>
+target:  <(the run did not start)>
+== the heading counts, so a pane below the fold still says there is one ==
+nothing:  Errors
+in flight: Errors
+one:      Errors (1)
+two:      Errors (2)

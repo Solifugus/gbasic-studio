@@ -28,7 +28,12 @@ because closing now writes the session. The status bar says what each click did,
 including what it refused to do and why.
 
 New File, New Folder, Rename and **Open Folder** read the header's **name
-field** — the last one as a path. Leave it empty
+field** — the last one as a path, with `~` and relative paths expanded the way
+a shell would (relative to wherever you ran `./studio`). That is how you open a
+project you already have: type `~/development/gdash`, press **Open Folder**, and
+it becomes a project in the workspace and stays there. The empty browser says
+so, and the field and the button both carry tooltips, because a field labelled
+only "name" hid the one route to an existing project. Leave it empty
 and creation mints `untitled-N.bas` / `new-folder-N`; type into it and that is
 the name. It is a field rather than a dialog on purpose: a GtkEntry's text can be
 set programmatically, so the display tier types into it and clicks Rename for
@@ -59,6 +64,105 @@ often sits — resolves to the nearest section rather than refusing.
 you press Run, and the results pane shows that section's history — move the caret
 and both change. A caret in the whitespace between sections belongs to the section
 above it; on a file's trailing blank line, to the last one.
+
+**What went wrong is readable.** The run strip's state line gets a row of its
+own under the buttons, so it wraps instead of being cut: a refusal
+(`run: refused [sec-3] — that section is ambiguous after the last edit;
+disambiguate it first`) used to share one horizontal row with three buttons and
+two labels and arrive ellipsized after its first few words, with the rest of the
+sentence nowhere on screen. The **Errors** pane carries the same sentence in
+full, selectable, and its heading counts what is under it — `Errors (1)` — so
+a pane below the fold of the console still says there is something to scroll to.
+A run Studio *declines* records no result, correctly, since nothing executed;
+the message reaches the pane from the session instead, and the output panes say
+`(the run did not start)` rather than showing an earlier run's output beside it.
+
+**The editor follows the theme.** A GtkSourceView paints from a *style scheme*,
+which is its own thing and not the GTK theme — and nothing set one, so the
+source area stayed white inside a dark window and Studio looked like two
+applications sharing a frame. It now picks `classic` or `classic-dark` (the
+light one is what a buffer chose on its own, so nothing about the light editor
+moved), and the tint over the section at the caret follows the same decision.
+`settings.theme` is what decides: `light` and `dark` overrule the desktop,
+`system` reads it — and since no single toolkit signal is reliable, all three of
+`gtk-application-prefer-dark-theme`, `gtk-theme-name` and `GTK_THEME` are
+consulted. That setting has been saved in every home since the first release
+with nothing reading it.
+
+**Each project keeps its own state file.** Section anchors, the branch tree and
+the overlays live in `<home>/state/<key>.json`, one per project, instead of all
+together in the session record — which grew with every project you had ever
+opened and never shrank. Open two projects and you get two files; delete one and
+you have forgotten exactly that project and nothing else. Still nothing in your
+project directory: this is derived and personal, and it only means anything
+beside this home's results.
+
+**New Project asks.** It opens a window — a name, where it goes, and four
+things a new project usually wants: `main.bas`, a `README.md`, a
+`.gstudio.json`, and a git repository with a `.gitignore`. Only `main.bas` is
+ticked. An empty project used to be a dead end (no files, no rows, nothing to
+click), and that one default closes it; everything else is off, because a box
+you had to untick is not consent. There is also a licence list, and Studio does
+not write a licence of its own — it copies the text from `share/licenses/` and
+fills in the year and the author, taken from `git config user.name` when there
+is one. Pick one it has no text for, or leave the author blank on a licence that
+names a copyright holder, and it refuses and says so rather than writing a
+LICENSE file that is not the licence.
+
+It is a window Studio builds rather than a system dialog, which is why there is
+a test that fills the form in and presses Create.
+
+**A project can carry its own file, if you ask for it.** `.gstudio.json` gives a
+project a stable id, so its saved state survives the folder being moved or
+renamed; a list of what the browser should not show; and a pin on which gBASIC
+it runs under, so a project that needs a particular build gets it on anybody's
+machine. **Studio never creates this file on its own** — not on Open Folder, not
+on save, not on exit, not on first run. There is one button that writes it and
+nothing else does, which is the whole point: the objection to an IDE's metadata
+is that it appears uninvited and then has opinions about your directory. It is
+also the one dotfile the browser shows, because hiding a file you agreed to is
+how it becomes uninvited again. Adding one moves the project's saved state to
+the new key rather than leaving the anchors behind.
+
+**Closing a tab no longer scrambles a file's run history.** Section anchors and
+branches were filed under the document's minted `doc-N` id, which a close throws
+away — so reopening the same file derived a fresh state numbered in file order,
+while the ids results were recorded against deliberately are not in file order.
+A file whose sections were `sec-4, sec-3, sec-1, sec-2` came back as
+`sec-1, sec-2, sec-3, sec-4`, and every result then named a *different*
+function. They are keyed by path now, which a close does not change.
+
+**One file, not four.** A home used to keep its projects in
+`workspaces/<id>.json`, with `session.json` pointing at it and a
+`workspaces.json` registry listing the set — a set that never had more than one
+member. The projects now ride inside `session.json`, and the registry is gone.
+An existing home migrates itself on the next launch and **the old file is left
+exactly where it is**: until the first clean save it is the only copy of that
+state. A project is a name and a path; the two document lists it used to carry
+(one of which nothing ever wrote) are gone.
+
+**A project is not only its `.bas` files.** Open a README, a Makefile, a JSON
+fixture — they are part of the project, and Studio now treats them as what they
+are. Each is highlighted as its own language (markdown, JSON, YAML, HTML, CSS,
+Python, shell, C and the rest come from GtkSourceView, so the list is not one
+Studio has to maintain), and none of them is parsed as gBASIC. That last part
+was the bug: every document used to go through `source_outline`, so opening
+README.md reported *"this file does not parse — error 1:1 unexpected token"* and
+marked line 1 in the gutter. Now the strip says `section: (not a gBASIC file)`,
+the errors pane says nothing, and Run answers `README.md is not a gBASIC file —
+Run Section needs .bas or .gb`. Editing and saving work exactly as before.
+
+**A file that does not parse says where.** It used to say nothing useful: no
+sections means no section at the cursor, so the strip read `section: (none)` and
+Run answered "the cursor is not inside a runnable section" — true, and useless,
+with the caret sitting plainly inside a function. Studio had the parser's
+diagnostic the whole time and threw it away on every keystroke. Now the strip
+says `section: (this file does not parse)`, the Errors pane carries
+`error 8:8  syntax error, unexpected THEN`, pressing Run puts the same line in
+the status bar, and **the gutter marks the line** — the marker moves when the
+error moves and goes when it is fixed, and the section arrows come back with it. Break a file that was parsing a moment ago and the run is
+refused instead — the sections from before survive, so the caret still resolves
+— and the pane shows both the refusal and the address it does not carry.
 
 **A run now reports its variables.** The materialized prefix ends with an
 epilogue that asks `reflect` what the target section left behind — name, kind,
@@ -291,9 +395,10 @@ a sibling checkout:
 GBASIC=/usr/local/bin/gbasic GBASIC_STDLIB=/usr/local/share/gbasic/stdlib ./studio
 ```
 
-An empty home renders `(no workspace open)`; click **New Project** and Studio
-creates a workspace plus a project directory under `<home>/projects/` and shows
-it, then **New File** gives you something to type in. To work on a directory you
+An empty home renders `(no workspace open)`; click **New Project** and a window
+asks for a name, a location and which files to make — `main.bas` is ticked, so
+Create lands you on a file you can run. The directory goes under
+`<home>/projects/` unless you change the Location. **New File** adds more. To work on a directory you
 already have, type its path into the header's name field and press **Open
 Folder**, or pass it as the third argument (above). To start from a canned
 workspace instead:
@@ -306,8 +411,8 @@ workspace instead:
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 132 cases, headless; honours GBASIC / GBASIC_STDLIB
-tests/run_studio_agent.sh     # 7 cases, headless AND offline — no network, no key
+tests/run_studio.sh           # 172 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio_agent.sh     # 29 cases, headless AND offline — no network, no key
 ```
 
 Golden-file based: a driver plus a `.out` holding expected stdout, compared

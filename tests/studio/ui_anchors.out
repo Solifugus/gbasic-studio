@@ -1,0 +1,7 @@
+opened     : sec-1,sec-2
+== two edits, each inserting a function above the others ==
+after edit : sec-3,sec-1,sec-2
+after edit : sec-4,sec-3,sec-1,sec-2
+== close the tab and open the same file again ==
+reopened   : sec-4,sec-3,sec-1,sec-2
+identical to before the close=true

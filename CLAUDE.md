@@ -37,9 +37,11 @@ checkout:
 GBASIC=/usr/local/bin/gbasic GBASIC_STDLIB=/usr/local/share/gbasic/stdlib ./studio
 ```
 
-An empty home renders `(no workspace open)`; **New Project** creates a workspace
-and a project directory under `<home>/projects/`, and **New File** puts something
-in it. Closing the gui window runs `studio.persist`, so the home is written on
+An empty home renders `(no workspace open)`; **New Project** opens a window that
+asks for a name, a location and which of `main.bas` / `README.md` /
+`.gstudio.json` / a git repository to make (only `main.bas` is ticked), and
+Create builds the project directory — under `<home>/projects/` unless the
+Location says otherwise. **New File** adds more. Closing the gui window runs `studio.persist`, so the home is written on
 exit — unsaved *buffers* are not (there is no draft store; the exit path warns on
 stderr). `./studio build <home>` still writes a canned workspace headlessly if
 you want content without clicking.
@@ -47,7 +49,7 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 163 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 172 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 29 cases, headless AND offline (scripted transport)
 ```
 
@@ -57,7 +59,7 @@ so. The suite builds the sibling gBASIC first when `GBASIC` points into a source
 tree, so an interpreter change is what gets tested rather than a stale binary.
 Display tiers (`sections_gui`, `sessions_gui`, `results_gui`, `ui_gui`,
 `ui_gui_cold`, `ui_gui_new`, `ui_gui_name`, `ui_gui_solo`, `ui_gui_run`,
-`ui_gui_cursor`, `ui_gui_open`, `ui_gui_branch`, `ui_gui_table`, `ui_gui_overlay`, `ui_gui_teach`, `ui_gui_git`) SKIP cleanly
+`ui_gui_cursor`, `ui_gui_open`, `ui_gui_newproj`, `ui_gui_branch`, `ui_gui_table`, `ui_gui_overlay`, `ui_gui_teach`, `ui_gui_git`) SKIP cleanly
 without GTK 4 or a display.
 `ui_gui_new` is the only case that spans two processes: the GUI builds a project
 from nothing and closes, and a second interpreter run reopens the same home —
@@ -101,6 +103,15 @@ lib/studio_git.bas      STU-11 optional git over `process.run` — found by
                         `process.which` (never by running it), because
                         process.run raises on a missing executable and gBASIC
                         cannot catch a raise
+lib/studio_projects.bas  ONE project's state in a file of its own —
+                        `<home>/state/<key>.json`: section anchors, the branch
+                        tree, the overlays. Keyed by the project's IDENTITY
+                        through the shared `studio_model.path_key`
+lib/studio_projfile.bas  the project's OWN file, `.gstudio.json` — DECLARED,
+                        small, hand-edited, committed, and IN the project
+                        directory: a stable id, an ignore list, and which
+                        gBASIC this project runs under. The exact opposite of
+                        studio_projects, which is why they are two libraries
 lib/studio_drafts.bas   unsaved buffers across a close; conflict-aware, keyed by
                         a hash of the text the buffer was based on
 lib/studio_history.bas  the semantic action log — a closed vocabulary, bounded
@@ -125,7 +136,9 @@ lib/studio_shell.bas    the GTK view — renders model state and reconciles on
 lib/studio_style.bas    the ONE stylesheet, the shared CSS provider, and the
                         spacing unit. Classes go on through `style.apply`, which
                         attaches the provider at the same time
-share/                  the .desktop entry and the hicolor icon (see share/README)
+share/                  the .desktop entry, the hicolor icons, and the licence
+                        texts New Project can write (see share/README and
+                        share/licenses/README)
 ```
 
 **The interaction rule (STU-2B), which later phases must follow.** A signal
@@ -141,6 +154,277 @@ Two consequences worth knowing before you touch the shell:
 - `studio_ui.nav_rows` produces the browser rows ONCE, and the renderer and the
   click dispatcher consume that same array. Deriving rows twice desynchronises
   the moment the filesystem changes between a render and a click.
+- **A project's state lives in its own file**, `<home>/state/<key>.json`, not in
+  the session record. One record holding every project's anchors at once grew
+  with every project ever opened and never shrank, and put the state that is
+  obviously about ONE project somewhere it could not be found, inspected or
+  deleted on its own. It is NOT in the project directory: this is derived,
+  personal and sometimes large — anchors that only mean anything beside this
+  home's results, a branch tree that is an experiment in progress.
+- `studio_model.path_key` is shared by `studio_projects` (keyed on a project
+  path) and `studio_results` (keyed on a document path). Two copies of a hash
+  are two things that can drift into producing different filenames for one
+  input; `studio_results._key` now delegates, and the implementation moved
+  verbatim so existing stores keep their names.
+- The state is cached on `app.pstate`, flushed by `studio.persist` AND on a
+  project switch — `project_state` writes the outgoing one on its way out,
+  because a switch is exactly when those anchors would otherwise be dropped on
+  the floor. It is deliberately NOT written per mutation: the section fold runs
+  at cursor-move rate. Same in-memory-until-exit behaviour it had inside the
+  workspace; only the file changed.
+- `studio_projects.key_for(path, stable_id)` takes the project's IDENTITY, and
+  never `proj-N`. That id is minted from a per-workspace counter, so closing a
+  project and reopening it mints a different one and orphans the state — the
+  same defect keying anchors by `doc-N` produced. The stable id out of
+  `.gstudio.json` survives the project MOVING; the path is the fallback when
+  there is no project file, and survives everything but a move. The id still
+  goes through `path_key` rather than being used raw as a filename: it is
+  hand-editable text, and a `/` in it would otherwise choose where the state
+  lands.
+- **Everything below `key_for` takes the KEY, not the path.** `studio_projects`
+  does not know what a directory is; `studio_ui.project_state` is the single
+  place that resolves identity, because it is the one caller holding both the
+  path and the project file. The store compares keys and never interprets them.
+- **Adding a project file CHANGES the key, so the anchors have to be carried.**
+  `studio_ui.add_project_file` re-files the state under the new key
+  (`_refile_state`) — from memory when the project is the loaded one, from the
+  old file otherwise, and not at all when there is nothing to carry. Without it
+  a button whose whole promise is "this changes nothing about your code" would
+  silently renumber every section in the project: `ui_projfile` was written to
+  fail first and did, `sec-3,sec-1,sec-2` coming back as `sec-1,sec-2,sec-3` —
+  the STU-3 misattribution re-entered through a new door. The old state file is
+  LEFT behind, like the workspace migration, because until the next save it is
+  the only copy and there is no undo for that button.
+- A document under NO project (opened by path, nothing adopted) has no key. Its
+  state lives in memory and is not persisted, rather than being invented a home.
+- **`.gstudio.json` — Studio never creates it except when explicitly asked.**
+  Not on Open Folder, not on New Project unless the box is ticked, not on save,
+  not on exit, not on first run. One button (`Project File`), one function
+  (`studio_ui.add_project_file`), one writer (`studio_projfile.create`). That
+  is the whole answer to "other IDEs put their own metadata in my project": a
+  file that exists only because somebody pressed a button cannot arrive
+  uninvited, and one that arrives any other way has broken the promise however
+  small it is.
+- **Open Folder never writes anything, ever.** It READS the project file —
+  `spec.name` is how two checkouts both called `src` get different names in the
+  browser — and that is all. The name lands when the folder is OPENED, so
+  editing it in the file shows up the next time you open the project rather
+  than mid-session.
+- **It is the one dotfile the browser shows** (`studio_ui.hidden_entry`). Hiding
+  a file you were asked to consent to is how it becomes uninvited metadata
+  again, and it is meant to be hand-edited, which a browser that will not show
+  it makes needlessly awkward. `.hidden` is in the `mkproj_ui` fixture so the
+  assertion is about `.gstudio.json` and not about dotfiles generally.
+- `create` REFUSES over an existing file rather than merging into it. Studio
+  does not know what else a hand-edited file holds, and a rewrite that dropped
+  somebody's key would be the same complaint arriving by the back door.
+- What it writes is MINIMAL: the id, the name, an empty `ignore`. `interpreter`
+  and `stdlib` are OMITTED rather than written empty — an empty string in an
+  interpreter field reads as a claim ("no interpreter"), not as an absence.
+- The id is `gsp-<hash of where>-<when>`, minted once and never derived again.
+  Opaque on purpose: an id you can read as a path invites the reading that it
+  goes stale when the project moves, which is the one thing it exists not to do.
+  `mint_id` takes the stamp as a PARAMETER (the `clock_fixed` seam) so a golden
+  can hold an id's shape (`studio_projfile._shape` → `gsp-#-#`) without holding
+  the second it was minted in.
+- **A newer `schema_version` means read NOTHING out of it**, not "read the
+  fields we still recognise". Half-honouring a file that means something else
+  now is worse than not honouring it; the state store takes the same line.
+  `present` (the file is there) and `status` (Studio can use it) are separate
+  for exactly this: a corrupt or future file is present, so "add one" still
+  refuses, and unusable, so nothing is read out of it.
+- Every field is guarded by type (`_string`, `_strings`). It is hand-edited, so
+  `"ignore": "build"` — a string where an array belongs — will happen, and it
+  must not raise inside a redraw.
+- The ignore list matches a NAME, at any depth, in two forms and no more: an
+  exact name, and a `*` prefix matching a suffix (`*.o`). The browser filters
+  `filetree.flatten` rows by name, so a path-anchored rule would be a second
+  mechanism pretending to be the same one — and a pattern language nobody can
+  predict the behaviour of is worse than one that plainly does two things.
+- **The project file is NOT cached.** `nav_rows` and `project_state` read it
+  where they need it. `nav_rows` already calls `filetree.scan` on every redraw,
+  so one small file is inside the noise, and no cache means hand-editing
+  `.gstudio.json` takes effect on the next redraw with no invalidation rule to
+  get wrong. Contrast `gitstate`, which is cached because detection FORKS.
+- The two pin fields are named after the two things `./studio` itself sets:
+  `interpreter` is the binary, `gbasic_path` is GBASIC_PATH for the child.
+  Calling the second `stdlib` would have been a small lie — a project with its
+  own `lib/` needs both entries on that path, and that is the more useful thing
+  to be able to say.
+- A pinned `gbasic_path` REPLACES `GBASIC_PATH` in the child rather than
+  prepending to it. A pin the ambient environment can reach around is not a pin — and the
+  child otherwise inherits Studio's own `lib:`, putting THIS repository's
+  libraries on the search path of the user's program. It goes through
+  `process.start`'s `env`, which MERGES over the inherited environment, so
+  nothing else about the child's world changes.
+- `session.env` is `nothing` and not `{}` when nothing is pinned:
+  `process.start` validates the `env` option whenever the key is PRESENT, and
+  `nothing` is not a record, so passing it always would raise on every run that
+  pins nothing — which is nearly all of them. `_launch` builds the options
+  record and adds `env` only when there is one.
+- `studio_projfile.read_spec`, not `read`: gBASIC has a `read` builtin, and a
+  library function shadowing one earns a note on STDERR at every load. Several
+  golden tiers capture stderr, so that is eleven failing tests and not a style
+  question — which is exactly how `tool_call` was found.
+
+### The New Project window
+
+- **New Project OPENS A WINDOW now; it no longer creates a project outright.**
+  `studio_ui.new_project` (mint a name, make a directory) is still there and
+  still tested, because the cold-start path is the one thing in this
+  application that cannot be allowed to break. But the button goes through
+  `studio_shell.new_project_window`, which is a window Studio BUILDS — not a
+  `GtkAlertDialog`, for the same reason names come from a header field and
+  confirmations are two clicks: an async surface is one no test can press.
+  Every control in it is an ordinary widget whose value can be SET, so
+  `ui_gui_newproj` fills the form and clicks Create for real.
+- The window holds NO decisions. It reads an options record in
+  (`studio_ui.default_options`) and hands one back out
+  (`studio_shell.new_project_options`, which is the whole of the
+  widget-to-value read). What those options MEAN is `studio_ui.project_plan`,
+  headless, and `ui_newproj2` asserts every box with no widget in sight.
+- **`project_plan` decides, `create_project` acts, and a refused plan has
+  touched nothing.** The refusals are named — `no-name`, `invalid`, `no-path`,
+  `exists`, `no-author`, `no-license` — and each reaches the status line by
+  name, so a New Project that will not go through says which field to change.
+  A refusal also keeps the WINDOW open with what was typed still in it: the
+  field to fix is in that window, and closing it to put the reason in a status
+  line behind it would hide both.
+- **Only `main.bas` is ticked by default.** A project with nothing in it scans
+  to zero browser rows and there is nowhere to click — the STU-2B dead end,
+  now closed from the other end. Everything else is OFF, and `.gstudio.json`
+  most deliberately: Studio ticking that box by default would be Studio putting
+  its own file in your directory because you did not look, which is the exact
+  behaviour that file exists to avoid. **A box you had to untick is not
+  consent.**
+- The checkbox goes through `studio_projfile.create`, the same single writer
+  the button uses, so "Studio never creates `.gstudio.json` except when asked"
+  stays true of a checkbox as well as of a button.
+- `create_project` answers `project-created`, NOT the `created` that New File
+  answers with. That notice reduces its detail to one token, which for a
+  project is the minted id — "created proj-1", about a thing the user just
+  named. This detail is the name and the list of what was actually written, and
+  it is reported whole, because a project name has spaces in it.
+- **git being absent is not this project's problem.** The directory and its
+  files are already written when `git init` is tried; a missing git is reported
+  and the project stands. Refusing to make a project over an optional tool
+  would be the §18 complaint again.
+- **Studio does not AUTHOR a licence.** `share/licenses/<id>.txt` holds the
+  text; `studio_ui.license_text` copies it and fills the two SPDX placeholders.
+  `share/licenses/README.md` records where every one of them came from, because
+  "I wrote out the GPL from memory" is not a provenance. An id whose file is
+  missing is REFUSED (`no-license`) rather than written empty — a LICENSE file
+  that is not the licence is worse than no LICENSE file.
+- A template whose holder would come out blank is refused too (`no-author`).
+  A licence naming nobody grants nothing, and the window has the field right
+  there. `studio_ui.default_author` fills it from `git config user.name` — the
+  one place on a developer's machine holding a real name rather than a login —
+  through `studio_git`, which finds git with `process.which` and never by
+  running it. One spawn when the window OPENS, not on a redraw.
+- `share/` is found through `GBASIC_STUDIO_SHARE`, exported by `./studio` and
+  by the test runner, like `GBASIC_STUDIO_VIEWERS`. An installed copy keeps
+  `share/` somewhere else and Studio's own working directory is never the
+  answer. Without it the licence cases would exercise the "no text shipped"
+  refusal instead of the licence.
+- `Gtk.DropDown` over a `Gtk.StringList`, both reachable through `gi.new` and
+  both driven by ordinary instance methods (`set_selected`, `get_selected`).
+  `Gtk.DropDown.new_from_strings` is a class static the bridge cannot call —
+  the same gap as `Gtk.Settings.get_default`. Measured before the window was
+  written, not assumed.
+- **`on` is a reserved word.** `function _check(label, on)` is a parse error,
+  and a parse error in `studio_shell.bas` is a window that will not open at
+  all. The parameter is `ticked`.
+- The window is built ONCE and kept on `G.newproj_win`; a second click on New
+  Project presents the one that is already open. Minting a second set of
+  widgets over the same handlers is the doubling `ui_gui_solo` exists to catch
+  one level up.
+- Three display tiers got a project from one click and now need two
+  (`click_create_project`). `stu2c_step` keeps its ORIGINAL phase numbering
+  against a `ph = G.phase - 1`, rather than renumbering a flow whose phase
+  numbers appear nowhere in its golden.
+- **`persist.read_status` answers "loaded", not "ok".** Testing for the wrong
+  one silently yields an empty store on every read — the round trip appears to
+  write and then return nothing.
+- A smoke mode that reaches past `studio_ui` fails in the least legible way
+  there is: `stu3_smoke` mutated `ws.sections` after that field was removed, and
+  because it runs inside a GTK timer callback the raise took the callback down
+  and left the main loop spinning. A HANG, not a failure.
+- **PERSISTED PER-DOCUMENT STATE IS KEYED BY PATH, NEVER BY `doc-N`.**
+  `studio_ui.doc_key(doc)` is the one answer, used for section anchors AND
+  branches. A document id is a live-session handle: closing a tab throws it
+  away and reopening the same file mints the next one, so anything filed under
+  it was unreachable afterwards — and worse than unreachable. Section ids are
+  deliberately NOT in file order (STU-3 re-matches them across edits so an
+  inserted function keeps the ids below it), while a state derived fresh
+  numbers them in file order. **Measured**: a file whose sections were
+  `sec-4, sec-3, sec-1, sec-2` came back from a close as
+  `sec-1, sec-2, sec-3, sec-4`, so every result filed against sec-4 named a
+  DIFFERENT function and the results pane showed it confidently. Silent
+  misattribution is worse than loss. `ui_anchors` is the regression test and
+  was written to fail first.
+- `studio_sections` and `studio_branches` never interpret that key — they only
+  compare it — so the whole fix is in what `studio_ui` hands them. That is also
+  why it moved no goldens: `ui_branch` and `sections_gui` pass unchanged.
+- **Anything that builds section or branch state outside `studio_ui` must use
+  `studio_ui.doc_key` too.** Two places did — `tests/drivers/ui.bas`'s branch
+  fixture and `stu3_smoke` — and both broke the moment the key changed: the
+  first built a tree the window could not find, the second persisted a SECOND
+  record for a document already filed under its path. The layering rule earning
+  its keep: the only two places that skipped `studio_ui` are the only two that
+  broke.
+- **THE WORKSPACE IS NOT A FILE ANY MORE.** It rides inside `session.json` as
+  `session.workspace`. There was never more than one:
+  `create_registered_workspace` has two production call sites and both are
+  guarded by `if ws = nothing`, so a separate `workspaces/<id>.json`, a
+  `workspaces.json` registry listing it, a most-recent order and an id-minting
+  counter were four mechanisms serving a set of size one. The in-memory name
+  (`app.model.workspace`, `studio.set_workspace`) is KEPT — 109 call sites, and
+  renaming them buys nothing a user can see. What the user had was a file, a
+  registry and a concept in the summary; those are what went.
+- Writing the two together also removes a way for them to disagree. A crash
+  between "write session.json" and "write workspaces/ws-1.json" could leave a
+  pointer to a stale set of projects; one file cannot be half-consistent with
+  itself.
+- **The migration reads the old file and NEVER deletes it.** `startup` takes
+  `session.workspace` when it is there and otherwise calls `_migrate_workspace`,
+  which follows the old `session.active_workspace` pointer into
+  `paths.legacy_workspaces_dir` — the only remaining use of that directory, and
+  it is read-only. Until the first clean save the old file is the ONLY copy of
+  that state, and an upgrade that tidies away a user's only copy is not an
+  upgrade. `stu1_migrate` builds an old-layout home and asserts both halves:
+  the projects come back, and the file is still there afterwards. Verified
+  against a copy of a real home — 5 projects, 10 section records.
+- `projects[].documents` and `workspace.tabs` are GONE, along with
+  `studio_model.open_document` that filled them. They were STU-0 schema that
+  only `build_canned` ever wrote: the running app records open documents in
+  `workspace.docs` (`studio_docs.to_meta`) and derives the notebook from
+  `app.dm.docs`. Two lists of the same thing, one never written, is how a reader
+  ends up unable to say what a project is — which is exactly what happened.
+  **A project is now a name and a path.**
+- **Open Folder reads the name field as a PATH, and a GtkEntry is not a shell.**
+  `studio_ui.expand_path` does the two expansions everybody assumes: a leading
+  `~`, and a relative path against `GBASIC_STUDIO_CWD` — the directory
+  `./studio` was invoked from, which it exports for exactly this, because the
+  script cds into the install tree and Studio's own working directory is the
+  one referent that is never what anyone meant. Measured before it existed:
+  `~/development/gdash` came back "gdash is not there", about a directory that
+  was plainly there. `~user` is deliberately NOT expanded — that needs a passwd
+  lookup, and a confident wrong home is worse than a path that fails visibly.
+- `adopt_folder` answers `no-folder` and `no-path`, not `missing` and `none`.
+  `missing` is about a browser row, where the leaf is the thing the user
+  clicked; a typed path needs the WHOLE expanded string, because the part that
+  is wrong is usually the part the leaf hides. `no-path` (an empty field) is a
+  question rather than a failure and says what to type. The display tier
+  reduces the path itself (`path_free` in `app/studio.bas`) rather than the
+  window saying less than it should — a golden's need to be path-free is not a
+  reason to give a user a worse sentence.
+- The empty-workspace browser names BOTH ways in, because neither is guessable
+  from a row of buttons and a field whose placeholder said "name". That field is
+  the only route to an existing project, and nothing in the window said so —
+  which is how someone with a dozen projects concluded Studio could not open
+  them. The placeholder is "name or path" and both it and Open Folder carry
+  tooltips. Still no GtkFileDialog: it is async with no synthesisable signal, so
+  it would be the one control here no test could press.
 - Anything that creates in the browser goes through `studio_ui.target_dir`, which
   is the *whole* of "where does it land" — selected directory, the directory
   holding the selected file, or the project root. Creating in a collapsed
@@ -338,6 +622,130 @@ Two consequences worth knowing before you touch the shell:
   state), so `app/studio.bas` carries one two-line wrapper per tool that reads
   the global and calls the dispatcher — the same adapter rule as a signal
   handler, for the same reason.
+- **The gutter marks the parse error, and the icon is one Studio SHIPS.** A
+  `GtkSource.MarkAttributes` draws from an icon NAME, and `dialog-error` and
+  `dialog-error-symbolic` are both standard freedesktop names that did not
+  resolve — measured, not assumed: this machine's Breeze has the first and not
+  the second, its Adwaita has the second and not the first, and what the gutter
+  drew was GTK's missing-icon fallback, a grey disc wide enough to sit on top of
+  the code. A marker that lands on the wrong icon is worse than no marker, so
+  the name is `gbasic-studio-error` and the file is in
+  `share/icons/hicolor/<size>/status/`, which every theme inherits and
+  `./studio` already puts on XDG_DATA_DIRS for the window icon.
+  `MarkAttributes.set_background` would have skipped icons entirely, but it
+  takes a `Gdk.RGBA` and `gi.new` refuses it ("not an instantiable object
+  type") — the same class of gap as the unreachable class statics.
+- Error marks are gated on `studio_ui.mark_signature` (the LINES, joined), not
+  on the outline's `revision` that `section_marks` uses. `studio_sections._apply`
+  advances `revision` only on a SUCCESSFUL parse, so a revision-gated redraw
+  would pin the marker to wherever it first appeared and leave it there however
+  the error moved. A count will not do either: two different one-line errors
+  share one, and the marker would sit on the line just fixed.
+- Both mark caches are primed when a PAGE is created (`marked` to -1,
+  `errmarked` to "-", neither reachable as a real value). They are keyed by
+  document id, which a closed-and-reopened file keeps, while the buffer behind
+  it is brand new and has no marks — so without this the cache says "already
+  drawn" about a buffer two lines old and the gutter stays empty until something
+  unrelated moves.
+- **ONLY gBASIC is parsed.** A project is not only its `.bas` files — a README,
+  a Makefile, a JSON fixture are part of it — but `view_for` used to hand every
+  document to `source_outline`, and a markdown file does not parse to nothing,
+  it parses to a FAILURE. So opening README.md answered "this file does not
+  parse — error 1:1 unexpected token", counted `Errors (1)` and marked line 1 in
+  the gutter. `studio_ui.is_gbasic` gates the refresh; an unrefreshed state is
+  valid and empty, which is the truth. `run_section` refuses first, by NAME
+  (`not-gbasic`), before deriving anything.
+- `studio_ui.gbasic_suffixes` is `.bas` / `.gb` — the `globs` of `gbasic.lang`,
+  which is the file the EDITOR highlights from, so "is this gBASIC" has one
+  answer and not two that drift. Suffix and case-insensitive: `notes.bas.txt`
+  and `dialect.basic` are the two ways a looser check goes wrong, and
+  `README.BAS` is still gBASIC.
+- **Studio decides what is gBASIC; the TOOLKIT decides everything else.**
+  `studio_shell._set_language_for` forces `gbasic` for Studio's own suffixes and
+  otherwise asks `guess_language`, which already knows markdown, json, yaml,
+  html, css, python, sh, C, XML, TOML, SQL, Rust and Go. Studio does not keep a
+  table of extensions; that is the stdlib's job, and a table here would be one
+  more thing to go stale. Through the editor's OWN manager (`ed._lm`) — a
+  buffer's highlight engine calls back into the manager that produced its
+  language, and a transient one finalizing on return is a documented
+  GtkSourceView critical. `ed.set_language(id)` RAISES on an unknown id and
+  gBASIC cannot catch a raise, so everything but gBASIC goes through the object
+  `guess_language` returns; `nothing` just means no highlighting, which is right
+  for a `.txt` and for a Makefile, which it does not recognise.
+- `studio_tools._is_refusal` must list every way `run_section` declines —
+  `execute_section` is an agent act over the same function, and an action
+  missing from that list is reported to the model as a SUCCESS. The agent would
+  be told it ran a README.
+- **A file that does not parse SAYS SO, and says where.**
+  `studio_sections.refresh` has recorded the parser's diagnostics since STU-3
+  (`state.diagnostics`, `{severity, message, start_line, start_column, ...}`)
+  and nothing displayed them. A file that does not parse yields no sections, so
+  the strip said `section: (none)`, Run answered "the cursor is not inside a
+  runnable section" — true, and useless, because the cursor is plainly inside a
+  function — and the LINE AND COLUMN of the syntax error, the one actionable
+  fact the window held, was thrown away on every keystroke. `studio_ui.parses`
+  / `parse_lines` / `diagnostic_line` surface it; `error_body` puts it in the
+  Errors pane, and `run_section` returns the distinct action `no-parse` so the
+  status line can name the file rather than the cursor.
+- `studio_ui.parses(st)` asks `st.valid`; it does NOT infer from the section
+  list being empty. On a failed parse `studio_sections._apply` KEEPS the
+  last-known-good sections — it must, or a user mid-keystroke would have every
+  result renumbered out from under them — so a document can fail to parse and
+  still have a full list of sections. That is also why the same broken file
+  reaches the user two ways: `no-parse` when it was broken on open (no sections
+  ever existed) and `refused` when it was broken by TYPING (the old sections
+  survive, so the caret resolves and `can_run` declines). Both now carry the
+  same address.
+- **Dropping the app `view_for` returns costs more than a re-parse.** The
+  documented cost is re-parsing at cursor-move rate; the undocumented one is
+  that the NEXT failed parse has no cached state to retain sections from, so
+  `view_for` rebuilds from the workspace and comes back with none. That is the
+  difference between a typed-in syntax error reaching `refused` (what the window
+  does, because `refresh_run` threads the app back) and reaching `no-parse`.
+  `tests/drivers/ui.bas`'s `badsyntax` case threads it deliberately for this
+  reason.
+- **The run strip is TWO ROWS, and the state line owns the second.** A refusal
+  or a materialization failure carries a whole SENTENCE ("that section is
+  ambiguous after the last edit; disambiguate it first"), and a horizontal row
+  of three buttons plus two labels has a hard width budget — so it arrived
+  ellipsized after its first few words and the rest of it was nowhere on screen.
+  Buttons and the two SHORT labels (`section:`, `standing`) keep the top row;
+  the state label gets the console's full width below them and WRAPS. Wrapping
+  also answers the minimum-width problem the ellipsis was originally for: a
+  wrapping label reports its longest WORD as its minimum, which is smaller than
+  the ellipsized version ever was.
+- **A refused or failed run records NO result, so the Errors pane has to be told
+  by the session.** Both states return from `studio_ui.run_section` with
+  `active` false, so `tick_run` is never polled and `add_result` is never
+  reached — correctly, because nothing executed and there is nothing to file
+  under the section's history. But that left the message one home, the strip,
+  and the pane whose whole job is to say what went wrong answered "(none)" about
+  a run Studio had just declined. `output_source` therefore has a fourth kind,
+  `fault`, and `studio_ui.fault_text` is the closed set (refused | failed) that
+  produces it. The output panes say `(the run did not start)` rather than
+  showing an EARLIER run's output beside "refused:", which would read as output
+  of the run that was refused.
+- The Errors heading is REFRESHED, not fixed: `studio_ui.error_heading` counts
+  non-empty lines and `refresh_run` moves the heading into `state-error` when
+  there are any. The pane is the third of three stacked in the console scroller,
+  so on a short window it is the one below the fold — and a heading reading
+  "Errors" over a pane you cannot see is indistinguishable from one reading
+  "Errors" over "(none)". Counted in NON-EMPTY lines because a raw stderr
+  capture ends in a newline and a blank trailing line is not an error.
+- `studio_style.clear_state` exists because "no state" is not `state-idle`.
+  `set_state` always ADDS one, and a widget with a look of its own (a heading)
+  should get its own look back rather than the idle colour.
+- **`_left` + `_wrapped` fold a label at its NATURAL width, which is a number
+  chosen for the right-hand column.** `halign: START` hands a label its natural
+  width and `max_width_chars` caps that at 44 — right beside the results pane,
+  wrong in the console, which is roughly twice as wide and ended up folding
+  program output into a narrow ribbon with half the pane empty next to it.
+  `studio_shell._fill` (xalign 0 + halign FILL + hexpand) is what makes a label
+  span the width it is GIVEN; it is safe only inside `_vscroll`, whose
+  horizontal policy of NEVER makes the viewport impose that width, and
+  `max_width_chars` still caps the natural request so the window's minimum does
+  not move. Same blind spot as every other entry here: a golden asserts the
+  text, which is identical either way.
 - **`wrap = true` DOES NOT MAKE A LABEL WRAP.** A wrapping label still reports
   its natural width as the whole text on one line, and a GtkScrolledWindow asks
   for natural size — so it hands the label that width and the text runs off the
@@ -373,6 +781,36 @@ Two consequences worth knowing before you touch the shell:
   that neither wraps nor ellipsizes reports its whole sentence as its MINIMUM
   width — so the run strip is ellipsized now, and the text it reports is
   unchanged.
+- **A GtkSourceView's colours are a STYLE SCHEME, not the GTK theme, and the
+  stylesheet cannot reach them.** Nothing ever set one, so the editor sat on the
+  light default inside a dark window and Studio looked like two applications
+  sharing a frame. A scheme is a `GtkSourceStyleScheme` object, not CSS, so
+  `studio_style.css()` has nothing to say about it. `light_scheme` is `classic`
+  — measured, by asking a fresh buffer for `get_style_scheme` before anything
+  set one — so the light editor is exactly what it always was, and
+  `classic-dark` is that scheme's own dark counterpart. Naming both is the
+  point: otherwise one is a choice and the other is an accident.
+- **No ONE signal says the toolkit is dark.** Measured on a plainly dark window
+  on this machine: `gtk-application-prefer-dark-theme` was FALSE, `gtk-theme-name`
+  said "Breeze", and only `GTK_THEME=Adwaita:dark` carried it. So
+  `studio_style.toolkit_is_dark` takes all three and any one of them wins.
+  `Gtk.Settings.get_default` is a class static the bridge cannot reach, but
+  `widget.get_settings()` is an ordinary instance method and answers the same
+  object — the same shape of workaround as the per-widget CSS providers.
+- `settings.theme` had been persisted since STU-0 with NOTHING reading it.
+  `studio_style.dark_for` is where it finally lands: "light"/"dark" overrule the
+  toolkit, "system" defers to it. One decision, read by both the editor's scheme
+  and the section tint — asking the toolkit separately would give a user who set
+  `theme: "dark"` on a light desktop a dark editor with a light tint smeared
+  across it.
+- The section tint is a GtkTextTag background, so it cannot be an `@theme`
+  reference either: `studio_style.section_tint(dark)` is two literals and a
+  boolean. The hardcoded `#eaf1fb` was a highlight on a light editor and a smear
+  over unreadable text on a dark one.
+- `env` answers `unknown` for an unset variable and `lower` RAISES on one, so
+  `_names_dark` guards with `is_string` before touching it. A theme probe that
+  crashed the window of everyone who has not set GTK_THEME would be a poor trade
+  for a colour.
 - **A CSS class without its provider renders nothing.** `gi` cannot call class
   statics, so `Gdk.Display.get_default` and
   `Gtk.StyleContext.add_provider_for_display` are both out of reach and there is

@@ -41,6 +41,8 @@ library studio_ui
     load studio_sections
     load studio_session
     load studio_results
+    load studio_projects
+    load studio_projfile
     load studio_branches
     load studio_overlays
     load studio_viewers
@@ -57,8 +59,161 @@ library studio_ui
     ' Dotfiles generally are hidden for the ordinary reason — `.gbasic/` is
     ' Studio's own metadata (§2.2 says unobtrusive) and a project browser that
     ' leads with four dot-directories is showing plumbing before content.
+    ' One deliberate exception: `.gstudio.json`. It is the only file in this
+    ' directory Studio ever writes, it is written only because somebody asked
+    ' for it, and hiding a file you consented to is how it becomes the
+    ' uninvited metadata the whole design is avoiding. It is also hand-edited,
+    ' which a browser that will not show it makes needlessly awkward.
     function hidden_entry(name)
+        if name = studio_projfile.filename() then
+            return false
+        end if
         return left(name, 1) = "."
+    end function
+
+    ' ---- a project's own state file -----------------------------------------
+    '
+    ' Section anchors, the branch tree and the overlays live in
+    ' `<home>/state/<key>.json`, one file per project, instead of all together
+    ' in the session record. Cached on `app.pstate` and flushed by
+    ' `studio.persist`, which is the same in-memory-until-exit behaviour they
+    ' had inside the workspace — only the file they land in changed. It is NOT
+    ' written on every mutation: the section fold runs at cursor-move rate.
+
+    ' Which project a document belongs to, by path prefix, LONGEST match first
+    ' so a project nested inside another wins. "" when the document is under no
+    ' project at all, which is a real case — a file can be opened by path with
+    ' no project adopted — and its state then lives in memory only.
+    function project_path_for(app, doc)
+        if doc = nothing then
+            return ""
+        end if
+        ws = app.model.workspace
+        if ws = nothing then
+            return ""
+        end if
+        ' `_under` already exists here and already refuses "/a/srcery" as a
+        ' child of "/a/src" — the separator is part of the test.
+        best = ""
+        for each pr in ws.projects
+            if studio_ui._under(doc.path, pr.path) then
+                if len(pr.path) > len(best) then
+                    best = pr.path
+                end if
+            end if
+        end for
+        return best
+    end function
+
+    ' The active document's project state, loading it on first use and swapping
+    ' it when the caret moves to a document in another project. The outgoing
+    ' state is WRITTEN on the way out: a project switch is exactly when its
+    ' anchors would otherwise be dropped on the floor.
+    function project_state(app)
+        doc = studio_docs.active_doc(app.dm)
+        want = studio_ui.project_path_for(app, doc)
+        held = app["pstate"]
+        if held != unknown then
+            if held != nothing then
+                if held.path = want then
+                    return { app: app, state: held.state, path: want, key: held.key }
+                end if
+                if held.key != "" then
+                    saved = studio_projects.save(app.paths.home, held.key, held.state)
+                end if
+            end if
+        end if
+        ' Identity is resolved HERE and nowhere else: this is the one place
+        ' holding both the path and the project's own file. `studio_projects`
+        ' takes a key from here on and never learns what a directory is.
+        key = studio_projects.key_for(want, studio_ui.project_id(want))
+        st = studio_projects.open(app.paths.home, key)
+        app["pstate"] = { path: want, key: key, state: st }
+        return { app: app, state: st, path: want, key: key }
+    end function
+
+    ' A project's stable id, or "" — read straight off `.gstudio.json`.
+    '
+    ' NOT cached. The read is one small file and it happens on a project switch,
+    ' which is a click; `nav_rows` already stats a whole directory tree on every
+    ' redraw, so a cache here would buy nothing measurable and cost the thing
+    ' that matters — hand-editing `.gstudio.json` takes effect on the next
+    ' redraw, with no invalidation rule to get wrong.
+    function project_id(project_path)
+        if project_path = "" then
+            return ""
+        end if
+        return studio_projfile.read_spec(project_path).id
+    end function
+
+    ' Put a mutated state back on the app. In memory only; `studio.persist`
+    ' writes it, and so does a project switch above.
+    function set_project_state(app, state)
+        held = app["pstate"]
+        pth = ""
+        key = ""
+        if held != unknown then
+            if held != nothing then
+                pth = held.path
+                key = held.key
+            end if
+        end if
+        app["pstate"] = { path: pth, key: key, state: state }
+        return app
+    end function
+
+    ' ---- how PERSISTED per-document state is keyed --------------------------
+    '
+    ' By PATH, not by the minted `doc-N` id.
+    '
+    ' A document id is a live-session handle: closing a tab throws it away, and
+    ' reopening the same file mints the next one. Anything persisted under it is
+    ' therefore unreachable after a close — and worse than unreachable. Section
+    ' ids are deliberately NOT in file order (STU-3 re-matches them across edits,
+    ' so an inserted function keeps the ids below it), while a state derived
+    ' fresh numbers them in file order. Measured: a file whose sections were
+    ' sec-4, sec-3, sec-1, sec-2 came back as sec-1, sec-2, sec-3, sec-4 — so
+    ' every result filed against sec-4 now names a DIFFERENT function, and the
+    ' results pane shows it confidently. Silent misattribution is worse than
+    ' loss.
+    '
+    ' `studio_sections` and `studio_branches` never interpret this value; they
+    ' only compare it. So the fix is entirely in what gets handed to them.
+    function doc_key(doc)
+        if doc = nothing then
+            return ""
+        end if
+        return doc.path
+    end function
+
+    ' ---- what KIND of file is open ------------------------------------------
+    '
+    ' Studio opens anything — a README, a Makefile, a JSON fixture beside the
+    ' code are all part of a project — but only gBASIC has sections, an outline,
+    ' diagnostics or a Run button. Every document used to be handed to
+    ' `source_outline` regardless, so opening README.md answered "this file does
+    ' not parse — error 1:1 unexpected token" about a file that is not supposed
+    ' to parse, and the gutter marked line 1. A pane asserting that a markdown
+    ' document is broken gBASIC is worse than a pane saying nothing.
+    '
+    ' The suffixes are the `globs` of `gbasic.lang` (`*.bas;*.gb`), which is the
+    ' file the EDITOR highlights from — so "is this gBASIC" has one answer here
+    ' and not two that can drift apart.
+    function gbasic_suffixes()
+        return [".bas", ".gb"]
+    end function
+
+    ' Case-insensitively, because a file named README.BAS is still gBASIC and
+    ' the only thing a case-sensitive check would change is whether Studio can
+    ' run it.
+    function is_gbasic(path)
+        low = lower(path)
+        for each ext in studio_ui.gbasic_suffixes()
+            if ends_with(low, ext) then
+                return true
+            end if
+        end for
+        return false
     end function
 
     ' ---- the browser row model ---------------------------------------------
@@ -76,6 +231,12 @@ library studio_ui
         ws = app.model.workspace
         if ws = nothing then
             rows = append(rows, { kind: "info", label: "(no workspace open)", path: "", project_id: "" })
+            ' The empty state is exactly where someone finds out what this window
+            ' can do, and it said only what it could NOT do. Both routes in are
+            ' named here, because neither is guessable from a row of buttons and
+            ' a field labelled "name".
+            rows = append(rows, { kind: "info", label: "New Project starts a fresh one", path: "", project_id: "" })
+            rows = append(rows, { kind: "info", label: "or type a folder path and press Open Folder", path: "", project_id: "" })
             return rows
         end if
         rows = append(rows, { kind: "info", label: "Workspace: " + ws.name, path: "", project_id: "" })
@@ -90,9 +251,17 @@ library studio_ui
         if proj = nothing then
             return rows
         end if
+        ' The project's own say about what is not worth showing. Read per
+        ' redraw on purpose (see `project_id`): `filetree.scan` below walks the
+        ' tree anyway, so one small file is inside the noise, and editing
+        ' `.gstudio.json` then takes effect on the next redraw.
+        spec = studio_projfile.read_spec(proj.path)
         nodes = filetree.scan(proj.path, ws.nav.expanded)
         for each r in filetree.flatten(nodes)
             if studio_ui.hidden_entry(r.name) then
+                continue
+            end if
+            if studio_projfile.ignored(spec, r.name) then
                 continue
             end if
             indent = "  "
@@ -393,6 +562,307 @@ library studio_ui
         ws = studio_model.set_active_project(ws, proj.id)
         app = studio.set_workspace(app, ws)
         return { app: app, action: "created", detail: proj.id + " " + name }
+    end function
+
+    ' ---- New Project, with options (STU-12) --------------------------------
+    '
+    ' `new_project` above is the one-click version and stays: it mints a name,
+    ' makes a directory and opens it. What follows is the same act with the
+    ' questions asked — a NAME you chose, somewhere you chose, and the four
+    ' things a new project usually wants and sometimes does not.
+    '
+    ' Every default here is the minimal one. `main.bas` is ON because a project
+    ' with no file in it dead-ends: an empty directory scans to zero browser
+    ' rows and there is nothing to click. Everything else is OFF, including the
+    ' project file — Studio putting `.gstudio.json` in a directory by default
+    ' would be exactly the behaviour the file exists to avoid, and a box you
+    ' had to untick is not consent.
+
+    ' The options record the window starts from, and the shape `project_plan`
+    ' consumes. Plain data, so the headless driver builds one directly.
+    function default_options(app, home)
+        return {
+            name: studio_ui.next_project_name(app),
+            location: home + "/projects",
+            author: studio_ui.default_author(),
+            main: true,
+            projfile: false,
+            readme: false,
+            git: false,
+            license: "none"
+        }
+    end function
+
+    ' Who a licence would name. `git config user.name` is the one place on a
+    ' developer's machine that holds a REAL name rather than a login, so it is
+    ' asked first — through `studio_git`, which finds git with `process.which`
+    ' and never by running it. `USER` is the fallback and is usually a login,
+    ' which is why the field is editable and why a blank one refuses rather
+    ' than being filled in with a guess.
+    function default_author()
+        avail = studio_git.available()
+        if avail then
+            ' `run` needs a directory that exists to work in, and refuses ""
+            ' — this is a GLOBAL config read, so any real directory does. It
+            ' is one process spawn when the window OPENS, not on a redraw.
+            r = studio_git.run(studio_ui.home_dir(), ["config", "--get", "user.name"])
+            if r.ok then
+                nm = trim(r.out)
+                if nm != "" then
+                    return nm
+                end if
+            end if
+        end if
+        u = env("USER")
+        if is_string(u) then
+            return u
+        end if
+        return ""
+    end function
+
+    ' ---- licences -----------------------------------------------------------
+    '
+    ' Studio does not author a licence; it copies a file out of
+    ' `share/licenses/` and substitutes the two SPDX placeholders in the two
+    ' templates that carry them. See that directory's README for where each
+    ' text came from.
+
+    function license_ids()
+        return ["none", "MIT", "Apache-2.0", "BSD-3-Clause", "GPL-3.0", "MPL-2.0"]
+    end function
+
+    ' The only two that name a copyright holder in the LICENSE file itself.
+    ' The other three are copied verbatim and carry their notice elsewhere.
+    function license_needs_holder(id)
+        if id = "MIT" then
+            return true
+        end if
+        return id = "BSD-3-Clause"
+    end function
+
+    ' Where the texts live. Exported by `./studio` the same way the viewer
+    ' registry is, because an installed copy keeps `share/` somewhere else and
+    ' Studio's own working directory is never the answer.
+    function license_dir()
+        v = env("GBASIC_STUDIO_SHARE")
+        if is_string(v) then
+            if v != "" then
+                return v + "/licenses"
+            end if
+        end if
+        return ""
+    end function
+
+    ' The text, with the placeholders filled, or "" when there is none to be
+    ' had — no id, an id with no file, or a file that will not read. The caller
+    ' REFUSES on "", rather than writing an empty LICENSE: a LICENSE file that
+    ' is not the licence is worse than no LICENSE file at all.
+    function license_text(id, year, holder)
+        if id = "" then
+            return ""
+        end if
+        if id = "none" then
+            return ""
+        end if
+        dir = studio_ui.license_dir()
+        if dir = "" then
+            return ""
+        end if
+        path = dir + "/" + id + ".txt"
+        probe{file} = path
+        if not exists(probe) then
+            return ""
+        end if
+        f{file} = path
+        text = read(f)
+        text = replace(text, "[year]", year)
+        text = replace(text, "[fullname]", holder)
+        return text
+    end function
+
+    ' The year a licence is granted in, from the same clock everything else
+    ' reads. `from_epoch` renders "YYYY-MM-DD HH:MM:SS", so the year is its
+    ' first four characters — and a pinned test clock gives a fixed one.
+    function license_year(stamp)
+        return left(string(from_epoch(stamp)), 4)
+    end function
+
+    ' ---- the plan -----------------------------------------------------------
+
+    ' What a set of options MEANS, as the exact list of files to write.
+    '
+    ' Pure over plain data apart from reading the licence text, so the whole of
+    ' "what does ticking that box do" is one function a test calls with a
+    ' record and reads an answer from. Nothing is created here; a plan that
+    ' refuses has touched nothing.
+    '
+    ' Returns { ok, reason, detail, path, name, files, git }, where `files` is
+    ' [{ name, text }] in the order they will be written and `reason` is one of
+    ' "planned" | "no-name" | "invalid" | "no-path" | "exists" | "no-author" |
+    ' "no-license".
+    function project_plan(opts, stamp)
+        name = trim(opts.name)
+        if name = "" then
+            return studio_ui._plan_no("no-name", "")
+        end if
+        problem = studio_ui.name_problem(name)
+        if problem != "" then
+            return studio_ui._plan_no("invalid", problem)
+        end if
+        loc = trim(opts.location)
+        if loc = "" then
+            return studio_ui._plan_no("no-path", "")
+        end if
+        loc = studio_ui.expand_path(loc, studio_ui.home_dir(), studio_ui.launch_dir())
+        ' The DIRECTORY is the slug, the project keeps the name. "My Thing"
+        ' should not make a directory called `My Thing` that everything after
+        ' this has to quote.
+        path = loc + "/" + studio_ui._slug(name)
+        probe{file} = path
+        if exists(probe) then
+            return studio_ui._plan_no("exists", path)
+        end if
+
+        holder = trim(opts.author)
+        lic = opts.license
+        text = ""
+        if lic != "none" then
+            needs = studio_ui.license_needs_holder(lic)
+            if needs then
+                if holder = "" then
+                    ' Refused BEFORE anything is written. A licence naming
+                    ' nobody grants nothing, and the field to fill is on screen.
+                    return studio_ui._plan_no("no-author", lic)
+                end if
+            end if
+            text = studio_ui.license_text(lic, studio_ui.license_year(stamp), holder)
+            if text = "" then
+                return studio_ui._plan_no("no-license", lic)
+            end if
+        end if
+
+        files = []
+        if opts.main then
+            files = append(files, { name: "main.bas", text: studio_ui._main_text(name) })
+        end if
+        if opts.readme then
+            files = append(files, { name: "README.md", text: studio_ui._readme_text(name, lic) })
+        end if
+        if lic != "none" then
+            files = append(files, { name: "LICENSE", text: text })
+        end if
+        if opts.git then
+            ' Written whether or not `git init` succeeds: it is an ordinary
+            ' file and it is what keeps Studio's own scratch out of a
+            ' repository somebody makes later by hand.
+            files = append(files, { name: ".gitignore", text: studio_ui._gitignore_text() })
+        end if
+        return {
+            ok: true, reason: "planned", detail: "", path: path, name: name,
+            files: files, git: opts.git, projfile: opts.projfile
+        }
+    end function
+
+    function _plan_no(reason, detail)
+        return { ok: false, reason: reason, detail: detail, path: "", name: "",
+                 files: [], git: false, projfile: false }
+    end function
+
+    ' A file that RUNS. The point of ticking main.bas is to land somewhere you
+    ' can press Run Section, so the boilerplate is one runnable section and not
+    ' a comment explaining that this is where code goes.
+    function _main_text(name)
+        return "' " + name + "\n\nprint \"hello from " + name + "\"\n"
+    end function
+
+    ' Minimal on purpose: a title, a line to fill in, and how to run it. A
+    ' generated README padded with headings nobody asked for is a file the
+    ' author has to delete before writing their own.
+    function _readme_text(name, lic)
+        out = "# " + name + "\n\n"
+        out = out + "What this is.\n\n"
+        out = out + "## Running it\n\n"
+        out = out + "```sh\ngbasic main.bas\n```\n"
+        if lic != "none" then
+            out = out + "\n## Licence\n\n" + lic + " — see LICENSE.\n"
+        end if
+        return out
+    end function
+
+    ' Studio's own leavings and nothing else. It is NOT a language-wide ignore
+    ' list: guessing at build artefacts for a project that has no build yet is
+    ' how a generated .gitignore ends up hiding somebody's source.
+    function _gitignore_text()
+        line1 = "# gBASIC Studio keeps this project's state in YOUR home, not"
+        line2 = "# here, so there is normally nothing of Studio's to ignore."
+        return line1 + "\n" + line2 + "\n"
+    end function
+
+    ' ---- doing it -----------------------------------------------------------
+
+    ' Carry out a plan: make the directory, write the files, optionally make it
+    ' a repository, then adopt it as a project and make it active.
+    '
+    ' Returns { app, action, detail }. `action` is the plan's reason when the
+    ' plan refused — so every refusal above reaches the status line by name and
+    ' NOTHING has been created — and "created" otherwise, with a detail listing
+    ' what was written so the window can say it.
+    function create_project(app, opts)
+        stamp = app["clock_fixed"]
+        if stamp = unknown then
+            stamp = epoch()
+        end if
+        if stamp = 0 then
+            stamp = epoch()
+        end if
+        plan = studio_ui.project_plan(opts, stamp)
+        if not plan.ok then
+            return { app: app, action: plan.reason, detail: plan.detail }
+        end if
+        persist.ensure_dir(plan.path)
+        made = []
+        for each f in plan.files
+            out{file} = plan.path + "/" + f.name
+            write(out, f.text)
+            made = append(made, f.name)
+        end for
+        ' Through the ONE writer, so "Studio never creates .gstudio.json except
+        ' when asked" stays true of a checkbox as well as of a button.
+        if plan.projfile then
+            id = studio_projfile.mint_id(plan.path, stamp)
+            pr = studio_projfile.create(plan.path, { id: id, name: plan.name })
+            if pr.ok then
+                made = append(made, studio_projfile.filename())
+            end if
+        end if
+        ' git is OPTIONAL and its absence is not this project's problem. The
+        ' directory and its files are already there; reporting "no git" beats
+        ' refusing to make a project over it.
+        if plan.git then
+            avail = studio_git.available()
+            if avail then
+                g = studio_git.init(plan.path)
+                if g.ok then
+                    made = append(made, "git")
+                end if
+            end if
+        end if
+        ws = app.model.workspace
+        if ws = nothing then
+            app = studio.create_registered_workspace(app, "workspace")
+            ws = app.model.workspace
+        end if
+        ws = studio_model.add_project(ws, plan.name, plan.path)
+        proj = studio_model.last_project(ws)
+        ws = studio_model.set_active_project(ws, proj.id)
+        app = studio.set_workspace(app, ws)
+        ' Its OWN action, not the "created" that New File answers with. That
+        ' one reduces its detail to a single token, which for a project is the
+        ' minted id — "created proj-1", about a thing the user named. Here the
+        ' detail is the name and what was actually written, and it is reported
+        ' whole.
+        return { app: app, action: "project-created",
+                 detail: plan.name + " — " + join(made, ", ") }
     end function
 
     ' ---- file and folder creation (STU-2C) ---------------------------------
@@ -860,6 +1330,22 @@ library studio_ui
         if action = "missing" then
             return leaf + " is not there"
         end if
+        ' The WHOLE path, not its last segment. `missing` above is about a
+        ' browser row, where the leaf is the thing the user clicked; this is
+        ' about a path they typed, and the part that is wrong is usually the
+        ' part the leaf hides.
+        if action = "no-folder" then
+            return "no folder at " + detail
+        end if
+        if action = "no-path" then
+            return "type a folder path into the name field, then press Open Folder"
+        end if
+        ' Named, so it reads as a statement about THIS file rather than about
+        ' the button. Studio opens supporting files on purpose; it just cannot
+        ' run them.
+        if action = "not-gbasic" then
+            return leaf + " is not a gBASIC file — Run Section needs .bas or .gb"
+        end if
         if action = "not-empty" then
             return leaf + " is not empty — empty it first"
         end if
@@ -876,6 +1362,31 @@ library studio_ui
         end if
         if action = "activated" then
             return "switched to " + studio_ui._token_leaf(detail, 1)
+        end if
+        ' The WHOLE path, like no-folder: the leaf is `.gstudio.json` for every
+        ' project there has ever been, so it is the directory that says which
+        ' one just acquired a file.
+        if action = "project-file" then
+            return "wrote " + detail
+        end if
+        if action = "no-project" then
+            return "open a project first"
+        end if
+        ' ---- New Project, with options
+        if action = "project-created" then
+            ' Whole, not tokenised: a project name has spaces in it, and the
+            ' list after it is the answer to "what did that button just do to
+            ' my directory".
+            return "created " + detail
+        end if
+        if action = "no-name" then
+            return "give the project a name"
+        end if
+        if action = "no-author" then
+            return detail + " names a copyright holder — fill in Author"
+        end if
+        if action = "no-license" then
+            return "no text shipped for " + detail + " — check share/licenses"
         end if
         if action = "refreshed" then
             return "refreshed"
@@ -916,6 +1427,15 @@ library studio_ui
         end if
         if action = "no-section" then
             return "the cursor is not inside a runnable section"
+        end if
+        ' The detail is already "severity line:column  message". A parse that
+        ' fails with no diagnostic at all should still not produce a blank
+        ' sentence ending in a dash.
+        if action = "no-parse" then
+            if detail = "" then
+                return "this file does not parse — fix the syntax error first"
+            end if
+            return "this file does not parse — " + detail
         end if
         if action = "stopping" then
             return "stopping " + detail
@@ -988,6 +1508,70 @@ library studio_ui
 
     ' ---- opening an existing directory --------------------------------------
 
+    ' ---- a path as a PERSON types it ----------------------------------------
+    '
+    ' A GtkEntry is not a shell, so nothing expanded what everybody types first.
+    ' Measured before this existed: `~/development/gdash` came back "gdash is not
+    ' there", about a directory that was plainly there, and `development/gdash`
+    ' was resolved against Studio's own source tree because `./studio` cds into
+    ' the install directory before exec.
+    '
+    ' Pure over three strings, so all of it is testable; the caller reads `home`
+    ' and `cwd` out of the environment. `~user` is NOT expanded — that needs a
+    ' passwd lookup, and a wrong guess at someone else's home is worse than
+    ' leaving the path alone to fail honestly.
+    function expand_path(raw, home, cwd)
+        if raw = "" then
+            return ""
+        end if
+        p = studio_ui._expand_home(raw, home)
+        if left(p, 1) = "/" then
+            return p
+        end if
+        if cwd = "" then
+            return p
+        end if
+        ' Relative to where Studio was LAUNCHED, which is the same referent the
+        ' third command-line argument already uses. Relative to Studio's own
+        ' working directory — the install tree — is the one answer that is never
+        ' what anyone meant.
+        return cwd + "/" + p
+    end function
+
+    function _expand_home(raw, home)
+        if home = "" then
+            return raw
+        end if
+        if not is_string(home) then
+            return raw
+        end if
+        if raw = "~" then
+            return home
+        end if
+        if left(raw, 2) = "~/" then
+            return home + "/" + mid(raw, 2, len(raw) - 2)
+        end if
+        return raw
+    end function
+
+    ' HOME, and the directory `./studio` was invoked from. Both may be absent —
+    ' an unset variable is `unknown`, not "", and string operations raise on it.
+    function home_dir()
+        return studio_ui._env_string("HOME")
+    end function
+
+    function launch_dir()
+        return studio_ui._env_string("GBASIC_STUDIO_CWD")
+    end function
+
+    function _env_string(name)
+        v = env(name)
+        if not is_string(v) then
+            return ""
+        end if
+        return v
+    end function
+
     ' Adopt `path` as a project, creating a workspace if none is open — so this,
     ' like New Project, works from a cold start. Studio is otherwise only usable
     ' on directories it made itself, which is the wrong way round for an IDE.
@@ -997,19 +1581,25 @@ library studio_ui
     '                 segment, and active
     '   "activated" — the directory was already a project here; it was made
     '                 active rather than added twice
-    '   "missing"   — no such directory (a plain file counts as missing: a
-    '                 project root has to be somewhere files can live)
-    '   "none"      — an empty path
+    '   "no-folder" — no such directory (a plain file counts too: a project root
+    '                 has to be somewhere files can live). The detail is the
+    '                 EXPANDED path, because "gdash is not there" about
+    '                 `~/development/gdash` blames the folder for a `~` nobody
+    '                 expanded
+    '   "no-path"   — an empty field, which is a question rather than a failure
     function adopt_folder(app, raw)
         if raw = "" then
-            return { app: app, action: "none", detail: "" }
+            return { app: app, action: "no-path", detail: "" }
         end if
-        ' The path comes off a command line, so it arrives however it was typed:
-        ' a trailing slash from tab-completion, a "." or a "..". Canonicalise
-        ' first or the same directory adopts twice under two spellings.
-        path = studio_docs._canonical(raw)
+        ' Typed by a person, so `~` and a relative path have to mean what they
+        ' mean everywhere else. Then canonicalise: the path also arrives from a
+        ' command line, with a trailing slash from tab-completion, a "." or a
+        ' "..", and the same directory must not adopt twice under two spellings.
+        path = studio_docs._canonical(studio_ui.expand_path(raw,
+                                                            studio_ui.home_dir(),
+                                                            studio_ui.launch_dir()))
         if path = "" then
-            return { app: app, action: "none", detail: "" }
+            return { app: app, action: "no-path", detail: "" }
         end if
         probe{file} = path
         there = exists(probe)
@@ -1018,26 +1608,127 @@ library studio_ui
             isdir = studio_docs._is_dir(path)
         end if
         if isdir = false then
-            return { app: app, action: "missing", detail: path }
+            return { app: app, action: "no-folder", detail: path }
         end if
         ws = app.model.workspace
         if ws = nothing then
             app = studio.create_registered_workspace(app, "workspace")
             ws = app.model.workspace
         end if
+        ' READ, never written — Open Folder puts nothing in a directory it was
+        ' merely pointed at. A project that carries its own name gets to say it,
+        ' which is the answer to two checkouts both called `src`; the name lands
+        ' when the folder is opened, so editing it in the file shows up the next
+        ' time you open the project rather than mid-session.
+        spec = studio_projfile.read_spec(path)
         for each pr in ws.projects
             if pr.path = path then
                 ws = studio_model.set_active_project(ws, pr.id)
+                if spec.name != "" then
+                    ws = studio_model.rename_project(ws, pr.id, spec.name)
+                end if
                 app = studio.set_workspace(app, ws)
-                return { app: app, action: "activated", detail: pr.id + " " + pr.name }
+                pr2 = studio_model.project_by_id(ws, pr.id)
+                return { app: app, action: "activated", detail: pr.id + " " + pr2.name }
             end if
         end for
         name = studio_ui._leaf(path)
+        if spec.name != "" then
+            name = spec.name
+        end if
         ws = studio_model.add_project(ws, name, path)
         proj = studio_model.last_project(ws)
         ws = studio_model.set_active_project(ws, proj.id)
         app = studio.set_workspace(app, ws)
         return { app: app, action: "adopted", detail: proj.id + " " + name }
+    end function
+
+    ' ---- the project's own file ---------------------------------------------
+
+    ' Write `.gstudio.json` into the active project — the ONLY thing in Studio
+    ' that creates it, reached only from the button of the same name. Open
+    ' Folder does not write it. New Project writes it only when the box is
+    ' ticked. Nothing writes it on save, on exit, or on first run.
+    '
+    ' Returns { app, action, detail }, action one of:
+    '   "project-file" — written; detail is its path
+    '   "exists"       — there is one already, and this does not rewrite it
+    '   "no-project"   — nothing is open to add it to
+    function add_project_file(app)
+        ws = app.model.workspace
+        if ws = nothing then
+            return { app: app, action: "no-project", detail: "" }
+        end if
+        proj = studio_model.project_by_id(ws, ws.active_project)
+        if proj = nothing then
+            return { app: app, action: "no-project", detail: "" }
+        end if
+        ' Pinned by the same seam the run clock uses, so a golden can hold the
+        ' shape of a minted id without holding the second it was minted in.
+        stamp = app["clock_fixed"]
+        if stamp = unknown then
+            stamp = epoch()
+        end if
+        if stamp = 0 then
+            stamp = epoch()
+        end if
+        id = studio_projfile.mint_id(proj.path, stamp)
+        r = studio_projfile.create(proj.path, { id: id, name: proj.name })
+        if not r.ok then
+            return { app: app, action: r.reason, detail: r.path }
+        end if
+        ' This project was filed under its PATH a moment ago and is filed under
+        ' its ID from here on, so the anchors have to come with it. Without
+        ' this, adding a project file would silently renumber every section in
+        ' the project — the STU-3 misattribution, re-entered through a button
+        ' whose whole promise is that it changes nothing about your code.
+        app = studio_ui._refile_state(app, proj.path, id)
+        return { app: app, action: "project-file", detail: r.path }
+    end function
+
+    ' Carry a project's state from its path key to its id key.
+    '
+    ' The old file is LEFT IN PLACE, like the workspace migration: until the
+    ' next clean save it is the only copy, and there is no undo for the button
+    ' that caused this.
+    function _refile_state(app, project_path, id)
+        oldk = studio_projects.key_for(project_path, "")
+        newk = studio_projects.key_for(project_path, id)
+        if oldk = newk then
+            return app
+        end if
+        held = app["pstate"]
+        if held != unknown then
+            if held != nothing then
+                if held.path = project_path then
+                    ' Loaded, and newer than anything on disk. Re-file what is
+                    ' in memory and re-point the cache; a read of the old file
+                    ' here would lose this session's edits.
+                    wrote = studio_projects.save(app.paths.home, newk, held.state)
+                    app["pstate"] = { path: project_path, key: newk, state: held.state }
+                    return app
+                end if
+            end if
+        end if
+        st = studio_projects.open(app.paths.home, oldk)
+        if st.key = "" then
+            return app
+        end if
+        empty = false
+        if count(st.sections) = 0 then
+            if st.branches = nothing then
+                if st.overlays = nothing then
+                    empty = true
+                end if
+            end if
+        end if
+        ' Nothing to carry. Writing an empty state file here would leave a
+        ' record about a project Studio has learned nothing about yet.
+        if empty then
+            return app
+        end if
+        wrote = studio_projects.save(app.paths.home, newk, st)
+        return app
     end function
 
     ' ---- closing ------------------------------------------------------------
@@ -1154,20 +1845,15 @@ library studio_ui
     ' section anchors, because a branch means nothing without the sections it
     ' points at and the two must be restored together or not at all.
     function branch_tree(app)
-        ws = app.model.workspace
-        if ws = nothing then
-            return studio_branches.create()
-        end if
-        return studio_branches.from_persist(ws["branches"])
+        ps = studio_ui.project_state(app)
+        return studio_branches.from_persist(ps.state.branches)
     end function
 
     function set_branch_tree(app, tree)
-        ws = app.model.workspace
-        if ws = nothing then
-            return app
-        end if
-        ws.branches = studio_branches.to_persist(tree)
-        return studio.set_workspace(app, ws)
+        ps = studio_ui.project_state(app)
+        st = ps.state
+        st.branches = studio_branches.to_persist(tree)
+        return studio_ui.set_project_state(ps.app, st)
     end function
 
     ' ---- overlays (STU-9) ---------------------------------------------------
@@ -1177,20 +1863,15 @@ library studio_ui
     ' addressed by section id, so it is meaningless without the anchors that give
     ' those ids meaning, and the three must be restored together or not at all.
     function overlays(app)
-        ws = app.model.workspace
-        if ws = nothing then
-            return studio_overlays.create()
-        end if
-        return studio_overlays.from_persist(ws["overlays"])
+        ps = studio_ui.project_state(app)
+        return studio_overlays.from_persist(ps.state.overlays)
     end function
 
     function set_overlays(app, ov)
-        ws = app.model.workspace
-        if ws = nothing then
-            return app
-        end if
-        ws.overlays = studio_overlays.to_persist(ov)
-        return studio.set_workspace(app, ws)
+        ps = studio_ui.project_state(app)
+        st = ps.state
+        st.overlays = studio_overlays.to_persist(ov)
+        return studio_ui.set_project_state(ps.app, st)
     end function
 
     ' Which KIND of branch this is (§9.2) — DERIVED, never stored. A stored kind
@@ -1228,7 +1909,7 @@ library studio_ui
         ov = studio_ui.overlays(app)
         tree = studio_ui.branch_tree(app)
         edits = []
-        for each b in studio_branches.selected_chain(tree, doc.id, v.st)
+        for each b in studio_branches.selected_chain(tree, studio_ui.doc_key(doc), v.st)
             for each e in studio_overlays.for_branch(ov, b.id)
                 edits = append(edits, e)
             end for
@@ -1296,7 +1977,7 @@ library studio_ui
         end if
         ov = studio_ui.overlays(app)
         tree = studio_ui.branch_tree(app)
-        for each b in studio_branches.selected_chain(tree, doc.id, v.st)
+        for each b in studio_branches.selected_chain(tree, studio_ui.doc_key(doc), v.st)
             for each p in studio_overlays.conflicts(v.st, studio_overlays.for_branch(ov, b.id), -1)
                 out = append(out, { branch: b.id, name: b.name, section_id: p.section_id,
                                     why: p.why, detail: p.detail })
@@ -1323,7 +2004,7 @@ library studio_ui
             return { app: app, inserts: [], chain: [] }
         end if
         tree = studio_ui.branch_tree(app)
-        chain = studio_branches.selected_chain(tree, doc.id, v.st)
+        chain = studio_branches.selected_chain(tree, studio_ui.doc_key(doc), v.st)
         inserts = []
         for each b in chain
             text = studio_branches.bindings_text(b)
@@ -1378,7 +2059,7 @@ library studio_ui
         rows = append(rows, { kind: "baseline", id: "", label: "Baseline",
                               selected: sel = "", stale: false,
                               overlay: 0, conflicts: 0 })
-        for each b in studio_branches.at_point(tree, doc.id, v.sid)
+        for each b in studio_branches.at_point(tree, studio_ui.doc_key(doc), v.sid)
             ' STU-9: a code-overlay branch is VISIBLY MARKED experimental (§9.2),
             ' and its unresolved conflicts are marked beside it (§9.3). Both are
             ' counted from the edits themselves rather than stored, so a branch
@@ -1422,18 +2103,18 @@ library studio_ui
             app = v.app
             nm = trim(name)
             if nm = "" then
-                nm = "Branch " + (count(studio_branches.at_point(tree, doc.id, point)) + 1)
+                nm = "Branch " + (count(studio_branches.at_point(tree, studio_ui.doc_key(doc), point)) + 1)
             end if
             ' A new branch nests under whatever is selected ABOVE this point, so
             ' making one inside a branch keeps it inside that branch.
             parent = ""
-            chain = studio_branches.selected_chain(tree, doc.id, v.st)
+            chain = studio_branches.selected_chain(tree, studio_ui.doc_key(doc), v.st)
             for each c in chain
                 if c.point != point then
                     parent = c.id
                 end if
             end for
-            a = studio_branches.add(tree, doc.id, point, nm, parent, v.st)
+            a = studio_branches.add(tree, studio_ui.doc_key(doc), point, nm, parent, v.st)
             tree = studio_branches.select(a.tree, a.id).tree
             return { app: studio_ui.set_branch_tree(app, tree), action: "branched", detail: a.id + " " + nm }
         end if
@@ -1519,6 +2200,10 @@ library studio_ui
     '   "busy"       — a run is already in flight; stop it first
     '   "none"       — no document open
     '   "no-section" — the cursor is not inside anything runnable
+    '   "no-parse"   — there are no sections because the file does not parse,
+    '                  which is a different fact and a different fix
+    '   "not-gbasic" — a supporting file (README, JSON, Makefile). Studio opens
+    '                  these on purpose; it cannot run them
     function run_section(app, line0, column0)
         doc = studio_docs.active_doc(app.dm)
         if doc = nothing then
@@ -1541,12 +2226,46 @@ library studio_ui
         vw = studio_ui.view_for(app)
         app = vw.app
         st = vw.st
+        ' Before anything is derived from it: a supporting file has no sections
+        ' to run, and saying so by its NAME is the difference between a refusal
+        ' and a puzzle.
+        gb = studio_ui.is_gbasic(doc.path)
+        if not gb then
+            return { app: app, action: "not-gbasic", detail: doc.path, active: false }
+        end if
         sid = studio_ui.section_for(st, doc.content, line0 + 1, column0 + 1)
         if sid = "" then
+            ' "the cursor is not inside a runnable section" is TRUE and useless
+            ' when the reason there are no sections is that the file does not
+            ' parse: the cursor is plainly inside a function, and it is the
+            ' PARSER that could not find one. Blaming the cursor sends the user
+            ' to move it, which cannot help.
+            parsed = studio_ui.parses(st)
+            if not parsed then
+                return { app: app, action: "no-parse",
+                         detail: studio_ui.first_diagnostic(st), active: false }
+            end if
             return { app: app, action: "no-section", detail: "", active: false }
         end if
 
         sess = studio_session.create(doc.id, app.paths.home + "/scratch")
+        ' A project may say which gBASIC it is meant to run under. That is the
+        ' one thing `.gstudio.json` carries that CHANGES what a run does, and it
+        ' is why the file travels: a project pinned to 0.1.0-rc3 runs under
+        ' rc3 on whoever's machine, rather than under whatever their shell
+        ' happened to export. Read here rather than at launch because the answer
+        ' is per PROJECT and a window holds several.
+        pin = studio_projfile.read_spec(studio_ui.project_path_for(app, doc))
+        if pin.interpreter != "" then
+            sess.interpreter = pin.interpreter
+        end if
+        if pin.gbasic_path != "" then
+            ' REPLACES GBASIC_PATH rather than prepending to it. A pin that the
+            ' ambient environment could still reach around is not a pin, and
+            ' the child would otherwise inherit Studio's own `lib:` — this
+            ' repository's libraries, on the search path of the user's program.
+            sess.env = { GBASIC_PATH: pin.gbasic_path }
+        end if
         ' The same test seam the headless session cases use: with the clock pinned,
         ' a result's timestamps are reproducible and a golden can hold them.
         fixed = app["clock_fixed"]
@@ -1850,18 +2569,29 @@ library studio_ui
                 '
                 ' STU-3 built the anchors to survive exactly this; nothing had
                 ' been calling them.
-                v.st = studio_sections.restore_from(ws.sections, doc.id)
+                psr = studio_ui.project_state(app)
+                app = psr.app
+                v.st = studio_sections.restore_from(psr.state.sections, studio_ui.doc_key(doc))
             end if
-            v.st = studio_sections.refresh(v.st, doc.content)
+            ' ONLY gBASIC is parsed. A supporting file has no outline to
+            ' derive, and handing one to `source_outline` does not produce
+            ' "nothing" — it produces a failed parse, which the strip, the
+            ' errors pane and the gutter all then report as a broken program.
+            ' Skipping the refresh leaves the state valid and empty, which is
+            ' the truth: no sections, and no complaint about that.
+            if studio_ui.is_gbasic(doc.path) then
+                v.st = studio_sections.refresh(v.st, doc.content)
+            end if
             v.src = doc.content
             v.doc_id = doc.id
             ' Fold the state back into the workspace as it changes, so whatever
             ' the shutdown pipeline writes already has it. Waiting until exit
             ' would mean only the last document looked at kept its ids.
-            if ws != nothing then
-                ws.sections = studio_sections.persist_into(ws.sections, v.st)
-                app = studio.set_workspace(app, ws)
-            end if
+            psw = studio_ui.project_state(app)
+            app = psw.app
+            pst = psw.state
+            pst.sections = studio_sections.persist_into(pst.sections, v.st)
+            app = studio_ui.set_project_state(app, pst)
         end if
         if v.doc_path != doc.path then
             v.store = studio_results.open(app.paths.home, doc.path)
@@ -1900,6 +2630,21 @@ library studio_ui
     function section_label(app)
         v = studio_ui.view_for(app)
         if v.sid = "" then
+            ' Three different facts, which the strip used to report as one.
+            ' "(none)" over a screen full of functions reads as Studio having
+            ' lost them; over a README it reads as a README being an empty
+            ' program.
+            doc = studio_docs.active_doc(app.dm)
+            if doc != nothing then
+                gb = studio_ui.is_gbasic(doc.path)
+                if not gb then
+                    return "section: (not a gBASIC file)"
+                end if
+            end if
+            parsed = studio_ui.parses(v.st)
+            if not parsed then
+                return "section: (this file does not parse)"
+            end if
             return "section: (none)"
         end if
         sec = studio_sections.section_by_id(v.st, v.sid)
@@ -1949,6 +2694,48 @@ library studio_ui
         return { app: app, lines: lines, revision: rev, doc_id: id }
     end function
 
+    ' The same idea, for the PARSER: where the syntax error is, in editor units.
+    '
+    ' Keyed by a SIGNATURE rather than by the outline's revision, which is what
+    ' `section_marks` hands back. `studio_sections._apply` advances `revision`
+    ' only on a SUCCESSFUL parse, so a revision-keyed cache would never redraw a
+    ' mark that exists precisely BECAUSE the parse failed — the marks would
+    ' appear once, at whatever revision was current, and then never move again
+    ' however the error moved.
+    function error_marks(app)
+        v = studio_ui.view_for(app)
+        app = v.app
+        doc = studio_docs.active_doc(app.dm)
+        id = ""
+        if doc != nothing then
+            id = doc.id
+        end if
+        lines = []
+        parsed = studio_ui.parses(v.st)
+        if not parsed then
+            for each d in v.st.diagnostics
+                ' The parser counts lines from 1; a text buffer counts from 0.
+                ln = d.start_line - 1
+                if ln >= 0 then
+                    lines = append(lines, ln)
+                end if
+            end for
+        end if
+        return { app: app, lines: lines, doc_id: id,
+                 signature: studio_ui.mark_signature(lines) }
+    end function
+
+    ' What has to change before the marks are redrawn. The LINES, not their
+    ' count: two different one-line errors share a count, and the mark would sit
+    ' on the line the user had just fixed while the real one went unmarked.
+    function mark_signature(lines)
+        out = []
+        for each ln in lines
+            out = append(out, string(ln))
+        end for
+        return join(out, ",")
+    end function
+
     ' The 0-based line range of the section at the caret — what Run would run,
     ' shown as an extent in the code rather than only as an id in the strip.
     function current_range(app)
@@ -1985,6 +2772,22 @@ library studio_ui
                 if live then
                     return { app: v.app, kind: "live", session: sess, result: nothing, store: v.store }
                 end if
+                ' A run that ENDED BEFORE IT BEGAN. `refused` and `failed` both
+                ' return from `run_section` with `active` false, so `tick_run` is
+                ' never polled and `add_result` is never reached — there is no
+                ' stored result for these, and there should not be: nothing
+                ' executed, so there is nothing to file under this section's
+                ' history.
+                '
+                ' But that left their message with exactly ONE home, the run
+                ' strip, which is a single row that ellipsizes. The pane whose
+                ' whole job is to say what went wrong answered "(none)" about a
+                ' run Studio had just declined — the same "a pane asserting there
+                ' was no error" failure this pane's own comment was written
+                ' against, arrived at from the other direction.
+                if studio_ui.fault_text(sess) != "" then
+                    return { app: v.app, kind: "fault", session: sess, result: nothing, store: v.store }
+                end if
             end if
         end if
         if v.store = nothing then
@@ -2001,11 +2804,34 @@ library studio_ui
         return { app: ab.app, kind: "stored", session: nothing, result: latest, store: v.store }
     end function
 
+    ' What a refused or failed run says, or "" for anything else. A closed set:
+    ' these are the only two states that carry a message no result will ever
+    ' hold, and `state` is named in the text because the strip that used to be
+    ' the only place this appeared said it too.
+    function fault_text(session)
+        if session = nothing then
+            return ""
+        end if
+        if session.message = "" then
+            return ""
+        end if
+        if session.state = "refused" then
+            return "refused: " + session.message
+        end if
+        if session.state = "failed" then
+            return "failed: " + session.message
+        end if
+        return ""
+    end function
+
     ' What the prefix pane shows for the section at the caret.
     function prefix_body(app)
         o = studio_ui.output_source(app)
         if o.kind = "live" then
             return studio_ui.prefix_text(o.session)
+        end if
+        if o.kind = "fault" then
+            return "(the run did not start)"
         end if
         if o.kind = "none" then
             return "(this section has not run)"
@@ -2017,6 +2843,13 @@ library studio_ui
         o = studio_ui.output_source(app)
         if o.kind = "live" then
             return studio_ui.target_text(o.session)
+        end if
+        ' NOT the last stored run's output. A refusal produced none, and output
+        ' from an earlier run displayed beside "refused:" reads as output of the
+        ' run that was refused — which is the one thing these panes must never
+        ' say. The result itself is still in the results pane, where it is dated.
+        if o.kind = "fault" then
+            return "(the run did not start)"
         end if
         if o.kind = "none" then
             return "(this section has not run)"
@@ -2039,28 +2872,139 @@ library studio_ui
         if o.kind = "live" then
             return "(running)"
         end if
-        if o.kind = "none" then
-            return "(none)"
-        end if
         lines = []
-        for each a in o.result.attribution
-            where = a.where
-            sid = ""
-            if a.section_id != nothing then
-                sid = " [" + a.section_id + "]"
-            end if
-            lines = append(lines, where + sid + " " + a.line + ":" + a.column + "  " + a.message)
+        ' The refusal first, because it is the answer to the click that was just
+        ' made. The whole sentence, in a pane that wraps and that a user can
+        ' select and copy out of — the strip says the same thing in one line, and
+        ' this is where the line goes when it does not fit in one.
+        if o.kind = "fault" then
+            lines = append(lines, studio_ui.fault_text(o.session))
+        end if
+        ' Then the PARSER, whatever any run said. While the document does not
+        ' parse, nothing in it can run and the position of the syntax error is
+        ' the only actionable thing in the window — and until now it was the one
+        ' thing Studio knew and never said. "the document does not parse; fix
+        ' the errors first" is a refusal without an address.
+        for each pl in studio_ui.parse_lines(app)
+            lines = append(lines, pl)
         end for
-        pre = studio_ui._capture_or(app, o, "err_prefix", "")
-        tgt = studio_ui._capture_or(app, o, "err_target", "")
-        raw = pre + tgt
-        if raw != "" then
-            lines = append(lines, raw)
+        if o.kind = "stored" then
+            for each a in o.result.attribution
+                where = a.where
+                sid = ""
+                if a.section_id != nothing then
+                    sid = " [" + a.section_id + "]"
+                end if
+                lines = append(lines, where + sid + " " + a.line + ":" + a.column + "  " + a.message)
+            end for
+            pre = studio_ui._capture_or(app, o, "err_prefix", "")
+            tgt = studio_ui._capture_or(app, o, "err_target", "")
+            raw = pre + tgt
+            if raw != "" then
+                lines = append(lines, raw)
+            end if
         end if
         if count(lines) = 0 then
             return "(none)"
         end if
         return join(lines, "\n")
+    end function
+
+    ' ---- what the PARSER said -----------------------------------------------
+    '
+    ' `studio_sections.refresh` has recorded these since STU-3 and nothing ever
+    ' displayed them. The cost was not cosmetic: a file that does not parse
+    ' yields no sections, so the strip says "section: (none)", Run answers "the
+    ' cursor is not inside a runnable section" — which is true, and useless,
+    ' because the cursor is plainly inside a function — and the one fact the
+    ' window actually held, the LINE AND COLUMN of the syntax error, was thrown
+    ' away on every keystroke.
+
+    ' Whether the section state describes the text on screen.
+    '
+    ' Asked rather than inferred from the section list being empty: on a failed
+    ' parse `_apply` KEEPS the last-known-good sections (it must — deleting a
+    ' user's sections because they are mid-keystroke would renumber every result
+    ' filed against them), so a document can fail to parse and still have a full
+    ' list of sections. `valid` is the only thing that says so.
+    function parses(st)
+        if st = nothing then
+            return true
+        end if
+        return st.valid
+    end function
+
+    ' What the parser said about the document at the caret, formatted for the
+    ' errors pane. Empty when it parses, which is the normal case.
+    function parse_lines(app)
+        v = studio_ui.view_for(app)
+        return studio_ui.diagnostic_lines(v.st)
+    end function
+
+    function diagnostic_lines(st)
+        out = []
+        ok = studio_ui.parses(st)
+        if ok then
+            return out
+        end if
+        for each d in st.diagnostics
+            out = append(out, studio_ui.diagnostic_line(d))
+        end for
+        return out
+    end function
+
+    ' One diagnostic, in the shape the run attributions already use in this pane:
+    ' where it is, then what is wrong. The severity leads because `source_outline`
+    ' reports warnings through the same channel and a warning that reads like an
+    ' error is how a pane loses its authority.
+    function diagnostic_line(d)
+        return d.severity + " " + d.start_line + ":" + d.start_column + "  " + d.message
+    end function
+
+    ' The first thing the parser complained about, for a one-line status. "" when
+    ' the document parses.
+    function first_diagnostic(st)
+        for each l in studio_ui.diagnostic_lines(st)
+            return l
+        end for
+        return ""
+    end function
+
+    ' The heading over the errors pane, given what the pane is about to show.
+    '
+    ' The pane is the THIRD of three stacked in the console scroller, so on a
+    ' short window it is the one below the fold — and a heading that reads the
+    ' same whether a run failed or not gives the eye no reason to go looking for
+    ' it. The count is in the text (a golden can hold it); `error_fault` is what
+    ' the colour is keyed to.
+    '
+    ' Counted in NON-EMPTY lines, because a raw stderr capture ends in a newline
+    ' and a blank trailing line is not an error.
+    function error_heading(body)
+        n = studio_ui.error_count(body)
+        if n = 0 then
+            return "Errors"
+        end if
+        return "Errors (" + n + ")"
+    end function
+
+    ' How many things the errors pane is reporting. Zero for the two placeholders
+    ' that mean "nothing to report" — they are sentences the pane writes about
+    ' itself, not errors.
+    function error_count(body)
+        if body = "(none)" then
+            return 0
+        end if
+        if body = "(running)" then
+            return 0
+        end if
+        n = 0
+        for each ln in split(body, "\n")
+            if ln != "" then
+                n = n + 1
+            end if
+        end for
+        return n
     end function
 
     function _capture_or(app, o, name, empty)
@@ -2500,6 +3444,9 @@ library studio_ui
             return { app: app, action: r.action, detail: r.detail, active: r.active }
         end if
         if r.action = "no-section" then
+            return { app: app, action: r.action, detail: r.detail, active: r.active }
+        end if
+        if r.action = "no-parse" then
             return { app: app, action: r.action, detail: r.detail, active: r.active }
         end if
         return { app: app, action: "fetching", detail: row.name + " -> " + row.count + " rows", active: r.active }

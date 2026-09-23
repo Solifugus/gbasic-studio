@@ -1,6 +1,8 @@
 == a cold home ==
-nav rows=1
+nav rows=3
   [info] (no workspace open)
+  [info] New Project starts a fresh one
+  [info] or type a folder path and press Open Folder
 selected=
 tabs=0
 -> Open Folder: adopted proj-1 ui_adopt_proj
@@ -28,9 +30,9 @@ tabs=0
 -> Open Folder, trailing slash: activated proj-1 ui_adopt_proj
 -> Open Folder, by way of a subdirectory: activated proj-1 ui_adopt_proj
 projects=1
--> Open Folder on a path that is not there: missing nowhere
--> Open Folder on a file: missing main.bas
--> Open Folder on an empty path: none
+-> Open Folder on a path that is not there: no-folder nowhere
+-> Open Folder on a file: no-folder main.bas
+-> Open Folder on an empty path: no-path
 == untouched by all three ==
 nav rows=6
   [info] Workspace: workspace
@@ -41,3 +43,15 @@ nav rows=6
   [file]     main.bas
 selected=
 tabs=0
+== and what those two SAY, which is the whole point of them ==
+no folder: no folder at /srv/projects/ghost
+no path:   type a folder path into the name field, then press Open Folder
+== a path as a PERSON types it ==
+~             -> /home/u
+~/dev/gdash   -> /home/u/dev/gdash
+/abs/path     -> /abs/path
+dev/gdash     -> /w/dev/gdash
+~someone/x    -> /w/~someone/x
+(empty)       -> []
+~/x, no HOME  -> /w/~/x
+rel, no cwd   -> rel

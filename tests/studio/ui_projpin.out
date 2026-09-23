@@ -1,0 +1,12 @@
+== no pin: the ambient interpreter, and nothing recorded ==
+   exec: run: finished [sec-3] — exit 0
+the stand-in ran=false
+== pinned: the same run, through the stand-in ==
+spec: status=ok present=true id=gsp-#-# name= ignore=0 pinned=true
+   exec: run: finished [sec-3] — exit 0
+the stand-in ran=true
+== a pinned library path is the path the child actually sees ==
+spec: status=ok present=true id=gsp-#-# name= ignore=0 pinned=true
+   exec: run: finished [sec-3] — exit 0
+the child saw=</pinned/libs
+>

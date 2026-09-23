@@ -47,6 +47,14 @@ library studio_model
     function default_session()
         return {
             schema_version: 1,
+            ' The workspace record lives HERE now, not in a file of its own.
+            ' There was never more than one — `create_registered_workspace` has
+            ' two production call sites and both are guarded by `if ws = nothing`
+            ' — so a separate file, a registry listing it, and an id scheme for
+            ' the collection were three mechanisms serving a set of size one.
+            ' `active_workspace` is kept as a MIGRATION pointer: it names the
+            ' old `workspaces/<id>.json` that a pre-existing home still has.
+            workspace: nothing,
             active_workspace: "",
             next_ws: 1,
             window: studio_model.default_window(),
@@ -57,10 +65,17 @@ library studio_model
     ' A fresh, empty workspace with the given stable id and display name.
     ' `nav` holds STU-1 navigation state (browser selection + expanded dirs); it is
     ' additive — STU-0 workspaces without it are normalized in, and it is not part of
-    ' the STU-0 summary, so existing goldens are unaffected. `sections` (STU-3) is
-    ' additive on exactly the same terms: a list of per-document execution-section
-    ' persist records (studio_sections.to_persist tagged with its doc_id), backfilled
-    ' to [] by normalize_workspace for any workspace saved before STU-3.
+    ' the STU-0 summary, so existing goldens are unaffected. Section anchors, the branch tree and
+    ' the overlays are NOT here: they are per-PROJECT, and they live in
+    ' `<home>/state/<key>.json` (studio_projects). One record holding every
+    ' project's anchors at once grew with every project ever opened and never
+    ' shrank, and put the state that is obviously about one project somewhere it
+    ' could not be found, inspected or deleted on its own.
+    ' `tabs` is GONE, and so is each project's `documents`. Both were STU-0
+    ' schema that only `build_canned` ever filled: the running app records open
+    ' documents in `docs` (studio_docs.to_meta) and derives the notebook from
+    ' `app.dm.docs`. Two lists of the same thing, one of them never written, is
+    ' how a reader ends up unable to say what a project is.
     function new_workspace(id, name)
         return {
             schema_version: 1,
@@ -69,11 +84,69 @@ library studio_model
             next_seq: 1,
             active_project: "",
             projects: [],
-            tabs: { order: [], active: "" },
             nav: { selected_path: "", expanded: [] },
-            docs: { open: [], active: "", next_doc: 1 },
-            sections: []
+            docs: { open: [], active: "", next_doc: 1 }
         }
+    end function
+
+    ' ---- a filesystem-safe key for a path -----------------------------------
+    '
+    ' A readable tail (so a directory listing means something to a human) plus a
+    ' rolling hash of the WHOLE path (so two files sharing a basename in
+    ' different directories never collide). Pure gBASIC on purpose: `sha256` is
+    ' behind HAVE_LIBCRYPTO, and neither the results store nor the per-project
+    ' state may stop working where crypto is compiled out.
+    '
+    ' It lives HERE rather than in either caller because both `studio_results`
+    ' (keyed by document path) and `studio_projects` (keyed by project path)
+    ' need exactly this, and two copies of a hash are two things that can drift
+    ' into producing different filenames for the same input.
+    ' The rolling hash on its own. Split out of `path_key` rather than copied
+    ' because a project's stable id (`studio_projfile.mint_id`) needs a number
+    ' and not a filename, and a second hash written beside this one is the
+    ' drift this whole section exists to prevent.
+    function text_hash(text)
+        m = 1000000007
+        h = 0
+        i = 0
+        n = byte_count(text)
+        while i < n
+            h = h - floor(h / m) * m
+            h = h * 131 + byte_at(text, i) + 1
+            i = i + 1
+        end while
+        return h - floor(h / m) * m
+    end function
+
+    function path_key(path)
+        h = studio_model.text_hash(path)
+        n = byte_count(path)
+        safe = ""
+        i = 0
+        while i < n
+            b = byte_at(path, i)
+            ok = false
+            if b >= 48 and b <= 57 then
+                ok = true
+            end if
+            if b >= 65 and b <= 90 then
+                ok = true
+            end if
+            if b >= 97 and b <= 122 then
+                ok = true
+            end if
+            if ok then
+                safe = safe + chr(b)
+            else
+                safe = safe + "-"
+            end if
+            i = i + 1
+        end while
+        ' Keep the tail: the distinguishing part of a path is its end, not its root.
+        if len(safe) > 40 then
+            safe = right(safe, 40)
+        end if
+        return safe + "-" + h
     end function
 
     ' ---- id minting --------------------------------------------------------
@@ -120,12 +193,13 @@ library studio_model
         seq = ws.next_seq
         pid = "proj-" + seq
         ws.next_seq = seq + 1
+        ' A project is a NAME and a PATH. `documents` and `next_seq` went with
+        ' `open_document`: documents are the document manager's business, and a
+        ' project that also kept a list of them kept a second, staler one.
         proj = {
             id: pid,
             name: name,
-            path: path,
-            next_seq: 1,
-            documents: []
+            path: path
         }
         ws.projects = append(ws.projects, proj)
         if ws.active_project = "" then
@@ -141,30 +215,6 @@ library studio_model
             return nothing
         end if
         return ws.projects[n - 1]
-    end function
-
-    ' Open a document (a file path) inside a project. The document gets a stable
-    ' id (doc-N), is added to the project, appended to the tab order, and made the
-    ' active tab. Returns the updated workspace (nested COW write-back).
-    function open_document(ws, project_id, path)
-        idx = studio_model._project_index(ws, project_id)
-        if idx < 0 then
-            error "studio_model: unknown project: " + project_id
-        end if
-        proj = ws.projects[idx]
-        seq = proj.next_seq
-        docid = "doc-" + seq
-        proj.next_seq = seq + 1
-        doc = { id: docid, path: path, name: studio_model._basename(path) }
-        proj.documents = append(proj.documents, doc)
-        ' write the mutated project copy back into the array (COW)
-        ws.projects[idx] = proj
-        ' tabs reference documents by stable id, never by position
-        tabs = ws.tabs
-        tabs.order = append(tabs.order, docid)
-        tabs.active = docid
-        ws.tabs = tabs
-        return ws
     end function
 
     ' Set the active project by id (validated). Returns the updated workspace.

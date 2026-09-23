@@ -1,6 +1,6 @@
 dirty documents: 0
 dirty documents after typing: 1
-saved=settings,session,workspace:ws-1,registry,drafts
+saved=settings,session,drafts
 == relaunching the same home ==
 nav rows=6
   [info] Workspace: ws

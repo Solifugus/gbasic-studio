@@ -1,0 +1,25 @@
+-- launching the old home --
+settings.theme=system
+settings.restore_last_session=true
+settings.recent_limit=10
+session.window=1200x800 max=false
+session.recent=
+active_project=proj-2
+projects=2
+  proj-1 Alpha
+  proj-2 Beta
+diagnostics=settings:default;session:loaded;workspace:migrated;drafts:0 conflicts:0;viewers:4 problems:0
+-- saving it forward --
+saved=settings,session,drafts
+old file still there=true
+-- and the next launch reads the session, not the old file --
+settings.theme=system
+settings.restore_last_session=true
+settings.recent_limit=10
+session.window=1200x800 max=false
+session.recent=
+active_project=proj-2
+projects=2
+  proj-1 Alpha
+  proj-2 Beta
+diagnostics=settings:loaded;session:loaded;workspace:loaded;drafts:0 conflicts:0;viewers:4 problems:0

@@ -1,22 +1,27 @@
 -- a cold home --
-nav rows=1
+nav rows=3
   [info] (no workspace open)
+  [info] New Project starts a fresh one
+  [info] or type a folder path and press Open Folder
 selected=
 tabs=0
 clicking New Project on a cold home
-action=created
--- after New Project — an empty project, which is where STU-2B stopped --
-nav rows=2
+clicking Create, with the window's defaults
+action=project-created
+-- after New Project — main.bas is already there, which is where STU-2B stopped --
+nav rows=3
   [info] Workspace: workspace
   [project] * Project 1
+  [file]     main.bas
 selected=
 tabs=0
 clicking New File
 action=created
 -- after New File --
-nav rows=3
+nav rows=4
   [info] Workspace: workspace
   [project] * Project 1
+  [file]     main.bas
   [file]     untitled-1.bas
 selected=untitled-1.bas
 tabs=1
@@ -26,9 +31,10 @@ action=synced
 clicking Save
 action=saved
 -- after Save --
-nav rows=3
+nav rows=4
   [info] Workspace: workspace
   [project] * Project 1
+  [file]     main.bas
   [file]     untitled-1.bas
 selected=untitled-1.bas
 tabs=1
@@ -36,22 +42,24 @@ tabs=1
 clicking New Folder
 action=created
 -- after New Folder --
-nav rows=4
+nav rows=5
   [info] Workspace: workspace
   [project] * Project 1
   [dir]   > new-folder-1
+  [file]     main.bas
   [file]     untitled-1.bas
 selected=untitled-1.bas
 tabs=1
   * doc-1 untitled-1.bas
 closing the window
-saved=settings,session,workspace:ws-1,registry,drafts
+saved=settings,session,drafts
 app-exited
 -- reopening the home in a new process --
-nav rows=4
+nav rows=5
   [info] Workspace: workspace
   [project] * Project 1
   [dir]   > new-folder-1
+  [file]     main.bas
   [file]     untitled-1.bas
 selected=untitled-1.bas
 tabs=1

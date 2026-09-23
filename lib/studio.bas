@@ -22,6 +22,7 @@ library studio
     ' working entirely once these libraries live in separate projects.
     load studio_docs
     load studio_drafts
+    load studio_projects
     load studio_viewers
     load studio_model
     load persist
@@ -34,13 +35,12 @@ library studio
             home: home,
             settings_file: home + "/settings.json",
             session_file: home + "/session.json",
-            workspaces_dir: home + "/workspaces",
-            registry_file: home + "/workspaces.json"
+            ' READ-ONLY, and only on a home written before the workspace was
+            ' demoted. Nothing writes here any more; `_migrate_workspace` reads
+            ' the old file in and leaves it exactly where it is, so an older
+            ' Studio can still open the same home.
+            legacy_workspaces_dir: home + "/workspaces"
         }
-    end function
-
-    function workspace_path(app, id)
-        return app.paths.workspaces_dir + "/" + id + ".json"
     end function
 
     ' ---- future hooks (empty placeholders for later phases) ----------------
@@ -79,6 +79,30 @@ library studio
         return { value: st.value, code: "loaded" }
     end function
 
+    ' A home written before the workspace was demoted keeps its projects in
+    ' `workspaces/<id>.json`, named by the session's `active_workspace`. Read it
+    ' in ONCE; from then on it rides in the session and this finds nothing more
+    ' to do. The old file is LEFT ON DISK deliberately — it costs a few hundred
+    ' bytes, it is the only copy of that state until the first clean save, and
+    ' deleting a user's only copy to tidy up is the kind of confident cleanup
+    ' this project does not do.
+    function _migrate_workspace(p, session)
+        want = session.active_workspace
+        if want = "" then
+            return { workspace: nothing, code: "none" }
+        end if
+        wpath = p.legacy_workspaces_dir + "/" + want + ".json"
+        st = persist.read_status(wpath)
+        pol = studio._policy(st, nothing)
+        if pol.code != "loaded" then
+            ' missing/corrupt/future: degrade to no projects open rather than
+            ' failing the launch. Files and layout still restore.
+            return { workspace: nothing, code: pol.code }
+        end if
+        return { workspace: studio_model.normalize_workspace(pol.value),
+                 code: "migrated" }
+    end function
+
     ' ---- startup pipeline --------------------------------------------------
 
     ' main -> load global settings -> load previous session -> load its workspace
@@ -89,7 +113,6 @@ library studio
     function startup(home)
         p = studio.paths(home)
         persist.ensure_dir(p.home)
-        persist.ensure_dir(p.workspaces_dir)
 
         diagnostics = []
 
@@ -111,28 +134,28 @@ library studio
         end if
         diagnostics = append(diagnostics, "session:" + ep.code)
 
-        ' workspace (only if the session names one and restoring is enabled)
+        ' The open projects, which now ride INSIDE the session rather than in a
+        ' file of their own. `restore_last_session` still gates it: that setting
+        ' is about reopening what you had, and the projects are what you had.
         workspace = nothing
-        want_ws = session.active_workspace
-        if want_ws != "" then
-            if settings.restore_last_session then
-                wpath = p.workspaces_dir + "/" + want_ws + ".json"
-                ws_status = persist.read_status(wpath)
-                wp = studio._policy(ws_status, nothing)
-                if wp.code = "loaded" then
-                    workspace = studio_model.normalize_workspace(wp.value)
-                    diagnostics = append(diagnostics, "workspace:loaded")
-                else
-                    ' missing/corrupt/future workspace: degrade to no workspace
-                    ' (files+layout still restored), flag it, keep the session.
-                    diagnostics = append(diagnostics, "workspace:" + wp.code)
+        diagnostics_code = "none"
+        if settings.restore_last_session then
+            held = session["workspace"]
+            if held != unknown then
+                if held != nothing then
+                    workspace = studio_model.normalize_workspace(held)
+                    diagnostics_code = "loaded"
                 end if
-            else
-                diagnostics = append(diagnostics, "workspace:restore-disabled")
+            end if
+            if workspace = nothing then
+                mig = studio._migrate_workspace(p, session)
+                workspace = mig.workspace
+                diagnostics_code = mig.code
             end if
         else
-            diagnostics = append(diagnostics, "workspace:none")
+            diagnostics_code = "restore-disabled"
         end if
+        diagnostics = append(diagnostics, "workspace:" + diagnostics_code)
 
         model = {
             schema_version: studio_model.schema_version(),
@@ -184,20 +207,20 @@ library studio
         p = app.paths
         model = app.model
         persist.ensure_dir(p.home)
-        persist.ensure_dir(p.workspaces_dir)
+
+        ' The workspace goes INTO the session rather than beside it, so the two
+        ' cannot disagree about which projects were open — which they could
+        ' while one was a pointer and the other a separate file that a crash
+        ' between two writes could leave stale.
+        session = model.session
+        session.workspace = model.workspace
+        model.session = session
 
         saved = []
         persist.write_atomic(p.settings_file, model.settings)
         saved = append(saved, "settings")
-        persist.write_atomic(p.session_file, model.session)
+        persist.write_atomic(p.session_file, session)
         saved = append(saved, "session")
-
-        ws = model.workspace
-        if ws != nothing then
-            wpath = p.workspaces_dir + "/" + ws.id + ".json"
-            persist.write_atomic(wpath, ws)
-            saved = append(saved, "workspace:" + ws.id)
-        end if
         return saved
     end function
 
@@ -213,74 +236,38 @@ library studio
         lines = append(lines, "settings.theme=" + s.theme)
         lines = append(lines, "settings.restore_last_session=" + s.restore_last_session)
         lines = append(lines, "settings.recent_limit=" + s.recent_limit)
-        lines = append(lines, "session.active_workspace=" + se.active_workspace)
         win = se.window
         lines = append(lines, "session.window=" + win.width + "x" + win.height + " max=" + win.maximized)
         lines = append(lines, "session.recent=" + join(se.recent_files, ","))
         ws = model.workspace
         if ws = nothing then
-            lines = append(lines, "workspace=none")
+            lines = append(lines, "projects=none")
         else
-            lines = append(lines, "workspace=" + ws.id + ":" + ws.name)
-            lines = append(lines, "workspace.active_project=" + ws.active_project)
+            lines = append(lines, "active_project=" + ws.active_project)
             lines = append(lines, "projects=" + count(ws.projects))
             for each pr in ws.projects
-                lines = append(lines, "  " + pr.id + " " + pr.name + " docs=" + count(pr.documents))
+                lines = append(lines, "  " + pr.id + " " + pr.name)
             end for
-            lines = append(lines, "tabs.order=" + join(ws.tabs.order, ","))
-            lines = append(lines, "tabs.active=" + ws.tabs.active)
         end if
         lines = append(lines, "diagnostics=" + join(app.diagnostics, ";"))
         return join(lines, "\n")
     end function
 
     ' ======================================================================
-    ' STU-1 — workspace registry, navigation lifecycle, and workspace ops.
-    ' All additive: the STU-0 startup/shutdown/summary above are unchanged, so
-    ' STU-0 stores and goldens are untouched. The registry is a SEPARATE store
-    ' (workspaces.json) persisted via save_registry, not by shutdown.
+    ' STU-1 — navigation lifecycle and the operations over the open projects.
+    '
+    ' The workspace REGISTRY that used to live here is gone. It listed the
+    ' workspaces a home knew about, for a home that never had more than one:
+    ' `create_registered_workspace` has two production call sites and both are
+    ' guarded by `if ws = nothing`. A separate file, an id scheme and a
+    ' most-recent list, all serving a set of size one.
     ' ======================================================================
 
-    ' The set of known workspaces (for "open an existing workspace") plus the
-    ' most-recently-opened order (for "recent workspaces").
-    function default_registry()
-        return { schema_version: 1, entries: [], recent: [] }
-    end function
-
-    ' Load the workspace registry into app.registry, recovering to an empty
-    ' registry on a missing/corrupt/future-version file (diagnostic recorded).
-    function load_registry(app)
-        p = app.paths
-        st = persist.read_status(p.registry_file)
-        pol = studio._policy(st, studio.default_registry())
-        reg = pol.value
-        if pol.code = "loaded" then
-            defs = studio.default_registry()
-            for each k in keys(defs)
-                v = reg[k]
-                if v = unknown then
-                    reg[k] = defs[k]
-                end if
-            end for
-            reg.schema_version = 1
-        end if
-        app.registry = reg
-        app.diagnostics = append(app.diagnostics, "registry:" + pol.code)
-        return app
-    end function
-
-    function save_registry(app)
-        p = app.paths
-        persist.ensure_dir(p.home)
-        persist.write_atomic(p.registry_file, app.registry)
-    end function
-
-    ' STU-1/STU-2 launch = STU-0 startup + the workspace registry + the live document
-    ' manager reconstructed from the active workspace's persisted open-document
-    ' metadata (studio_docs re-reads each file from disk; buffers are not persisted).
+    ' STU-1/STU-2 launch = STU-0 startup + the live document manager
+    ' reconstructed from the persisted open-document metadata (studio_docs
+    ' re-reads each file from disk; buffers are not persisted).
     function launch(home)
         app = studio.startup(home)
-        app = studio.load_registry(app)
         app.dm = studio._reload_docs(app)
         ' Put back any unsaved buffers the last session was holding. They come
         ' back UNSAVED — a draft is the user's typing, not a decision to write it
@@ -322,7 +309,7 @@ library studio
     end function
 
     ' STU-1/STU-2 persist = sync open documents into the workspace, then STU-0
-    ' shutdown (settings/session/workspace) + the registry.
+    ' shutdown (settings + session, which now carries the projects).
     function persist(app)
         app = studio._sync_docs(app)
         ' Drafts BEFORE the workspace: a crash between the two leaves a draft the
@@ -331,9 +318,22 @@ library studio
         ' never written.
         ' The effect is on disk; the returned index is informational here.
         drafts_index = studio_drafts.capture(app.paths.home, app.dm)
+        ' The active project's anchors, branches and overlays. Held in memory
+        ' while you work (the section fold runs at cursor-move rate) and written
+        ' here, which is the same in-memory-until-exit behaviour they had inside
+        ' the workspace record — only the file changed.
+        held = app["pstate"]
+        if held != unknown then
+            if held != nothing then
+                if held.key != "" then
+                    wrote = studio_projects.save(app.paths.home, held.key, held.state)
+                    if wrote then
+                        saved_state = true
+                    end if
+                end if
+            end if
+        end if
         saved = studio.shutdown(app)
-        studio.save_registry(app)
-        saved = append(saved, "registry")
         saved = append(saved, "drafts")
         return saved
     end function
@@ -352,79 +352,16 @@ library studio
         return kept
     end function
 
-    ' ---- workspace registry operations -------------------------------------
-
-    ' Record (or update) a workspace in the registry and mark it most-recent.
-    function register_workspace(app, id, name)
-        reg = app.registry
-        entries = []
-        found = false
-        for each e in reg.entries
-            if e.id = id then
-                entries = append(entries, { id: id, name: name })
-                found = true
-            else
-                entries = append(entries, e)
-            end if
-        end for
-        if not found then
-            entries = append(entries, { id: id, name: name })
-        end if
-        reg.entries = entries
-        reg.recent = studio._push_recent(reg.recent, id)
-        app.registry = reg
-        return app
-    end function
-
-    ' Create a new workspace, install it as active, and register it. Returns the
-    ' updated app (its new workspace is app.model.workspace).
+    ' Create the set of open projects and install it. The name is kept for its
+    ' hundred call sites; there is no registry to register with any more.
     function create_registered_workspace(app, name)
         app = studio.create_workspace(app, name)
-        ws = app.model.workspace
-        app = studio.register_workspace(app, ws.id, name)
         app.dm = studio_docs.create()
         return app
     end function
 
-    ' Open an existing workspace by id: load its file, install it as active, and
-    ' mark it most-recent. Missing/corrupt/future file degrades gracefully (the
-    ' workspace is left closed and a diagnostic is recorded) — never a crash.
-    function open_workspace(app, id)
-        p = app.paths
-        wpath = p.workspaces_dir + "/" + id + ".json"
-        st = persist.read_status(wpath)
-        pol = studio._policy(st, nothing)
-        if pol.code = "loaded" then
-            ws = studio_model.normalize_workspace(pol.value)
-            model = app.model
-            model.workspace = ws
-            model.session = studio_model.set_active_workspace(model.session, id)
-            app.model = model
-            app.dm = studio_docs.from_meta(ws.docs)
-            app = studio.register_workspace(app, id, ws.name)
-            app.diagnostics = append(app.diagnostics, "open:" + id + ":loaded")
-        else
-            app.diagnostics = append(app.diagnostics, "open:" + id + ":" + pol.code)
-        end if
-        return app
-    end function
-
-    ' Rename the active workspace and update its registry entry.
-    function rename_workspace(app, name)
-        model = app.model
-        ws = model.workspace
-        if ws = nothing then
-            return app
-        end if
-        ws.name = name
-        model.workspace = ws
-        app.model = model
-        app = studio.register_workspace(app, ws.id, name)
-        return app
-    end function
-
-    ' Close the active workspace: clear it from the model and the session (the
-    ' caller persists). The registry entry is kept so it can be reopened.
+    ' Close the open set of projects: clear it from the model and the session
+    ' (the caller persists).
     function close_workspace(app)
         app = studio._sync_docs(app)
         model = app.model
@@ -440,12 +377,10 @@ library studio
     function nav_summary(app)
         model = app.model
         ws = model.workspace
-        reg = app.registry
         lines = []
         if ws = nothing then
-            lines = append(lines, "workspace=none")
+            lines = append(lines, "projects=none")
         else
-            lines = append(lines, "workspace=" + ws.id + ":" + ws.name)
             lines = append(lines, "active_project=" + ws.active_project)
             lines = append(lines, "projects=" + count(ws.projects))
             for each pr in ws.projects
@@ -459,12 +394,6 @@ library studio
             lines = append(lines, "selected=" + selname)
             lines = append(lines, "expanded=" + count(ws.nav.expanded))
         end if
-        names = []
-        for each e in reg.entries
-            names = append(names, e.name)
-        end for
-        lines = append(lines, "registry=" + join(names, ","))
-        lines = append(lines, "recent=" + join(reg.recent, ","))
         return join(lines, "\n")
     end function
 

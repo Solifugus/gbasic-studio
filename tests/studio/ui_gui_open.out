@@ -1,6 +1,8 @@
 -- a cold home --
-nav rows=1
+nav rows=3
   [info] (no workspace open)
+  [info] New Project starts a fresh one
+  [info] or type a folder path and press Open Folder
 selected=
 tabs=0
 typing the folder path into the name field, then clicking Open Folder
@@ -24,6 +26,28 @@ nav rows=4
   [file]     thing.bas
 selected=
 tabs=0
+the folder Studio just opened twice is untouched
+-- still no project file --
+nav rows=4
+  [info] Workspace: workspace
+  [project] * ui_gui_open_proj
+  [dir]   > src
+  [file]     thing.bas
+selected=
+tabs=0
+clicking Project File
+action=project-file status=wrote .../.gstudio.json
+-- the one dotfile the browser shows --
+nav rows=5
+  [info] Workspace: workspace
+  [project] * ui_gui_open_proj
+  [dir]   > src
+  [file]     .gstudio.json
+  [file]     thing.bas
+selected=
+tabs=0
+clicking Project File again
+action=exists status=.gstudio.json already exists
 clicking Open Folder on a path that is not there
-action=missing status=nowhere is not there
+action=no-folder status=no folder at .../nowhere
 app-exited

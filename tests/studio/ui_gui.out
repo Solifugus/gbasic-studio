@@ -117,12 +117,15 @@ tabs=2
   * doc-1 main.bas
     doc-2 a.bas
 clicking New Project
-action=created
+New Project opened a window=true
+clicking Create, with the window's defaults
+action=project-created
 -- after New Project --
-nav rows=3
+nav rows=4
   [info] Workspace: ws
   [project]   Alpha
   [project] * Project 2
+  [file]     main.bas
 selected=a.bas
 tabs=2
   * doc-1 main.bas
