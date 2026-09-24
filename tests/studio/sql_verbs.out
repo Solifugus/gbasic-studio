@@ -1,0 +1,27 @@
+== what each statement IS ==
+  read  select  name=-   <select * from t>
+  read  select  name=-   <  select 1>
+  write  with  name=-   <with x as (select 1) select * from x>
+  read  explain  name=-   <explain select 1>
+  read  pragma  name=-   <pragma table_info(t)>
+  write  insert  name=-   <insert into t values (1)>
+  write  update  name=-   <update t set a = 1 where id = 2>
+  destructive  update  name=-   <update t set a = 1>
+  write  delete  name=-   <delete from t where id = 2>
+  destructive  delete  name=-   <delete from t>
+  destructive  delete  name=-   <DELETE FROM T>
+  destructive  drop  name=t   <drop table t>
+  destructive  truncate  name=t   <truncate table t>
+  write  create  name=customers   <create table customers (id int)>
+  write  create  name=customers   <create table if not exists customers (id int)>
+  write  create  name=big   <create or replace view big as select 1>
+  write  create  name=idx_a   <create unique index idx_a on customers (a)>
+  write  alter  name=customers   <alter table customers add column note text>
+  write  create  name=auditor   <create role auditor with login>
+  write  grant  name=-   <grant select on customers to auditor>
+  write  create  name=my table   <create table "my table" (id int)>
+  write  begin  name=-   <begin>
+  write  commit  name=-   <commit>
+  read    name=-   <>
+== a `where` in a comment does not count as a filter ==
+  destructive  <delete from t  -- where id = 1>

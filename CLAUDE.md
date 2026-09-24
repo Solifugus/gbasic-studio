@@ -49,7 +49,7 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 177 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 181 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 29 cases, headless AND offline (scripted transport)
 ```
 
@@ -85,7 +85,13 @@ app/studio.bas   entry point; dispatches modes, owns the GTK application object
 lib/studio.bas          app lifecycle over the model (launch/create/open/shutdown)
 lib/studio_model.bas    workspace / project / session / settings schema
 lib/studio_docs.bas     document manager: open, dirty, save, close, external change
-lib/studio_sections.bas execution sections over source_outline, with stable ids
+lib/studio_sections.bas execution sections with stable ids — over source_outline
+                        for gBASIC, over studio_sql for a .sql document; the
+                        id matching below the candidates is the same either way
+lib/studio_sql.bas      STU-14 where one SQL statement ends and the next
+                        begins: a SCANNER, not a parser, plus the two shallow
+                        facts (verb, object name) that section identity and the
+                        destructive-statement arm need
 lib/studio_session.bas  replay-first execution in a child interpreter, 8 states
 lib/studio_results.bas  durable per-run results, retention, truncation, standing
 lib/studio_ui.bas       what an interaction MEANS — the browser/tab row models and
@@ -511,6 +517,48 @@ Two consequences worth knowing before you touch the shell:
   reads as a remark rather than as one more thing to try clicking. That styling
   is keyed on kind AND depth, because the workspace header is an info row too
   and keeps its weight.
+
+### SQL as a document type (STU-14, in progress)
+
+- **`byte_slice(s, at, count)` takes a COUNT, not an end offset.** Documented,
+  and `source_outline_design.md` shows the idiom
+  (`byte_slice(text, a, b - a)`), but every offset in this codebase is
+  half-open `[start, end)` and passing `end` straight through reads as correct
+  and returns too much. It cost an hour: the statement boundaries were right
+  and the extracted TEXT ran to the end of the file. A first test that sliced
+  `(s, 6, 11)` from an 11-byte string could not tell the two readings apart,
+  which is its own lesson about what a probe proves.
+- **The SQL splitter is a scanner, not a parser**, and that is the whole
+  design. It knows the places a `;` is not a terminator — inside a string, a
+  line comment, a NESTED block comment (PostgreSQL nests them), a quoted
+  identifier in any of the three spellings, or a dollar-quoted body — and it
+  knows nothing else. A parser here would have to be three parsers, one per
+  engine, and would go wrong on the first dialect feature it had not met;
+  a scanner is wrong only where the QUOTING rules differ, and they barely do.
+- `$1` must NOT open a dollar quote, or a single parameter placeholder swallows
+  the rest of the file into one statement. The tag has to match.
+- **A `.sql` document reuses the SAME id matcher a gBASIC one does.**
+  `studio_sections.attach` was split out of `_apply` so candidates do not have
+  to come from `source_outline`; everything downstream of them is about section
+  IDENTITY and knows nothing about gBASIC. Two identical statements come back
+  `ambiguous` rather than guessed at, inherited for free.
+- A SQL statement has no name the way a function does, so `name_of` reads one
+  off the `<verb> <noun> <name>` DDL shapes (skipping `if not exists`,
+  `or replace`) purely to give tier-2 matching something to hold. That is what
+  keeps a result attached to `create table customers` after its columns are
+  rewritten — measured: it keeps `sec-1` while an inserted statement above it
+  takes `sec-3`, so the ids are out of file order, which is the point.
+- `tier_of` assigns read / write / **destructive** by REVERSIBILITY, the same
+  rule the permission tiers use. `delete` and `update` with no `where` are
+  destructive: those are the ones that read as ordinary and empty a table.
+  `with` is reported as a write rather than guessed at — over-stating what a
+  statement does costs a reader a moment, under-stating it costs them a table.
+- **`ctx_open_on` in `ui_gui_ctx` goes by INDEX, not by scanning for a y.** The
+  scan is the faithful path and is used once, where it is the thing being
+  tested; everywhere else it is a race and it lost one — a phase that redraws
+  rebuilds the nav rows and the next tick can arrive before GTK has allocated
+  them, so no y maps to any row and the menu silently does not open. Same
+  allocation-timing trap as before, found as an intermittent failure.
 - **`persist.read_status` answers "loaded", not "ok".** Testing for the wrong
   one silently yields an empty store on every read — the round trip appears to
   write and then return nothing.

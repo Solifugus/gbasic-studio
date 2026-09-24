@@ -1,0 +1,29 @@
+-- as written --
+  sec-1  create  name=customers  write  active
+  sec-2  select  name=-  read  active
+== a statement inserted ABOVE, and the named one's body rewritten ==
+-- after --
+  sec-3  create  name=i  write  active
+  sec-1  create  name=customers  write  active
+  sec-2  select  name=-  read  active
+stale: []
+== a statement DELETED goes stale rather than being reused ==
+-- after --
+  sec-3  create  name=i  write  active
+  sec-2  select  name=-  read  active
+stale: [sec-1]
+== two identical statements are ambiguous, not guessed at ==
+-- before --
+  sec-1  select  name=-  read  active
+  sec-2  select  name=-  read  active
+-- both now identical --
+  sec-3  select  name=-  read  ambiguous
+  sec-4  select  name=-  read  ambiguous
+== the caret resolves to the statement it is in ==
+  offset 0 -> [sec-1]
+  offset 8 -> [sec-1]
+  offset 9 -> [nothing]
+  offset 10 -> [nothing]
+  offset 11 -> [sec-2]
+  offset 19 -> [sec-2]
+  offset 100 -> [nothing]

@@ -1,4 +1,4 @@
-right-click a FILE row
+right-click a FILE row (through a real y, not an index)
   menu: open,rename,delete
   the popover is up=true
   selection followed the click=.../main.bas

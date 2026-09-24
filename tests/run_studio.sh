@@ -539,7 +539,7 @@ run_sections() { # mode
         fail "sections_$mode (output diff)"
     fi
 }
-for m in derive cursor cursor_pos prog insert_blank internal rename sibling duplicate delete invalid persist multidoc unicode repeated; do
+for m in sql derive cursor cursor_pos prog insert_blank internal rename sibling duplicate delete invalid persist multidoc unicode repeated; do
     run_sections "$m"
 done
 
@@ -877,6 +877,22 @@ run_ui() { # mode
         fail "ui_$mode (output diff)"
     fi
 }
+
+# STU-14: the SQL statement scanner. It is the foundation the `.sql` document
+# type sits on -- split wrongly and every cell boundary, result and stable id is
+# filed against the wrong text -- and it needs no fixture at all.
+SQLD=tests/drivers/sql.bas
+for m in scan edges verbs; do
+    : >"$stdout_file"
+    if ! timeout 60 "$GBASIC" "$SQLD" "$m" >"$stdout_file" 2>&1; then
+        cat "$stdout_file"; fail "sql_$m (nonzero exit)"
+    fi
+    if diff -u "tests/studio/sql_$m.out" "$stdout_file"; then
+        printf 'PASS sql_%s\n' "$m"
+    else
+        fail "sql_$m (output diff)"
+    fi
+done
 
 for m in rows open expand project bounds tabs edit save newproj refresh \
          newfile newfolder adopt exit \

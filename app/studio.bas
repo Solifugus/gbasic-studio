@@ -1466,17 +1466,31 @@ end function
 ' takes a real row's y off its allocation and calls the same `show_context_at`
 ' the gesture calls -- which leaves `get_row_at_y` exercised for real and only
 ' the button-3 dispatch unproven.
-' Open the menu on row `idx`, through the SAME path the gesture uses.
+' Open the menu on row `idx`.
 '
-' The y is found by asking `get_row_at_y` rather than by arithmetic: row pitch
-' is not `get_height()` (measured — 19 reported, ~20 actual, so `idx * h`
-' landed one row early and the menu came up on the wrong file). Scanning also
-' means this case exercises `get_row_at_y` for real, which is otherwise the one
-' widget-to-value read in this path that nothing could see.
-'
-' `get_allocation()` is NOT the way: it raises through the gi bridge, the same
-' class of gap as `gi.new("Gdk.Rectangle")`.
+' By INDEX, deliberately. The y-scan below is the faithful path and is used
+' once, where it is the thing being tested; everywhere else it is a race, and
+' it lost one: a phase that redraws rebuilds the nav rows, and the next tick
+' can arrive before GTK has allocated them, at which point no y maps to any row
+' and the menu silently does not open. A test that fails once in twenty is
+' worse than no test.
 function ctx_open_on(idx)
+    row = G.shell.nav.get_row_at_index(idx)
+    if row = nothing then
+        print "no row at index " + idx
+        return nothing
+    end if
+    show_context_for(row, idx)
+    return nothing
+end function
+
+' The faithful path: find the y that belongs to row `idx` by asking
+' `get_row_at_y`, and go in through `show_context_at` exactly as the gesture
+' does. Row pitch is NOT `get_height()` -- measured, 19 reported against ~20
+' actual, so `idx * h` opened the menu on the wrong file -- and
+' `row.get_allocation()` raises through the bridge, so scanning is what is
+' left.
+function ctx_open_at_y(idx)
     y = 0
     while y < 2000
         r = G.shell.nav.get_row_at_y(y)
@@ -1509,8 +1523,8 @@ end function
 function stu14_step()
     G.phase = G.phase + 1
     if G.phase = 1 then
-        print "right-click a FILE row"
-        ctx_open_on(row_of("file", "main.bas"))
+        print "right-click a FILE row (through a real y, not an index)"
+        ctx_open_at_y(row_of("file", "main.bas"))
         return true
     end if
     if G.phase = 2 then

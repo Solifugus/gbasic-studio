@@ -24,6 +24,9 @@
 
 library studio_sections
 
+    ' Dependencies, declared rather than assumed.
+    load studio_sql
+
     function schema_version()
         return 1
     end function
@@ -471,7 +474,15 @@ library studio_sections
             state.valid = false
             return state
         end if
-        cand = studio_sections.derive(o, source)
+        return studio_sections.attach(state, studio_sections.derive(o, source), source)
+    end function
+
+    ' Reattach a candidate list and advance the state. Split out of `_apply`
+    ' because the candidates do not have to come from `source_outline`: a
+    ' `.sql` document produces its own (see `refresh_sql`), and everything
+    ' downstream of the candidates -- the id matching, the stale set, the
+    ' revision -- is about SECTION IDENTITY and knows nothing about gBASIC.
+    function attach(state, cand, source)
         r = studio_sections._match(state.sections, cand, state.next_sec)
         state.sections = r.sections
         state.next_sec = r.next_sec
@@ -480,6 +491,68 @@ library studio_sections
         state.revision = state.revision + 1
         state.source_hint_len = byte_count(source)
         return state
+    end function
+
+    ' ---- SQL --------------------------------------------------------------
+    '
+    ' A `.sql` document is a notebook and each statement is a cell, so the unit
+    ' of identity is a statement. Everything else is the SAME machinery a
+    ' gBASIC document uses, because what makes an id worth having -- that a
+    ' result recorded against it still means the same statement after an edit
+    ' -- is not a language question.
+    '
+    ' There are no diagnostics: the scanner cannot fail. An unterminated string
+    ' or comment swallows the rest of the file, which is what the engine would
+    ' do with it too, and the engine is what reports the syntax error -- when
+    ' the cell is RUN, where the message belongs.
+    function refresh_sql(state, source)
+        state.diagnostics = []
+        return studio_sections.attach(state, studio_sections.derive_sql(source), source)
+    end function
+
+    ' Candidates from SQL text. The anchors are the four `_match` reads:
+    '
+    '   kind      the verb, so a `select` is never re-matched onto a `create`
+    '   name      the object, for the DDL shapes that have one. This is what
+    '             keeps a result attached to `create table customers` after its
+    '             columns are edited -- a statement has no name of its own the
+    '             way a gBASIC function does, and tier 2 is the only tier that
+    '             survives a rewritten body
+    '   header_fp the first line, body_fp the whole statement -- tiers 1 and 3,
+    '             which carry every statement that has no name at all
+    '   ancestry  "" always. SQL statements do not nest inside one another, so
+    '             there is nothing for a scope path to say
+    function derive_sql(source)
+        sections = []
+        for each st in studio_sql.statements(source)
+            nl = studio_sections._first_nl(source, st.start_offset, st.end_offset)
+            sections = append(sections, {
+                id: "",
+                kind: st.verb,
+                name: st.name,
+                status: "active",
+                start_offset: st.start_offset,
+                end_offset: st.end_offset,
+                start_line: st.start_line,
+                start_column: st.start_column,
+                end_line: st.end_line,
+                end_column: st.end_column,
+                member_kinds: [st.verb],
+                sql_tier: st.tier,
+                anchor: {
+                    kind: st.verb,
+                    name: st.name,
+                    ancestry: "",
+                    ordinal: 0,
+                    header_fp: studio_sections._norm_hash(source, st.start_offset, nl),
+                    body_fp: studio_sections._norm_hash(source, st.start_offset, st.end_offset),
+                    kinds_sig: st.verb,
+                    start_offset_hint: st.start_offset,
+                    end_offset_hint: st.end_offset
+                }
+            })
+        end for
+        return studio_sections._assign_ordinals(sections)
     end function
 
     ' ---- cursor resolution -------------------------------------------------

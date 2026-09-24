@@ -63,6 +63,23 @@ function show(label, state)
   print studio_sections.summary(state)
 end function
 
+function banner(t)
+  print "== " + t + " =="
+end function
+
+' One line per SQL section: id, verb, object name, and how far it can be taken
+' back.
+function show_sql(label, st)
+  print "-- " + label + " --"
+  for each s in st.sections
+    nm = "-"
+    if s.name != nothing then
+      nm = s.name
+    end if
+    print "  " + s.id + "  " + s.kind + "  name=" + nm + "  " + s.sql_tier + "  " + s.status
+  end for
+end function
+
 program main(args)
   load "studio_sections"
   load "persist"
@@ -78,6 +95,47 @@ program main(args)
   dir = ""
   if count(args) > 1 then
     dir = args[1]
+  end if
+
+  ' ---- SQL: a statement is a cell, and keeps its id across edits -----------
+  '
+  ' The SAME matcher a gBASIC document uses, fed candidates from the statement
+  ' scanner instead of from source_outline. What is asserted is the property
+  ' that makes an id worth having: a result recorded against a statement still
+  ' means THAT statement after the file around it is edited.
+  if mode = "sql" then
+    st = studio_sections.create("notes.sql")
+    st = studio_sections.refresh_sql(st, "create table customers (id int);\n\nselect * from customers;\n")
+    show_sql("as written", st)
+
+    banner("a statement inserted ABOVE, and the named one's body rewritten")
+    ' `create table customers` keeps its id by NAME (tier 2) though every byte
+    ' of its body changed; `select` keeps its id by BODY (tier 1) though it
+    ' moved down two lines. The new statement gets a fresh id -- so the ids are
+    ' deliberately NOT in file order, which is the whole point of having them.
+    st = studio_sections.refresh_sql(st, "create index i on customers (id);\n\ncreate table customers (id int, note text);\n\nselect * from customers;\n")
+    show_sql("after", st)
+    print "stale: [" + join(st.stale_ids, ",") + "]"
+
+    banner("a statement DELETED goes stale rather than being reused")
+    st = studio_sections.refresh_sql(st, "create index i on customers (id);\n\nselect * from customers;\n")
+    show_sql("after", st)
+    print "stale: [" + join(st.stale_ids, ",") + "]"
+
+    banner("two identical statements are ambiguous, not guessed at")
+    st2 = studio_sections.create("dup.sql")
+    st2 = studio_sections.refresh_sql(st2, "select 1;\nselect 2;\n")
+    show_sql("before", st2)
+    st2 = studio_sections.refresh_sql(st2, "select 1;\nselect 1;\n")
+    show_sql("both now identical", st2)
+
+    banner("the caret resolves to the statement it is in")
+    st3 = studio_sections.create("c.sql")
+    src3 = "select 1;\n\nselect 2;\n"
+    st3 = studio_sections.refresh_sql(st3, src3)
+    for each off in [0, 8, 9, 10, 11, 19, 100]
+      print "  offset " + off + " -> [" + studio_sections.section_at(st3, off) + "]"
+    end for
   end if
 
   if mode = "derive" then
