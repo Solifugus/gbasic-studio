@@ -11,8 +11,8 @@ name field is now []
 -- after Open Folder --
 nav rows=4
   [info] Workspace: workspace
-  [project] * ui_gui_open_proj
-  [dir]   > src
+  [project] ● ui_gui_open_proj
+  [dir]   ▸ src
   [file]     thing.bas
 selected=
 tabs=0
@@ -21,8 +21,8 @@ action=activated status=switched to ui_gui_open_proj
 -- activated, not duplicated --
 nav rows=4
   [info] Workspace: workspace
-  [project] * ui_gui_open_proj
-  [dir]   > src
+  [project] ● ui_gui_open_proj
+  [dir]   ▸ src
   [file]     thing.bas
 selected=
 tabs=0
@@ -30,8 +30,8 @@ the folder Studio just opened twice is untouched
 -- still no project file --
 nav rows=4
   [info] Workspace: workspace
-  [project] * ui_gui_open_proj
-  [dir]   > src
+  [project] ● ui_gui_open_proj
+  [dir]   ▸ src
   [file]     thing.bas
 selected=
 tabs=0
@@ -40,8 +40,8 @@ action=project-file status=wrote .../.gstudio.json
 -- the one dotfile the browser shows --
 nav rows=5
   [info] Workspace: workspace
-  [project] * ui_gui_open_proj
-  [dir]   > src
+  [project] ● ui_gui_open_proj
+  [dir]   ▸ src
   [file]     .gstudio.json
   [file]     thing.bas
 selected=

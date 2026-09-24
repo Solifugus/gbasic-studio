@@ -1,9 +1,9 @@
 == opened clean ==
 nav rows=6
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   > src
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▸ src
   [file]     README.md
   [file]     main.bas
 selected=main.bas
@@ -12,9 +12,9 @@ tabs=1
 -> apply_edit (new text): dirty doc-1
 nav rows=6
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   > src
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▸ src
   [file]     README.md
   [file]     main.bas
 selected=main.bas
@@ -23,9 +23,9 @@ tabs=1
 -> apply_edit (identical text, a redundant signal): dirty doc-1
 nav rows=6
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   > src
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▸ src
   [file]     README.md
   [file]     main.bas
 selected=main.bas
@@ -34,9 +34,9 @@ tabs=1
 -> apply_edit (typed back to the saved text): clean doc-1
 nav rows=6
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   > src
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▸ src
   [file]     README.md
   [file]     main.bas
 selected=main.bas
@@ -46,9 +46,9 @@ tabs=1
 -> apply_edit (the settled text): clean doc-1
 nav rows=6
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   > src
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▸ src
   [file]     README.md
   [file]     main.bas
 selected=main.bas

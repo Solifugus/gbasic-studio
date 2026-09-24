@@ -1,9 +1,9 @@
 -- as built --
 nav rows=6
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   > src
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▸ src
   [file]     README.md
   [file]     main.bas
 selected=
@@ -13,9 +13,9 @@ action=open
 -- after the click --
 nav rows=6
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   > src
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▸ src
   [file]     README.md
   [file]     main.bas
 selected=main.bas
@@ -26,9 +26,9 @@ action=expand
 -- after expanding src --
 nav rows=8
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   v src
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▾ src
   [file]       a.bas
   [file]       b.bas
   [file]     README.md
@@ -41,9 +41,9 @@ action=open
 -- two tabs --
 nav rows=8
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   v src
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▾ src
   [file]       a.bas
   [file]       b.bas
   [file]     README.md
@@ -57,9 +57,9 @@ action=select
 -- after switching to page 0 --
 nav rows=8
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   v src
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▾ src
   [file]       a.bas
   [file]       b.bas
   [file]     README.md
@@ -73,9 +73,9 @@ action=synced
 -- after typing --
 nav rows=8
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   v src
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▾ src
   [file]       a.bas
   [file]       b.bas
   [file]     README.md
@@ -89,9 +89,9 @@ action=saved
 -- after Save --
 nav rows=8
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   v src
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▾ src
   [file]       a.bas
   [file]       b.bas
   [file]     README.md
@@ -105,9 +105,9 @@ action=refreshed
 -- after Refresh --
 nav rows=8
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   v src
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▾ src
   [file]       a.bas
   [file]       b.bas
   [file]     README.md
@@ -123,11 +123,9 @@ action=project-created
 -- after New Project --
 nav rows=4
   [info] Workspace: ws
-  [project]   Alpha
-  [project] * Project 2
+  [project] ○ Alpha
+  [project] ● Project 2
   [file]     main.bas
 selected=a.bas
-tabs=2
-  * doc-1 main.bas
-    doc-2 a.bas
+tabs=0
 app-exited

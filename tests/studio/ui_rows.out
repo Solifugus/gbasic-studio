@@ -1,9 +1,9 @@
 == initial rows ==
 nav rows=6
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   > src
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▸ src
   [file]     README.md
   [file]     main.bas
 selected=
@@ -11,7 +11,7 @@ tabs=0
 == a second project, and it becomes active ==
 nav rows=3
   [info] Workspace: ws
-  [project]   Alpha
-  [project] * Beta
+  [project] ○ Alpha
+  [project] ● Beta
 selected=
 tabs=0

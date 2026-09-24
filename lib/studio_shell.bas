@@ -120,21 +120,36 @@ library studio_shell
     ' signalled the truncation and still eaten `.bas`, which is the part that
     ' says what the file IS. MIDDLE keeps both ends.
     '
-    ' `_fill` and not `_left`: `halign = START` hands a label its NATURAL width,
-    ' and a label allowed its natural width never ellipsizes — it just runs off
-    ' the edge, which is the bug. The label has to be GIVEN a width for Pango to
-    ' have anything to elide against.
+    ' `_fill` and not `_left` on the NAME: `halign = START` hands a label its
+    ' NATURAL width, and a label allowed its natural width never ellipsizes —
+    ' it just runs off the edge, which is the bug. The label has to be GIVEN a
+    ' width for Pango to have anything to elide against.
     function _nav_row(r)
-        lbl = studio_shell._fill(gtk.label(r.glyph + r.name))
+        u = studio_style.unit()
+        ' The gap between the glyph and the name is box SPACING, not a space
+        ' inside either label -- so it is one number here instead of a
+        ' proportional font's opinion.
+        box = gtk.box("h", 4)
+        box.margin_start = r.depth * studio_shell._indent()
+        ' The glyph gets a column of its OWN, one character wide. Inside the
+        ' name's label it was a character of a PROPORTIONAL font, so a
+        ' directory's name and a file's name beside it started at different
+        ' places -- `width_chars` and `max_width_chars` together pin the column
+        ' at whatever one character is in the font actually in use.
+        g = studio_shell._left(gtk.label(r.glyph))
+        g.width_chars = 1
+        g.max_width_chars = 1
+        box.append(g)
+        lbl = studio_shell._fill(gtk.label(r.name))
         lbl.ellipsize = gi.enum("Pango.EllipsizeMode.MIDDLE")
-        lbl.margin_start = r.depth * studio_shell._indent()
-        ' The whole path, on hover, for the row whose name had to be elided —
+        box.append(lbl)
+        ' The whole path, on hover, for the row whose name had to be elided --
         ' and for every other row too, because "which of the four src/ folders
         ' is this" is the same question one level up.
         if r.path != "" then
-            lbl.set_tooltip_text(r.path)
+            box.set_tooltip_text(r.path)
         end if
-        return lbl
+        return box
     end function
 
     ' How deep one level of the tree looks. Two spaces' worth in the old
@@ -1909,8 +1924,16 @@ library studio_shell
         if ws != nothing then
             base = "ready — " + ws.name + " — " + count(ws.projects) + " project(s)"
         end if
-        n = count(app.dm.docs)
-        return base + " — " + n + " open"
+        n = count(studio_ui.tab_rows(app))
+        line = base + " — " + n + " open"
+        ' Work that is open and NOT on screen has to be counted somewhere, or
+        ' the unsaved-changes warning on exit is about documents the user has
+        ' no memory of leaving open.
+        hidden = studio_ui.hidden_docs(app)
+        if hidden > 0 then
+            line = line + " (" + hidden + " in other projects)"
+        end if
+        return line
     end function
 
 end library

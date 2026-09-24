@@ -5,9 +5,9 @@
 == model untouched by every one of them ==
 nav rows=6
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   > src
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▸ src
   [file]     README.md
   [file]     main.bas
 selected=

@@ -1,0 +1,20 @@
+== two projects, a file open in each ==
+-> open the second folder: adopted proj-2 ui_projtabs_beta
+documents open: 2
+tabs shown:     beta.bas
+active:         beta.bas
+hidden:         1
+== back to the first project ==
+-> click Alpha: project proj-1
+documents open: 2
+tabs shown:     main.bas
+active:         main.bas
+hidden:         1
+== a hidden document keeps its unsaved text ==
+Alpha's file is dirty=true
+away: tabs shown=beta.bas hidden=1
+back: tabs shown=main.bas still dirty=true
+text=print "edited in Alpha"
+
+== a file opened under NO project is always shown ==
+tabs shown: main.bas,ui_projtabs_loose.bas

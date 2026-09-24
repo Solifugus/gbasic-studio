@@ -331,7 +331,7 @@ end function
 ' Write `.gstudio.json` into the active project. An ADAPTER: no argument to
 ' read off a widget, one studio_ui call, one redraw.
 function on_project_file()
-    r = studio_ui.add_project_file(G.app)
+    r = studio_ui.add_project_file(G.app, "")
     G.app = r.app
     G.last_action = r.action
     G.last_detail = r.detail
@@ -402,14 +402,12 @@ function show_context_for(row, idx)
     ' `target_dir` all read it. A project row ACTIVATES instead, because both
     ' of its items are about a project and the one just pointed at is the one
     ' meant.
-    r = G.shell.rows[idx]
-    if r.kind = "project" then
-        a = studio_ui.activate_row(G.app, G.shell.rows, idx)
-        G.app = a.app
-    else
-        sel = studio_ui.select_row(G.app, G.shell.rows, idx)
-        G.app = sel.app
-    end if
+    ' SELECT, never activate -- including a project row. Both project items
+    ' name the row they came from, so a right-click does not have to switch
+    ' projects to act on one, and a right-click that switched silently changed
+    ' the browser out from under the user the next time anything redrew.
+    sel = studio_ui.select_row(G.app, G.shell.rows, idx)
+    G.app = sel.app
     ' Parented to the ROW, so it points at the thing it is about. A redraw
     ' rebuilds those rows, so `redraw` takes the popover down first -- a
     ' popover parented to a destroyed widget is a GTK critical.
@@ -491,8 +489,18 @@ function on_ctx_delete()
     return nothing
 end function
 
+' Names the project whose row was clicked. The toolbar button passes "" and
+' gets the active one; neither has to change what is active to do its work.
 function on_ctx_project_file()
-    return on_project_file()
+    r = studio_ui.add_project_file(G.app, G.shell.rows[G.ctx_index].project_id)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    if r.action = "project-file" then
+        note_event("file_created", r.detail, "")
+    end if
+    redraw()
+    return nothing
 end function
 
 function on_ctx_close_project()
@@ -1549,11 +1557,39 @@ function stu14_step()
     if G.phase = 9 then
         print "  status=" + G.shell.status.label
         print "  main.bas is still there=" + (row_of("file", "main.bas") >= 0)
+        print "-- Add project file, on the project that was right-clicked --"
+        ' A SECOND project, inactive, so this proves the item acts on the row
+        ' the menu came up on and not on whichever project happened to be
+        ' active. Pressed through the real widget: the headless case cannot
+        ' show that the item is wired at all.
+        ws = G.app.model.workspace
+        ws = studio_model.add_project(ws, "Beta", G.open_target)
+        G.app = studio.set_workspace(G.app, ws)
+        redraw()
+        return true
+    end if
+    if G.phase = 10 then
+        ' A tick LATER. A row added and redrawn in the same callback exists as
+        ' a widget but has not been allocated yet, so `get_row_at_y` cannot
+        ' find it -- the loop has to be given back for GTK to lay it out.
+        print "  active before=" + G.app.model.workspace.active_project
+        ctx_open_on(row_of("project", "Beta"))
+        return true
+    end if
+    if G.phase = 11 then
+        G.shell.ctx.items["project-file"].activate()
+        return true
+    end if
+    if G.phase = 12 then
+        print "  status=" + path_free(G.shell.status.label)
+        print "  active after=" + G.app.model.workspace.active_project
+        a{file} = G.open_target + "/.gstudio.json"
+        print "  Beta got the file=" + exists(a)
         print "-- Close project --"
         ctx_open_on(row_of("project", "Alpha"))
         return true
     end if
-    if G.phase = 10 then
+    if G.phase = 13 then
         G.shell.ctx.items["close-project"].activate()
         return true
     end if
@@ -2736,6 +2772,9 @@ program main(args)
     if mode = "stu14_smoke" then
         G.stu14 = true
         projdir = args[2]
+        ' The SECOND project the tier adds part-way through, so "Add project
+        ' file" can be pressed on a project that is not the active one.
+        G.open_target = args[3]
         G.app = studio.create_registered_workspace(G.app, "ws")
         ws = G.app.model.workspace
         ws = studio_model.add_project(ws, "Alpha", projdir)

@@ -105,6 +105,18 @@ the MIDDLE now, so the extension survives (it is the part that says what the
 file is), the full path is on the tooltip, and the tree indents with a margin
 instead of spaces in the text, so a level is the same width at every depth.
 
+**The tab row follows the project you are in.** The browser has always shown
+one project at a time and the tabs did not, so switching projects changed the
+tree and left you looking at the previous project's files. Nothing is closed by
+this — a hidden document keeps its unsaved text and comes straight back when
+its project does — and the status line counts what is open elsewhere, so work
+you left behind is never invisible. A file opened by path with no project
+adopted is always shown.
+
+**Nicer marks in the browser.** A filled dot for the project you are in, a
+hollow one for the others, and small triangles for open and closed folders. The
+glyph sits in a column of its own, so names line up whatever is beside them.
+
 **And the layout you set stays set.** The window size had been read from the
 session since the first release and never once written back, and the three
 dividers were fixed numbers, so a resized window and a dragged divider were
@@ -433,7 +445,7 @@ workspace instead:
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 176 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 177 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 29 cases, headless AND offline — no network, no key
 ```
 

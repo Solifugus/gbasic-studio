@@ -16,8 +16,8 @@ nothing was created=true
 -> Create: project-created My Thing — main.bas, README.md, LICENSE, .gitignore, .gstudio.json, git
 nav rows=7
   [info] Workspace: ws
-  [project]   Alpha
-  [project] * My Thing
+  [project] ○ Alpha
+  [project] ● My Thing
   [file]     .gstudio.json
   [file]     LICENSE
   [file]     README.md

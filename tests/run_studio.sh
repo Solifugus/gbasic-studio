@@ -881,7 +881,7 @@ run_ui() { # mode
 for m in rows open expand project bounds tabs edit save newproj refresh \
          newfile newfolder adopt exit \
          names rename delete closetab notice \
-         run runstop runerr runrefuse badsyntax filetypes projfile projpin newproj2 panes context anchors cursor drafts branch table overlay overlay_conflict; do
+         run runstop runerr runrefuse badsyntax filetypes projfile projpin newproj2 panes context projtabs anchors cursor drafts branch table overlay overlay_conflict; do
     run_ui "$m"
 done
 
@@ -1083,11 +1083,15 @@ if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
     # buttons rather than a Gtk.PopoverMenu, and that is what makes this case
     # possible: a menu-model item is not something a test can press.
     cx_home="$tmproot/ui_gui_ctx"; cx_proj="$tmproot/ui_gui_ctx_proj"
-    rm -rf "$cx_home" "$cx_proj"
-    mkdir -p "$cx_home"; mkproj_ui "$cx_proj"
+    # A SECOND project directory: the tier adds it part-way through so "Add
+    # project file" can be pressed on a project that is not the active one.
+    cx_beta="$tmproot/ui_gui_ctx_beta"
+    rm -rf "$cx_home" "$cx_proj" "$cx_beta"
+    mkdir -p "$cx_home" "$cx_beta"; mkproj_ui "$cx_proj"
+    printf 'print "beta"\n' > "$cx_beta/b.bas"
     : >"$stdout_file"
     if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
-            "$GBASIC" "$APP" stu14_smoke "$cx_home" "$cx_proj" \
+            "$GBASIC" "$APP" stu14_smoke "$cx_home" "$cx_proj" "$cx_beta" \
             >"$stdout_file" 2>/dev/null; then
         if diff -u tests/studio/ui_gui_ctx.out "$stdout_file"; then
             printf 'PASS ui_gui_ctx (a right-click menu opened and its items pressed)\n'

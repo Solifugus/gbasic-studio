@@ -159,6 +159,19 @@ function acts(rows, i)
   return join(a, ",")
 end function
 
+' The tab row, by basename, which is what a user reads off it.
+function tabnames(app)
+  out = []
+  for each t in studio_ui.tab_rows(app)
+    d = studio_docs.doc_by_id(app.dm, t.doc_id)
+    out = append(out, leafof(d.path))
+  end for
+  if count(out) = 0 then
+    return "(none)"
+  end if
+  return join(out, ",")
+end function
+
 program main(args)
   load persist
   load filetree
@@ -1308,7 +1321,7 @@ program main(args)
     print "state docs=" + count(pst.sections)
 
     banner("Project File")
-    r = studio_ui.add_project_file(app)
+    r = studio_ui.add_project_file(app, "")
     app = act("Project File", r)
     print "   " + studio_ui.action_notice(r.action, safe_detail(r.detail))
     spec = studio_projfile.read_spec(projdir)
@@ -1338,7 +1351,7 @@ program main(args)
     print "identical to before the file=" + (secids(st2) = before)
 
     banner("asking twice does not rewrite it")
-    r = studio_ui.add_project_file(app)
+    r = studio_ui.add_project_file(app, "")
     app = act("Project File again", r)
     print "   " + studio_ui.action_notice(r.action, r.detail)
 
@@ -1355,7 +1368,7 @@ program main(args)
     print "spec: " + studio_projfile.summary(studio_projfile.read_spec(projdir))
     rows = studio_ui.nav_rows(app)
     print "browser recovers, rows=" + (count(rows) > 3)
-    r = studio_ui.add_project_file(app)
+    r = studio_ui.add_project_file(app, "")
     app = act("Project File over the broken one", r)
   end if
 
@@ -1603,6 +1616,67 @@ program main(args)
     print "selection=[" + app.model.workspace.nav.selected_path + "]"
     r = studio_ui.close_project(app, "proj-1")
     app = act("Close it again", r)
+  end if
+
+  ' ---- projtabs: the notebook follows the browser --------------------------
+  '
+  ' The browser shows ONE project at a time and the tab row did not, so
+  ' switching projects changed the tree and left you looking at the previous
+  ' project's files with nothing in the tab row saying which project any of
+  ' them came from. Nothing is CLOSED by the filtering -- a hidden document
+  ' keeps its unsaved text and comes straight back.
+  if mode = "projtabs" then
+    other = projdir + "/../ui_projtabs_beta"
+    persist.ensure_dir(other)
+    bf{file} = other + "/beta.bas"
+    write(bf, "print \"beta\"\n")
+
+    banner("two projects, a file open in each")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "main.bas"))
+    app = r.app
+    r = studio_ui.adopt_folder(app, other)
+    app = act("open the second folder", r)
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "beta.bas"))
+    app = r.app
+    print "documents open: " + count(app.dm.docs)
+    print "tabs shown:     " + tabnames(app)
+    print "active:         " + leafof(studio_docs.active_doc(app.dm).path)
+    print "hidden:         " + studio_ui.hidden_docs(app)
+
+    banner("back to the first project")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "project", "Alpha"))
+    app = act("click Alpha", r)
+    print "documents open: " + count(app.dm.docs)
+    print "tabs shown:     " + tabnames(app)
+    print "active:         " + leafof(studio_docs.active_doc(app.dm).path)
+    print "hidden:         " + studio_ui.hidden_docs(app)
+
+    banner("a hidden document keeps its unsaved text")
+    id = studio_docs.active_doc(app.dm).id
+    app = studio.edit_document(app, id, "print \"edited in Alpha\"\n")
+    print "Alpha's file is dirty=" + studio_docs.is_dirty(studio_docs.active_doc(app.dm))
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "project", "ui_projtabs_beta"))
+    app = r.app
+    print "away: tabs shown=" + tabnames(app) + " hidden=" + studio_ui.hidden_docs(app)
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "project", "Alpha"))
+    app = r.app
+    back = studio_docs.active_doc(app.dm)
+    print "back: tabs shown=" + tabnames(app) + " still dirty=" + studio_docs.is_dirty(back)
+    print "text=" + back.content
+
+    banner("a file opened under NO project is always shown")
+    loose = projdir + "/../ui_projtabs_loose.bas"
+    lf{file} = loose
+    write(lf, "print \"loose\"\n")
+    ' project_id "" -- a loose file, belonging to no project.
+    o = studio.open_from_browser(app, "", loose)
+    app = o.app
+    print "tabs shown: " + tabnames(app)
   end if
 
   ' ---- filetypes: a project is not only its .bas files ---------------------

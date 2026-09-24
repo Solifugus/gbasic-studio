@@ -184,7 +184,7 @@ library studio_projfile
     ' Write the file, once, on request.
     '
     ' Returns { ok, reason, path, id }, reason one of "created", "exists",
-    ' "no-project". REFUSES over an existing file rather than merging into it:
+    ' "project-no-folder". REFUSES over an existing file rather than merging into it:
     ' this is a hand-edited file and Studio does not know what else is in it,
     ' and a rewrite that dropped somebody's comment-by-convention key would be
     ' the uninvited-metadata complaint arriving by the back door.
@@ -198,7 +198,12 @@ library studio_projfile
     function create(project_path, opts)
         p = studio_projfile.path_for(project_path)
         if p = "" then
-            return { ok: false, reason: "no-project", path: "", id: "" }
+            ' "no-folder", not "no-project": there IS a project, it just has
+            ' no directory to put a file in. Answering `no-project` made the
+            ' status line say "open a project first" about a project that was
+            ' plainly open -- a refusal whose wording contradicts what the user
+            ' can see is indistinguishable from the button doing nothing.
+            return { ok: false, reason: "project-no-folder", path: "", id: "" }
         end if
         probe{file} = p
         if exists(probe) then

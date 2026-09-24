@@ -7,9 +7,9 @@ a/b.bas   -> separator
 -> New File named notes.bas: created notes.bas doc-1
 nav rows=7
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   > src
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▸ src
   [file]     README.md
   [file]     main.bas
   [file]     notes.bas
@@ -21,10 +21,10 @@ tabs=1
 -> New Folder named vendor: created vendor
 nav rows=8
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   > src
-  [dir]   > vendor
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▸ src
+  [dir]   ▸ vendor
   [file]     README.md
   [file]     main.bas
   [file]     notes.bas

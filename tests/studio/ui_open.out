@@ -1,9 +1,9 @@
 == before: no tabs ==
 nav rows=6
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   > src
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▸ src
   [file]     README.md
   [file]     main.bas
 selected=
@@ -13,9 +13,9 @@ main.bas is row 5
 == after: one tab, active ==
 nav rows=6
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   > src
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▸ src
   [file]     README.md
   [file]     main.bas
 selected=main.bas
@@ -25,9 +25,9 @@ tabs=1
 -> activate README.md: open opened doc-2
 nav rows=6
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   > src
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▸ src
   [file]     README.md
   [file]     main.bas
 selected=README.md
@@ -38,9 +38,9 @@ tabs=2
 -> activate main.bas again: open reused doc-1
 nav rows=6
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   > src
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▸ src
   [file]     README.md
   [file]     main.bas
 selected=main.bas

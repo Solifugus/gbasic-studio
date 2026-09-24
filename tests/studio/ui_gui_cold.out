@@ -12,7 +12,7 @@ action=project-created
 -- after New Project --
 nav rows=3
   [info] Workspace: workspace
-  [project] * Project 1
+  [project] ● Project 1
   [file]     main.bas
 selected=
 tabs=0

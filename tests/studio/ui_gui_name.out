@@ -1,9 +1,9 @@
 -- as built --
 nav rows=6
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   > src
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▸ src
   [file]     README.md
   [file]     main.bas
 selected=
@@ -14,9 +14,9 @@ name field is now []
 -- after New File --
 nav rows=7
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   > src
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▸ src
   [file]     README.md
   [file]     main.bas
   [file]     notes.bas
@@ -28,9 +28,9 @@ action=renamed status=renamed to notes-2.bas
 -- after Rename --
 nav rows=7
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   > src
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▸ src
   [file]     README.md
   [file]     main.bas
   [file]     notes-2.bas
@@ -42,9 +42,9 @@ action=armed status=delete notes-2.bas? — click Delete again to confirm
 -- armed, and still there --
 nav rows=7
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   > src
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▸ src
   [file]     README.md
   [file]     main.bas
   [file]     notes-2.bas
@@ -56,9 +56,9 @@ action=deleted status=deleted notes-2.bas
 -- deleted --
 nav rows=6
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   > src
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▸ src
   [file]     README.md
   [file]     main.bas
 selected=

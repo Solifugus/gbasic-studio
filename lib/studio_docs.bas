@@ -192,7 +192,17 @@ library studio_docs
         return studio_docs.doc_by_id(dm, dm.active)
     end function
 
+    ' "" CLEARS the active document, which `active_doc` already answers
+    ' `nothing` for and a fresh manager already starts as. It has to be
+    ' explicit: an unknown id is ignored on purpose (a stale id from a closed
+    ' tab must not blank the editor), and "no document" is not an unknown id --
+    ' it is what `studio_ui.focus_visible_doc` needs when the project you just
+    ' switched to has nothing open in it.
     function set_active(dm, id)
+        if id = "" then
+            dm.active = ""
+            return dm
+        end if
         idx = studio_docs._index(dm, id)
         if idx >= 0 then
             dm.active = id

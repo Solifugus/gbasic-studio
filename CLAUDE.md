@@ -49,7 +49,7 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 176 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 177 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 29 cases, headless AND offline (scripted transport)
 ```
 
@@ -442,6 +442,59 @@ Two consequences worth knowing before you touch the shell:
 - A `Gtk.Popover` autohides, so it DISMISSES when a screenshot tool takes focus,
   and on Wayland it is a separate surface that a window-only capture does not
   include at all. Both are why looking at this one needed a full-screen grab.
+
+### What the browser LOOKS like, and which project you are in
+
+- The glyphs are `●` active project, `○` inactive, `▾` expanded, `▸`
+  collapsed, and a space for a file — `studio_ui.glyph_*`, one answer each.
+  Filled and hollow for the active project rather than an asterisk and two
+  blanks: "which of these am I in" is answered by a shape being solid, and a
+  blank is not a shape. They are geometric shapes from the Unicode block every
+  mainstream UI font carries; this is NOT the `dialog-error` situation, where an
+  icon THEME can simply lack a name.
+- Each glyph is ONE character and the gap after it is LAYOUT: box spacing in the
+  widget, a space in `row_label`. Two characters of a proportional font is a
+  column nobody measured, and it cost ~8px of name width for nothing.
+- A browser row is a BOX of two labels, not one: a glyph label pinned to one
+  character (`width_chars` and `max_width_chars` together) and the ellipsizing
+  name. Inside one label the glyph was proportional, so a directory's name and
+  a file's name beside it began at different places.
+- **The notebook follows the browser.** The browser shows one project at a time
+  and the tab row did not, so switching projects changed the tree and left you
+  looking at the previous project's files, with nothing in the tab row saying
+  which project any of them came from. `studio_ui.doc_in_view` filters
+  `tab_rows`; a document under NO project is always shown, because there is no
+  project it could be waiting behind.
+- **Nothing is closed by that filtering.** A hidden document keeps its unsaved
+  text and comes straight back when its project does — `ui_projtabs` asserts
+  exactly that, because "your edits are still there" is the whole reason hiding
+  is acceptable at all.
+- `studio_ui.focus_visible_doc` runs at EVERY change of active project (the five
+  `set_active_project` call sites). Without it the editor, the run strip and the
+  results go on showing a document whose tab is not there — the same
+  selected-versus-displayed mismatch the browser had.
+- `studio_docs.set_active(dm, "")` CLEARS the active document. It has to be
+  explicit: an unknown id is ignored on purpose (a stale id from a closed tab
+  must not blank the editor), and "no document" is not an unknown id.
+- The status line counts what is hidden (`studio_ui.hidden_docs`). Work that is
+  open and invisible has to be counted somewhere, or the unsaved-changes warning
+  on exit is about documents the user has no memory of leaving open.
+- **A right-click does NOT change the active project.** Both project items name
+  the row they came from — `add_project_file(app, project_id)` with "" meaning
+  the active one, for the toolbar button. The first version activated the row
+  first, which switched projects silently and only became visible when something
+  else redrew and the tree jumped.
+- `studio_projfile.create` answers `project-no-folder`, not `no-project`, for a
+  project with no directory. `no-project` made the status line say "open a
+  project first" about a project that was plainly open — a refusal whose
+  wording contradicts what the user can see is indistinguishable from the button
+  doing nothing.
+- `close_project` answers `project-dirty`, not the `dirty` Delete uses. That one
+  says "save main.bas first", which is true and reads as a remark about the file
+  rather than as the reason a project would not close; this one names both.
+- **A row added and redrawn in the SAME callback has no allocation yet**, so
+  `get_row_at_y` cannot find it — the loop has to be given back for GTK to lay
+  it out. Cost an hour of looking for a product bug that was a test artefact.
 - **`persist.read_status` answers "loaded", not "ok".** Testing for the wrong
   one silently yields an empty store on every read — the round trip appears to
   write and then return nothing.

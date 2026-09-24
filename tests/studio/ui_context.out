@@ -17,8 +17,8 @@ before the start: (no menu)
 -> select main.bas: selected main.bas
 tabs=0
 == Close project refuses while something under it is unsaved ==
--> Close project: dirty main.bas
-   save main.bas first
+-> Close project: project-dirty Alpha main.bas
+   Alpha has unsaved work in main.bas — save it first
 still open=1
 == saved, and then it closes ==
 -> Close project: project-closed Alpha

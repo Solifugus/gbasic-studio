@@ -17,7 +17,7 @@ the window closed=true
 -- the new project, active --
 nav rows=6
   [info] Workspace: workspace
-  [project] * My Thing
+  [project] ● My Thing
   [file]     .gstudio.json
   [file]     LICENSE
   [file]     README.md

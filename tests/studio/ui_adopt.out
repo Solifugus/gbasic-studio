@@ -9,9 +9,9 @@ tabs=0
 == the folder is a project now, named after itself, and browsable ==
 nav rows=6
   [info] Workspace: workspace
-  [project] * ui_adopt_proj
-  [dir]   > docs
-  [dir]   > src
+  [project] ● ui_adopt_proj
+  [dir]   ▸ docs
+  [dir]   ▸ src
   [file]     README.md
   [file]     main.bas
 selected=
@@ -20,9 +20,9 @@ tabs=0
 == activated rather than duplicated ==
 nav rows=6
   [info] Workspace: workspace
-  [project] * ui_adopt_proj
-  [dir]   > docs
-  [dir]   > src
+  [project] ● ui_adopt_proj
+  [dir]   ▸ docs
+  [dir]   ▸ src
   [file]     README.md
   [file]     main.bas
 selected=
@@ -36,9 +36,9 @@ projects=1
 == untouched by all three ==
 nav rows=6
   [info] Workspace: workspace
-  [project] * ui_adopt_proj
-  [dir]   > docs
-  [dir]   > src
+  [project] ● ui_adopt_proj
+  [dir]   ▸ docs
+  [dir]   ▸ src
   [file]     README.md
   [file]     main.bas
 selected=

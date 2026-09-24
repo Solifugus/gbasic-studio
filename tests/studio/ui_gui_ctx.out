@@ -14,11 +14,19 @@ right-click the workspace INFO row
 -- Delete arms, exactly as the toolbar button does --
   status=delete main.bas? — click Delete again to confirm
   main.bas is still there=true
+-- Add project file, on the project that was right-clicked --
+  active before=proj-1
+  status=wrote .../.gstudio.json
+  active after=proj-1
+  Beta got the file=true
 -- Close project --
   status=closed Alpha — the folder is untouched
 -- after Close project --
-nav rows=1
+nav rows=4
   [info] Workspace: ws
-selected=
+  [project] ● Beta
+  [file]     .gstudio.json
+  [file]     b.bas
+selected=ui_gui_ctx_proj
 tabs=0
 app-exited

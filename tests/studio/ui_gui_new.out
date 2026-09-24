@@ -11,7 +11,7 @@ action=project-created
 -- after New Project — main.bas is already there, which is where STU-2B stopped --
 nav rows=3
   [info] Workspace: workspace
-  [project] * Project 1
+  [project] ● Project 1
   [file]     main.bas
 selected=
 tabs=0
@@ -20,7 +20,7 @@ action=created
 -- after New File --
 nav rows=4
   [info] Workspace: workspace
-  [project] * Project 1
+  [project] ● Project 1
   [file]     main.bas
   [file]     untitled-1.bas
 selected=untitled-1.bas
@@ -33,7 +33,7 @@ action=saved
 -- after Save --
 nav rows=4
   [info] Workspace: workspace
-  [project] * Project 1
+  [project] ● Project 1
   [file]     main.bas
   [file]     untitled-1.bas
 selected=untitled-1.bas
@@ -44,8 +44,8 @@ action=created
 -- after New Folder --
 nav rows=5
   [info] Workspace: workspace
-  [project] * Project 1
-  [dir]   > new-folder-1
+  [project] ● Project 1
+  [dir]   ▸ new-folder-1
   [file]     main.bas
   [file]     untitled-1.bas
 selected=untitled-1.bas
@@ -57,8 +57,8 @@ app-exited
 -- reopening the home in a new process --
 nav rows=5
   [info] Workspace: workspace
-  [project] * Project 1
-  [dir]   > new-folder-1
+  [project] ● Project 1
+  [dir]   ▸ new-folder-1
   [file]     main.bas
   [file]     untitled-1.bas
 selected=untitled-1.bas

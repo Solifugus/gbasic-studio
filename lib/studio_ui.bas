@@ -244,9 +244,9 @@ library studio_ui
             ' A STATUS marker, not indentation: which project is active. It is
             ' the glyph rather than part of the name so the renderer can tell
             ' the two apart, and `row_label` puts them back together.
-            marker = "  "
+            marker = studio_ui.glyph_inactive()
             if pr.id = ws.active_project then
-                marker = "* "
+                marker = studio_ui.glyph_active()
             end if
             rows = append(rows, studio_ui._row("project", pr.name, 0, marker, pr.path, pr.id))
         end for
@@ -267,12 +267,12 @@ library studio_ui
             if studio_projfile.ignored(spec, r.name) then
                 continue
             end if
-            glyph = "  "
+            glyph = studio_ui.glyph_file()
             if r.kind = "dir" then
                 if r.expanded then
-                    glyph = "v "
+                    glyph = studio_ui.glyph_open()
                 else
-                    glyph = "> "
+                    glyph = studio_ui.glyph_closed()
                 end if
             end if
             ' One deeper than `filetree` counts, because everything in the tree
@@ -280,6 +280,42 @@ library studio_ui
             rows = append(rows, studio_ui._row(r.kind, r.name, r.depth + 1, glyph, r.path, proj.id))
         end for
         return rows
+    end function
+
+    ' ---- the browser's glyphs -----------------------------------------------
+    '
+    ' Two characters each, so the names line up in a column whatever the glyph.
+    ' They are geometric shapes from the Unicode block every mainstream UI font
+    ' carries — not an icon theme, which is where `dialog-error` went wrong: a
+    ' theme can be missing a name, but a font missing U+25B8 would be missing
+    ' most of its own bullet characters too.
+    '
+    ' Filled and hollow for the ACTIVE project rather than an asterisk and two
+    ' spaces: "which of these am I in" is answered by a shape being solid, and
+    ' a blank is not a shape.
+    function glyph_active()
+        return "●"
+    end function
+
+    function glyph_inactive()
+        return "○"
+    end function
+
+    function glyph_open()
+        return "▾"
+    end function
+
+    function glyph_closed()
+        return "▸"
+    end function
+
+    ' A file has no disclosure of its own, and a space holds the column open.
+    ' ONE character, like the others: the gap between a glyph and a name is
+    ' layout, not text, so the widget puts it there with box spacing and
+    ' `row_label` puts it there with a space. Two characters of a proportional
+    ' font is a column nobody measured.
+    function glyph_file()
+        return " "
     end function
 
     ' A browser row: what it IS, in parts, plus the flat `label` the goldens and
@@ -302,7 +338,9 @@ library studio_ui
                  path: path, project_id: project_id }
     end function
 
-    ' The flat rendering: two spaces per level, then the glyph, then the name.
+    ' The flat rendering: two spaces per level, the glyph, a separating space,
+    ' then the name. A row with no glyph at all (the info rows) gets no
+    ' separator either, or every one of them would start with a space.
     function row_label(kind, name, depth, glyph)
         indent = ""
         i = 0
@@ -310,7 +348,10 @@ library studio_ui
             indent = indent + "  "
             i = i + 1
         end while
-        return indent + glyph + name
+        if glyph = "" then
+            return indent + name
+        end if
+        return indent + glyph + " " + name
     end function
 
     ' Activate the row at `index` of the row array the view actually rendered.
@@ -344,6 +385,7 @@ library studio_ui
             ws = app.model.workspace
             ws = studio_model.set_active_project(ws, row.project_id)
             app = studio.set_workspace(app, ws)
+            app = studio_ui.focus_visible_doc(app)
             return { app: app, action: "project", detail: row.project_id }
         end if
 
@@ -378,9 +420,81 @@ library studio_ui
     function tab_rows(app)
         rows = []
         for each d in app.dm.docs
-            rows = append(rows, { doc_id: d.id, label: studio_ui.tab_label(d) })
+            shown = studio_ui.doc_in_view(app, d)
+            if shown then
+                rows = append(rows, { doc_id: d.id, label: studio_ui.tab_label(d) })
+            end if
         end for
         return rows
+    end function
+
+    ' Whether a document belongs in the notebook as it stands.
+    '
+    ' The browser shows ONE project at a time, and the tabs did not: switching
+    ' projects changed the tree and left you looking at the previous project's
+    ' files, with no way to tell from the tab row which project any of them
+    ' came from. So the notebook follows the browser.
+    '
+    ' A document under NO project is always shown. It was opened by path with
+    ' nothing adopted, so there is no project it could be waiting behind, and
+    ' hiding it would make it unreachable.
+    '
+    ' Nothing is CLOSED by this. The document stays open with its edits; it is
+    ' only not on screen, and switching back brings it and its unsaved text
+    ' straight back.
+    function doc_in_view(app, doc)
+        ws = app.model.workspace
+        if ws = nothing then
+            return true
+        end if
+        owner = studio_ui.project_path_for(app, doc)
+        if owner = "" then
+            return true
+        end if
+        proj = studio_model.project_by_id(ws, ws.active_project)
+        if proj = nothing then
+            return true
+        end if
+        return owner = proj.path
+    end function
+
+    ' How many open documents are NOT on screen, because they belong to a
+    ' project that is not the active one. Reported in the status line: work
+    ' that is open and invisible has to be counted somewhere, or a user closes
+    ' the window and is surprised by the unsaved-changes warning.
+    function hidden_docs(app)
+        n = 0
+        for each d in app.dm.docs
+            shown = studio_ui.doc_in_view(app, d)
+            if not shown then
+                n = n + 1
+            end if
+        end for
+        return n
+    end function
+
+    ' Put the active document back inside the notebook after the active project
+    ' changed. Without it the panes -- the editor, the run strip, the results --
+    ' go on showing a document whose tab is no longer there, which is the same
+    ' mismatch between what is selected and what is displayed that the browser
+    ' had.
+    function focus_visible_doc(app)
+        doc = studio_docs.active_doc(app.dm)
+        if doc != nothing then
+            shown = studio_ui.doc_in_view(app, doc)
+            if shown then
+                return app
+            end if
+        end if
+        for each d in app.dm.docs
+            ok = studio_ui.doc_in_view(app, d)
+            if ok then
+                return studio.set_active_document(app, d.id)
+            end if
+        end for
+        ' Nothing to show. The notebook falls back to its welcome page, which is
+        ' what an empty document set has always rendered as.
+        return studio.set_active_document(app, "")
     end function
 
     ' A tab label with markers, most alarming first:
@@ -591,6 +705,7 @@ library studio_ui
         proj = studio_model.last_project(ws)
         ws = studio_model.set_active_project(ws, proj.id)
         app = studio.set_workspace(app, ws)
+        app = studio_ui.focus_visible_doc(app)
         return { app: app, action: "created", detail: proj.id + " " + name }
     end function
 
@@ -886,6 +1001,7 @@ library studio_ui
         proj = studio_model.last_project(ws)
         ws = studio_model.set_active_project(ws, proj.id)
         app = studio.set_workspace(app, ws)
+        app = studio_ui.focus_visible_doc(app)
         ' Its OWN action, not the "created" that New File answers with. That
         ' one reduces its detail to a single token, which for a project is the
         ' minted id — "created proj-1", about a thing the user named. Here the
@@ -1426,8 +1542,8 @@ library studio_ui
     ' going ahead would be the silent loss that `armed-close` exists to prevent
     ' -- one level up, where it is easier to do by accident.
     '
-    ' Returns { app, action, detail }, action one of "project-closed", "dirty",
-    ' "no-project".
+    ' Returns { app, action, detail }, action one of "project-closed",
+    ' "project-dirty", "no-project".
     function close_project(app, project_id)
         ws = app.model.workspace
         if ws = nothing then
@@ -1442,7 +1558,12 @@ library studio_ui
             if studio_ui._under(d.path, proj.path) then
                 dirty = studio_docs.is_dirty(d)
                 if dirty then
-                    return { app: app, action: "dirty", detail: d.path }
+                    ' Its OWN action, not the `dirty` that Delete answers with.
+                    ' That one says "save main.bas first", which is true and
+                    ' reads as a remark about the file rather than as the
+                    ' reason a project would not close.
+                    return { app: app, action: "project-dirty",
+                             detail: proj.name + " " + d.path }
                 end if
                 under = append(under, d.id)
             end if
@@ -1474,6 +1595,9 @@ library studio_ui
         end if
         ws = studio_model.remove_project(ws, project_id)
         app = studio.set_workspace(app, ws)
+        ' Closing a project promotes another one, so the notebook has to follow
+        ' it — the same retarget every other change of active project does.
+        app = studio_ui.focus_visible_doc(app)
         return { app: app, action: "project-closed", detail: proj.name }
     end function
 
@@ -1577,6 +1701,15 @@ library studio_ui
         end if
         if action = "no-project" then
             return "open a project first"
+        end if
+        if action = "project-no-folder" then
+            return "that project has no folder on disk"
+        end if
+        ' "<project> <path>" — both, because the question being answered is
+        ' "why will this project not close", and naming only the file leaves
+        ' the user to connect it themselves.
+        if action = "project-dirty" then
+            return studio_ui._token_leaf(detail, 0) + " has unsaved work in " + studio_ui._token_leaf(detail, 1) + " — save it first"
         end if
         ' ---- New Project, with options
         if action = "project-created" then
@@ -1834,6 +1967,7 @@ library studio_ui
                     ws = studio_model.rename_project(ws, pr.id, spec.name)
                 end if
                 app = studio.set_workspace(app, ws)
+                app = studio_ui.focus_visible_doc(app)
                 pr2 = studio_model.project_by_id(ws, pr.id)
                 return { app: app, action: "activated", detail: pr.id + " " + pr2.name }
             end if
@@ -1846,6 +1980,7 @@ library studio_ui
         proj = studio_model.last_project(ws)
         ws = studio_model.set_active_project(ws, proj.id)
         app = studio.set_workspace(app, ws)
+        app = studio_ui.focus_visible_doc(app)
         return { app: app, action: "adopted", detail: proj.id + " " + name }
     end function
 
@@ -1860,12 +1995,22 @@ library studio_ui
     '   "project-file" — written; detail is its path
     '   "exists"       — there is one already, and this does not rewrite it
     '   "no-project"   — nothing is open to add it to
-    function add_project_file(app)
+    function add_project_file(app, project_id)
         ws = app.model.workspace
         if ws = nothing then
             return { app: app, action: "no-project", detail: "" }
         end if
-        proj = studio_model.project_by_id(ws, ws.active_project)
+        ' "" means the active project, which is what the toolbar button has.
+        ' The MENU names the project whose row was clicked, so right-clicking
+        ' one does not have to make it active first -- a right-click that
+        ' silently switched projects changed the browser out from under the
+        ' user the moment anything redrew, and the only way to see it had
+        ' happened was that the tree jumped.
+        want = project_id
+        if want = "" then
+            want = ws.active_project
+        end if
+        proj = studio_model.project_by_id(ws, want)
         if proj = nothing then
             return { app: app, action: "no-project", detail: "" }
         end if

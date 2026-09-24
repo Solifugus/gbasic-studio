@@ -3,9 +3,9 @@ armed=README.md
 == nothing is gone yet ==
 nav rows=6
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   > src
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▸ src
   [file]     README.md
   [file]     main.bas
 selected=README.md
@@ -16,9 +16,9 @@ armed=[]
 == gone, and its tab with it ==
 nav rows=5
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   > src
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▸ src
   [file]     main.bas
 selected=
 tabs=0
@@ -27,10 +27,10 @@ tabs=0
 == main.bas is still here ==
 nav rows=6
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   v docs
+  [project] ● Alpha
+  [dir]   ▾ docs
   [file]       guide.md
-  [dir]   > src
+  [dir]   ▸ src
   [file]     main.bas
 selected=docs
 tabs=1
@@ -40,8 +40,8 @@ tabs=1
 -> Delete the now-empty docs (second click): deleted docs
 nav rows=4
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > src
+  [project] ● Alpha
+  [dir]   ▸ src
   [file]     main.bas
 selected=
 tabs=1

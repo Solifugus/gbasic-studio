@@ -3,9 +3,9 @@ src is row 3
 == expanded ==
 nav rows=8
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   v src
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▾ src
   [file]       a.bas
   [file]       b.bas
   [file]     README.md
@@ -16,9 +16,9 @@ tabs=0
 -> activate src again: collapse src
 nav rows=6
   [info] Workspace: ws
-  [project] * Alpha
-  [dir]   > docs
-  [dir]   > src
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▸ src
   [file]     README.md
   [file]     main.bas
 selected=src
