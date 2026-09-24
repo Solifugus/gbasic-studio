@@ -281,6 +281,41 @@ program main(args)
     r = studio_ui.activate_row(app, rows, i)
     app = act("activate src again", r)
     show(app)
+
+    ' Made HERE and not in mkproj_ui: a new entry in the shared fixture puts a
+    ' new row in every other ui_* golden.
+    '
+    ' An expanded directory with nothing to show used to change the arrow and
+    ' nothing else, and the rows below it -- its SIBLINGS, which sort after it
+    ' because directories come first -- stayed exactly where they were. That
+    ' reads as a control that does not work, and was reported as one.
+    banner("a directory with nothing in it says so")
+    persist.ensure_dir(projdir + "/hollow")
+    persist.ensure_dir(projdir + "/dots")
+    df{file} = projdir + "/dots/.secret"
+    write(df, "shh\n")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "dir", "hollow"))
+    app = act("expand hollow", r)
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "dir", "dots"))
+    app = act("expand dots", r)
+    show(app)
+
+    banner("the notes are not rows you can act on")
+    rows = studio_ui.nav_rows(app)
+    i = row_index(rows, "info", "(empty)")
+    print "the (empty) note is row " + i
+    print "its menu: " + acts(rows, i)
+    r = studio_ui.activate_row(app, rows, i)
+    app = act("click it", r)
+    print "selection unchanged=[" + leafof(app.model.workspace.nav.selected_path) + "]"
+
+    banner("and a directory that HAS something gets no note at all")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "dir", "src"))
+    app = r.app
+    show(app)
   end if
 
   ' ---- project: activating a project row reroots the tree ------------------

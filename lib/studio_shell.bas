@@ -142,6 +142,16 @@ library studio_shell
         box.append(g)
         lbl = studio_shell._fill(gtk.label(r.name))
         lbl.ellipsize = gi.enum("Pango.EllipsizeMode.MIDDLE")
+        ' A note INSIDE the tree -- "(empty)", "(hidden files only)" -- is a
+        ' remark about the directory above it, not an entry you can act on, and
+        ' it has to read that way or it is one more thing to try clicking. The
+        ' workspace header is an info row too and keeps its weight, which is
+        ' why this is on depth and not on kind alone.
+        if r.kind = "info" then
+            if r.depth > 0 then
+                lbl = studio_style.apply(lbl, "dim")
+            end if
+        end if
         box.append(lbl)
         ' The whole path, on hover, for the row whose name had to be elided --
         ' and for every other row too, because "which of the four src/ folders

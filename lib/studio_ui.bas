@@ -260,7 +260,12 @@ library studio_ui
         ' `.gstudio.json` then takes effect on the next redraw.
         spec = studio_projfile.read_spec(proj.path)
         nodes = filetree.scan(proj.path, ws.nav.expanded)
-        for each r in filetree.flatten(nodes)
+        flat = filetree.flatten(nodes)
+        i = 0
+        n = count(flat)
+        while i < n
+            r = flat[i]
+            i = i + 1
             if studio_ui.hidden_entry(r.name) then
                 continue
             end if
@@ -278,8 +283,64 @@ library studio_ui
             ' One deeper than `filetree` counts, because everything in the tree
             ' sits under the project row above it.
             rows = append(rows, studio_ui._row(r.kind, r.name, r.depth + 1, glyph, r.path, proj.id))
-        end for
+            ' An EXPANDED directory with nothing to show says so.
+            '
+            ' Without this, opening an empty folder changed the arrow and
+            ' nothing else, and the rows below it -- its SIBLINGS, which sort
+            ' after it because directories come first -- stayed exactly where
+            ' they were. That reads as a control that does not work, and it was
+            ' reported as one. The note is an `info` row: not clickable, no
+            ' context menu, nothing to select.
+            if r.kind = "dir" then
+                if r.expanded then
+                    note = studio_ui._empty_note(flat, i, r.depth, spec)
+                    if note != "" then
+                        rows = append(rows, studio_ui._row("info", note, r.depth + 2, "", "", proj.id))
+                    end if
+                end if
+            end if
+        end while
         return rows
+    end function
+
+    ' What to say under an expanded directory that shows nothing, or "" when it
+    ' has something to show. `at` is the index just past the directory in the
+    ' FLATTENED list, so its children are the run of entries deeper than it.
+    '
+    ' The two cases are told apart because they are different facts about the
+    ' directory: one is empty, the other is full of things this browser does not
+    ' display, and "(empty)" about a folder holding six dotfiles would be a
+    ' statement Studio cannot support.
+    function _empty_note(flat, at, depth, spec)
+        any = false
+        shown = false
+        i = at
+        n = count(flat)
+        while i < n
+            c = flat[i]
+            if c.depth <= depth then
+                ' Out of this directory and into the next sibling.
+                i = n
+            else
+                any = true
+                hidden = studio_ui.hidden_entry(c.name)
+                if not hidden then
+                    ignored = studio_projfile.ignored(spec, c.name)
+                    if not ignored then
+                        shown = true
+                        i = n
+                    end if
+                end if
+                i = i + 1
+            end if
+        end while
+        if shown then
+            return ""
+        end if
+        if any then
+            return "(hidden files only)"
+        end if
+        return "(empty)"
     end function
 
     ' ---- the browser's glyphs -----------------------------------------------

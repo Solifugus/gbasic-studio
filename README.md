@@ -113,6 +113,13 @@ its project does — and the status line counts what is open elsewhere, so work
 you left behind is never invisible. A file opened by path with no project
 adopted is always shown.
 
+**An empty folder now says it is empty.** Expanding one used to change the
+arrow and nothing else — and because directories sort before files, the rows
+that stayed put underneath were its siblings, which read as its contents. It
+gets a `(empty)` note now, or `(hidden files only)` when everything inside it
+is a dotfile or on the project's ignore list, because those are two different
+facts about the folder.
+
 **Nicer marks in the browser.** A filled dot for the project you are in, a
 hollow one for the others, and small triangles for open and closed folders. The
 glyph sits in a column of its own, so names line up whatever is beside them.

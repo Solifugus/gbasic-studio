@@ -495,6 +495,22 @@ Two consequences worth knowing before you touch the shell:
 - **A row added and redrawn in the SAME callback has no allocation yet**, so
   `get_row_at_y` cannot find it — the loop has to be given back for GTK to lay
   it out. Cost an hour of looking for a product bug that was a test artefact.
+- **An expanded directory with nothing to show SAYS SO.** Opening an empty
+  folder changed the arrow and nothing else, and the rows below it — its
+  SIBLINGS, which sort after it because directories come first — stayed
+  exactly where they were. Reported as a control that does not work, and it is
+  indistinguishable from one. `studio_ui._empty_note` looks ahead in the
+  FLATTENED list at the run of entries deeper than the directory and answers
+  "(empty)", "(hidden files only)", or "" when something survives the filter.
+- The two notes are different FACTS about the directory and are told apart on
+  purpose: "(empty)" about a folder holding six dotfiles would be a statement
+  Studio cannot support. `hidden_entry` and the project's ignore list are the
+  two ways a child can exist and not show.
+- The note is an `info` row — not clickable (`activate_row` answers "none"), no
+  context menu (`context_actions` answers []), and `dim` in the shell so it
+  reads as a remark rather than as one more thing to try clicking. That styling
+  is keyed on kind AND depth, because the workspace header is an info row too
+  and keeps its weight.
 - **`persist.read_status` answers "loaded", not "ok".** Testing for the wrong
   one silently yields an empty store on every read — the round trip appears to
   write and then return nothing.

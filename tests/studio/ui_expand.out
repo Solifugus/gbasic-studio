@@ -23,3 +23,40 @@ nav rows=6
   [file]     main.bas
 selected=src
 tabs=0
+== a directory with nothing in it says so ==
+-> expand hollow: expand hollow
+-> expand dots: expand dots
+nav rows=10
+  [info] Workspace: ws
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▾ dots
+  [info]     (hidden files only)
+  [dir]   ▾ hollow
+  [info]     (empty)
+  [dir]   ▸ src
+  [file]     README.md
+  [file]     main.bas
+selected=dots
+tabs=0
+== the notes are not rows you can act on ==
+the (empty) note is row 6
+its menu: (no menu)
+-> click it: none
+selection unchanged=[dots]
+== and a directory that HAS something gets no note at all ==
+nav rows=12
+  [info] Workspace: ws
+  [project] ● Alpha
+  [dir]   ▸ docs
+  [dir]   ▾ dots
+  [info]     (hidden files only)
+  [dir]   ▾ hollow
+  [info]     (empty)
+  [dir]   ▾ src
+  [file]       a.bas
+  [file]       b.bas
+  [file]     README.md
+  [file]     main.bas
+selected=src
+tabs=0
