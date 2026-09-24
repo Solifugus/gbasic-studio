@@ -1,0 +1,29 @@
+== what each kind of row offers ==
+info:    (no menu)
+project: project-file,close-project
+dir:     new-file-here,new-folder-here,rename,delete
+file:    open,rename,delete
+off the end: (no menu)
+before the start: (no menu)
+== the labels ==
+  open -> Open
+  new-file-here -> New File here
+  new-folder-here -> New Folder here
+  rename -> Rename…
+  delete -> Delete
+  project-file -> Add project file
+  close-project -> Close project
+== right-click selects, it does not open ==
+-> select main.bas: selected main.bas
+tabs=0
+== Close project refuses while something under it is unsaved ==
+-> Close project: dirty main.bas
+   save main.bas first
+still open=1
+== saved, and then it closes ==
+-> Close project: project-closed Alpha
+   closed Alpha — the folder is untouched
+projects=0
+tabs=0
+selection=[]
+-> Close it again: no-project

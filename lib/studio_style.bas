@@ -47,6 +47,19 @@ library studio_style
         return 6
     end function
 
+    ' One level of the browser's tree, in pixels.
+    '
+    ' Eight and not `unit() * 2`, measured rather than chosen: the tree used to
+    ' be indented with two SPACES per level inside the row's text, and twelve
+    ' pixels is visibly wider than that font's two spaces — enough that two
+    ' file names started ellipsizing which had fitted before. Making the
+    ' indentation exact must not cost the names the width it was meant to save
+    ' them, so this is about what two spaces were, and the gain is that it is
+    ' now the same at every depth and in every font.
+    function indent()
+        return 8
+    end function
+
     ' Logical class name -> the class actually written on the widget. The short
     ' names are what call sites read ("head", "dim"); the prefix is what keeps
     ' them from colliding with a theme class of the same name — `.toolbar` and

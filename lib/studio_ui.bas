@@ -230,22 +230,25 @@ library studio_ui
         rows = []
         ws = app.model.workspace
         if ws = nothing then
-            rows = append(rows, { kind: "info", label: "(no workspace open)", path: "", project_id: "" })
+            rows = append(rows, studio_ui._row("info", "(no workspace open)", 0, "", "", ""))
             ' The empty state is exactly where someone finds out what this window
             ' can do, and it said only what it could NOT do. Both routes in are
             ' named here, because neither is guessable from a row of buttons and
             ' a field labelled "name".
-            rows = append(rows, { kind: "info", label: "New Project starts a fresh one", path: "", project_id: "" })
-            rows = append(rows, { kind: "info", label: "or type a folder path and press Open Folder", path: "", project_id: "" })
+            rows = append(rows, studio_ui._row("info", "New Project starts a fresh one", 0, "", "", ""))
+            rows = append(rows, studio_ui._row("info", "or type a folder path and press Open Folder", 0, "", "", ""))
             return rows
         end if
-        rows = append(rows, { kind: "info", label: "Workspace: " + ws.name, path: "", project_id: "" })
+        rows = append(rows, studio_ui._row("info", "Workspace: " + ws.name, 0, "", "", ""))
         for each pr in ws.projects
+            ' A STATUS marker, not indentation: which project is active. It is
+            ' the glyph rather than part of the name so the renderer can tell
+            ' the two apart, and `row_label` puts them back together.
             marker = "  "
             if pr.id = ws.active_project then
                 marker = "* "
             end if
-            rows = append(rows, { kind: "project", label: marker + pr.name, path: pr.path, project_id: pr.id })
+            rows = append(rows, studio_ui._row("project", pr.name, 0, marker, pr.path, pr.id))
         end for
         proj = studio_model.project_by_id(ws, ws.active_project)
         if proj = nothing then
@@ -264,12 +267,6 @@ library studio_ui
             if studio_projfile.ignored(spec, r.name) then
                 continue
             end if
-            indent = "  "
-            i = 0
-            while i < r.depth
-                indent = indent + "  "
-                i = i + 1
-            end while
             glyph = "  "
             if r.kind = "dir" then
                 if r.expanded then
@@ -278,9 +275,42 @@ library studio_ui
                     glyph = "> "
                 end if
             end if
-            rows = append(rows, { kind: r.kind, label: indent + glyph + r.name, path: r.path, project_id: proj.id })
+            ' One deeper than `filetree` counts, because everything in the tree
+            ' sits under the project row above it.
+            rows = append(rows, studio_ui._row(r.kind, r.name, r.depth + 1, glyph, r.path, proj.id))
         end for
         return rows
+    end function
+
+    ' A browser row: what it IS, in parts, plus the flat `label` the goldens and
+    ' the status line read.
+    '
+    ' The parts are the point. Indentation used to be spaces inside `label`, so
+    ' depth was encoded in a presentation string and the renderer had no choice
+    ' but to draw it that way — in a PROPORTIONAL font, where two spaces are
+    ' whatever the font says they are. The shell indents with a margin now and
+    ' the label carries only the glyph and the name, which is also what lets the
+    ' name ellipsize without the indentation ellipsizing with it.
+    '
+    ' `label` is still produced, here, once. It is what `tests/drivers/ui.bas`
+    ' addresses rows by and what the display tiers print, and deriving it in one
+    ' place is what keeps the two renderings from drifting — the mistake
+    ' `projects[].documents` made was two independent records of one thing.
+    function _row(kind, name, depth, glyph, path, project_id)
+        return { kind: kind, name: name, depth: depth, glyph: glyph,
+                 label: studio_ui.row_label(kind, name, depth, glyph),
+                 path: path, project_id: project_id }
+    end function
+
+    ' The flat rendering: two spaces per level, then the glyph, then the name.
+    function row_label(kind, name, depth, glyph)
+        indent = ""
+        i = 0
+        while i < depth
+            indent = indent + "  "
+            i = i + 1
+        end while
+        return indent + glyph + name
     end function
 
     ' Activate the row at `index` of the row array the view actually rendered.
@@ -1279,6 +1309,174 @@ library studio_ui
         return { app: c.app, action: "closed", detail: doc.id, armed: "" }
     end function
 
+    ' Select a row WITHOUT activating it.
+    '
+    ' A right-click has to put the selection where the menu is about, because
+    ' Rename, Delete and `target_dir` all read it -- but it must not do what a
+    ' left-click does. `activate_row` on a file OPENS it and on a directory
+    ' toggles it, and a menu that opened the file before you had chosen anything
+    ' from it would be a menu that acted first and asked afterwards.
+    '
+    ' Project rows are the exception and go through `activate_row` at the call
+    ' site: "Add project file" and "Close project" are about a project, and the
+    ' one a user just pointed at is the one they mean.
+    function select_row(app, rows, index)
+        if index < 0 then
+            return { app: app, action: "none", detail: "" }
+        end if
+        if index >= count(rows) then
+            return { app: app, action: "none", detail: "" }
+        end if
+        row = rows[index]
+        if row.path = "" then
+            return { app: app, action: "none", detail: "" }
+        end if
+        ws = app.model.workspace
+        if ws = nothing then
+            return { app: app, action: "none", detail: "" }
+        end if
+        ws = studio_model.set_selected_path(ws, row.path)
+        app = studio.set_workspace(app, ws)
+        return { app: app, action: "selected", detail: row.path }
+    end function
+
+    ' ---- the browser's context menu (STU-13) --------------------------------
+    '
+    ' What a right-click OFFERS is decided here, over the row model, so the menu
+    ' can be asserted without a popover. The shell builds one popover holding
+    ' every item there is and shows the ones this list names.
+    '
+    ' Nothing here is a new capability. Every action maps onto a function the
+    ' toolbar already calls, so the menu is an adapter and not a second
+    ' implementation -- which matters most for the two that ARM: a menu Delete
+    ' that deleted outright would quietly undo the two-click rule the button
+    ' obeys, on the same file.
+
+    ' Every item the menu can hold, in the order it is built. The shell walks
+    ' this to make the widgets; `context_actions` decides which of them a
+    ' particular row shows.
+    function context_all()
+        return ["open", "new-file-here", "new-folder-here", "rename", "delete",
+                "project-file", "close-project"]
+    end function
+
+    ' What this row offers, or [] for a row that offers nothing. An empty list
+    ' means NO MENU -- a popover with nothing in it is worse than no popover,
+    ' because it reads as a control that failed.
+    function context_actions(rows, index)
+        if index < 0 then
+            return []
+        end if
+        if index >= count(rows) then
+            return []
+        end if
+        r = rows[index]
+        if r.kind = "file" then
+            return ["open", "rename", "delete"]
+        end if
+        if r.kind = "dir" then
+            ' Creating lands INSIDE the directory that was clicked, through the
+            ' same `target_dir` rule the toolbar uses -- which is why the
+            ' labels say "here" rather than leaving it to be guessed.
+            return ["new-file-here", "new-folder-here", "rename", "delete"]
+        end if
+        if r.kind = "project" then
+            return ["project-file", "close-project"]
+        end if
+        return []
+    end function
+
+    ' The wording on the item.
+    function context_label(action)
+        if action = "open" then
+            return "Open"
+        end if
+        if action = "new-file-here" then
+            return "New File here"
+        end if
+        if action = "new-folder-here" then
+            return "New Folder here"
+        end if
+        if action = "rename" then
+            return "Rename…"
+        end if
+        if action = "delete" then
+            return "Delete"
+        end if
+        if action = "project-file" then
+            return "Add project file"
+        end if
+        if action = "close-project" then
+            return "Close project"
+        end if
+        return action
+    end function
+
+    ' ---- closing a project --------------------------------------------------
+
+    ' Take a project out of the workspace.
+    '
+    ' NOT armed, unlike Delete and Close, because nothing is lost: the directory
+    ' is untouched, the project's state file stays on disk under its own key,
+    ' and Open Folder puts it back with its anchors intact. Arming a reversible
+    ' act would spend the user's attention on the wrong one.
+    '
+    ' It REFUSES while a document under it has unsaved text, naming the file.
+    ' Closing the project closes those tabs, and Studio keeps no drafts, so
+    ' going ahead would be the silent loss that `armed-close` exists to prevent
+    ' -- one level up, where it is easier to do by accident.
+    '
+    ' Returns { app, action, detail }, action one of "project-closed", "dirty",
+    ' "no-project".
+    function close_project(app, project_id)
+        ws = app.model.workspace
+        if ws = nothing then
+            return { app: app, action: "no-project", detail: "" }
+        end if
+        proj = studio_model.project_by_id(ws, project_id)
+        if proj = nothing then
+            return { app: app, action: "no-project", detail: "" }
+        end if
+        under = []
+        for each d in app.dm.docs
+            if studio_ui._under(d.path, proj.path) then
+                dirty = studio_docs.is_dirty(d)
+                if dirty then
+                    return { app: app, action: "dirty", detail: d.path }
+                end if
+                under = append(under, d.id)
+            end if
+        end for
+        ' Its anchors, written before the project stops being findable. After
+        ' the removal below `project_path_for` answers "" for these documents,
+        ' so the cache would be flushed to nowhere.
+        held = app["pstate"]
+        if held != unknown then
+            if held != nothing then
+                if held.path = proj.path then
+                    wrote = studio_projects.save(app.paths.home, held.key, held.state)
+                    app["pstate"] = nothing
+                end if
+            end if
+        end if
+        for each id in under
+            c = studio.close_document(app, id, "discard")
+            app = c.app
+        end for
+        ws = app.model.workspace
+        ' A selection pointing into a project that is gone is a path nothing can
+        ' render and `target_dir` would still be asked about. Cleared only when
+        ' it was inside THIS project, so closing one does not disturb the
+        ' selection in another.
+        inside = studio_ui._under(ws.nav.selected_path, proj.path)
+        if inside then
+            ws = studio_model.set_selected_path(ws, "")
+        end if
+        ws = studio_model.remove_project(ws, project_id)
+        app = studio.set_workspace(app, ws)
+        return { app: app, action: "project-closed", detail: proj.name }
+    end function
+
     ' ---- what the window says back (STU-2D) ---------------------------------
 
     ' The status-bar line for an outcome. Every action gets one: a refusal that
@@ -1368,6 +1566,14 @@ library studio_ui
         ' one just acquired a file.
         if action = "project-file" then
             return "wrote " + detail
+        end if
+        if action = "rename-ready" then
+            return "type the new name in the field, then press Rename"
+        end if
+        if action = "project-closed" then
+            ' The directory is still there and Open Folder puts it back, so the
+            ' line says what happened rather than warning about it.
+            return "closed " + detail + " — the folder is untouched"
         end if
         if action = "no-project" then
             return "open a project first"

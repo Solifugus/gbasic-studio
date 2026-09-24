@@ -150,6 +150,15 @@ function head3(text)
   return join(out, "\n")
 end function
 
+' The menu a row offers, as a flat string.
+function acts(rows, i)
+  a = studio_ui.context_actions(rows, i)
+  if count(a) = 0 then
+    return "(no menu)"
+  end if
+  return join(a, ",")
+end function
+
 program main(args)
   load persist
   load filetree
@@ -183,6 +192,13 @@ program main(args)
     fixture = false
   end if
   if mode = "show" then
+    fixture = false
+  end if
+  ' `layout` reads a home the GUI just wrote, so it must not build one.
+  if mode = "layout" then
+    fixture = false
+  end if
+  if mode = "panes" then
     fixture = false
   end if
   if fixture then
@@ -1494,6 +1510,99 @@ program main(args)
     txt = read_file_text(where + "/second/LICENSE")
     print "has a placeholder=" + (find(txt, "[fullname]") != nothing)
     print "is the Apache licence=" + (find(txt, "Apache License") != nothing)
+  end if
+
+  ' ---- layout: what a reopened home remembers about the window -------------
+  if mode = "layout" then
+    app = studio.launch(home)
+    sess = app.model.session
+    ' Booleans, not the numbers: see stu13_step. What is asserted is that all
+    ' three came back and that none of them is the built-in default any more.
+    print "browser remembered=" + (studio_model.pane_at(sess, "browser", -1) > 0)
+    print "console remembered=" + (studio_model.pane_at(sess, "console", -1) > 0)
+    print "right remembered=" + (studio_model.pane_at(sess, "right", -1) > 0)
+    print "not the built-in browser default=" + (studio_model.pane_at(sess, "browser", -1) != 260)
+    ' The SIZE is recorded as a boolean. Under Wayland the compositor decides
+    ' how big a window actually is, so the number that comes back is the
+    ' desktop's and not something a golden can hold; that it was written at all
+    ' is the assertable part.
+    print "window recorded=" + (sess.window.width > 0 and sess.window.height > 0)
+  end if
+
+  ' ---- panes: the divider arithmetic, and what a bad stored value does -----
+  if mode = "panes" then
+    sess = studio_model.default_session()
+    print "defaults: " + studio_model.pane_at(sess, "browser", -1) + " " + studio_model.pane_at(sess, "console", -1) + " " + studio_model.pane_at(sess, "right", -1)
+    sess = studio_model.set_panes(sess, 340, 300, 700)
+    print "set:      " + studio_model.pane_at(sess, "browser", -1) + " " + studio_model.pane_at(sess, "console", -1) + " " + studio_model.pane_at(sess, "right", -1)
+
+    banner("a session written before panes existed")
+    old = { schema_version: 1, window: { width: 10, height: 10, maximized: false } }
+    print "browser falls back=" + studio_model.pane_at(old, "browser", 260)
+
+    banner("and a file somebody edited")
+    ' This is JSON in a user's home: a string where a number belongs, a key
+    ' missing, a zero left behind by a truncated write. A divider read as any
+    ' of those is a pane collapsed to its floor on startup with nothing saying
+    ' why, so each one falls back to the built-in instead.
+    bad = { schema_version: 1, panes: { browser: "wide", console: 0, right: 700 } }
+    print "a string:  " + studio_model.pane_at(bad, "browser", 260)
+    print "a zero:    " + studio_model.pane_at(bad, "console", 380)
+    print "a number:  " + studio_model.pane_at(bad, "right", 620)
+    print "missing:   " + studio_model.pane_at(bad, "nothere", 99)
+    notrec = { schema_version: 1, panes: "no" }
+    print "not even a record: " + studio_model.pane_at(notrec, "browser", 260)
+  end if
+
+  ' ---- context: what a right-click offers, and closing a project -----------
+  '
+  ' The menu's CONTENT is a function over the row model, so it is asserted here
+  ' with no popover in sight. Every item maps onto a function the toolbar
+  ' already calls — the menu is an adapter, not a second implementation — which
+  ' matters most for Delete, where a second implementation would quietly undo
+  ' the two-click rule on the same file.
+  if mode = "context" then
+    rows = studio_ui.nav_rows(app)
+    banner("what each kind of row offers")
+    print "info:    " + acts(rows, row_index(rows, "info", "ws"))
+    print "project: " + acts(rows, row_index(rows, "project", "Alpha"))
+    print "dir:     " + acts(rows, row_index(rows, "dir", "src"))
+    print "file:    " + acts(rows, row_index(rows, "file", "main.bas"))
+    print "off the end: " + acts(rows, 999)
+    print "before the start: " + acts(rows, -1)
+
+    banner("the labels")
+    for each a in studio_ui.context_all()
+      print "  " + a + " -> " + studio_ui.context_label(a)
+    end for
+
+    banner("right-click selects, it does not open")
+    i = row_index(rows, "file", "main.bas")
+    r = studio_ui.select_row(app, rows, i)
+    app = act("select main.bas", r)
+    print "tabs=" + count(app.dm.docs)
+
+    banner("Close project refuses while something under it is unsaved")
+    r = studio_ui.activate_row(app, rows, i)
+    app = r.app
+    id = studio_docs.active_doc(app.dm).id
+    app = studio.edit_document(app, id, "print \"typed, never saved\"\n")
+    r = studio_ui.close_project(app, "proj-1")
+    app = act("Close project", r)
+    print "   " + studio_ui.action_notice(r.action, r.detail)
+    print "still open=" + count(app.model.workspace.projects)
+
+    banner("saved, and then it closes")
+    sv = studio_ui.save_active(app, "")
+    app = sv.app
+    r = studio_ui.close_project(app, "proj-1")
+    app = act("Close project", r)
+    print "   " + studio_ui.action_notice(r.action, r.detail)
+    print "projects=" + count(app.model.workspace.projects)
+    print "tabs=" + count(app.dm.docs)
+    print "selection=[" + app.model.workspace.nav.selected_path + "]"
+    r = studio_ui.close_project(app, "proj-1")
+    app = act("Close it again", r)
   end if
 
   ' ---- filetypes: a project is not only its .bas files ---------------------

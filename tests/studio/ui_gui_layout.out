@@ -1,0 +1,11 @@
+dragging all three dividers
+moved away from the defaults=true
+closing the window
+saved=settings,session,drafts
+app-exited
+-- reopening the home in a new process --
+browser remembered=true
+console remembered=true
+right remembered=true
+not the built-in browser default=true
+window recorded=true

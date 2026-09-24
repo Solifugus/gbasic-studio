@@ -97,6 +97,28 @@ you have forgotten exactly that project and nothing else. Still nothing in your
 project directory: this is derived and personal, and it only means anything
 beside this home's results.
 
+**A long file name is no longer cut off mid-word.** A deep tree in a narrow
+browser clipped `interpolated_string_expression_parser_regression_tests.bas`
+at `interpolated_string_expression_pa` — no ellipsis to say it had been
+truncated, and no horizontal scrollbar to reach the rest. Names ellipsize in
+the MIDDLE now, so the extension survives (it is the part that says what the
+file is), the full path is on the tooltip, and the tree indents with a margin
+instead of spaces in the text, so a level is the same width at every depth.
+
+**And the layout you set stays set.** The window size had been read from the
+session since the first release and never once written back, and the three
+dividers were fixed numbers, so a resized window and a dragged divider were
+forgotten every launch. Both are saved when the window closes.
+
+**Right-click a row in the browser.** A file offers Open, Rename and Delete; a
+directory offers New File here, New Folder here, Rename and Delete; a project
+offers Add project file and Close project. Every item goes through the same
+function the toolbar button does, so Delete still arms on the first click and
+asks for a second — a menu that deleted outright would have undone that rule
+from a different control. Rename fills the name field rather than renaming, and
+Close project only takes the project out of the workspace: the folder is
+untouched, and Open Folder puts it back with its run history intact.
+
 **New Project asks.** It opens a window — a name, where it goes, and four
 things a new project usually wants: `main.bas`, a `README.md`, a
 `.gstudio.json`, and a git repository with a `.gitignore`. Only `main.bas` is
@@ -411,7 +433,7 @@ workspace instead:
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 172 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 176 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 29 cases, headless AND offline — no network, no key
 ```
 

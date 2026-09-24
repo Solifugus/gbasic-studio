@@ -32,6 +32,38 @@ library studio_model
         return { width: 1200, height: 800, maximized: false }
     end function
 
+    ' Where the three dividers sit: browser | editor, editor | console, and
+    ' main | the right-hand column. Numbers the window had hardcoded, so the
+    ' layout you set snapped back on every launch.
+    function default_panes()
+        return { browser: 260, console: 380, right: 620 }
+    end function
+
+    ' One stored divider, or the default. Guarded because this is a JSON file a
+    ' user can edit and a crash can truncate, and a divider read as `unknown`
+    ' or as 0 is a pane collapsed to its floor on startup with no way to tell
+    ' why. Below 40 is not a pane anybody meant.
+    function pane_at(session, name, fallback)
+        if not has(session, "panes") then
+            return fallback
+        end if
+        p = session.panes
+        if not is_record(p) then
+            return fallback
+        end if
+        if not has(p, name) then
+            return fallback
+        end if
+        v = p[name]
+        if not is_number(v) then
+            return fallback
+        end if
+        if v < 40 then
+            return fallback
+        end if
+        return v
+    end function
+
     ' Global, user-level preferences. Typed fields with sensible defaults.
     function default_settings()
         return {
@@ -58,6 +90,7 @@ library studio_model
             active_workspace: "",
             next_ws: 1,
             window: studio_model.default_window(),
+            panes: studio_model.default_panes(),
             recent_files: []
         }
     end function
@@ -321,6 +354,12 @@ library studio_model
     ' Record window geometry in the session. Returns the updated session.
     function set_window(session, w, h, maximized)
         session.window = { width: w, height: h, maximized: maximized }
+        return session
+    end function
+
+    ' Record where the dividers were left. Returns the updated session.
+    function set_panes(session, browser, console, right)
+        session.panes = { browser: browser, console: console, right: right }
         return session
     end function
 

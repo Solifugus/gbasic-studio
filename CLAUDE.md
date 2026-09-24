@@ -49,7 +49,7 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 172 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 176 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 29 cases, headless AND offline (scripted transport)
 ```
 
@@ -59,7 +59,8 @@ so. The suite builds the sibling gBASIC first when `GBASIC` points into a source
 tree, so an interpreter change is what gets tested rather than a stale binary.
 Display tiers (`sections_gui`, `sessions_gui`, `results_gui`, `ui_gui`,
 `ui_gui_cold`, `ui_gui_new`, `ui_gui_name`, `ui_gui_solo`, `ui_gui_run`,
-`ui_gui_cursor`, `ui_gui_open`, `ui_gui_newproj`, `ui_gui_branch`, `ui_gui_table`, `ui_gui_overlay`, `ui_gui_teach`, `ui_gui_git`) SKIP cleanly
+`ui_gui_cursor`, `ui_gui_open`, `ui_gui_newproj`, `ui_gui_layout`,
+`ui_gui_ctx`, `ui_gui_branch`, `ui_gui_table`, `ui_gui_overlay`, `ui_gui_teach`, `ui_gui_git`) SKIP cleanly
 without GTK 4 or a display.
 `ui_gui_new` is the only case that spans two processes: the GUI builds a project
 from nothing and closes, and a second interpreter run reopens the same home —
@@ -342,6 +343,105 @@ Two consequences worth knowing before you touch the shell:
   (`click_create_project`). `stu2c_step` keeps its ORIGINAL phase numbering
   against a `ph = G.phase - 1`, rather than renumbering a flow whose phase
   numbers appear nowhere in its golden.
+
+### The browser pane (STU-13)
+
+- **A deep tree CLIPPED a file name mid-word, with no ellipsis and no
+  horizontal scrollbar.** Measured: five levels in a 260px pane cut
+  `interpolated_string_expression_parser_regression_tests.bas` off at
+  `interpolated_string_expression_pa` — nothing said the name was truncated
+  and nothing could reach the rest of it. Found by taking a screenshot, like
+  every other defect in this section; no golden can see it, because the
+  asserted label is the whole string either way.
+- The rows ellipsize **MIDDLE**, not END. END would signal the truncation and
+  still eat `.bas`, which is the part that says what the file IS.
+- **`_fill`, not `_left`, on a browser row.** `halign = START` hands a label
+  its NATURAL width, and a label allowed its natural width never ellipsizes —
+  it runs off the edge, which is the bug. The label has to be GIVEN a width for
+  Pango to have anything to elide against. The nav scroller is `_vscroll` for
+  the same reason: a horizontal policy of AUTOMATIC lets a child take its
+  natural width instead of the width it is given.
+- **Indentation is a MARGIN now, not spaces in the label.** `studio_ui._row`
+  carries `name`, `depth` and `glyph`, and `studio_ui.row_label` derives the
+  flat string from them — in ONE place, because the goldens address rows by
+  that string and two independent renderings of one thing is the
+  `projects[].documents` mistake. Nothing moved: 172 cases passed unchanged
+  across that refactor, which is the evidence that `row_label` reproduces what
+  it replaced.
+- `studio_style.indent()` is **8**, not `unit() * 2`. Measured: twelve pixels
+  is visibly wider than the old two-spaces-in-a-proportional-font, wide enough
+  that two names started ellipsizing which had fitted before. Making the
+  indentation exact must not cost the names the width it was meant to save
+  them.
+- Every row carries its full path as a TOOLTIP, which is where an elided name
+  can be read in full.
+- **The layout you set is now remembered.** `session.window` had been READ at
+  startup since STU-0 and never written back, and the three divider positions
+  were literals in `studio_shell.build` — so a resized window and a dragged
+  divider were both forgotten on every launch. `studio_model.pane_at` guards
+  every stored value (missing key, not a record, not a number, absurdly small)
+  because this is JSON a user can edit and a crash can truncate, and a divider
+  read as 0 is a pane collapsed to its floor on startup with nothing saying why.
+- **Geometry is captured on `close-request`, not after the loop returns.** The
+  GTK loop returns only once the window is GONE, so the exit path cannot ask it
+  how big it was — which is why that field was never written. Returning false
+  from the handler lets the close proceed. `stu2c_step` now calls
+  `window.close()` rather than `app_ref.quit()`, because that tier's whole
+  claim is that closing the window saves the session and `quit()` skips
+  `close-request` entirely.
+- The exact divider numbers are NOT in a golden. A GtkPaned clamps its position
+  against the allocation and under Wayland the compositor decides that —
+  measured, `rsplit = 700` came back 572 on this desktop. `ui_panes` asserts the
+  arithmetic headlessly where it is pure; `ui_gui_layout` asserts only what
+  needs a real window: that closing it writes the layout down at all.
+
+### The browser's right-click menu (STU-13)
+
+- A `Gtk.Popover` holding a box of ordinary `Gtk.Button`s, **not** a
+  `Gtk.PopoverMenu`. A PopoverMenu is driven by a `GMenuModel` built through
+  class statics the bridge cannot reach, and plain buttons are also what makes
+  the menu testable — `ui_gui_ctx` presses one. `gi.new("Gdk.Rectangle")` fails
+  like `Gdk.RGBA`, so `set_pointing_to` is out and the popover parents to the
+  ROW, which points at the thing it is about anyway.
+- Built ONCE holding every item there is; `studio_shell.context_for` shows the
+  ones `studio_ui.context_actions` names and hides the rest. An empty list means
+  NO menu: a popover with nothing in it reads as a control that failed.
+- **Every item dispatches to the same `studio_ui` function the toolbar calls.**
+  That is what keeps Delete ARMED from the menu — a second implementation would
+  quietly undo the two-click rule on the same file, from a different control.
+- **Rename does not rename.** It fills the header name field and focuses it,
+  because that field is where a name comes from and a second route to one is two
+  places to get naming rules wrong. The item says "Rename…" for that reason.
+- Right-click SELECTS (`studio_ui.select_row`) and does not activate: on a file
+  `activate_row` would OPEN it, which is a menu acting before it was asked.
+  Project rows are the exception and DO activate, because both of their items
+  are about a project and the one just pointed at is the one meant.
+- **`redraw` takes the popover down first.** It is parented to a browser row and
+  a redraw rebuilds those; a popover whose parent is destroyed is a GTK critical,
+  which `G_DEBUG=fatal-criticals` turns into a nonzero exit.
+- `close_project` is NOT armed, unlike Delete and Close: nothing is lost. The
+  directory is untouched, the state file stays on disk under its own key, and
+  Open Folder puts it back with its anchors. It REFUSES while a document under
+  it is dirty, naming the file — closing the project closes those tabs and
+  Studio keeps no drafts. It writes the project's anchors before the project
+  stops being findable, or `project_path_for` would answer "" and the cache
+  would flush to nowhere. Nothing is logged: `studio_history.kinds()` is a
+  closed vocabulary and this is not in it.
+- **The gesture is held on `G` as well as passed to `add_controller`.** A
+  controller nothing else holds is one more object that can go away under a live
+  window — the same reason `_STUDIO_STYLE` is a global.
+- **`row.get_allocation()` RAISES through the bridge**, so a display tier cannot
+  ask a row where it is. `ui_gui_ctx` finds the y by scanning `get_row_at_y`
+  until it answers the wanted index, which also exercises that lookup for real.
+  Pixel arithmetic is not a substitute: `get_height()` reported 19 against an
+  actual pitch of ~20, so `idx * h` opened the menu on the wrong file.
+- Menu items are `set_has_frame(false)` with `xalign = 0` on their labels.
+  Studio's own `flat` class is prefixed and means something else (it stops a
+  listbox painting a view background); without the GTK 4 call the menu was a
+  column of framed, centred buttons — looked at, and that is what it was.
+- A `Gtk.Popover` autohides, so it DISMISSES when a screenshot tool takes focus,
+  and on Wayland it is a separate surface that a window-only capture does not
+  include at all. Both are why looking at this one needed a full-screen grab.
 - **`persist.read_status` answers "loaded", not "ok".** Testing for the wrong
   one silently yields an empty store on every read — the round trip appears to
   write and then return nothing.

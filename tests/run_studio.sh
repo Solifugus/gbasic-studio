@@ -881,7 +881,7 @@ run_ui() { # mode
 for m in rows open expand project bounds tabs edit save newproj refresh \
          newfile newfolder adopt exit \
          names rename delete closetab notice \
-         run runstop runerr runrefuse badsyntax filetypes projfile projpin newproj2 anchors cursor drafts branch table overlay overlay_conflict; do
+         run runstop runerr runrefuse badsyntax filetypes projfile projpin newproj2 panes context anchors cursor drafts branch table overlay overlay_conflict; do
     run_ui "$m"
 done
 
@@ -1076,6 +1076,57 @@ if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
             printf 'SKIP ui_gui_cursor (GTK 4 typelib not available)\n'
         else
             cat "$stdout_file"; fail "ui_gui_cursor (nonzero exit)"
+        fi
+    fi
+
+    # STU-13: the browser's right-click menu. It is a Gtk.Popover of ordinary
+    # buttons rather than a Gtk.PopoverMenu, and that is what makes this case
+    # possible: a menu-model item is not something a test can press.
+    cx_home="$tmproot/ui_gui_ctx"; cx_proj="$tmproot/ui_gui_ctx_proj"
+    rm -rf "$cx_home" "$cx_proj"
+    mkdir -p "$cx_home"; mkproj_ui "$cx_proj"
+    : >"$stdout_file"
+    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
+            "$GBASIC" "$APP" stu14_smoke "$cx_home" "$cx_proj" \
+            >"$stdout_file" 2>/dev/null; then
+        if diff -u tests/studio/ui_gui_ctx.out "$stdout_file"; then
+            printf 'PASS ui_gui_ctx (a right-click menu opened and its items pressed)\n'
+        else
+            fail "ui_gui_ctx (output diff)"
+        fi
+    else
+        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
+            printf 'SKIP ui_gui_ctx (GTK 4 typelib not available)\n'
+        else
+            cat "$stdout_file"; fail "ui_gui_ctx (nonzero exit)"
+        fi
+    fi
+
+    # STU-13: the layout you set stays set. Two processes, like ui_gui_new and
+    # for the same reason -- a process asserting its own memory cannot show that
+    # anything reached disk. No numbers: a GtkPaned clamps against the allocation
+    # and the compositor decides that, so the arithmetic is asserted headlessly
+    # by ui_panes and what only a window can show is asserted here.
+    ly_home="$tmproot/ui_gui_layout"
+    rm -rf "$ly_home"; mkdir -p "$ly_home"
+    : >"$stdout_file"
+    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
+            "$GBASIC" "$APP" stu13_smoke "$ly_home" \
+            >"$stdout_file" 2>/dev/null; then
+        printf -- '-- reopening the home in a new process --\n' >>"$stdout_file"
+        if ! timeout 60 "$GBASIC" "$UI" layout "$ly_home" >>"$stdout_file" 2>&1; then
+            cat "$stdout_file"; fail "ui_gui_layout (reopen exited nonzero)"
+        fi
+        if diff -u tests/studio/ui_gui_layout.out "$stdout_file"; then
+            printf 'PASS ui_gui_layout (a dragged divider survives the window closing)\n'
+        else
+            fail "ui_gui_layout (output diff)"
+        fi
+    else
+        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
+            printf 'SKIP ui_gui_layout (GTK 4 typelib not available)\n'
+        else
+            cat "$stdout_file"; fail "ui_gui_layout (nonzero exit)"
         fi
     fi
 
@@ -1329,6 +1380,8 @@ else
     printf 'SKIP ui_gui_cursor (no display)\n'
     printf 'SKIP ui_gui_open (no display)\n'
     printf 'SKIP ui_gui_newproj (no display)\n'
+    printf 'SKIP ui_gui_layout (no display)\n'
+    printf 'SKIP ui_gui_ctx (no display)\n'
     printf 'SKIP ui_gui_branch (no display)\n'
     printf 'SKIP ui_gui_table (no display)\n'
     printf 'SKIP ui_gui_overlay (no display)\n'

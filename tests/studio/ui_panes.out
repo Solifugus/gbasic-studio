@@ -1,0 +1,10 @@
+defaults: 260 380 620
+set:      340 300 700
+== a session written before panes existed ==
+browser falls back=260
+== and a file somebody edited ==
+a string:  260
+a zero:    380
+a number:  700
+missing:   99
+not even a record: 260

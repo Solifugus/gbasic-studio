@@ -33,6 +33,7 @@ library studio_shell
     load studio_docs
     load studio_results
     load studio_ui
+    load studio_model
     ' The window's appearance, in one place. Every class this file writes goes on
     ' through `studio_style.apply`, which attaches the shared provider at the same
     ' time — a class added without it is a name nothing renders.
@@ -97,11 +98,105 @@ library studio_shell
                     lbrow = studio_style.apply(lbrow, "flat")
                 end if
             else
-                nav.append(studio_shell._left(gtk.label(r.label)))
+                nav.append(studio_shell._nav_row(r))
             end if
             i = i + 1
         end for
         return rows
+    end function
+
+    ' One browser row.
+    '
+    ' Indentation is a MARGIN, not spaces inside the text. It used to be two
+    ' spaces per level baked into `nav_rows`' label, which put depth into a
+    ' presentation string and then rendered it in a PROPORTIONAL font, where two
+    ' spaces are whatever the font happens to say. `studio_ui` hands over the
+    ' parts now and this is the only place that decides how deep a level looks.
+    '
+    ' MIDDLE ellipsis, not END. Measured: a five-level tree in a 260px pane cut
+    ' `interpolated_string_expression_parser_regression_tests.bas` off mid-word
+    ' with no ellipsis and no horizontal scrollbar — nothing said the name was
+    ' truncated and nothing could reach the rest of it. END ellipsis would have
+    ' signalled the truncation and still eaten `.bas`, which is the part that
+    ' says what the file IS. MIDDLE keeps both ends.
+    '
+    ' `_fill` and not `_left`: `halign = START` hands a label its NATURAL width,
+    ' and a label allowed its natural width never ellipsizes — it just runs off
+    ' the edge, which is the bug. The label has to be GIVEN a width for Pango to
+    ' have anything to elide against.
+    function _nav_row(r)
+        lbl = studio_shell._fill(gtk.label(r.glyph + r.name))
+        lbl.ellipsize = gi.enum("Pango.EllipsizeMode.MIDDLE")
+        lbl.margin_start = r.depth * studio_shell._indent()
+        ' The whole path, on hover, for the row whose name had to be elided —
+        ' and for every other row too, because "which of the four src/ folders
+        ' is this" is the same question one level up.
+        if r.path != "" then
+            lbl.set_tooltip_text(r.path)
+        end if
+        return lbl
+    end function
+
+    ' How deep one level of the tree looks. Two spaces' worth in the old
+    ' rendering, near enough, and now an exact number rather than a font's
+    ' opinion of a space.
+    function _indent()
+        return studio_style.indent()
+    end function
+
+    ' ---- the browser's context menu (STU-13) --------------------------------
+    '
+    ' A `Gtk.Popover` holding a box of ordinary `Gtk.Button`s, NOT a
+    ' `Gtk.PopoverMenu`. A PopoverMenu is driven by a `GMenuModel`, which is
+    ' built through class statics the gi bridge cannot reach -- the same gap as
+    ' `Gtk.Settings.get_default`. Plain buttons are also what makes the menu
+    ' TESTABLE: a display tier can `activate()` one, which no menu-model item
+    ' would let it do.
+    '
+    ' Built ONCE, holding every item there is, and the items a row does not
+    ' offer are hidden. Rebuilding it per right-click would re-run `gi.connect`
+    ' on a fresh set of buttons every time.
+    function context_menu()
+        pop = gi.new("Gtk.Popover")
+        pop.set_has_arrow(true)
+        box = gtk.box("v", 0)
+        box = studio_style.apply(box, "panel")
+        items = {}
+        for each a in studio_ui.context_all()
+            b = gtk.button(studio_ui.context_label(a))
+            ' Frameless and LEFT-aligned, or a column of them reads as a stack
+            ' of buttons rather than as a menu — looked at, and that is exactly
+            ' what the first version was. `set_has_frame(false)` is the GTK 4
+            ' way; the stylesheet's `flat` is Studio's own prefixed class and
+            ' means something else (it is what stops a listbox painting a view
+            ' background).
+            b.set_has_frame(false)
+            b.halign = gi.enum("Gtk.Align.FILL")
+            inner = b.get_child()
+            if inner != nothing then
+                inner.xalign = 0
+            end if
+            box.append(b)
+            items[a] = b
+        end for
+        pop.set_child(box)
+        return { popover: pop, items: items, parented: false }
+    end function
+
+    ' Show the items this row offers and hide the rest. Returns whether there is
+    ' anything to show -- an empty menu is worse than none, because a popover
+    ' with nothing in it reads as a control that failed.
+    function context_for(menu, actions)
+        any = false
+        for each a in studio_ui.context_all()
+            b = menu.items[a]
+            wanted = contains(actions, a)
+            b.set_visible(wanted)
+            if wanted then
+                any = true
+            end if
+        end for
+        return any
     end function
 
     ' A LEFT-ALIGNED label. `gtk.label` centres, which is right for a title and
@@ -797,9 +892,17 @@ library studio_shell
         ' toggles the flat class on it when the workspace is empty, and a class
         ' whose provider is not attached is a name nothing renders.
         nav = studio_style.attach(nav)
-        nav_scroll = gtk.scrolled(nav)
+        ctx = studio_shell.context_menu()
+        ' Vertical only. With names ellipsizing there is nothing to scroll to
+        ' sideways, and a horizontal policy of AUTOMATIC is what lets a child
+        ' take its natural width instead of the width it is given — which is
+        ' the difference between a name that elides and a name that is clipped.
+        nav_scroll = studio_shell._vscroll(nav)
         split.set_start_child(nav_scroll)
-        split.position = 260
+        ' Where the user last left it, not a number baked in here. Studio has
+        ' read `session.window` since STU-0 and never once written it back, so
+        ' a resized window and a dragged divider were both forgotten on exit.
+        split.position = studio_model.pane_at(model.session, "browser", 260)
 
         book = gtk.notebook()
 
@@ -857,12 +960,12 @@ library studio_shell
         vsplit = gtk.paned("v")
         vsplit.set_start_child(book)
         vsplit.set_end_child(under_scroll)
-        vsplit.position = 380
+        vsplit.position = studio_model.pane_at(model.session, "console", 380)
 
         rsplit = gtk.paned("h")
         rsplit.set_start_child(vsplit)
         rsplit.set_end_child(beside_scroll)
-        rsplit.position = 620
+        rsplit.position = studio_model.pane_at(model.session, "right", 620)
         split.set_end_child(rsplit)
 
         ' NO PANE MAY BE ALLOCATED LESS THAN IT NEEDS.
@@ -928,6 +1031,13 @@ library studio_shell
                  projfile_btn: projfile_btn, rename_btn: rename_btn,
                  delete_btn: delete_btn, close_btn: close_btn,
                  save_btn: save_btn, refresh_btn: refresh_btn,
+                 ' The three GtkPaneds themselves, so the exit path can ask
+                 ' where they ended up. Nothing else reads them.
+                 split: split, vsplit: vsplit, rsplit: rsplit,
+                 ' STU-13: the browser's right-click menu. The GESTURE that
+                 ' raises it is made in app/studio.bas, which is the only place
+                 ' allowed to call gi.connect.
+                 ctx: ctx,
                  bar: bar, pane: pane, rpane: rpane, apane: apane, bpane: bpane,
                  tpane: tpane, gpane: gpane,
                  ' STU-5 decoration state: which outline revision each document's

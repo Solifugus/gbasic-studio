@@ -80,6 +80,15 @@ function redraw()
         return nothing
     end if
     G.redrawing = true
+    ' The context menu is parented to a browser ROW, and a redraw rebuilds the
+    ' nav pane -- so the widget it is attached to is about to be destroyed.
+    ' Take it down first: a popover whose parent goes away is a GTK critical,
+    ' and `G_DEBUG=fatal-criticals` turns that into a nonzero exit.
+    if G.ctx_parented then
+        G.shell.ctx.popover.popdown()
+        G.shell.ctx.popover.unparent()
+        G.ctx_parented = false
+    end if
     ' STU-2D. Three decisions, all of them studio_ui's: what the status bar says
     ' about the last outcome, whether the name field has been consumed, and which
     ' pending confirmation (if any) survives. Clearing the arms HERE rather than
@@ -329,6 +338,172 @@ function on_project_file()
     if r.action = "project-file" then
         note_event("file_created", r.detail, "")
     end if
+    redraw()
+    return nothing
+end function
+
+' Capture the layout while the window still EXISTS.
+'
+' The GTK loop returns only AFTER the window is gone, so the exit path at the
+' bottom of this file cannot ask it how big it was or where the dividers were —
+' which is why `session.window` has been read at startup since STU-0 and never
+' once written back. `close-request` fires before the close, and returning false
+' lets it proceed.
+function on_close_request()
+    capture_layout()
+    return false
+end function
+
+function capture_layout()
+    if G.shell = nothing then
+        return nothing
+    end if
+    w = G.shell.window
+    m = G.app.model
+    m.session = studio_model.set_window(m.session, w.get_width(), w.get_height(), w.is_maximized())
+    m.session = studio_model.set_panes(m.session,
+                                       G.shell.split.position,
+                                       G.shell.vsplit.position,
+                                       G.shell.rsplit.position)
+    G.app.model = m
+    return nothing
+end function
+
+' ---- STU-13: the browser's right-click menu --------------------------------
+'
+' An ADAPTER, split in two so a test can reach past the signal: the handler
+' takes the gesture's y and `show_context_at` does the rest, which leaves
+' `get_row_at_y` as the only step a headless case cannot see -- and the display
+' tier takes a real row's y and calls through it.
+function on_nav_right_click(gesture, n_press, x, y)
+    show_context_at(y)
+    return nothing
+end function
+
+function show_context_at(y)
+    row = G.shell.nav.get_row_at_y(y)
+    if row = nothing then
+        return nothing
+    end if
+    show_context_for(row, row.get_index())
+    return nothing
+end function
+
+function show_context_for(row, idx)
+    acts = studio_ui.context_actions(G.shell.rows, idx)
+    any = studio_shell.context_for(G.shell.ctx, acts)
+    if not any then
+        ' An info row. No menu at all rather than an empty one, which would
+        ' read as a control that failed.
+        return nothing
+    end if
+    G.ctx_index = idx
+    ' Put the selection where the menu is about: Rename, Delete and
+    ' `target_dir` all read it. A project row ACTIVATES instead, because both
+    ' of its items are about a project and the one just pointed at is the one
+    ' meant.
+    r = G.shell.rows[idx]
+    if r.kind = "project" then
+        a = studio_ui.activate_row(G.app, G.shell.rows, idx)
+        G.app = a.app
+    else
+        sel = studio_ui.select_row(G.app, G.shell.rows, idx)
+        G.app = sel.app
+    end if
+    ' Parented to the ROW, so it points at the thing it is about. A redraw
+    ' rebuilds those rows, so `redraw` takes the popover down first -- a
+    ' popover parented to a destroyed widget is a GTK critical.
+    pop = G.shell.ctx.popover
+    if G.ctx_parented then
+        pop.unparent()
+    end if
+    pop.set_parent(row)
+    G.ctx_parented = true
+    pop.popup()
+    return nothing
+end function
+
+' Every item below dispatches to the SAME studio_ui function the toolbar uses.
+' That is what keeps Delete armed here: a menu Delete that deleted outright
+' would undo the two-click rule on the same file, from a different control.
+function on_ctx_open()
+    r = studio_ui.activate_row(G.app, G.shell.rows, G.ctx_index)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    if r.action = "open" then
+        note_event("file_opened", r.detail, "")
+    end if
+    redraw()
+    return nothing
+end function
+
+function on_ctx_new_file()
+    r = studio_ui.new_file(G.app, G.shell.name_entry.text)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    if r.action = "created" then
+        note_event("file_created", r.detail, "")
+    end if
+    redraw()
+    return nothing
+end function
+
+function on_ctx_new_folder()
+    r = studio_ui.new_folder(G.app, G.shell.name_entry.text)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    if r.action = "created" then
+        note_event("folder_created", r.detail, "")
+    end if
+    redraw()
+    return nothing
+end function
+
+' Rename does NOT rename. It fills the header field with the current name and
+' puts the caret in it, because that field is where a name comes from and
+' growing a second route to one would be two places to get naming rules wrong.
+' The item says "Rename…" for the same reason a menu item that opens something
+' else does.
+function on_ctx_rename()
+    r = G.shell.rows[G.ctx_index]
+    G.shell.name_entry.text = r.name
+    G.shell.name_entry.grab_focus()
+    G.shell.name_entry.select_region(0, -1)
+    G.last_action = "rename-ready"
+    G.last_detail = r.name
+    redraw()
+    return nothing
+end function
+
+function on_ctx_delete()
+    r = studio_ui.delete_selected(G.app, G.armed_path)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    G.armed_path = r.armed
+    if r.action = "deleted" then
+        note_event("file_deleted", r.detail, "")
+    end if
+    redraw()
+    return nothing
+end function
+
+function on_ctx_project_file()
+    return on_project_file()
+end function
+
+function on_ctx_close_project()
+    r = studio_ui.close_project(G.app, G.shell.rows[G.ctx_index].project_id)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    ' Nothing logged: `studio_history.kinds()` is a CLOSED vocabulary and
+    ' closing a project is not in it. Adding a kind is a deliberate act -- the
+    ' log is what answers "who changed this", and a project leaving the
+    ' workspace changes nothing on disk.
     redraw()
     return nothing
 end function
@@ -827,6 +1002,23 @@ function wire_shell()
     gi.connect(sh.new_btn, "clicked", on_new_project)
     gi.connect(sh.file_btn, "clicked", on_new_file)
     gi.connect(sh.folder_btn, "clicked", on_new_folder)
+    gi.connect(sh.window, "close-request", on_close_request)
+    ' The browser's right-click. `add_controller` hands the widget the
+    ' controller; the gesture is ALSO kept on G, because a controller nothing
+    ' else holds is one more object that can go away under a live window --
+    ' the same reason `_STUDIO_STYLE` is a global.
+    G.ctx_gesture = gi.new("Gtk.GestureClick")
+    G.ctx_gesture.set_button(3)
+    gi.connect(G.ctx_gesture, "pressed", on_nav_right_click)
+    sh.nav.add_controller(G.ctx_gesture)
+    ctx = sh.ctx
+    gi.connect(ctx.items["open"], "clicked", on_ctx_open)
+    gi.connect(ctx.items["new-file-here"], "clicked", on_ctx_new_file)
+    gi.connect(ctx.items["new-folder-here"], "clicked", on_ctx_new_folder)
+    gi.connect(ctx.items["rename"], "clicked", on_ctx_rename)
+    gi.connect(ctx.items["delete"], "clicked", on_ctx_delete)
+    gi.connect(ctx.items["project-file"], "clicked", on_ctx_project_file)
+    gi.connect(ctx.items["close-project"], "clicked", on_ctx_close_project)
     gi.connect(sh.open_btn, "clicked", on_open_folder)
     gi.connect(sh.projfile_btn, "clicked", on_project_file)
     gi.connect(sh.rename_btn, "clicked", on_rename)
@@ -1042,7 +1234,12 @@ function stu2c_step()
     print "action=" + G.last_action
     state("after New Folder")
     print "closing the window"
-    G.app_ref.quit()
+    ' CLOSE it, rather than quitting the application out from under it. This
+    ' tier's whole claim is that closing the window is what saves the session,
+    ' and `quit()` skips `close-request` -- which is where the window's size and
+    ' the dividers are captured, because the loop returns only once the window
+    ' is already gone.
+    G.shell.window.close()
     return false
 end function
 
@@ -1250,6 +1447,164 @@ function stu2g_step()
     ' window says.
     print "action=" + G.last_action + " status=" + path_free(G.shell.status.label)
     G.app_ref.quit()
+    return false
+end function
+
+' ---- STU-13 display tier: the browser's right-click menu -------------------
+'
+' The menu is a `Gtk.Popover` of ordinary buttons, which is what makes this case
+' possible at all: a `Gtk.PopoverMenu` item is a menu-model entry with nothing
+' to press. The right-click itself cannot be synthesised from here, so the tier
+' takes a real row's y off its allocation and calls the same `show_context_at`
+' the gesture calls -- which leaves `get_row_at_y` exercised for real and only
+' the button-3 dispatch unproven.
+' Open the menu on row `idx`, through the SAME path the gesture uses.
+'
+' The y is found by asking `get_row_at_y` rather than by arithmetic: row pitch
+' is not `get_height()` (measured — 19 reported, ~20 actual, so `idx * h`
+' landed one row early and the menu came up on the wrong file). Scanning also
+' means this case exercises `get_row_at_y` for real, which is otherwise the one
+' widget-to-value read in this path that nothing could see.
+'
+' `get_allocation()` is NOT the way: it raises through the gi bridge, the same
+' class of gap as `gi.new("Gdk.Rectangle")`.
+function ctx_open_on(idx)
+    y = 0
+    while y < 2000
+        r = G.shell.nav.get_row_at_y(y)
+        if r != nothing then
+            if r.get_index() = idx then
+                show_context_at(y)
+                return nothing
+            end if
+        end if
+        y = y + 2
+    end while
+    print "no row found at index " + idx
+    return nothing
+end function
+
+function ctx_shown()
+    out = []
+    for each a in studio_ui.context_all()
+        b = G.shell.ctx.items[a]
+        if b.get_visible() then
+            out = append(out, a)
+        end if
+    end for
+    if count(out) = 0 then
+        return "(no menu)"
+    end if
+    return join(out, ",")
+end function
+
+function stu14_step()
+    G.phase = G.phase + 1
+    if G.phase = 1 then
+        print "right-click a FILE row"
+        ctx_open_on(row_of("file", "main.bas"))
+        return true
+    end if
+    if G.phase = 2 then
+        print "  menu: " + ctx_shown()
+        print "  the popover is up=" + G.shell.ctx.popover.get_visible()
+        print "  selection followed the click=" + path_free(G.app.model.workspace.nav.selected_path)
+        print "right-click a DIRECTORY row"
+        ctx_open_on(row_of("dir", "src"))
+        return true
+    end if
+    if G.phase = 3 then
+        print "  menu: " + ctx_shown()
+        print "right-click the PROJECT row"
+        ctx_open_on(row_of("project", "Alpha"))
+        return true
+    end if
+    if G.phase = 4 then
+        print "  menu: " + ctx_shown()
+        print "right-click the workspace INFO row"
+        ctx_open_on(0)
+        return true
+    end if
+    if G.phase = 5 then
+        print "  menu: " + ctx_shown()
+        print "-- Rename fills the field rather than renaming --"
+        ctx_open_on(row_of("file", "main.bas"))
+        return true
+    end if
+    if G.phase = 6 then
+        G.shell.ctx.items["rename"].activate()
+        return true
+    end if
+    if G.phase = 7 then
+        print "  name field=[" + G.shell.name_entry.text + "] status=" + G.shell.status.label
+        print "  main.bas is still called main.bas=" + (row_of("file", "main.bas") >= 0)
+        print "-- Delete arms, exactly as the toolbar button does --"
+        ctx_open_on(row_of("file", "main.bas"))
+        return true
+    end if
+    if G.phase = 8 then
+        G.shell.ctx.items["delete"].activate()
+        return true
+    end if
+    if G.phase = 9 then
+        print "  status=" + G.shell.status.label
+        print "  main.bas is still there=" + (row_of("file", "main.bas") >= 0)
+        print "-- Close project --"
+        ctx_open_on(row_of("project", "Alpha"))
+        return true
+    end if
+    if G.phase = 10 then
+        G.shell.ctx.items["close-project"].activate()
+        return true
+    end if
+    print "  status=" + G.shell.status.label
+    state("after Close project")
+    G.app_ref.quit()
+    return false
+end function
+
+' The index of the first rendered row of `kind` whose name is `name`, or -1.
+function row_of(kind, name)
+    i = 0
+    while i < count(G.shell.rows)
+        r = G.shell.rows[i]
+        if r.kind = kind then
+            if r.name = name then
+                return i
+            end if
+        end if
+        i = i + 1
+    end while
+    return -1
+end function
+
+' ---- STU-13 display tier: the layout you set stays set ---------------------
+'
+' `session.window` has been read at startup since STU-0 and never written back,
+' and the three dividers were plain numbers in the source, so a resized window
+' and a dragged divider were both forgotten every time. This drags them, closes
+' the window, and the harness reopens the same home in a second process --
+' because a process asserting its own memory cannot show anything reached disk.
+function stu13_step()
+    G.phase = G.phase + 1
+    if G.phase = 1 then
+        print "dragging all three dividers"
+        G.shell.split.position = 340
+        G.shell.vsplit.position = 300
+        G.shell.rsplit.position = 700
+        return true
+    end if
+    ' No NUMBERS in this tier's output, deliberately. A GtkPaned clamps its
+    ' position against the allocation it was given, and under Wayland the
+    ' compositor decides how big the window is -- measured, `rsplit = 700` came
+    ' back 572 on this desktop. The exact arithmetic is asserted headlessly by
+    ' `ui_layout`, where it is pure; what only a real window can show is that
+    ' closing it writes the layout down at all, and that the reopened home
+    ' answers with the numbers the window had rather than the built-in ones.
+    print "moved away from the defaults=" + (G.shell.split.position != 260)
+    G.moved = { browser: G.shell.split.position, console: G.shell.vsplit.position, right: G.shell.rsplit.position }
+    print "closing the window"
+    G.shell.window.close()
     return false
 end function
 
@@ -1760,6 +2115,14 @@ function on_activate(gtkapp)
     if G.stu12 then
         state("a cold home")
         gi.timeout(400, stu12_step)
+        return nothing
+    end if
+    if G.stu13 then
+        gi.timeout(400, stu13_step)
+        return nothing
+    end if
+    if G.stu14 then
+        gi.timeout(400, stu14_step)
         return nothing
     end if
     if G.stu11 then
@@ -2285,6 +2648,8 @@ program main(args)
     G.stu2f = false
     G.stu2g = false
     G.stu12 = false
+    G.stu13 = false
+    G.stu14 = false
     G.stu7 = false
     G.stu8 = false
     G.stu9 = false
@@ -2299,6 +2664,11 @@ program main(args)
     ' New Project presents the one that is already open rather than minting a
     ' second set of widgets over the same handlers.
     G.newproj_win = nothing
+    ' STU-13: which browser row the context menu is about, and whether the
+    ' popover is currently parented to a row (a redraw destroys those).
+    G.ctx_index = -1
+    G.ctx_parented = false
+    G.ctx_gesture = nothing
     G.open_target = ""
     G.save_on_exit = false
     ' STU-6: the semantic action history. Loaded here, appended by the handlers,
@@ -2354,6 +2724,22 @@ program main(args)
     if mode = "stu12_smoke" then
         G.stu12 = true
         G.open_target = args[2]
+    end if
+
+    ' STU-13: the window size and the dividers, saved on close.
+    if mode = "stu13_smoke" then
+        G.stu13 = true
+        G.save_on_exit = true
+    end if
+
+    ' STU-13: the browser's right-click menu, over the standard fixture.
+    if mode = "stu14_smoke" then
+        G.stu14 = true
+        projdir = args[2]
+        G.app = studio.create_registered_workspace(G.app, "ws")
+        ws = G.app.model.workspace
+        ws = studio_model.add_project(ws, "Alpha", projdir)
+        G.app = studio.set_workspace(G.app, ws)
     end if
 
     ' STU-7: the inline branch selector, clicked for real.

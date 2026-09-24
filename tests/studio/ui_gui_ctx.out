@@ -1,0 +1,24 @@
+right-click a FILE row
+  menu: open,rename,delete
+  the popover is up=true
+  selection followed the click=.../main.bas
+right-click a DIRECTORY row
+  menu: new-file-here,new-folder-here,rename,delete
+right-click the PROJECT row
+  menu: project-file,close-project
+right-click the workspace INFO row
+  menu: (no menu)
+-- Rename fills the field rather than renaming --
+  name field=[main.bas] status=type the new name in the field, then press Rename
+  main.bas is still called main.bas=true
+-- Delete arms, exactly as the toolbar button does --
+  status=delete main.bas? — click Delete again to confirm
+  main.bas is still there=true
+-- Close project --
+  status=closed Alpha — the folder is untouched
+-- after Close project --
+nav rows=1
+  [info] Workspace: ws
+selected=
+tabs=0
+app-exited
