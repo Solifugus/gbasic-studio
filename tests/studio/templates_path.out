@@ -1,0 +1,17 @@
+== the search path, in precedence order ==
+  /p/tpl
+  /home/me/.gbasic-studio/templates
+  /usr/share/gbasic/stdlib
+  /usr/share/gbasic-studio/templates
+  with no project and no stdlib:
+    /home/me/.gbasic-studio/templates
+    /usr/share/gbasic-studio/templates
+
+== and an id declared twice ==
+templates: 2 from 2 file(s)
+  greet
+  only-far
+  ! <t>/far/x.templates: "greet" is already defined by <t>/near/x.templates; this one is ignored
+
+  greet -> <near>
+  only-far -> <far only>

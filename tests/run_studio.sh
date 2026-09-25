@@ -290,6 +290,40 @@ fi
 printf 'PASS viewers_declarative (sidecars are read, never run)\n'
 
 # ==========================================================================
+# STU-15 — the template registry: declared text with holes in it. Headless and
+# over a temp directory; the `ship` tier reads what Studio actually installs
+# under share/templates/, because a registry whose only data is a fixture is a
+# registry nothing depends on.
+TPL=tests/drivers/templates.bas
+run_templates() { # mode
+    local mode="$1" h
+    h="$tmproot/tpl_$mode"
+    rm -rf "$h"; mkdir -p "$h"
+    : >"$stdout_file"
+    if ! timeout 60 "$GBASIC" "$TPL" "$mode" "$h" >"$stdout_file" 2>&1; then
+        cat "$stdout_file"; fail "templates_$mode (nonzero exit)"
+    fi
+    if diff -u "tests/studio/templates_$mode.out" "$stdout_file"; then
+        printf 'PASS templates_%s\n' "$mode"
+    else
+        fail "templates_$mode (output diff)"
+    fi
+}
+for m in load from render path ship; do
+    run_templates "$m"
+done
+
+# A template is DECLARED, exactly as a viewer sidecar is, and for exactly the
+# same reason: a file somebody can drop into a templates directory must not be
+# able to run anything. Substitution is text, never evaluation -- there are no
+# expressions, no conditionals and no loops, and adding any of them would make
+# this a language rather than a placeholder.
+if grep -nE 'process\.start|\beval\b|load *\(' lib/studio_templates.bas; then
+    fail "templates_declarative (the registry executes something)"
+fi
+printf 'PASS templates_declarative (templates are filled, never run)\n'
+
+# ==========================================================================
 # STU-8 — the tabular tier. What gets a table affordance, where its rows come
 # from, and the virtualization claim MEASURED rather than asserted. Headless;
 # the `model` tier additionally needs the native GListModel adapter, which is

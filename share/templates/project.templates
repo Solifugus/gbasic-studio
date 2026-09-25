@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "templates": [
+    {
+      "id": "project.main",
+      "name": "main.bas",
+      "description": "The runnable starting point New Project writes",
+      "fields": [
+        { "name": "project", "label": "Project name", "required": true }
+      ],
+      "text": "' {{project}}\n\nprint \"hello from {{project}}\"\n"
+    },
+    {
+      "id": "project.readme",
+      "name": "README.md",
+      "description": "A title, a line to fill in, and how to run it",
+      "fields": [
+        { "name": "project", "label": "Project name", "required": true }
+      ],
+      "text": "# {{project}}\n\nWhat this is.\n\n## Running it\n\n```sh\ngbasic main.bas\n```\n"
+    },
+    {
+      "id": "project.readme_licensed",
+      "name": "README.md (with a licence note)",
+      "description": "The same, plus the one line that names the licence",
+      "fields": [
+        { "name": "project", "label": "Project name", "required": true },
+        { "name": "license", "label": "SPDX id", "required": true }
+      ],
+      "text": "# {{project}}\n\nWhat this is.\n\n## Running it\n\n```sh\ngbasic main.bas\n```\n\n## Licence\n\n{{license}} — see LICENSE.\n"
+    },
+    {
+      "id": "project.gitignore",
+      "name": ".gitignore",
+      "description": "Studio's own leavings and nothing else",
+      "text": "# gBASIC Studio keeps this project's state in YOUR home, not\n# here, so there is normally nothing of Studio's to ignore.\n"
+    }
+  ]
+}

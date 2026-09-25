@@ -1,0 +1,9 @@
+templates: 1 from 1 file(s)
+  filed {who}
+  ! <t>/d/f.templates: "absent": from names "nope.txt", which is not there
+  ! <t>/d/f.templates: "absolute": from must be a plain relative path beside the template file
+  ! <t>/d/f.templates: "climbing": from must be a plain relative path beside the template file
+  ! <t>/d/f.templates: "tilde": from must be a plain relative path beside the template file
+
+== and the text came out of the file ==
+  filed -> <line one for Ada\nline two\n>

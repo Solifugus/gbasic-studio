@@ -49,7 +49,7 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 187 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 193 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 29 cases, headless AND offline (scripted transport)
 ```
 
@@ -106,6 +106,10 @@ lib/studio_branches.bas STU-7 state-only branches: a tree of alternate
                         identical source; anchored to its shared ancestry
 lib/studio_viewers.bas  STU-8 library-registered rich viewers: declarative
                         `.viewers` sidecars, read and never evaluated
+lib/studio_templates.bas STU-15 declared text with `{{holes}}` in it, off a
+                        four-layer search path — the same shape as the viewer
+                        registry, read and never evaluated, substituted in ONE
+                        pass. New Project's boilerplate is its first consumer
 lib/studio_table.bas    STU-8 the tabular tier: what is a table, and where its
                         rows come from (a capture sample, or a fetched export)
 lib/studio_overlays.bas STU-9 code-overlay branches: per-section replacement
@@ -524,6 +528,82 @@ Two consequences worth knowing before you touch the shell:
   reads as a remark rather than as one more thing to try clicking. That styling
   is keyed on kind AND depth, because the workspace header is an info row too
   and keeps its weight.
+
+### Templates (STU-15)
+
+- **A template is DECLARED text with `{{holes}}` in it, and is never
+  evaluated.** `studio_templates` reads JSON and runs nothing: no expressions,
+  no conditionals, no loops. It is the same line `studio_viewers` holds and for
+  the same reason — a file somebody can drop into a templates directory must
+  not be arbitrary code with Studio's privileges — and
+  `templates_declarative` greps for it.
+- What that costs is real and is accepted: a template cannot say "include this
+  line only if a licence was chosen". Choosing WHICH template to render is the
+  caller's job, in gBASIC, where it is testable — which is why there are two
+  READMEs (`project.readme`, `project.readme_licensed`) and `project_plan`
+  picks between them. A template language with conditionals is a language.
+- **Substitution is ONE PASS**, over `_parts`. A value that itself contains
+  `{{other}}` is output verbatim and never looked at again. Repeated
+  `replace()` calls would NOT have that property — the second call reaches into
+  the first call's output — so a project named `{{holder}}` would start picking
+  up somebody's name. `templates_render` pins it with `a: "{{b}}"`.
+- `_parts` carries `hole` as a BOOLEAN beside `name`, because an empty `{{}}`
+  and a part that is only literal both have no name — the first is a template
+  bug, the second is every other part of every template. Inferring it from
+  `name != ""` is what let `{{}}` into the registry the first time this ran.
+- **Every hole must be DECLARED in `fields`**, checked at load. A `{{athor}}`
+  nobody declared would otherwise survive substitution and land verbatim in the
+  file the user asked for — the silent plausible wrong answer this codebase
+  keeps meeting. A required field with no value REFUSES rather than
+  substituting empty, for the reason `no-license` already gives.
+- A `{{` with no `}}` after it is LITERAL: far likelier to be somebody's actual
+  braces than an unclosed placeholder, and refusing to load over a brace in a
+  comment would be worse than useless. But a `{{` and a `}}` anywhere after it
+  ARE a hole, however much prose is between them — and that is refused at LOAD,
+  naming exactly what it read as the name. Loud and early beats a file
+  delivered with a sentence missing out of it.
+- **The search path is four layers, ordered by how specific the CONTEXT is**:
+  the project's declared directory, then `<home>/templates`, then
+  `$GBASIC_STDLIB` (a library is the authority on its own snippets, the same
+  argument the viewer registry makes), then `$GBASIC_STUDIO_SHARE/templates`.
+  First one holding an id wins; the ones after it are recorded as SHADOWED
+  rather than dropped in silence, because somebody who overrode a template
+  without meaning to has no other way to find out.
+- **The project's layer is DECLARED (`"templates": "tools/templates"`), never
+  conventional.** Studio reading a directory of your project because of its
+  name is the uninvited-metadata complaint arriving from the other side, and a
+  declared path also lets a team keep templates where their repository already
+  keeps such things. Relative to the project, like a SQLite `path`.
+- A directory that is not there is NOT a problem. Three of the four layers are
+  normally absent, and a registry reporting that would bury the faults that
+  matter. A malformed FILE is a problem, named, and never a raise.
+- **`from` is a plain relative path beside the declaring file.** Not absolute,
+  no `~`, no `..`. A template file is a thing you can be SENT, and
+  `"from": "/etc/shadow"` would make sending one a way to read somebody's disk
+  into a new project's README.
+- **`project_plan` takes the registry as a PARAMETER** so it stays a pure
+  function over plain data — the whole reason every New Project refusal is
+  asserted headlessly. `templates_for` is NOT cached, for the reason
+  `.gstudio.json` is not: small files, pressed rarely rather than at
+  cursor-move rate, and no invalidation rule to get wrong.
+- A missing template REFUSES by name (`no-template`) rather than falling back
+  to a built-in copy. A fallback would be two sources of truth for the same
+  file — which is what moving the boilerplate out of gBASIC was for — and the
+  one it reached for would be the one nobody edited.
+- **The refactor moved NO golden.** `ui_newproj2` and the three display tiers
+  pass byte-for-byte against templates rendering what `_main_text`,
+  `_readme_text` and `_gitignore_text` used to return. That is the evidence the
+  templates reproduce what they replaced, the same way `row_label` was
+  established.
+- **The licence texts keep `[year]` / `[fullname]` and were NOT converted.**
+  Those markers are upstream's convention — how choosealicense.com ships them —
+  and `share/licenses/README.md` exists to say each text is verbatim.
+  Reformatting them to `{{...}}` would be editing the provenance to suit our
+  placeholder syntax. `license_text` keeps its own two-line substitution.
+- There is deliberately NO post-action vocabulary yet (`git`, and whatever
+  else). The git checkbox already exists in the New Project window and nothing
+  else wants one, and a closed vocabulary with one member and no consumer is
+  the speculative mechanism this repository keeps not building.
 
 ### SQL as a document type (STU-14, in progress)
 

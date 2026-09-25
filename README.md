@@ -506,6 +506,16 @@ and is asserted headlessly. The display tier then synthesises real GTK signals
 `GtkTextBuffer`'s text setter and `GtkButton.activate` emit what is needed) to
 prove the handlers are actually connected.
 
+**Boilerplate is declared, not written out in code (STU-15).** The `main.bas`,
+`README.md` and `.gitignore` New Project writes live in
+`share/templates/project.templates` with `{{project}}` holes in them, and
+`studio_templates` fills them. A template is *read and never run* — no
+expressions, no conditionals, no loops — because a file anyone can drop into a
+templates directory must not be able to execute anything. Four places are
+searched, most specific first: the directory your project *declares* in
+`.gstudio.json`, then `~/.gbasic-studio/templates/`, then a gBASIC library's
+own, then Studio's. The first one holding an id wins and the rest say so.
+
 See `docs/gbasic_studio_design.md` for what Studio is meant to be, and
 `docs/gbasic_studio_plan.md` for the phase sequence (STU-0..STU-11).
 
@@ -541,7 +551,7 @@ workspace instead:
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 187 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 193 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 29 cases, headless AND offline — no network, no key
 ```
 

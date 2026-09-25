@@ -10,15 +10,30 @@ share/applications/org.gbasic.Studio.desktop   the desktop entry
 share/icons/hicolor/<size>/apps/org.gbasic.Studio.png   the icon, 16 … 256
 share/icons/hicolor/<size>/status/gbasic-studio-error.png   the gutter's error mark, 16/24/32
 share/licenses/<spdx-id>.txt                   the licence texts New Project can write
+share/templates/<name>.templates               the boilerplate New Project renders
 ```
 
-Not everything here is a desktop file. `licenses/` is DATA the application
-reads: Studio does not author a licence, it copies one of these and fills in
-the year and the author. Its own README records where each text came from, so
+Not everything here is a desktop file. `licenses/` and `templates/` are DATA
+the application reads: Studio does not author a licence, it copies one of these
+and fills in the year and the author. Its own README records where each text came from, so
 a reader can check the provenance rather than take it on trust. The directory
 is found through `GBASIC_STUDIO_SHARE`, which `./studio` exports for the same
 reason it exports `GBASIC_STUDIO_VIEWERS` — an installed copy keeps `share/`
 somewhere else, and Studio's own working directory is never the answer.
+
+`templates/` is the same idea one step further: the `main.bas`, `README.md`
+and `.gitignore` New Project writes are DECLARED here rather than written out
+in gBASIC, with `{{project}}` holes that `studio_templates` fills. They are
+read and never run — there are no expressions, no conditionals and no loops in
+a template, because a file somebody can drop into a templates directory must
+not be able to execute anything. That is the same line `viewers/` holds, and
+`templates_declarative` greps for it.
+
+The licence texts keep their own `[year]` / `[fullname]` markers and are NOT
+converted to `{{...}}`. Those markers are upstream's convention — it is how
+choosealicense.com ships them — and `licenses/README.md` exists to say that
+each text is verbatim. Reformatting them would be editing the provenance to
+suit our placeholder syntax.
 
 The name is the application id `app/studio.bas` already registers with GTK,
 `org.gbasic.Studio`, so the entry, the icon and the window agree without anyone

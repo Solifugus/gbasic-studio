@@ -1,0 +1,11 @@
+templates: 4 from 1 file(s)
+  project.main {project*}
+  project.readme {project*}
+  project.readme_licensed {project*, license*}
+  project.gitignore
+
+== what New Project writes ==
+  project.main -> <' My Thing\n\nprint "hello from My Thing"\n>
+  project.readme -> <# My Thing\n\nWhat this is.\n\n## Running it\n\n```sh\ngbasic main.bas\n```\n>
+  project.readme_licensed -> <# My Thing\n\nWhat this is.\n\n## Running it\n\n```sh\ngbasic main.bas\n```\n\n## Licence\n\nMIT — see LICENSE.\n>
+  project.gitignore -> <# gBASIC Studio keeps this project's state in YOUR home, not\n# here, so there is normally nothing of Studio's to ignore.\n>

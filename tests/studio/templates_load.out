@@ -1,0 +1,29 @@
+== a good file ==
+templates: 2 from 1 file(s)
+  greet {who*}
+  plain
+
+== and every way one can be wrong ==
+templates: 0 from 1 file(s)
+  ! <t>/b/bad.templates: a template has no id
+  ! <t>/b/bad.templates: a template id is not a string
+  ! <t>/b/bad.templates: a template has an empty id
+  ! <t>/b/bad.templates: "both" declares both text and from
+  ! <t>/b/bad.templates: "neither" has neither text nor from
+  ! <t>/b/bad.templates: "undeclared" uses {{athor}}, which it does not declare
+  ! <t>/b/bad.templates: "empty-hole" has an empty {{}} placeholder
+  ! <t>/b/bad.templates: "badfields": fields is not a list
+  ! <t>/b/bad.templates: "nofieldname": a field has no name
+  ! <t>/b/bad.templates: a template is not an object
+
+== a file that is not one ==
+templates: 0 from 0 file(s)
+  ! <t>/c/broken.templates: not valid JSON
+  ! <t>/c/future.templates: schema_version 99 is newer than this Studio reads
+  ! <t>/c/nolist.templates: no templates
+  ! <t>/c/notalist.templates: templates is not a list
+
+== a search path whose directories mostly do not exist ==
+templates: 2 from 1 file(s)
+  greet {who*}
+  plain

@@ -1,0 +1,31 @@
+templates: 6 from 1 file(s)
+  greet {who*}
+  spaced {who}
+  twice {who}
+  optional {note}
+  braces
+  two {a, b}
+  ! <t>/e/r.templates: "spanning" uses {{and, much later, a}}, which it does not declare
+
+== filling them ==
+  greet -> <hello Ada!>
+  spaced -> <hello Ada>
+  twice -> <Ada and Ada>
+  optional -> <note: (none)>
+  optional -> <note: hi>
+  braces -> <a {{ with no closer after it>
+  nosuch -> refused: no template called "nosuch"
+
+== a required hole with nothing to put in it ==
+  greet -> refused: "greet" needs a value for "who"
+  greet -> refused: "greet" needs a value for "who"
+
+== a value that looks like a placeholder is not one ==
+  two -> <[{{b}}][SECRET]>
+
+== what a text asks for ==
+  <plain text> -> []
+  <{{a}} and {{b}} and {{a}}> -> ["a","b"]
+  <{{ spaced }}> -> ["spaced"]
+  <an unclosed {{ brace> -> []
+  <}} alone> -> []

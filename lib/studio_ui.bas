@@ -45,6 +45,7 @@ library studio_ui
     load studio_projfile
     load studio_sql
     load studio_secrets
+    load studio_templates
     load studio_branches
     load studio_overlays
     load studio_viewers
@@ -908,7 +909,11 @@ library studio_ui
     ' [{ name, text }] in the order they will be written and `reason` is one of
     ' "planned" | "no-name" | "invalid" | "no-path" | "exists" | "no-author" |
     ' "no-license".
-    function project_plan(opts, stamp)
+    ' `tpl` is the template registry the boilerplate text comes out of. Passed
+    ' IN rather than loaded here, so this stays a pure function over plain data
+    ' that a test calls with a record and reads an answer from -- which is the
+    ' whole reason every New Project refusal is asserted headlessly.
+    function project_plan(opts, stamp, tpl)
         name = trim(opts.name)
         if name = "" then
             return studio_ui._plan_no("no-name", "")
@@ -949,12 +954,33 @@ library studio_ui
             end if
         end if
 
+        ' The boilerplate is DECLARED now, in `share/templates/`, and rendered
+        ' rather than written out in gBASIC. Which template is a decision and
+        ' stays here, where it is tested: a template cannot say "include this
+        ' line only if a licence was chosen", because it is never evaluated --
+        ' so the README with a licence note is its own template and this picks
+        ' between them. That is the cost of "declarative" and it is worth
+        ' paying; a template language with conditionals is a language, and a
+        ' file somebody can drop in your templates directory should not be one.
         files = []
+        vals = { project: name, license: lic }
         if opts.main then
-            files = append(files, { name: "main.bas", text: studio_ui._main_text(name) })
+            one = studio_ui._render(tpl, "project.main", vals)
+            if not one.ok then
+                return studio_ui._plan_no("no-template", one.why)
+            end if
+            files = append(files, { name: "main.bas", text: one.text })
         end if
         if opts.readme then
-            files = append(files, { name: "README.md", text: studio_ui._readme_text(name, lic) })
+            rid = "project.readme"
+            if lic != "none" then
+                rid = "project.readme_licensed"
+            end if
+            one = studio_ui._render(tpl, rid, vals)
+            if not one.ok then
+                return studio_ui._plan_no("no-template", one.why)
+            end if
+            files = append(files, { name: "README.md", text: one.text })
         end if
         if lic != "none" then
             files = append(files, { name: "LICENSE", text: text })
@@ -963,7 +989,11 @@ library studio_ui
             ' Written whether or not `git init` succeeds: it is an ordinary
             ' file and it is what keeps Studio's own scratch out of a
             ' repository somebody makes later by hand.
-            files = append(files, { name: ".gitignore", text: studio_ui._gitignore_text() })
+            one = studio_ui._render(tpl, "project.gitignore", vals)
+            if not one.ok then
+                return studio_ui._plan_no("no-template", one.why)
+            end if
+            files = append(files, { name: ".gitignore", text: one.text })
         end if
         return {
             ok: true, reason: "planned", detail: "", path: path, name: name,
@@ -976,34 +1006,39 @@ library studio_ui
                  files: [], git: false, projfile: false }
     end function
 
-    ' A file that RUNS. The point of ticking main.bas is to land somewhere you
-    ' can press Run Section, so the boilerplate is one runnable section and not
-    ' a comment explaining that this is where code goes.
-    function _main_text(name)
-        return "' " + name + "\n\nprint \"hello from " + name + "\"\n"
+    ' Render one of the boilerplate templates, refusing by NAME rather than
+    ' falling back to a built-in copy.
+    '
+    ' A fallback would be two sources of truth for the same file, which is what
+    ' moving the boilerplate out of gBASIC was for -- and the one it reached
+    ' for would be the one nobody edited. An install whose `share/templates/`
+    ' is missing is broken, and saying so beats writing a `main.bas` that is
+    ' not the boilerplate. Same line `no-license` already takes: a LICENSE file
+    ' that is not the licence is worse than no LICENSE file.
+    function _render(tpl, id, vals)
+        return studio_templates.render_id(tpl, id, vals)
     end function
 
-    ' Minimal on purpose: a title, a line to fill in, and how to run it. A
-    ' generated README padded with headings nobody asked for is a file the
-    ' author has to delete before writing their own.
-    function _readme_text(name, lic)
-        out = "# " + name + "\n\n"
-        out = out + "What this is.\n\n"
-        out = out + "## Running it\n\n"
-        out = out + "```sh\ngbasic main.bas\n```\n"
-        if lic != "none" then
-            out = out + "\n## Licence\n\n" + lic + " — see LICENSE.\n"
+    ' The template registry a project action reads.
+    '
+    ' NOT cached, for the reason `.gstudio.json` is not: these are small files,
+    ' New Project is pressed rarely rather than at cursor-move rate, and no
+    ' cache means editing a template takes effect on the next press with no
+    ' invalidation rule to get wrong.
+    function templates_for(app, project_dir)
+        own = ""
+        if project_dir != "" then
+            ' DECLARED, never conventional: `"templates": "tools/templates"` in
+            ' `.gstudio.json`. A relative path is relative to the project, like
+            ' a SQLite `path` and for the same reason -- it has to mean the
+            ' same thing in everybody's clone.
+            spec = studio_projfile.read_spec(project_dir)
+            if spec.templates != "" then
+                own = studio_ui._project_relative(project_dir, spec.templates)
+            end if
         end if
-        return out
-    end function
-
-    ' Studio's own leavings and nothing else. It is NOT a language-wide ignore
-    ' list: guessing at build artefacts for a project that has no build yet is
-    ' how a generated .gitignore ends up hiding somebody's source.
-    function _gitignore_text()
-        line1 = "# gBASIC Studio keeps this project's state in YOUR home, not"
-        line2 = "# here, so there is normally nothing of Studio's to ignore."
-        return line1 + "\n" + line2 + "\n"
+        return studio_templates.load_path(
+            studio_templates.default_path(app.paths.home, own))
     end function
 
     ' ---- doing it -----------------------------------------------------------
@@ -1023,7 +1058,11 @@ library studio_ui
         if stamp = 0 then
             stamp = epoch()
         end if
-        plan = studio_ui.project_plan(opts, stamp)
+        ' The project does not exist yet, so there is no project layer on the
+        ' search path -- a new project's boilerplate can only come from the
+        ' user's templates or Studio's.
+        tpl = studio_ui.templates_for(app, "")
+        plan = studio_ui.project_plan(opts, stamp, tpl)
         if not plan.ok then
             return { app: app, action: plan.reason, detail: plan.detail }
         end if

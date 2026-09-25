@@ -68,6 +68,7 @@ library studio_projfile
             ignore: [],
             interpreter: "",
             gbasic_path: "",
+            templates: "",
             databases: {}
         }
     end function
@@ -125,6 +126,12 @@ library studio_projfile
         out.name = studio_projfile._string(raw, "name")
         out.interpreter = studio_projfile._string(raw, "interpreter")
         out.gbasic_path = studio_projfile._string(raw, "gbasic_path")
+        ' A DIRECTORY of `.templates` files this project ships, named rather
+        ' than conventional. Studio reading a directory of your project because
+        ' of its NAME is the uninvited-metadata complaint arriving from the
+        ' other side -- and a declared path also lets a team keep templates
+        ' where their repository already keeps such things.
+        out.templates = studio_projfile._string(raw, "templates")
         out.ignore = studio_projfile._strings(raw, "ignore")
         ' The connections this project knows, BY NAME. No passwords here: this
         ' file is committed, and a credential that travels with the project is

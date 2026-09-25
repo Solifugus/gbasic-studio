@@ -287,6 +287,7 @@ program main(args)
   load studio_projects
   load studio_projfile
   load studio_secrets
+  load studio_templates
   load studio_sql
   load studio_session
 
@@ -1590,18 +1591,23 @@ program main(args)
   if mode = "newproj2" then
     app["clock_fixed"] = 1758600000
     where = projdir + "/made"
+    ' The boilerplate is DECLARED, in share/templates/, and rendered rather
+    ' than written out in gBASIC -- so the registry is what `project_plan`
+    ' takes, and a broken install refuses by name instead of writing a
+    ' main.bas that is not the boilerplate.
+    tpl = studio_ui.templates_for(app, "")
 
     banner("the defaults")
     o = studio_ui.default_options(app, home)
     o.location = where
     o.author = "A. Author"
     print "main=" + o.main + " projfile=" + o.projfile + " readme=" + o.readme + " git=" + o.git + " license=" + o.license
-    plan = studio_ui.project_plan(o, 1758600000)
+    plan = studio_ui.project_plan(o, 1758600000, tpl)
     print "plan: " + plan.reason + " files=" + planfiles(plan)
 
     banner("a name, and the directory is its slug")
     o.name = "My Thing"
-    plan = studio_ui.project_plan(o, 1758600000)
+    plan = studio_ui.project_plan(o, 1758600000, tpl)
     print "dir=" + leafof(plan.path) + " name=" + plan.name
 
     banner("everything on")
@@ -1609,27 +1615,27 @@ program main(args)
     o.readme = true
     o.git = true
     o.license = "MIT"
-    plan = studio_ui.project_plan(o, 1758600000)
+    plan = studio_ui.project_plan(o, 1758600000, tpl)
     print "plan: " + plan.reason + " files=" + planfiles(plan) + " git=" + plan.git + " projfile=" + plan.projfile
 
     banner("refusals, none of which create anything")
     bad = studio_ui.default_options(app, home)
     bad.location = where
     bad.name = ""
-    print "-> " + studio_ui.project_plan(bad, 1758600000).reason + ": " + studio_ui.action_notice("no-name", "")
+    print "-> " + studio_ui.project_plan(bad, 1758600000, tpl).reason + ": " + studio_ui.action_notice("no-name", "")
     bad.name = "a/b"
-    print "-> " + studio_ui.project_plan(bad, 1758600000).reason
+    print "-> " + studio_ui.project_plan(bad, 1758600000, tpl).reason
     bad.name = "ok"
     bad.location = ""
-    print "-> " + studio_ui.project_plan(bad, 1758600000).reason
+    print "-> " + studio_ui.project_plan(bad, 1758600000, tpl).reason
     bad.location = where
     bad.license = "MIT"
     bad.author = ""
-    r2 = studio_ui.project_plan(bad, 1758600000)
+    r2 = studio_ui.project_plan(bad, 1758600000, tpl)
     print "-> " + r2.reason + ": " + studio_ui.action_notice(r2.reason, r2.detail)
     bad.license = "Nonesuch"
     bad.author = "A. Author"
-    r2 = studio_ui.project_plan(bad, 1758600000)
+    r2 = studio_ui.project_plan(bad, 1758600000, tpl)
     print "-> " + r2.reason + ": " + studio_ui.action_notice(r2.reason, r2.detail)
     mk{file} = where
     print "nothing was created=" + (not exists(mk))
