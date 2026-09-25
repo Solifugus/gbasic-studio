@@ -1,0 +1,36 @@
+
+the secret store on this build: ready
+== PostgreSQL, with no credential anywhere ==
+  prod — pg db.example:5432/acme as matthew — password: none — the engine decides
+    secret looked for: db:prod   password in the record: false
+    runs: __gbstudio_db = pg.connect({ host: "db.example", port: 5432, database: "acme", user: "matthew" })
+== a password in the project file — honoured, and said out loud ==
+  prod — pg db.example/acme as matthew — password: .gstudio.json — which is committed
+    secret looked for: db:prod   password in the record: false
+    runs: __gbstudio_db = pg.connect({ host: "db.example", database: "acme", user: "matthew", password: env("GBSTUDIO_DB_PASSWORD") })
+== an environment variable the file NAMES — never one Studio guessed ==
+  prod — pg db.example/acme as matthew — password: $GBSTUDIO_TEST_DBPASS
+    secret looked for: db:prod   password in the record: false
+== and the secret store beats both ==
+  stored: ok=true
+  prod — pg db.example/acme as matthew — password: secret store, "db:prod"
+    secret looked for: db:prod   password in the record: false
+== a connection naming its own entry, because names collide across projects ==
+  prod — pg db.example/acme as matthew — password: none — the engine decides
+    secret looked for: acme-prod   password in the record: false
+  prod — pg db.example/acme as matthew — password: secret store, "acme-prod"
+    secret looked for: acme-prod   password in the record: false
+== SQL Server through ODBC — the string is BUILT, never typed ==
+  erp — odbc Driver=FreeTDS;Server=sql.example;Port=1433;Database=sales;TDS_Version=7.4;ClientCharset=UTF-8;UID=sa — password: none — the engine decides
+    secret looked for: db:erp   password in the record: false
+  erp — odbc Driver=FreeTDS;Server=sql.example;Port=1433;Database=sales;TDS_Version=7.4;ClientCharset=UTF-8;UID=sa — password: secret store, "db:erp"
+    secret looked for: db:erp   password in the record: false
+    runs: __gbstudio_db = odbc.connect("Driver=FreeTDS;Server=sql.example;Port=1433;Database=sales;TDS_Version=7.4;ClientCharset=UTF-8;UID=sa;PWD=" + env("GBSTUDIO_DB_PASSWORD"))
+== SQLite has nobody to authenticate to ==
+  app — sqlite <proj>/data/app.db — password: none needed
+    secret looked for: db:app   password in the record: false
+== a password an ODBC connection string cannot carry ==
+  hunter2 -> ok=true
+  p;wd -> ok=true
+  p}wd -> ok=false
+  the password for erp contains a } , which an ODBC connection string cannot carry

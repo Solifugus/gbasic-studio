@@ -216,12 +216,13 @@ library studio_tools
         ' declines. An action missing from this list is reported to the model as
         ' a SUCCESS, so the agent would be told it ran a README.
         '
-        ' STU-14 added five more ways to decline -- every one of them a reason a
-        ' `.sql` cell could not say which database it meant. They are named
-        ' individually rather than folded into `refused` so the model is told
-        ' which of the five to fix, the same way the status line is.
+        ' STU-14 added six more ways to decline -- five of them a reason a
+        ' `.sql` cell could not say which database it meant, and one a password
+        ' an ODBC connection string cannot carry. They are named individually
+        ' rather than folded into `refused` so the model is told which of the
+        ' six to fix, the same way the status line is.
         return contains(["refused", "no-doc", "no-section", "no-parse", "not-gbasic", "no-table", "out-of-range", "armed", "armed-save", "none", "missing", "invalid", "exists", "error", "unknown",
-                         "file-no-project", "no-databases", "no-database", "unknown-database", "bad-database"], action)
+                         "file-no-project", "no-databases", "no-database", "unknown-database", "bad-database", "bad-password"], action)
     end function
 
     function _fail(app, name, why)

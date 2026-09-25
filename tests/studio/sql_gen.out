@@ -31,20 +31,75 @@ program main(args)
   sqlite.close(__gbstudio_db)
   (result bound to `rows`)
 == and for the other two drivers ==
+-- pg, with a password --
 load pg
 program main(args)
-  __gbstudio_db = pg.connect({ host: "db.example", port: 5432, database: "acme", user: "matthew", password: "a b'c" })
+  __gbstudio_db = pg.connect({ host: "db.example", port: 5432, database: "acme", user: "matthew", password: env("GBSTUDIO_DB_PASSWORD") })
   rows = pg.query(__gbstudio_db, "select 1", [])
   __gbstudio_cell(0, "rows", rows)
   pg.close(__gbstudio_db)
   (result bound to `rows`)
+-- pg, with none: peer auth over a unix socket needs no password --
+load pg
+program main(args)
+  __gbstudio_db = pg.connect({ host: "/var/run/postgresql", database: "acme" })
+  rows = pg.query(__gbstudio_db, "select 1", [])
+  __gbstudio_cell(0, "rows", rows)
+  pg.close(__gbstudio_db)
+  (result bound to `rows`)
+-- odbc, a DSN whose credentials are in odbc.ini --
 load odbc
 program main(args)
-  __gbstudio_db = odbc.connect("ERP")
+  __gbstudio_db = odbc.connect("DSN=ERP")
   rows = odbc.query(__gbstudio_db, "select 1", [])
   __gbstudio_cell(0, "rows", rows)
   odbc.close(__gbstudio_db)
   (result bound to `rows`)
+-- odbc, a DSN with a user and a password --
+load odbc
+program main(args)
+  __gbstudio_db = odbc.connect("DSN=ERP;UID=app;PWD=" + env("GBSTUDIO_DB_PASSWORD"))
+  rows = odbc.query(__gbstudio_db, "select 1", [])
+  __gbstudio_cell(0, "rows", rows)
+  odbc.close(__gbstudio_db)
+  (result bound to `rows`)
+-- odbc, SQL Server through FreeTDS --
+load odbc
+program main(args)
+  __gbstudio_db = odbc.connect("Driver=FreeTDS;Server=sql.example;Port=1433;Database=sales;TDS_Version=7.4;ClientCharset=UTF-8;UID=sa;PWD=" + env("GBSTUDIO_DB_PASSWORD"))
+  rows = odbc.query(__gbstudio_db, "select 1", [])
+  __gbstudio_cell(0, "rows", rows)
+  odbc.close(__gbstudio_db)
+  (result bound to `rows`)
+-- and the same connection, shown without its password --
+  Driver=FreeTDS;Server=sql.example;Port=1433;Database=sales;TDS_Version=7.4;ClientCharset=UTF-8;UID=sa
+-- odbc, a whole connection string as written --
+load odbc
+program main(args)
+  __gbstudio_db = odbc.connect("Driver=SQLite3;Database=/tmp/x.db")
+  rows = odbc.query(__gbstudio_db, "select 1", [])
+  __gbstudio_cell(0, "rows", rows)
+  odbc.close(__gbstudio_db)
+  (result bound to `rows`)
+== a password with a delimiter in it ==
+  "hunter2"      -> pg env("GBSTUDIO_DB_PASSWORD")
+                    odbc env("GBSTUDIO_DB_PASSWORD")
+  "a b'c"        -> pg env("GBSTUDIO_DB_PASSWORD")
+                    odbc env("GBSTUDIO_DB_PASSWORD")
+  "p;wd"         -> pg env("GBSTUDIO_DB_PASSWORD")
+                    odbc "{" + env("GBSTUDIO_DB_PASSWORD") + "}"
+  "k=v"          -> pg env("GBSTUDIO_DB_PASSWORD")
+                    odbc "{" + env("GBSTUDIO_DB_PASSWORD") + "}"
+  "  spaced  "   -> pg env("GBSTUDIO_DB_PASSWORD")
+                    odbc "{" + env("GBSTUDIO_DB_PASSWORD") + "}"
+  and `}` is the one it cannot carry at all:
+    "hunter2"  ok=true
+    "p}wd"     ok=false
+    ""         ok=true
+== which drivers take a password at all ==
+  sqlite  false
+  pg      true
+  odbc    true
 == a whole file is the same program with more statements ==
 load sqlite
 program main(args)

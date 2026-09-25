@@ -732,6 +732,11 @@ library studio_sql
     '   cells   [{ sql, tier, line, column }] in FILE ORDER -- `line`/`column`
     '           being where the statement lives in the user's document, which
     '           is the only thing this needs them for
+    '   pw      the gBASIC EXPRESSION that reads the credential, from
+    '           `password_expr` -- `env("GBSTUDIO_DB_PASSWORD")`, or "" when
+    '           there is no password. An expression and never a value: see
+    '           `password_var` for why a generated program must not contain a
+    '           credential.
     '   hidden  the name prefix the epilogue leaves OUT of what it reports. The
     '           connection handle takes it, or a user who wrote one statement
     '           gets three variables back, two of them Studio's own plumbing --
@@ -755,7 +760,7 @@ library studio_sql
     '           reports is the LAST query's rows and the LAST exec's count --
     '           a file of forty statements would otherwise hand the inspector
     '           forty variables, thirty-nine of which nobody asked about.
-    function file_program(conn, cells, hidden, prelude)
+    function file_program(conn, cells, hidden, prelude, pw)
         drv = conn.driver
         db = hidden + "_db"
         lines = []
@@ -772,7 +777,7 @@ library studio_sql
             end for
         end if
         lines = append(lines, "program main(args)")
-        lines = append(lines, "  " + db + " = " + drv + ".connect(" + studio_sql._target(conn) + ")")
+        lines = append(lines, "  " + db + " = " + drv + ".connect(" + studio_sql._target(conn, pw) + ")")
         marks = []
         names = []
         i = 0
@@ -812,28 +817,121 @@ library studio_sql
         return "result"
     end function
 
-    ' What `connect` is handed. One line per driver, and the only place the
-    ' three differ at all.
-    function _target(conn)
+    ' ---- credentials --------------------------------------------------------
+    '
+    ' A PASSWORD NEVER APPEARS IN A GENERATED PROGRAM. It travels in the child's
+    ' ENVIRONMENT and the program reads it back with `env`.
+    '
+    ' That is not a preference about tidiness. The program Studio generates is
+    ' WRITTEN TO A FILE in the scratch directory and is handed to a child whose
+    ' command line and source anyone on the machine can read; it is the text a
+    ' diagnostic quotes; and it is what the goldens in `tests/studio/` print,
+    ' which is how a credential ends up committed to a git repository. A child's
+    ' environment is none of those places -- `/proc/<pid>/environ` is readable
+    ' only by its owner, and it is gone when the child is.
+    '
+    ' The program still SAYS where the password comes from: `env("...")` is
+    ' right there in the text. Studio does not hide what it runs; it declines to
+    ' write the secret down.
+    '
+    ' `process.start`'s `env` MERGES over the inherited environment, so carrying
+    ' one more variable changes nothing else about the child's world -- which is
+    ' also why the pinned `gbasic_path` and this have to be built into ONE
+    ' record rather than each assigning `session.env`.
+    function password_var()
+        return "GBSTUDIO_DB_PASSWORD"
+    end function
+
+    ' Does this driver take a password at all?
+    '
+    ' SQLite is a FILE. There is nobody to authenticate to, and offering a
+    ' credential slot for one would invite somebody to fill it in and then
+    ' wonder why it changed nothing.
+    function wants_password(driver)
+        if driver = "sqlite" then
+            return false
+        end if
+        return true
+    end function
+
+    ' The gBASIC expression that reads the credential, shaped for the driver.
+    '
+    ' It is handed the VALUE and does not keep it. `pg` takes a record, so the
+    ' expression goes in as a field and no quoting arises; an ODBC connection
+    ' string is semicolon-delimited, so a password containing `;` or `=` ends
+    ' its option early and the rest is read as more options. Deciding that needs
+    ' to look at the value. Embedding it does not, and this does not.
+    function password_expr(driver, value)
+        if value = "" then
+            return ""
+        end if
+        e = "env(" + quote(studio_sql.password_var()) + ")"
+        if driver != "odbc" then
+            return e
+        end if
+        if studio_sql._needs_brace(value) then
+            ' The ODBC convention for a value carrying delimiters. Applied only
+            ' where it is NEEDED: braces are parsed by the driver manager, but a
+            ' driver that took them literally would turn every correct password
+            ' into a wrong one, and most passwords need nothing.
+            return quote("{") + " + " + e + " + " + quote("}")
+        end if
+        return e
+    end function
+
+    function _needs_brace(value)
+        for each ch in [";", "=", "{", "}"]
+            if find(value, ch) != nothing then
+                return true
+            end if
+        end for
+        return trim(value) != value
+    end function
+
+    ' An ODBC password Studio can carry at all.
+    '
+    ' `}` is the one character a braced value cannot contain: ODBC's connection
+    ' string grammar has no escape for it, so the value would be truncated and
+    ' the remainder read as options. Refused by NAME rather than mangled --
+    ' a wrong password reported as a wrong password is recoverable, and a
+    ' connection string silently cut in half is not.
+    function odbc_password_ok(value)
+        if value = "" then
+            return true
+        end if
+        return find(value, "}") = nothing
+    end function
+
+    ' ---- what `connect` is handed -------------------------------------------
+
+    ' One line per driver, and the only place the three differ at all.
+    '
+    '   pw  the credential EXPRESSION from `password_expr`, or "" for none.
+    '       "" is an ordinary case and not a failure: a unix-socket PostgreSQL
+    '       with peer auth, a DSN whose credentials live in odbc.ini, and a
+    '       ~/.pgpass all connect with no password at all, and the field is
+    '       omitted entirely rather than sent empty.
+    function _target(conn, pw)
         if conn.driver = "sqlite" then
             return quote(conn.path)
         end if
         if conn.driver = "odbc" then
-            return quote(conn.dsn)
+            return studio_sql._odbc_target(conn, pw)
         end if
-        ' pg takes a record. Built here rather than pasted together as a
-        ' connection string, so a password with a space or a quote in it is not
-        ' a parsing problem.
+        ' pg takes a RECORD. Built as one rather than pasted into a connection
+        ' string, so a password with a space or a quote in it is not a parsing
+        ' problem -- and the credential is an expression, so it is not in the
+        ' text to be parsed in the first place.
         parts = []
-        for each k in ["host", "port", "database", "user", "password"]
+        for each k in ["host", "port", "database", "user"]
             if has(conn, k) then
                 v = conn[k]
                 if v != "" then
                     if is_string(v) then
                         parts = append(parts, k + ": " + quote(v))
                     else
-                        ' A port is a NUMBER. Quoting it would hand `pg.connect`
-                        ' a string where it expects an integer, and the failure
+                        ' A port is a NUMBER. Quoting it hands `pg.connect` a
+                        ' string where it expects an integer, and the failure
                         ' would be about types rather than about the project
                         ' file that set it.
                         parts = append(parts, k + ": " + string(v))
@@ -841,7 +939,128 @@ library studio_sql
                 end if
             end if
         end for
+        if pw != "" then
+            parts = append(parts, "password: " + pw)
+        end if
         return "{ " + join(parts, ", ") + " }"
+    end function
+
+    ' The connection string ODBC takes, built from DECLARED FIELDS rather than
+    ' pasted together by hand.
+    '
+    ' `odbc.connect` takes ONE string -- `DSN=warehouse;UID=app;PWD=secret`, or
+    ' a driver with its own options. gBASIC's module says outright that it
+    ' "deliberately knows nothing about DSN profiles or credential storage:
+    ' where connection details come from is an application's policy, not the
+    ' language's". This is that policy. The project file names the parts, Studio
+    ' joins them, and the password is the one part that is in neither.
+    '
+    ' Built from fields and not typed as a string because a string is where the
+    ' password would have to go: `"Driver=FreeTDS;...;PWD=hunter2"` in a
+    ' committed file is exactly what `databases` exists to prevent, and there is
+    ' no way to keep one field of a string out of it.
+    '
+    ' `options` is passed through VERBATIM, key by key. The option matrix is
+    ' per-driver and per-version and a table of it here would be a table that
+    ' goes stale -- `TDS_Version`, `ClientCharset`, `BoolsAsChar`, `Encrypt`,
+    ' `TrustServerCertificate` are five of dozens. Studio adds NONE of them on
+    ' your behalf, including the two that produce a plausible wrong answer
+    ' rather than an error (FreeTDS without `ClientCharset=UTF-8` stores
+    ' non-ASCII one byte per character; psqlODBC without `BoolsAsChar=0`
+    ' misreports booleans). gBASIC's odbc module already warns about both AT
+    ' CONNECT TIME, on stderr, which is where the Errors pane reads from -- so
+    ' the warning reaches the user from the code that owns the knowledge, and a
+    ' connection string carrying options nobody wrote stays the kind of magic
+    ' this project keeps refusing to build.
+    function _odbc_target(conn, pw)
+        head = studio_sql.odbc_string(conn)
+        if pw = "" then
+            return quote(head)
+        end if
+        sep = ";"
+        if head = "" then
+            sep = ""
+        end if
+        return quote(head + sep + "PWD=") + " + " + pw
+    end function
+
+    ' The credential-free part of it, which is also what a window can SHOW: this
+    ' is the whole of what a run will connect to, minus the one field that must
+    ' not be displayed.
+    '
+    ' PWD goes LAST, appended by `_odbc_target`, so the generated line reads as
+    ' a string with one expression on the end of it rather than a value spliced
+    ' into the middle.
+    function odbc_string(conn)
+        parts = []
+        raw = studio_sql._sfield(conn, "connection_string")
+        if raw != "" then
+            ' The escape hatch, for what the field set below cannot say. Used
+            ' VERBATIM with only the credential appended -- a string that
+            ' already carries its own UID or PWD is the user's business, and
+            ' Studio second-guessing it would make the hatch useless.
+            parts = append(parts, raw)
+        else
+            dsn = studio_sql._sfield(conn, "dsn")
+            if dsn != "" then
+                parts = append(parts, "DSN=" + dsn)
+            end if
+            drv = studio_sql._sfield(conn, "odbc_driver")
+            if drv != "" then
+                ' `odbc_driver` and not `driver`: `driver` already names which
+                ' gBASIC module runs the statement, and one key meaning both
+                ' "odbc" and "FreeTDS" is a key nobody can read.
+                parts = append(parts, "Driver=" + drv)
+            end if
+            for each pair in [["server", "Server"], ["port", "Port"], ["database", "Database"]]
+                v = studio_sql._vfield(conn, pair[0])
+                if v != "" then
+                    parts = append(parts, pair[1] + "=" + v)
+                end if
+            end for
+            if has(conn, "options") then
+                if is_record(conn.options) then
+                    for each k in keys(conn.options)
+                        parts = append(parts, k + "=" + studio_sql._vfield(conn.options, k))
+                    end for
+                end if
+            end if
+        end if
+        u = studio_sql._sfield(conn, "user")
+        if u != "" then
+            parts = append(parts, "UID=" + u)
+        end if
+        return join(parts, ";")
+    end function
+
+    ' A field that has to be a STRING, or is treated as absent. `.gstudio.json`
+    ' is hand-edited, so a number where a name belongs is a thing that happens,
+    ' and it must not raise inside a redraw.
+    function _sfield(conn, k)
+        if not has(conn, k) then
+            return ""
+        end if
+        v = conn[k]
+        if is_string(v) then
+            return v
+        end if
+        return ""
+    end function
+
+    ' The same, for a field that may legitimately be a number -- `port` is
+    ' written as one, and an ODBC connection string is text either way.
+    function _vfield(conn, k)
+        if not has(conn, k) then
+            return ""
+        end if
+        v = conn[k]
+        if is_string(v) then
+            return v
+        end if
+        if is_number(v) then
+            return string(v)
+        end if
+        return ""
     end function
 
     ' ---- reporting ----------------------------------------------------------

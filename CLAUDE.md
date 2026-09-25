@@ -49,7 +49,7 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 184 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 187 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 29 cases, headless AND offline (scripted transport)
 ```
 
@@ -137,7 +137,9 @@ lib/studio_permissions.bas STU-10 tiers (read/local/external), policies
 lib/studio_teaching.bas STU-10 pointing at the window by stable widget name —
                         cues over plain data, rendered with generic GTK
 lib/studio_secrets.bas  STU-10 credential storage: AES-GCM, key from the
-                        environment and NEVER written to disk
+                        environment and NEVER written to disk. STU-14 made it
+                        the first place a `.sql` run looks for a database
+                        password, under `db:<connection name>`
 lib/studio_providers.bas STU-10 selectable providers; credential from the secret
                         store first, environment second, and it says which
 lib/studio_agent.bas    the agent over llm.bas — orientation (STU-6) and acting
@@ -787,6 +789,133 @@ Two consequences worth knowing before you touch the shell:
 - **`to` is a reserved word** (`print to error`), so a parameter named one is a
   parse error in a library nothing can then load. `from` is fine; `lo`/`hi` is
   what `_raw_after` uses.
+- **PostgreSQL and ODBC are wired end to end now, and a password appears in no
+  generated program.** It travels in the CHILD'S ENVIRONMENT
+  (`GBSTUDIO_DB_PASSWORD`, `studio_sql.password_var`) and the program reads it
+  back with `env`. Not a preference about tidiness: the generated program is
+  written to a scratch FILE, handed to a child, quoted by diagnostics, and
+  printed into `tests/studio/*.out` — four ways for a credential to reach
+  somewhere it cannot be taken back from, one of them a git repository.
+  `process.start`'s `env` merges over the inherited environment, so carrying one
+  more variable changes nothing else about the child's world.
+- The program still SAYS where the password comes from — `env("...")` is right
+  there in the text. Studio does not hide what it runs; it declines to write the
+  secret down. `studio_sql.password_expr` is handed the VALUE (to decide the
+  shape) and never keeps it.
+- **The record `sql_connection` returns carries no credential**, and that is
+  what makes the guarantee checkable rather than hoped-for. A `password` written
+  into `.gstudio.json` is DROPPED from it, the resolved one is never put in, and
+  `_target` is handed an expression rather than a value — so the panes, the test
+  drivers and the goldens can all print that record freely. The one function
+  holding the value is `studio_ui.sql_credential`, and `_launch_sql` is its only
+  caller. It re-resolves rather than being handed the value, which costs one
+  more small file read and one more decrypt per run and buys a record with
+  nothing in it to leak.
+- Three sources, tried in order of how PRIVATE they are, because the least
+  private of them is a file that gets committed: the encrypted store under
+  `conn.secret` or `db:<name>`; then an environment variable the project file
+  NAMES in `password_env`; then a literal `password` in `.gstudio.json`, which
+  is honoured (a throwaway local database is a real thing, and refusing it sends
+  people to worse workarounds) and REPORTED every time, because that file is
+  committed.
+- **Studio never guesses at `PGPASSWORD`.** A variable nobody wrote down is the
+  hidden magic this project keeps refusing — and libpq reads `PGPASSWORD` and
+  `~/.pgpass` by itself, so a password Studio never touches is a password Studio
+  cannot spill.
+- **"no password" is NOT a refusal.** Measured: a local `pg.connect` with no
+  `password` field returns rows, because peer auth over a unix socket needs
+  none; a DSN whose credentials live in `odbc.ini` and a `~/.pgpass` are the
+  same case. Refusing here would break what already works, and when a password
+  really is needed the engine's own error names the role and the auth method
+  better than any sentence Studio could compose. The field is omitted entirely
+  rather than sent empty.
+- The default secret name is `db:<connection name>`, so the store LISTS as what
+  it is — `studio_secrets.names()` is what a settings pane and the agent may
+  see, and a bare "app" beside "anthropic_api_key" says nothing. The store is
+  per HOME and connection names are per PROJECT, so two projects that each call
+  one "app" share an entry; `"secret": "acme-prod"` is the answer to that. NOT
+  keyed by the project automatically: the project key is a hash, and a secret
+  whose name nobody can type is a secret nobody can store.
+- **An ODBC connection is declared by its PARTS and joined by Studio**
+  (`studio_sql.odbc_string`), never typed out as a string. `odbc.connect` takes
+  one semicolon-delimited string, and a string is exactly where the password
+  would have to go — there is no way to keep one field of it out of a committed
+  file. gBASIC's module says outright that it "deliberately knows nothing about
+  DSN profiles or credential storage: where connection details come from is an
+  application's policy, not the language's". This is that policy.
+- `odbc_driver` and not `driver`: `driver` already names which gBASIC MODULE
+  runs the statement, and one key meaning both "odbc" and "FreeTDS" is a key
+  nobody can read.
+- `options` is passed through VERBATIM, key by key, and Studio adds NONE of
+  them on your behalf — including the two that produce a plausible wrong answer
+  rather than an error (FreeTDS without `ClientCharset=UTF-8` stores non-ASCII
+  one byte per character; psqlODBC without `BoolsAsChar=0` misreports booleans).
+  gBASIC's odbc module already warns about both AT CONNECT TIME, on stderr,
+  which is where the Errors pane reads from — so the warning reaches the user
+  from the code that owns the knowledge, and a connection string carrying
+  options nobody wrote stays the kind of magic this project refuses to build.
+  Same reason ODBC fields are not project-relativised: `Database=sales` is a
+  database NAME on SQL Server and a PATH on the SQLite3 driver, and Studio
+  cannot tell which.
+- **`PWD=` goes LAST**, so the generated line reads as a string with one
+  expression concatenated onto it rather than a value spliced into the middle.
+  A password containing `;` or `=` is BRACED, which is ODBC's own convention —
+  and only when it is needed, because a driver that took the braces literally
+  would turn every correct password into a wrong one. A password containing `}`
+  is refused by name (`bad-password`): the grammar has no escape for it, and a
+  connection string silently cut in half is worse than a refusal.
+- **ONE env record, not two assignments.** `session.env` is merged wholesale by
+  `process.start`, so assigning it for the `gbasic_path` pin and again for the
+  password would silently drop the first — a pinned interpreter path quietly
+  lost on every run that has a credential. `_launch_sql` builds one record and
+  assigns it once, and leaves `session.env` as `nothing` when it is empty.
+- **`ui_sqlodbc` is the tier that proves the credential path WHOLE**, against a
+  live driver: the password is in the encrypted store, the child's environment
+  carries it, and the program on disk carries `env("...")` and not the value.
+  Through the SQLite3 ODBC driver, because that one runs anywhere — gBASIC's own
+  odbc cookbook does the same, and nothing about the shape is SQLite-specific.
+  It asserts before driving the run, because the scratch file has to still be
+  there to read.
+- **`ui_sqlpg` is OPT-IN, by `GBASIC_STUDIO_TEST_PG`.** Every other tier builds
+  what it needs in a temp directory and takes it away again; this one connects
+  to a database SERVER that belongs to somebody, and a suite that did that
+  because it found a socket open is not one to trust. It uses TEMP tables, which
+  is not tiptoeing but the strongest form the test can take: a temp table exists
+  only inside the session that made it, so a `select` in the third cell finding
+  the second cell's rows PROVES the run shared one connection — the whole claim
+  Run All makes and the one a child-per-cell would break. It also needs no
+  privilege beyond connecting and leaves nothing behind. Measured: `create temp`
+  works where `create table` in `postgres` answered *permission denied for
+  schema public*.
+- What `ui_sqlpg` prints is only what the SQL determines. The host, the database
+  and the role are whoever ran it, so the connection LINE is not printed there —
+  `ui_sqlcred` asserts that in full against a fixture instead.
+- `ui_sqlcred` is its own tier because two of its cases read the ENCRYPTED
+  store, and `crypto` is behind HAVE_LIBCRYPTO: a build without it answers
+  "unusable" where the golden says "ready", and a byte-exact golden cannot hold
+  both. Probed and skipped, the same shape as the sqlite probe guarding
+  `ui_sqlrun`.
+- `GBSTUDIO_TEST_DBPASS` is exported by `run_studio.sh` because a program cannot
+  put a variable into the environment of the process it is already running in,
+  and one case's `.gstudio.json` names it.
+- **`app/studio.bas`'s probe helper is `probe_state`, not `state`.**
+  `studio_secrets` exports one, and a local function shadowing a loaded
+  library's earns a note on STDERR at every load — which several golden tiers
+  capture, so this is eleven failing tests and not a style question. Third time
+  the same way, after `read` and `tool_call`, and it arrived the moment
+  `studio_ui` gained `load studio_secrets`.
+- `studio_ui.connection_line` is where a window can say which database a run
+  will use and where its password came from. Both halves are invisible
+  otherwise: the connection is named in a COMMENT three lines up, and the
+  credential is in none of the places the window shows.
+- **`odbc.exec` REFUSES a statement that returns rows** (use `query`), so
+  `tier_of`'s read/write split decides more on ODBC than on sqlite or pg. An
+  `insert ... output` called a write and handed rows back is the driver's error,
+  not a silent one — a known gap, like `insert ... returning` reporting a count.
+- gBASIC's `pg` reports `rows_affected: nothing` for DDL where sqlite once
+  reported 0; as of gBASIC f6840d3 sqlite agrees. That moved `ui_sqlrun.out`,
+  and so did 954dc53, which made the sqlite prepare error quote its statement.
+  Both are language-side changes, not Studio ones.
 - **`ctx_open_on` in `ui_gui_ctx` goes by INDEX, not by scanning for a y.** The
   scan is the faithful path and is used once, where it is the thing being
   tested; everywhere else it is a race and it lost one — a phase that redraws

@@ -44,6 +44,7 @@ library studio_ui
     load studio_projects
     load studio_projfile
     load studio_sql
+    load studio_secrets
     load studio_branches
     load studio_overlays
     load studio_viewers
@@ -1544,9 +1545,9 @@ library studio_ui
 
     ' Resolve the connection a `.sql` document names.
     '
-    ' Returns { ok, name, conn, why } where `why` is a refusal reason, all of
-    ' them NAMED so the status line can say which of the four things is wrong
-    ' rather than "cannot run":
+    ' Returns { ok, name, conn, why, secret } where `why` is a refusal reason,
+    ' all of them NAMED so the status line can say which of the five things is
+    ' wrong rather than "cannot run":
     '   "file-no-project" the document is under no project, so there is no
     '                    `.gstudio.json` to read connections from. NOT the
     '                    `no-project` the project-file action answers with:
@@ -1559,7 +1560,56 @@ library studio_ui
     '   "unknown-database" the file names one the project does not declare
     '   "bad-database"   the entry is there but unusable (no driver, or a
     '                    driver Studio does not have)
+    '
+    ' **The record this returns carries NO credential.** A `password` written
+    ' into `.gstudio.json` is dropped from it here, and the resolved value is
+    ' never put in. That is what makes the guarantee checkable rather than
+    ' hoped-for: the panes print this record, the test drivers print this
+    ' record, and `_target` is handed an expression rather than a value -- so
+    ' there is no path by which a password reaches a golden. The one function
+    ' that holds the value is `sql_credential`, and `_launch_sql` is its only
+    ' caller.
+    '
+    ' `secret` is { name, source, env_var } -- where the password WOULD come
+    ' from, never what it is. Reported because the connection is named three
+    ' lines up in a comment and the credential is in none of the places a user
+    ' can see, so "which database, on whose authority" is a question the window
+    ' otherwise cannot answer.
     function sql_connection(app, doc)
+        r = studio_ui._raw_conn(app, doc)
+        if not r.ok then
+            return r
+        end if
+        sec = studio_ui._db_secret(app, r.name, r.conn)
+        clean = {}
+        for each k in keys(r.conn)
+            if k != "password" then
+                clean[k] = r.conn[k]
+            end if
+        end for
+        return { ok: true, name: r.name, conn: clean, why: "",
+                 secret: { name: sec.secret_name, source: sec.source, env_var: sec.env_var } }
+    end function
+
+    ' The password for the connection a document names, and where it came from.
+    '
+    ' Separate from `sql_connection` so the VALUE has exactly one caller. The
+    ' resolution is done twice per run, which costs one more read of a small
+    ' file and one more decrypt of a small store -- against a database round
+    ' trip, nothing, and it buys a record that cannot leak because there is
+    ' nothing in it to leak.
+    function sql_credential(app, doc)
+        r = studio_ui._raw_conn(app, doc)
+        if not r.ok then
+            return { ok: false, value: "", source: "none", secret_name: "", env_var: "", why: r.why }
+        end if
+        sec = studio_ui._db_secret(app, r.name, r.conn)
+        return { ok: true, value: sec.value, source: sec.source,
+                 secret_name: sec.secret_name, env_var: sec.env_var, why: "" }
+    end function
+
+    ' Which entry of `databases` this document runs against, as written.
+    function _raw_conn(app, doc)
         if doc = nothing then
             return studio_ui._noconn("file-no-project", "")
         end if
@@ -1607,11 +1657,159 @@ library studio_ui
                 return studio_ui._noconn("bad-database", want)
             end if
         end if
-        return { ok: true, name: want, conn: conn, why: "" }
+        return { ok: true, name: want, conn: conn, why: "",
+                 secret: { name: "", source: "none", env_var: "" } }
     end function
 
     function _noconn(why, name)
-        return { ok: false, name: name, conn: nothing, why: why }
+        return { ok: false, name: name, conn: nothing, why: why,
+                 secret: { name: "", source: "none", env_var: "" } }
+    end function
+
+    ' ---- where a database password comes from -------------------------------
+
+    ' Three sources, tried in the order of how PRIVATE they are, because the
+    ' least private of them is a file that gets committed:
+    '
+    '   "store"  the encrypted secret store, under `conn.secret` or, by
+    '            default, "db:<name>". The one Studio wants you to use.
+    '   "env"    an environment variable the project file NAMES, in
+    '            `password_env`. Named and never guessed: Studio does not reach
+    '            for `PGPASSWORD` on its own, both because a variable nobody
+    '            wrote down is the hidden magic this project keeps refusing,
+    '            and because libpq reads `PGPASSWORD` and `~/.pgpass` by itself
+    '            -- a password Studio never touches is a password Studio cannot
+    '            spill.
+    '   "file"   a literal `password` in `.gstudio.json`. Honoured, because a
+    '            throwaway local database is a real thing and refusing it sends
+    '            people to worse workarounds; reported every time, because that
+    '            file is committed; and LAST, so anything set up privately
+    '            beats a leftover in a file the whole team can read.
+    '
+    ' **"none" is not a refusal.** A unix-socket PostgreSQL with peer auth, a
+    ' DSN whose credentials live in odbc.ini, and a `~/.pgpass` all connect with
+    ' no password at all -- measured: a local `pg.connect` with no `password`
+    ' field returns rows. Refusing here would break the case that already works
+    ' on the machine this was written on, and when a password really is needed
+    ' the engine's own error names the role and the auth method, which is a
+    ' better sentence than any Studio could compose.
+    function _db_secret(app, name, conn)
+        sname = studio_ui.db_secret_name(name, conn)
+        ev = studio_sql._sfield(conn, "password_env")
+        if not studio_sql.wants_password(conn.driver) then
+            return { value: "", source: "not-needed", secret_name: sname, env_var: "" }
+        end if
+        g = studio_secrets.get(app.paths.home, studio_ui._secret_key(app), sname)
+        if g.ok then
+            if g.value != "" then
+                return { value: g.value, source: "store", secret_name: sname, env_var: "" }
+            end if
+        end if
+        if ev != "" then
+            v = env(ev)
+            ' `env` answers `unknown` for an unset variable, and comparing one
+            ' to a string raises, so the guard is `is_string` and not `!= ""`.
+            if is_string(v) then
+                if v != "" then
+                    return { value: v, source: "env", secret_name: sname, env_var: ev }
+                end if
+            end if
+        end if
+        lit = studio_sql._sfield(conn, "password")
+        if lit != "" then
+            return { value: lit, source: "file", secret_name: sname, env_var: ev }
+        end if
+        return { value: "", source: "none", secret_name: sname, env_var: ev }
+    end function
+
+    ' The name a connection's password is stored under.
+    '
+    ' `db:<connection name>` by default, so the store LISTS as what it is:
+    ' `studio_secrets.names()` is what a settings pane and the agent may see,
+    ' and a bare "app" beside "anthropic_api_key" says nothing about which of
+    ' them is a database.
+    '
+    ' The store is per HOME and connection names are per PROJECT, so two
+    ' projects that each call a connection "app" share one entry. That is a
+    ' real collision and `"secret": "acme-prod"` in `.gstudio.json` is the
+    ' answer to it. NOT keyed by the project automatically: the project key is
+    ' a hash, and a secret whose name nobody can type is a secret nobody can
+    ' store.
+    function db_secret_name(name, conn)
+        s = studio_sql._sfield(conn, "secret")
+        if s != "" then
+            return s
+        end if
+        return "db:" + name
+    end function
+
+    ' The key the secret store is opened with. From the ENVIRONMENT, like every
+    ' other reader of it; `app.secret_key` is a test seam of the same shape as
+    ' `clock_fixed`, because a golden cannot put a variable into the environment
+    ' of the process it is already running in.
+    function _secret_key(app)
+        k = app["secret_key"]
+        if k != unknown then
+            return k
+        end if
+        return studio_secrets.key_from_env()
+    end function
+
+    ' ---- saying it out loud -------------------------------------------------
+
+    ' One line naming the database a run will use and where its password came
+    ' from. Both halves are invisible otherwise: the connection is named in a
+    ' COMMENT three lines up, and the credential is in none of the places the
+    ' window shows.
+    function connection_line(c)
+        if not c.ok then
+            return ""
+        end if
+        line = c.name + " — " + studio_ui.connection_where(c.conn)
+        return line + " — password: " + studio_ui.credential_where(c.secret)
+    end function
+
+    ' What the run connects TO, credential-free, in the driver's own terms.
+    function connection_where(conn)
+        if conn.driver = "sqlite" then
+            return "sqlite " + conn.path
+        end if
+        if conn.driver = "odbc" then
+            return "odbc " + studio_sql.odbc_string(conn)
+        end if
+        where = studio_sql._sfield(conn, "host")
+        if where = "" then
+            where = "(local)"
+        end if
+        port = studio_sql._vfield(conn, "port")
+        if port != "" then
+            where = where + ":" + port
+        end if
+        line = "pg " + where + "/" + studio_sql._sfield(conn, "database")
+        u = studio_sql._sfield(conn, "user")
+        if u != "" then
+            line = line + " as " + u
+        end if
+        return line
+    end function
+
+    ' Where the password came from -- never what it is.
+    function credential_where(secret)
+        if secret.source = "store" then
+            return "secret store, " + quote(secret.name)
+        end if
+        if secret.source = "env" then
+            return "$" + secret.env_var
+        end if
+        if secret.source = "file" then
+            ' Said plainly every time. Somebody who put it there deliberately
+            ' loses nothing by being told; somebody who did not needs to know.
+            return ".gstudio.json — which is committed"
+        end if
+        if secret.source = "not-needed" then
+            return "none needed"
+        end if
+        return "none — the engine decides"
     end function
 
     ' The three gBASIC has a module for. A name outside this list is refused
@@ -1907,6 +2105,13 @@ library studio_ui
         end if
         if action = "bad-database" then
             return detail + " needs a driver of sqlite, pg or odbc"
+        end if
+        if action = "bad-password" then
+            ' The one character an ODBC connection string cannot carry. Said
+            ' outright rather than mangled into a connection that fails with
+            ' something about syntax: a password nobody can see is hard enough
+            ' to debug without the error pointing somewhere else.
+            return "the password for " + detail + " contains a } , which an ODBC connection string cannot carry"
         end if
         ' ---- Run All. Its two refusals are about the DOCUMENT rather than the
         ' connection, so they are worded about the document.
@@ -3011,6 +3216,15 @@ library studio_ui
         if not c.ok then
             return { app: app, action: c.why, detail: c.name, active: false }
         end if
+        ' The one place the VALUE is held. It goes into the child's environment
+        ' and nowhere else -- not into the program text, not into `app.exec`,
+        ' not into the record the panes print.
+        cred = studio_ui.sql_credential(app, doc)
+        if c.conn.driver = "odbc" then
+            if not studio_sql.odbc_password_ok(cred.value) then
+                return { app: app, action: "bad-password", detail: c.name, active: false }
+            end if
+        end if
         cells = []
         for each sec in secs
             ' COUNT, not an end offset. `byte_slice(s, at, count)` is documented
@@ -3030,8 +3244,24 @@ library studio_ui
         if pin.interpreter != "" then
             sess.interpreter = pin.interpreter
         end if
+        ' ONE record, because `process.start`'s env merges over the inherited
+        ' environment as a whole -- two assignments to `session.env` would mean
+        ' the second silently dropping the first, and a pinned `gbasic_path`
+        ' quietly lost on every run that has a password is exactly the kind of
+        ' failure this codebase keeps meeting.
+        envr = {}
         if pin.gbasic_path != "" then
-            sess.env = { GBASIC_PATH: pin.gbasic_path }
+            envr.GBASIC_PATH = pin.gbasic_path
+        end if
+        if cred.value != "" then
+            envr[studio_sql.password_var()] = cred.value
+        end if
+        if count(keys(envr)) > 0 then
+            ' Left as `nothing` when there is none: `process.start` validates
+            ' the `env` option whenever the KEY is present, and `nothing` is not
+            ' a record, so passing it always would raise on every run that pins
+            ' nothing -- which is nearly all of them.
+            sess.env = envr
         end if
         fixed = app["clock_fixed"]
         if fixed != unknown then
@@ -3047,7 +3277,8 @@ library studio_ui
         ' session has none, so the gBASIC path is untouched.
         sess.vars_marker = studio_session.vars_marker_for(sess)
         prelude = studio_session.cell_epilogue(sess.vars_marker, sess.detail_rules)
-        fp = studio_sql.file_program(c.conn, cells, studio_session.vars_prefix(), prelude)
+        pw = studio_sql.password_expr(c.conn.driver, cred.value)
+        fp = studio_sql.file_program(c.conn, cells, studio_session.vars_prefix(), prelude, pw)
         ids = []
         for each sec in secs
             ids = append(ids, sec.id)

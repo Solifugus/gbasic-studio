@@ -914,6 +914,51 @@ else
     printf 'SKIP ui_sqlrun (this gBASIC has no sqlite module)\n'
 fi
 
+# Where a database password comes from. Two of its cases read the ENCRYPTED
+# store, and `crypto` is behind HAVE_LIBCRYPTO -- a build without it answers
+# "unusable" where this golden says "ready", so it is probed rather than
+# assumed. `GBSTUDIO_TEST_DBPASS` is the environment variable one case's
+# `.gstudio.json` NAMES; it is exported here because a program cannot put a
+# variable into the environment of the process it is already running in.
+cryptoprobe="$tmproot/crypto_probe.bas"
+printf 'program main(args)\n  load studio_secrets\n  if studio_secrets.available() then\n    print "yes"\n  else\n    print to error "no"\n  end if\nend program\n' > "$cryptoprobe"
+if GBASIC_PATH="lib:$GBASIC_STDLIB" timeout 60 "$GBASIC" "$cryptoprobe" 2>/dev/null | grep -q yes; then
+    GBSTUDIO_TEST_DBPASS=from-the-environment run_ui sqlcred
+else
+    printf 'SKIP ui_sqlcred (this gBASIC cannot encrypt)\n'
+fi
+
+# ODBC end to end, through the SQLite3 driver -- which is what gBASIC's own
+# odbc cookbook uses, and for the same reason: it runs anywhere and nothing
+# about the code's shape is SQLite-specific. This is the only tier that proves
+# the credential path WHOLE: the password is in the encrypted store, Studio
+# hands it to the child in its environment, and the generated program on disk
+# carries `env("...")` and not the value.
+odbcprobe="$tmproot/odbc_probe.bas"
+printf 'load odbc\nprogram main(args)\n  for each d in odbc.drivers()\n    if d.name = "SQLite3" then\n      print "yes"\n    end if\n  next\nend program\n' > "$odbcprobe"
+if GBASIC_PATH="$GBASIC_STDLIB" timeout 60 "$GBASIC" "$odbcprobe" 2>/dev/null | grep -q yes; then
+    run_ui sqlodbc
+else
+    printf 'SKIP ui_sqlodbc (no odbc module, or no SQLite3 ODBC driver installed)\n'
+fi
+
+# PostgreSQL end to end -- OPT-IN, and deliberately so. Every other tier here
+# builds what it needs in a temp directory and takes it away again; this one
+# connects to a database SERVER that belongs to somebody. A suite that did that
+# because it found a socket open is not one to trust, so the connection has to
+# be NAMED before this runs at all:
+#
+#   GBASIC_STUDIO_TEST_PG='{"driver":"pg","host":"/var/run/postgresql","database":"postgres","user":"me"}' tests/run_studio.sh
+#
+# It uses TEMP tables, so it needs no privilege beyond connecting and leaves
+# nothing behind -- and a `select` in the third cell finding the second cell's
+# rows is what proves the run shared ONE connection.
+if [ -n "${GBASIC_STUDIO_TEST_PG:-}" ]; then
+    run_ui sqlpg
+else
+    printf 'SKIP ui_sqlpg (set GBASIC_STUDIO_TEST_PG to a databases entry to run it)\n'
+fi
+
 # STU-2B memory: the interaction paths under valgrind. Redraw churn allocates a
 # fresh row model on every mutation, so a leak here would grow with clicks.
 if command -v valgrind >/dev/null 2>&1; then

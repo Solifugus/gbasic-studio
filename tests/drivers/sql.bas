@@ -27,8 +27,16 @@ end function
 
 ' One cell is the one-element case of a whole file, which is the point: there
 ' is no second generator to keep in step with this one.
-function one(conn, sql, tier)
-  return studio_sql.file_program(conn, [{ sql: sql, tier: tier, line: 1, column: 1 }], studio_session.vars_prefix(), "")
+function pad(s, w)
+  out = s
+  while byte_count(out) < w
+    out = out + " "
+  end while
+  return out
+end function
+
+function one(conn, sql, tier, pw)
+  return studio_sql.file_program(conn, [{ sql: sql, tier: tier, line: 1, column: 1 }], studio_session.vars_prefix(), "", pw)
 end function
 
 function shown(m)
@@ -115,18 +123,69 @@ program main(args)
     print "== the program one cell becomes =="
     sq = { driver: "sqlite", path: "/tmp/app.db" }
     print "-- a read goes through query --"
-    show_prog(one(sq, "select * from t", "read"))
+    show_prog(one(sq, "select * from t", "read", ""))
     print "-- a write goes through exec, which reports rows_affected --"
-    show_prog(one(sq, "delete from t", "destructive"))
+    show_prog(one(sq, "delete from t", "destructive", ""))
     ' The statement is the USER'S text going into a gBASIC string literal. An
     ' apostrophe in it would end that literal early and the rest would be read
     ' as code, so it goes in through `quote` and never hand-written marks.
     print "-- an apostrophe in the statement does not end the literal --"
-    show_prog(one(sq, "select * from t where name = 'O''Brien'", "read"))
+    show_prog(one(sq, "select * from t where name = 'O''Brien'", "read", ""))
 
     print "== and for the other two drivers =="
-    show_prog(one({ driver: "pg", host: "db.example", port: 5432, database: "acme", user: "matthew", password: "a b'c" }, "select 1", "read"))
-    show_prog(one({ driver: "odbc", dsn: "ERP" }, "select 1", "read"))
+    ' No credential appears in any of these. The password travels in the
+    ' child's ENVIRONMENT and the program reads it back with `env` -- because
+    ' this text is written to a scratch file, handed to a child, quoted by
+    ' diagnostics, and printed into this very golden, which is four ways for a
+    ' password to end up somewhere it cannot be taken back from.
+    pgc = { driver: "pg", host: "db.example", port: 5432, database: "acme", user: "matthew" }
+    print "-- pg, with a password --"
+    show_prog(one(pgc, "select 1", "read", studio_sql.password_expr("pg", "a b'c")))
+    print "-- pg, with none: peer auth over a unix socket needs no password --"
+    show_prog(one({ driver: "pg", host: "/var/run/postgresql", database: "acme" }, "select 1", "read",
+                  studio_sql.password_expr("pg", "")))
+    print "-- odbc, a DSN whose credentials are in odbc.ini --"
+    show_prog(one({ driver: "odbc", dsn: "ERP" }, "select 1", "read", studio_sql.password_expr("odbc", "")))
+    print "-- odbc, a DSN with a user and a password --"
+    show_prog(one({ driver: "odbc", dsn: "ERP", user: "app" }, "select 1", "read",
+                  studio_sql.password_expr("odbc", "hunter2")))
+
+    ' SQL Server through FreeTDS. `options` is passed through verbatim because
+    ' the option matrix is per-driver and per-version -- and `ClientCharset` is
+    ' the one that produces a plausible WRONG ANSWER rather than an error, so
+    ' it is the user's line and not Studio's.
+    print "-- odbc, SQL Server through FreeTDS --"
+    mssql = { driver: "odbc", odbc_driver: "FreeTDS", server: "sql.example", port: 1433,
+              database: "sales", user: "sa",
+              options: { TDS_Version: "7.4", ClientCharset: "UTF-8" } }
+    show_prog(one(mssql, "select 1", "read", studio_sql.password_expr("odbc", "hunter2")))
+    print "-- and the same connection, shown without its password --"
+    print "  " + studio_sql.odbc_string(mssql)
+
+    ' A connection string Studio's field set cannot express. Used verbatim,
+    ' with only the credential appended.
+    print "-- odbc, a whole connection string as written --"
+    show_prog(one({ driver: "odbc", connection_string: "Driver=SQLite3;Database=/tmp/x.db" },
+                  "select 1", "read", studio_sql.password_expr("odbc", "")))
+
+    print "== a password with a delimiter in it =="
+    ' An ODBC connection string is semicolon-delimited, so a password carrying
+    ' one ends its option early and the rest is read as more options. Braced
+    ' only where it is NEEDED: a driver that took the braces literally would
+    ' turn every correct password into a wrong one.
+    for each pw in ["hunter2", "a b'c", "p;wd", "k=v", "  spaced  "]
+        print "  " + pad(quote(pw), 14) + " -> pg " + studio_sql.password_expr("pg", pw)
+        print "  " + pad("", 14) + "    odbc " + studio_sql.password_expr("odbc", pw)
+    end for
+    print "  and `}` is the one it cannot carry at all:"
+    for each pw in ["hunter2", "p}wd", ""]
+        print "    " + pad(quote(pw), 10) + " ok=" + studio_sql.odbc_password_ok(pw)
+    end for
+
+    print "== which drivers take a password at all =="
+    for each d in ["sqlite", "pg", "odbc"]
+        print "  " + pad(d, 7) + " " + studio_sql.wants_password(d)
+    end for
 
     ' Run All is the SAME generator with more cells -- one connect, one close,
     ' and the statements between them. One connection is the entire point: a
@@ -140,7 +199,7 @@ program main(args)
         { sql: "insert into t values (1, 'a')",  tier: "write",       line: 5, column: 1 },
         { sql: "select * from t",                tier: "read",        line: 7, column: 1 },
         { sql: "commit",                         tier: "write",       line: 9, column: 1 }
-    ], studio_session.vars_prefix(), "")
+    ], studio_session.vars_prefix(), "", "")
     print whole.text
     print "  names: " + join(whole.names, ", ")
 

@@ -30,12 +30,12 @@
 -> Run at line 9 (section: sec-4 select)
    action=running active=true
    exec: run: finished [sec-4] — exit 1
-  errors: <target [sec-4] 9:1  SQLite prepare failed: no such table: nosuch>
+  errors: <target [sec-4] 9:1  SQLite prepare failed: no such table: nosuch -- in "select * from nosuch;">
 == and the whole run is a durable result like any other ==
 Results — sec-4  (1 run(s))
 latest: res-4  finished exit 1  at 1969-12-31 19:16:40  0s
   variables: none — the section did not finish
-  ! target 9:1 SQLite prepare failed: no such table: nosuch
+  ! target 9:1 SQLite prepare failed: no such table: nosuch -- in "select * from nosuch;"
 == Run All: a schema rebuilt from the top, in one child ==
 -> Run All: action=running active=true
    exec: run: finished [sec-4] — exit 0
@@ -47,7 +47,7 @@ latest: res-4  finished exit 1  at 1969-12-31 19:16:40  0s
         + result record[2]
             field | value
             command | DROP
-            rows_affected | 0
+            rows_affected | nothing
   line 5 (section: sec-2 create widgets):
     Results — sec-2  (1 run(s))
     latest: res-2  finished exit 0  at 1969-12-31 19:16:40  0s
@@ -55,7 +55,7 @@ latest: res-4  finished exit 1  at 1969-12-31 19:16:40  0s
         + result record[2]
             field | value
             command | CREATE
-            rows_affected | 0
+            rows_affected | nothing
   line 7 (section: sec-3 insert):
     Results — sec-3  (1 run(s))
     latest: res-3  finished exit 0  at 1969-12-31 19:16:40  0s
@@ -80,7 +80,7 @@ latest: res-4  finished exit 1  at 1969-12-31 19:16:40  0s
 -> Run All: action=running active=true
    exec: run: finished [sec-3] — exit 1
    status: stopped at line 7 — put the caret there to see why
-  with the caret on line 7: <target [sec-3] 7:1  SQLite prepare failed: no such table: nosuchtable>
+  with the caret on line 7: <target [sec-3] 7:1  SQLite prepare failed: no such table: nosuchtable -- in "insert into nosuchtable (id) values (1);">
   line 3 (section: sec-1 drop widgets):
     Results — sec-1  (3 run(s))
     latest: res-9  finished exit 0  at 1969-12-31 19:16:40  0s
@@ -88,7 +88,7 @@ latest: res-4  finished exit 1  at 1969-12-31 19:16:40  0s
         + result record[2]
             field | value
             command | DROP
-            rows_affected | 0
+            rows_affected | nothing
     history:
       res-5  finished exit 0  at 1969-12-31 19:16:40  0s
       res-1  finished exit 0  at 1969-12-31 19:16:40  0s
@@ -99,7 +99,7 @@ latest: res-4  finished exit 1  at 1969-12-31 19:16:40  0s
         + result record[2]
             field | value
             command | CREATE
-            rows_affected | 0
+            rows_affected | nothing
     history:
       res-6  finished exit 0  at 1969-12-31 19:16:40  0s
       res-2  finished exit 0  at 1969-12-31 19:16:40  0s
@@ -107,7 +107,7 @@ latest: res-4  finished exit 1  at 1969-12-31 19:16:40  0s
     Results — sec-3  (3 run(s))
     latest: res-11  finished exit 1  at 1969-12-31 19:16:40  0s
       variables: none — the section did not finish
-      ! target 7:1 SQLite prepare failed: no such table: nosuchtable
+      ! target 7:1 SQLite prepare failed: no such table: nosuchtable -- in "insert into nosuchtable (id) values (1);"
     history:
       res-7  finished exit 0  at 1969-12-31 19:16:40  0s  [section edited since this run]
       res-3  finished exit 0  at 1969-12-31 19:16:40  0s  [section edited since this run]

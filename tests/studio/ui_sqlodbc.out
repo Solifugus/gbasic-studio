@@ -1,0 +1,48 @@
+stored a password for the connection: ok=true
+== what the window can say about it, and what it will not ==
+  erp — odbc Driver=SQLite3;Database=<proj>/data/odbc.db;UID=app — password: secret store, "db:erp"
+    secret looked for: db:erp   password in the record: false
+== the password is in the child's environment and nowhere else ==
+  action=running active=true
+  child env: GBSTUDIO_DB_PASSWORD
+  the child is handed the password:      true
+  the program on disk contains it:       false
+  the program on disk reads it from env: true
+  exec: run: finished [sec-4] — exit 0
+== one result per cell, from one connection ==
+  line 3 (section: sec-1 drop widgets):
+    Results — sec-1  (1 run(s))
+    latest: res-1  finished exit 0  at 1969-12-31 19:16:40  0s
+      variables (1, 1 changed):
+        + result record[2]
+            field | value
+            command | DROP
+            rows_affected | nothing
+  line 5 (section: sec-2 create widgets):
+    Results — sec-2  (1 run(s))
+    latest: res-2  finished exit 0  at 1969-12-31 19:16:40  0s
+      variables (1, 1 changed):
+        + result record[2]
+            field | value
+            command | CREATE
+            rows_affected | nothing
+  line 7 (section: sec-3 insert):
+    Results — sec-3  (1 run(s))
+    latest: res-3  finished exit 0  at 1969-12-31 19:16:40  0s
+      variables (1, 1 changed):
+        + result record[2]
+            field | value
+            command | INSERT
+            rows_affected | 1
+  line 9 (section: sec-4 select):
+    Results — sec-4  (1 run(s))
+    latest: res-4  finished exit 0  at 1969-12-31 19:16:40  0s
+      variables (1, 1 changed):
+        + rows array[1]
+            id | label
+            1 | left
+== and a statement the engine refuses says so, at its own line ==
+-> Run All: action=running active=true
+   exec: run: finished [sec-6] — exit 1
+   status: stopped at line 5 — put the caret there to see why
+  with the caret on line 5: <target [sec-6] 5:1  odbc prepare failed: [HY000] [SQLite]no such table: nosuchtable (1) -- in "select * from nosuchtable;">

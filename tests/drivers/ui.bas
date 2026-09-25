@@ -175,6 +175,39 @@ end function
 ' The connection a .sql document resolves to, path-free: what matters is which
 ' name won and whether the path landed under the project, not where the test
 ' directory happens to be.
+' What the window can SAY about a connection -- and a standing check that the
+' record it says it from holds no credential at all. `sql_connection` drops a
+' `password` written into `.gstudio.json` and never puts the resolved one in,
+' which is what makes "a password cannot reach a golden" a property rather than
+' a promise: this function prints that record, and so do the panes.
+function dbline(app, projdir)
+  doc = studio_docs.active_doc(app.dm)
+  r = studio_ui.sql_connection(app, doc)
+  if not r.ok then
+    print "  refused=" + r.why + "  " + studio_ui.action_notice(r.why, r.name)
+  else
+    print "  " + replace(studio_ui.connection_line(r), projdir, "<proj>")
+    print "    secret looked for: " + r.secret.name + "   password in the record: " + has(r.conn, "password")
+  end if
+end function
+
+' The line the CHILD would actually run. The credential is an expression there
+' and a value only in the child's environment, so this is the whole of what
+' lands on disk in the scratch file.
+function connectline(app)
+  doc = studio_docs.active_doc(app.dm)
+  r = studio_ui.sql_connection(app, doc)
+  c = studio_ui.sql_credential(app, doc)
+  pw = studio_sql.password_expr(r.conn.driver, c.value)
+  fp = studio_sql.file_program(r.conn, [{ sql: "select 1", tier: "read", line: 1, column: 1 }],
+                               studio_session.vars_prefix(), "", pw)
+  for each l in split(fp.text, "\n")
+    if find(l, ".connect(") != nothing then
+      print "    runs: " + trim(l)
+    end if
+  end for
+end function
+
 function conn(app)
   doc = studio_docs.active_doc(app.dm)
   r = studio_ui.sql_connection(app, doc)
@@ -253,6 +286,9 @@ program main(args)
   load studio_sections
   load studio_projects
   load studio_projfile
+  load studio_secrets
+  load studio_sql
+  load studio_session
 
   mode = args[0]
   home = args[1]
@@ -1840,6 +1876,241 @@ program main(args)
     for each p in ["notes.sql", "NOTES.SQL", "notes.sql.txt", "notes.bas", "sql"]
       print "  " + p + " -> " + studio_ui.is_sql(p)
     end for
+  end if
+
+  ' ---- sqlpg: a .sql document run against a real PostgreSQL ----------------
+  '
+  ' OPT-IN, and deliberately so. Every other tier in this suite builds what it
+  ' needs in a temp directory and takes it away again; this one connects to a
+  ' database SERVER that belongs to somebody, creates a table on it and drops
+  ' it. A test suite that does that to a developer's machine because it
+  ' happened to find a socket open is not a test suite anyone should trust, so
+  ' `GBASIC_STUDIO_TEST_PG` has to NAME the connection before this runs at all.
+  ' It holds the `databases` entry verbatim, e.g.
+  '     {"driver":"pg","host":"/var/run/postgresql","database":"postgres","user":"me"}
+  '
+  ' What it prints is only what the SQL determines. The host, the database and
+  ' the role are whoever ran it, and a golden cannot hold those -- so the
+  ' connection LINE, which `ui_sqlcred` asserts in full against a fixture, is
+  ' not printed here. What is asserted here is the half a fixture cannot reach:
+  ' that a real PostgreSQL round trip comes back as ordinary per-cell results.
+  if mode = "sqlpg" then
+    entry = env("GBASIC_STUDIO_TEST_PG")
+    pf{file} = projdir + "/.gstudio.json"
+    write(pf, "{\"schema_version\":1,\"id\":\"gsp-1-1\",\"databases\":{\"pgtest\":" + entry + "}}")
+
+    ' TEMP tables, which is not a way of tiptoeing around the server -- it is
+    ' the strongest form this test can take. A temp table exists only inside
+    ' the session that made it, so a `select` in the third cell finding two
+    ' rows PROVES the three statements shared one connection, which is the
+    ' whole claim Run All makes and the one a per-cell child would break. It
+    ' also needs no privilege beyond connecting, and it is gone the moment the
+    ' child exits -- so this leaves nothing behind on anybody's server.
+    sf{file} = projdir + "/pg.sql"
+    write(sf, "-- @database pgtest\n\ncreate temp table gbstudio_widgets (id integer primary key, label text);\n\ninsert into gbstudio_widgets (id, label) values (1, 'left'), (2, 'right');\n\nselect id, label from gbstudio_widgets order by id;\n")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "pg.sql"))
+    app = r.app
+    app.clock_fixed = 1000
+    id = studio_docs.active_doc(app.dm).id
+
+    banner("a schema built on a real server, in one child on one connection")
+    app = runall(app)
+    app = walk(app, id, [3, 5, 7])
+
+    ' `$1` must not open a dollar-quoted body, or one parameter placeholder
+    ' swallows the rest of the file into a single statement. PostgreSQL is the
+    ' engine that has both, which makes it the one that can tell them apart.
+    banner("a dollar-quoted body and a parameter placeholder are different things")
+    app = studio.edit_document(app, id, "-- @database pgtest\n\nselect $$a ; b$$ as quoted;\n\nselect 1 where 1 = 2;\n")
+    app = runall(app)
+    app = walk(app, id, [3, 5])
+
+    ' The engine's own message, at the line of the USER'S file -- never the
+    ' scratch path or the generated program's line numbers.
+    banner("and an engine error is addressed to the cell it came from")
+    app = studio.edit_document(app, id, "-- @database pgtest\n\nselect 1 as ok;\n\nselect * from gbstudio_nosuch;\n")
+    app = runall(app)
+    c = studio_ui.sync_cursor(app, id, 4, 0)
+    app = c.app
+    print "  with the caret on line 5: <" + studio_ui.error_body(app) + ">"
+
+    ' And the temp table is gone, because the child that made it is. Running
+    ' the same file again finds nothing to collide with -- which is also why
+    ' this tier can be run twice in a row on the same server.
+    banner("and the next run starts from nothing, because the session ended")
+    app = studio.edit_document(app, id, "-- @database pgtest\n\nselect count(*) as n from pg_class where relname = 'gbstudio_widgets';\n")
+    app = runall(app)
+    app = walk(app, id, [3])
+  end if
+
+  ' ---- sqlodbc: a .sql document run through ODBC, for real -----------------
+  '
+  ' The whole slice against a live driver: a project declares an ODBC
+  ' connection by its PARTS, the password is in the encrypted store, Studio
+  ' joins the parts into a connection string, puts the password in the CHILD'S
+  ' ENVIRONMENT, runs every cell in one child on one connection, and files a
+  ' result under each statement.
+  '
+  ' Through the SQLite3 ODBC driver, because that one runs anywhere -- gBASIC's
+  ' own odbc cookbook does the same, and for the same reason. Nothing about the
+  ' shape is SQLite-specific: the fixture below is a FreeTDS connection to SQL
+  ' Server one `.gstudio.json` apart, which is why the driver and the options
+  ' go in as declared fields rather than as a string somebody typed.
+  '
+  ' It is the ONLY tier that proves the credential path end to end. `ui_sqlcred`
+  ' asserts where a password comes from; this asserts where it goes -- into the
+  ' environment of one child, and not into the program on disk.
+  if mode = "sqlodbc" then
+    dbpath = projdir + "/data/odbc.db"
+    persist.ensure_dir(projdir + "/data")
+    old{file} = dbpath
+    if exists(old) then
+      delete(old)
+    end if
+    pf{file} = projdir + "/.gstudio.json"
+    ' The connection by its PARTS. A password cannot be one of them: this file
+    ' is committed, and there is no way to keep one field of a typed-out
+    ' connection string out of a git repository.
+    spec = "{\"schema_version\":1,\"id\":\"gsp-1-1\",\"databases\":{\"erp\":{"
+    spec = spec + "\"driver\":\"odbc\",\"odbc_driver\":\"SQLite3\","
+    spec = spec + "\"database\":\"" + dbpath + "\",\"user\":\"app\"}}}"
+    write(pf, spec)
+
+    key = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
+    app.secret_key = studio_secrets.key_from_hex(key)
+    sp = studio_secrets.put(app.paths.home, app.secret_key, "db:erp", "hunter2")
+    print "stored a password for the connection: ok=" + sp.ok
+
+    sf{file} = projdir + "/erp.sql"
+    write(sf, "-- @database erp\n\ndrop table if exists widgets;\n\ncreate table widgets (id integer primary key, label varchar(20));\n\ninsert into widgets (id, label) values (1, 'left');\n\nselect id, label from widgets order by id;\n")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "erp.sql"))
+    app = r.app
+    app.clock_fixed = 1000
+    id = studio_docs.active_doc(app.dm).id
+
+    banner("what the window can say about it, and what it will not")
+    dbline(app, projdir)
+
+    ' Launched but not yet driven, so the scratch file is still there to read.
+    ' This is the assertion the whole design is for: the program on disk names
+    ' the variable, and only the child's environment holds the value.
+    banner("the password is in the child's environment and nowhere else")
+    rr = studio_ui.run_all(app)
+    app = rr.app
+    print "  action=" + rr.action + " active=" + rr.active
+    sess = app.exec.session
+    gen{file} = sess.prefix_path
+    text = read(gen)
+    print "  child env: " + join(keys(sess.env), ", ")
+    print "  the child is handed the password:      " + (sess.env[studio_sql.password_var()] = "hunter2")
+    print "  the program on disk contains it:       " + (find(text, "hunter2") != nothing)
+    print "  the program on disk reads it from env: " + (find(text, "env(\"GBSTUDIO_DB_PASSWORD\")") != nothing)
+    t = studio_ui.tick_run(app)
+    app = t.app
+    while t.active
+      t = studio_ui.tick_run(app)
+      app = t.app
+    end while
+    print "  " + studio_ui.exec_summary(app)
+
+    banner("one result per cell, from one connection")
+    app = walk(app, id, [3, 5, 7, 9])
+
+    ' `odbc.exec` REFUSES a statement that returns rows, so the read/write tier
+    ' decides more here than it does for sqlite or pg: a statement Studio
+    ' called a write and the driver hands rows back for is the driver's error,
+    ' not a silent one.
+    banner("and a statement the engine refuses says so, at its own line")
+    app = studio.edit_document(app, id, "-- @database erp\n\nselect id from widgets;\n\nselect * from nosuchtable;\n")
+    app = runall(app)
+    c = studio_ui.sync_cursor(app, id, 4, 0)
+    app = c.app
+    print "  with the caret on line 5: <" + studio_ui.error_body(app) + ">"
+  end if
+
+  ' ---- sqlcred: where a database password comes from -----------------------
+  '
+  ' Its own tier because two of its cases read the ENCRYPTED STORE, and
+  ' `crypto` is behind HAVE_LIBCRYPTO -- a build without it would answer
+  ' "unusable" where this answers "ready", and a byte-exact golden cannot hold
+  ' both. `run_studio.sh` probes and skips, the same shape as the sqlite probe
+  ' that guards `ui_sqlrun`.
+  if mode = "sqlcred" then
+    pf{file} = projdir + "/.gstudio.json"
+    sf{file} = projdir + "/notes.sql"
+    write(pf, "{\"schema_version\":1,\"id\":\"gsp-1-1\",\"name\":\"Alpha\"}")
+    write(sf, "select 1;\n")
+    o = studio.open_from_browser(app, "proj-1", projdir + "/notes.sql")
+    app = o.app
+    id = studio_docs.active_doc(app.dm).id
+
+    '
+    ' `.gstudio.json` is COMMITTED, so it names connections and not
+    ' credentials. Three sources, tried in the order of how private they are,
+    ' and the window says every time which one answered -- because the
+    ' connection is named in a comment three lines up and the credential is in
+    ' none of the places a user can see.
+    key = "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
+    app.secret_key = studio_secrets.key_from_hex(key)
+    print ""
+    print "the secret store on this build: " + studio_secrets.state_for(app.secret_key)
+
+    banner("PostgreSQL, with no credential anywhere")
+    ' Not a refusal. A unix-socket server with peer auth, a ~/.pgpass and a DSN
+    ' whose credentials live in odbc.ini all connect with no password at all --
+    ' measured against a real local PostgreSQL. Refusing here would break the
+    ' case that already works, and the engine's own error names the role and
+    ' the auth method better than Studio could.
+    write(pf, "{\"schema_version\":1,\"id\":\"gsp-1-1\",\"databases\":{\"prod\":{\"driver\":\"pg\",\"host\":\"db.example\",\"port\":5432,\"database\":\"acme\",\"user\":\"matthew\"}}}")
+    app = studio.edit_document(app, id, "-- @database prod\n\nselect 1;\n")
+    dbline(app, projdir)
+    connectline(app)
+
+    banner("a password in the project file — honoured, and said out loud")
+    write(pf, "{\"schema_version\":1,\"id\":\"gsp-1-1\",\"databases\":{\"prod\":{\"driver\":\"pg\",\"host\":\"db.example\",\"database\":\"acme\",\"user\":\"matthew\",\"password\":\"in-the-repo\"}}}")
+    dbline(app, projdir)
+    connectline(app)
+
+    banner("an environment variable the file NAMES — never one Studio guessed")
+    ' Studio does not reach for PGPASSWORD on its own. A variable nobody wrote
+    ' down is the hidden magic this project keeps refusing, and libpq reads
+    ' PGPASSWORD and ~/.pgpass by itself anyway -- a password Studio never
+    ' touches is a password Studio cannot spill.
+    write(pf, "{\"schema_version\":1,\"id\":\"gsp-1-1\",\"databases\":{\"prod\":{\"driver\":\"pg\",\"host\":\"db.example\",\"database\":\"acme\",\"user\":\"matthew\",\"password\":\"in-the-repo\",\"password_env\":\"GBSTUDIO_TEST_DBPASS\"}}}")
+    dbline(app, projdir)
+
+    banner("and the secret store beats both")
+    sp = studio_secrets.put(app.paths.home, app.secret_key, "db:prod", "from-the-store")
+    print "  stored: ok=" + sp.ok
+    dbline(app, projdir)
+
+    banner("a connection naming its own entry, because names collide across projects")
+    write(pf, "{\"schema_version\":1,\"id\":\"gsp-1-1\",\"databases\":{\"prod\":{\"driver\":\"pg\",\"host\":\"db.example\",\"database\":\"acme\",\"user\":\"matthew\",\"secret\":\"acme-prod\"}}}")
+    dbline(app, projdir)
+    sp = studio_secrets.put(app.paths.home, app.secret_key, "acme-prod", "named-outright")
+    dbline(app, projdir)
+
+    banner("SQL Server through ODBC — the string is BUILT, never typed")
+    write(pf, "{\"schema_version\":1,\"id\":\"gsp-1-1\",\"databases\":{\"erp\":{\"driver\":\"odbc\",\"odbc_driver\":\"FreeTDS\",\"server\":\"sql.example\",\"port\":1433,\"database\":\"sales\",\"user\":\"sa\",\"options\":{\"TDS_Version\":\"7.4\",\"ClientCharset\":\"UTF-8\"}}}}")
+    app = studio.edit_document(app, id, "-- @database erp\n\nselect 1;\n")
+    dbline(app, projdir)
+    sp = studio_secrets.put(app.paths.home, app.secret_key, "db:erp", "hunter2")
+    dbline(app, projdir)
+    connectline(app)
+
+    banner("SQLite has nobody to authenticate to")
+    write(pf, "{\"schema_version\":1,\"id\":\"gsp-1-1\",\"databases\":{\"app\":{\"driver\":\"sqlite\",\"path\":\"data/app.db\"}}}")
+    app = studio.edit_document(app, id, "-- @database app\n\nselect 1;\n")
+    dbline(app, projdir)
+
+    banner("a password an ODBC connection string cannot carry")
+    for each pw in ["hunter2", "p;wd", "p}wd"]
+      print "  " + pw + " -> ok=" + studio_sql.odbc_password_ok(pw)
+    end for
+    print "  " + studio_ui.action_notice("bad-password", "erp")
+
   end if
 
   ' ---- sqlrun: a .sql cell actually runs -----------------------------------

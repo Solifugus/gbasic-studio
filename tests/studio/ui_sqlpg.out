@@ -1,0 +1,60 @@
+== a schema built on a real server, in one child on one connection ==
+-> Run All: action=running active=true
+   exec: run: finished [sec-3] — exit 0
+   status: finished sec-3
+  line 3 (section: sec-1 create gbstudio_widgets):
+    Results — sec-1  (1 run(s))
+    latest: res-1  finished exit 0  at 1969-12-31 19:16:40  0s
+      variables (1, 1 changed):
+        + result record[2]
+            field | value
+            command | CREATE
+            rows_affected | nothing
+  line 5 (section: sec-2 insert):
+    Results — sec-2  (1 run(s))
+    latest: res-2  finished exit 0  at 1969-12-31 19:16:40  0s
+      variables (1, 1 changed):
+        + result record[2]
+            field | value
+            command | INSERT
+            rows_affected | 2
+  line 7 (section: sec-3 select):
+    Results — sec-3  (1 run(s))
+    latest: res-3  finished exit 0  at 1969-12-31 19:16:40  0s
+      variables (1, 1 changed):
+        + rows array[2]
+            id | label
+            1 | left
+            2 | right
+== a dollar-quoted body and a parameter placeholder are different things ==
+-> Run All: action=running active=true
+   exec: run: finished [sec-5] — exit 0
+   status: finished sec-5
+  line 3 (section: sec-4 select):
+    Results — sec-4  (1 run(s))
+    latest: res-4  finished exit 0  at 1969-12-31 19:16:40  0s
+      variables (1, 1 changed):
+        + rows array[1]
+            quoted
+            a ; b
+  line 5 (section: sec-5 select):
+    Results — sec-5  (1 run(s))
+    latest: res-5  finished exit 0  at 1969-12-31 19:16:40  0s
+      variables (1, 1 changed):
+        + rows array[0] = (empty)
+== and an engine error is addressed to the cell it came from ==
+-> Run All: action=running active=true
+   exec: run: finished [sec-7] — exit 1
+   status: stopped at line 5 — put the caret there to see why
+  with the caret on line 5: <target [sec-7] 5:1  ERROR:  relation "gbstudio_nosuch" does not exist LINE 1: select * from gbstudio_nosuch;                       ^ [SQLSTATE 42P01]>
+== and the next run starts from nothing, because the session ended ==
+-> Run All: action=running active=true
+   exec: run: finished [sec-8] — exit 0
+   status: finished sec-8
+  line 3 (section: sec-8 select):
+    Results — sec-8  (1 run(s))
+    latest: res-8  finished exit 0  at 1969-12-31 19:16:40  0s
+      variables (1, 1 changed):
+        + rows array[1]
+            n
+            0

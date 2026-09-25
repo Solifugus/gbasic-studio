@@ -454,9 +454,49 @@ below it get no result at all — they did not run, and a row reading "not run"
 would be a history entry about something that did not happen. The status line
 says *stopped at line 7 — put the caret there to see why*.
 
-Three drivers are generated for (`sqlite`, `pg`, `odbc`); only SQLite is wired
-end to end so far. PostgreSQL and ODBC connections, and the dialogs that *write
-the SQL they are about to run*, are still ahead.
+**PostgreSQL, SQL Server and anything else with an ODBC driver.** The same
+three drivers gBASIC ships — `sqlite`, `pg`, `odbc` — all run end to end now.
+A connection is declared by its *parts*, never as a string you typed:
+
+```json
+"databases": {
+  "app":  { "driver": "sqlite", "path": "data/app.db" },
+  "prod": { "driver": "pg", "host": "db.example", "port": 5432,
+            "database": "acme", "user": "matthew" },
+  "erp":  { "driver": "odbc", "odbc_driver": "FreeTDS",
+            "server": "sql.example", "port": 1433, "database": "sales",
+            "user": "sa",
+            "options": { "TDS_Version": "7.4", "ClientCharset": "UTF-8" } }
+}
+```
+
+Studio joins the ODBC parts into the connection string the driver manager
+wants; `options` goes through verbatim, because that matrix is per-driver and
+per-version and a table of it here would be a table that goes stale. There is a
+`connection_string` field for whatever the parts cannot say.
+
+**The password is in none of that, and in none of the generated code either.**
+`.gstudio.json` is committed, so it names a connection and never a credential.
+The password comes from the encrypted secret store under `db:<name>` (or a
+`secret` you name yourself), from an environment variable the file *names* in
+`password_env`, or — last, and said out loud every time — from a literal in the
+project file. Studio never guesses at `PGPASSWORD`: libpq reads that and
+`~/.pgpass` by itself, and a password Studio never touches is one it cannot
+spill.
+
+No password at all is an ordinary answer rather than a refusal — a unix-socket
+PostgreSQL with peer auth, a DSN whose credentials live in `odbc.ini` and a
+`~/.pgpass` all connect without one, and when a password really is needed the
+engine's own error names the role and the auth method better than Studio could.
+
+Where it *does* travel is the child's **environment**. The generated program
+reads `env("GBSTUDIO_DB_PASSWORD")` — you can see that it does — and the value
+is never written into the program, which is a file on disk, the text a
+diagnostic quotes, and what the test goldens print. `ui_sqlodbc` asserts exactly
+that, against a live driver.
+
+The SQL builder dialogs that *write the SQL they are about to run* are still
+ahead.
 
 Interaction is covered by tests rather than by hand. The rule STU-2B established
 is that a signal handler is an *adapter* — read one value off the widget, call
@@ -501,7 +541,7 @@ workspace instead:
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 184 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 187 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 29 cases, headless AND offline — no network, no key
 ```
 

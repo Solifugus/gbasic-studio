@@ -1116,7 +1116,12 @@ function click_row(idx)
     return nothing
 end function
 
-function state(label)
+' Named `probe_state` and not `state`: `studio_secrets` exports one, and a
+' local function shadowing a loaded library's earns a note on STDERR at every
+' load -- which several golden tiers capture, so a name collision here is not a
+' style question but a row of failing tests. Third time this has been found
+' the same way, after `read` and `tool_call`.
+function probe_state(label)
     print "-- " + label + " --"
     print studio_ui.summary(G.app)
     return nothing
@@ -1124,7 +1129,7 @@ end function
 
 ' Phase A: the signals that are delivered synchronously.
 function run_stu2b_probe()
-    state("as built")
+    probe_state("as built")
 
     ' THE VERTICAL SLICE: click a browser row -> the document opens -> a tab
     ' appears -> that tab is the active document in the model.
@@ -1132,7 +1137,7 @@ function run_stu2b_probe()
     print "clicking browser row " + i + " (main.bas)"
     click_row(i)
     print "action=" + G.last_action
-    state("after the click")
+    probe_state("after the click")
 
     ' The pane rebuilt itself from inside its own handler; it must still be
     ' clickable, with rows that still line up with the model.
@@ -1140,20 +1145,20 @@ function run_stu2b_probe()
     print "clicking browser row " + j + " (src)"
     click_row(j)
     print "action=" + G.last_action
-    state("after expanding src")
+    probe_state("after expanding src")
 
     ' A second document, so there is something to switch between.
     k = find_row("file", "a.bas")
     print "clicking browser row " + k + " (src/a.bas)"
     click_row(k)
     print "action=" + G.last_action
-    state("two tabs")
+    probe_state("two tabs")
 
     ' Tab switching, through a real "switch-page".
     print "set_current_page(0)"
     G.shell.notebook.set_current_page(0)
     print "action=" + G.last_action
-    state("after switching to page 0")
+    probe_state("after switching to page 0")
 
     ' Typing, through a real "changed" on the live buffer.
     pg = G.shell.pages[0]
@@ -1161,7 +1166,7 @@ function run_stu2b_probe()
     print "typing into page 0's buffer"
     ed.set_text("typed into the editor by hand\n")
     print "action=" + G.last_action
-    state("after typing")
+    probe_state("after typing")
     return nothing
 end function
 
@@ -1175,14 +1180,14 @@ function stu2b_button_step()
     end if
     if G.phase = 2 then
         print "action=" + G.last_action
-        state("after Save")
+        probe_state("after Save")
         print "clicking Refresh"
         G.shell.refresh_btn.activate()
         return true
     end if
     if G.phase = 3 then
         print "action=" + G.last_action
-        state("after Refresh")
+        probe_state("after Refresh")
         print "clicking New Project"
         G.shell.new_btn.activate()
         return true
@@ -1194,7 +1199,7 @@ function stu2b_button_step()
         return true
     end if
     print "action=" + G.last_action
-    state("after New Project")
+    probe_state("after New Project")
     G.app_ref.quit()
     return false
 end function
@@ -1230,14 +1235,14 @@ function stu2c_step()
     ph = G.phase - 1
     if ph = 2 then
         print "action=" + G.last_action
-        state("after New Project — main.bas is already there, which is where STU-2B stopped")
+        probe_state("after New Project — main.bas is already there, which is where STU-2B stopped")
         print "clicking New File"
         G.shell.file_btn.activate()
         return true
     end if
     if ph = 3 then
         print "action=" + G.last_action
-        state("after New File")
+        probe_state("after New File")
         ' The new file opened into a tab, so it can be typed into immediately.
         pg = G.shell.pages[0]
         ed = pg.editor
@@ -1250,13 +1255,13 @@ function stu2c_step()
     end if
     if ph = 4 then
         print "action=" + G.last_action
-        state("after Save")
+        probe_state("after Save")
         print "clicking New Folder"
         G.shell.folder_btn.activate()
         return true
     end if
     print "action=" + G.last_action
-    state("after New Folder")
+    probe_state("after New Folder")
     print "closing the window"
     ' CLOSE it, rather than quitting the application out from under it. This
     ' tier's whole claim is that closing the window is what saves the session,
@@ -1288,7 +1293,7 @@ function stu2d_step()
     if G.phase = 2 then
         print "action=" + G.last_action + " status=" + G.shell.status.label
         print "name field is now [" + G.shell.name_entry.text + "]"
-        state("after New File")
+        probe_state("after New File")
         print "typing \"notes-2.bas\" and clicking Rename"
         G.shell.name_entry.text = "notes-2.bas"
         G.shell.rename_btn.activate()
@@ -1296,21 +1301,21 @@ function stu2d_step()
     end if
     if G.phase = 3 then
         print "action=" + G.last_action + " status=" + G.shell.status.label
-        state("after Rename")
+        probe_state("after Rename")
         print "clicking Delete once"
         G.shell.delete_btn.activate()
         return true
     end if
     if G.phase = 4 then
         print "action=" + G.last_action + " status=" + G.shell.status.label
-        state("armed, and still there")
+        probe_state("armed, and still there")
         print "clicking Delete again"
         G.shell.delete_btn.activate()
         return true
     end if
     if G.phase = 5 then
         print "action=" + G.last_action + " status=" + G.shell.status.label
-        state("deleted")
+        probe_state("deleted")
         print "clicking Delete with nothing selected"
         G.shell.delete_btn.activate()
         return true
@@ -1432,7 +1437,7 @@ function stu2g_step()
     if G.phase = 2 then
         print "action=" + G.last_action + " status=" + G.shell.status.label
         print "name field is now [" + G.shell.name_entry.text + "]"
-        state("after Open Folder")
+        probe_state("after Open Folder")
         print "clicking Open Folder again on the same path"
         G.shell.name_entry.text = G.open_target
         G.shell.open_btn.activate()
@@ -1440,19 +1445,19 @@ function stu2g_step()
     end if
     if G.phase = 3 then
         print "action=" + G.last_action + " status=" + G.shell.status.label
-        state("activated, not duplicated")
+        probe_state("activated, not duplicated")
         ' Open Folder has now run twice over this directory and written
         ' NOTHING into it. The project file arrives only when the button that
         ' says so is pressed, which is the next click.
         print "the folder Studio just opened twice is untouched"
-        state("still no project file")
+        probe_state("still no project file")
         print "clicking Project File"
         G.shell.projfile_btn.activate()
         return true
     end if
     if G.phase = 4 then
         print "action=" + G.last_action + " status=" + path_free(G.shell.status.label)
-        state("the one dotfile the browser shows")
+        probe_state("the one dotfile the browser shows")
         print "clicking Project File again"
         G.shell.projfile_btn.activate()
         return true
@@ -1624,7 +1629,7 @@ function stu14_step()
         return true
     end if
     print "  status=" + G.shell.status.label
-    state("after Close project")
+    probe_state("after Close project")
     G.app_ref.quit()
     return false
 end function
@@ -1715,7 +1720,7 @@ function stu12_step()
     if G.phase = 4 then
         print "action=" + G.last_action + " status=" + path_free(G.shell.status.label)
         print "the window closed=" + (G.newproj_win = nothing)
-        state("the new project, active")
+        probe_state("the new project, active")
         print "in the tab row: " + G.shell.notebook.get_n_pages() + " page(s)"
         G.app_ref.quit()
         return false
@@ -2139,7 +2144,7 @@ function stu2b_cold_step()
         return true
     end if
     print "action=" + G.last_action
-    state("after New Project")
+    probe_state("after New Project")
     G.app_ref.quit()
     return false
 end function
@@ -2159,27 +2164,27 @@ function on_activate(gtkapp)
         return nothing
     end if
     if G.stu2b_cold then
-        state("a cold home")
+        probe_state("a cold home")
         gi.timeout(400, stu2b_cold_step)
         return nothing
     end if
     if G.stu2c then
-        state("a cold home")
+        probe_state("a cold home")
         gi.timeout(400, stu2c_step)
         return nothing
     end if
     if G.stu2d then
-        state("as built")
+        probe_state("as built")
         gi.timeout(400, stu2d_step)
         return nothing
     end if
     if G.stu2g then
-        state("a cold home")
+        probe_state("a cold home")
         gi.timeout(400, stu2g_step)
         return nothing
     end if
     if G.stu12 then
-        state("a cold home")
+        probe_state("a cold home")
         gi.timeout(400, stu12_step)
         return nothing
     end if
