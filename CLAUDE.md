@@ -679,6 +679,61 @@ Two consequences worth knowing before you touch the shell:
   `is_gbasic` branch that derives gBASIC ones. Without it a `.sql` document
   had no sections at all: the strip said `(none)`, Run refused, and the
   scanner that STU-14 had already built and tested was reached by nothing.
+- **Run All is ONE child and ONE connection, and that is the whole point.**
+  A cell on its own runs alone because the database holds the state a replay
+  would have rebuilt; a whole-file run is the user asking for that state to be
+  built from the top. A schema rebuild and a transaction whose `begin` and
+  `commit` are different cells both only mean anything to the session that ran
+  the statements between them — a child per cell would connect N times and
+  roll the transaction back before its second statement arrived.
+- **`studio_sql.file_program` is the only generator; one cell is the
+  one-element case.** Two generators would be two places for the quoting rule
+  and the `query`/`exec` choice to drift apart, and the difference between them
+  would be an argument count. `cell_program` existed for one commit and is gone.
+- The result names are REUSED across a run rather than numbered: the capture
+  reports the last query's `rows` and the last exec's `result`. A file of forty
+  statements would otherwise hand the inspector forty variables, thirty-nine of
+  which nobody asked about. Measured: a four-cell rebuild comes back with
+  `result` (the insert's `rows_affected: 2`) and `rows` (the select's two rows),
+  which is exactly the two facts worth having.
+- **Nothing catches, and that is the right behaviour rather than a limitation
+  worked around.** gBASIC cannot catch a raise and a database error is one, so
+  a failing statement ends the run where it failed and the ones after it do not
+  execute. A rebuild whose third statement fails has no business running the
+  fourth.
+- **A whole-file run is filed against the cell it ENDED at** — the last one on
+  success, the failing one on failure (`studio_session._refile`, called from
+  `finalize`). Launching against the last cell and leaving it there would file
+  a result reading "this cell finished, exit 1" against a statement that never
+  executed. Attribution is redone after the move, so the failing cell reads as
+  `target` rather than as `prefix` of itself, and `ex.sid` follows so the strip
+  and the session name the same cell.
+- `session.multi` is what distinguishes the two, set by `run_program` from
+  `count(marks) > 1` and cleared in `_reset`. `_refile` also requires the run
+  to have FAILED and the failure to HAVE a cell: a diagnostic Studio generated,
+  or one outside every statement, names nothing to move to, and inventing a
+  cell for it would be worse than leaving the run where it was launched.
+- **Moving the result also moved it out from under the caret**, which is the
+  cost of the panes being caret-keyed (STU-5A′): after a failed Run All the
+  Errors pane said "(none)" because the caret was still in the last cell.
+  Found by looking at the test output, not by reasoning about it. The fix is
+  `ran-stopped`, a distinct action whose detail is the DOCUMENT LINE —
+  "stopped at line 7 — put the caret there to see why". `finished sec-3` was a
+  true sentence about an id that appears nowhere on screen.
+- **Run All is HIDDEN for anything that is not `.sql`**
+  (`studio_ui.shows_run_all`, applied by `refresh_run`). A gBASIC document
+  already replays everything above the caret when you press Run Section, so the
+  button would mean nearly the same thing there and be one more control to tell
+  apart — the same §18 rule that keeps `git_label` empty outside a repository.
+  Built once and shown or hidden, like the branch pane, rather than added and
+  removed.
+- `run_all` refuses by name too: `not-sql` and `no-cells`, both worded about
+  the DOCUMENT rather than about the connection, because that is what is wrong.
+- **Per-cell results from one Run All are NOT built.** The child could print a
+  capture after every statement and Studio could file N results, which is the
+  Jupyter shape and the obvious next step; what exists files ONE result, for
+  the cell the run ended at. Said here because "Run All fills in every cell"
+  is a reasonable thing to assume and is not true yet.
 - **`to` is a reserved word** (`print to error`), so a parameter named one is a
   parse error in a library nothing can then load. `from` is fine; `lo`/`hi` is
   what `_raw_after` uses.

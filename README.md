@@ -436,9 +436,21 @@ to the line of *your* file, carrying SQLite's own message.
 
 A cell runs **alone**. There is no prefix replay — the database holds the state
 a replay would have rebuilt, and re-running the inserts above your cursor would
-duplicate rows. Three drivers are generated for (`sqlite`, `pg`, `odbc`); only
-SQLite is wired end to end so far. Run All, PostgreSQL and ODBC connections,
-and the dialogs that *write the SQL they are about to run* are still ahead.
+duplicate rows.
+
+**Run All** is the other half of that, and appears only for a `.sql` document:
+every cell, in order, in one child against **one connection**. That is what a
+schema rebuild needs, and what a transaction whose `begin` and `commit` are
+different cells needs — both only mean anything to the session that ran the
+statements between them. Nothing catches, so a failing statement ends the run
+where it failed and the ones after it do not execute; the status line says
+*stopped at line 7 — put the caret there to see why*, and the Errors pane there
+carries the engine's own message.
+
+Three drivers are generated for (`sqlite`, `pg`, `odbc`); only SQLite is wired
+end to end so far. PostgreSQL and ODBC connections, per-cell results from one
+Run All, and the dialogs that *write the SQL they are about to run* are still
+ahead.
 
 Interaction is covered by tests rather than by hand. The rule STU-2B established
 is that a signal handler is an *adapter* — read one value off the widget, call

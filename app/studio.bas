@@ -588,6 +588,21 @@ end function
 ' The cursor is read off the EDITOR here rather than tracked continuously,
 ' because "which section" is only asked once — when Run is pressed. That is the
 ' adapter's whole job: one value off one widget, in the widget's own units.
+' Run All: every cell of a .sql document, in order, against one connection.
+' The same adapter shape as on_run -- one studio_ui call, a redraw, and the
+' same poll timer, because what comes back is the same kind of run.
+function on_run_all()
+    r = studio_ui.run_all(G.app)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    redraw()
+    if r.active then
+        gi.timeout(60, on_run_poll)
+    end if
+    return nothing
+end function
+
 function on_run()
     line = 0
     col = 0
@@ -1035,6 +1050,7 @@ function wire_shell()
     gi.connect(sh.save_btn, "clicked", on_save)
     gi.connect(sh.refresh_btn, "clicked", on_refresh)
     gi.connect(sh.bar.run, "clicked", on_run)
+    gi.connect(sh.bar.runall, "clicked", on_run_all)
     gi.connect(sh.bar.halt, "clicked", on_stop)
     gi.connect(sh.bar.force, "clicked", on_force_stop)
     gi.connect(sh.apane.ask, "clicked", on_ask_agent)

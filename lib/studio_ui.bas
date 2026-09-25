@@ -1527,6 +1527,21 @@ library studio_ui
         return ends_with(lower(path), ".sql")
     end function
 
+    ' Whether the window offers Run All at all.
+    '
+    ' A gBASIC document does not get it: Run Section already replays everything
+    ' above the caret, so a second button meaning nearly the same thing would be
+    ' one more control to tell apart -- and §18 asks Studio to stay quiet about
+    ' what a user is not using, which is the same rule that keeps `git_label`
+    ' empty outside a repository.
+    function shows_run_all(app)
+        doc = studio_docs.active_doc(app.dm)
+        if doc = nothing then
+            return false
+        end if
+        return studio_ui.is_sql(doc.path)
+    end function
+
     ' Resolve the connection a `.sql` document names.
     '
     ' Returns { ok, name, conn, why } where `why` is a refusal reason, all of
@@ -1893,6 +1908,14 @@ library studio_ui
         if action = "bad-database" then
             return detail + " needs a driver of sqlite, pg or odbc"
         end if
+        ' ---- Run All. Its two refusals are about the DOCUMENT rather than the
+        ' connection, so they are worded about the document.
+        if action = "not-sql" then
+            return leaf + " is not a SQL file — Run All runs the cells of a .sql document"
+        end if
+        if action = "no-cells" then
+            return "there are no statements in this file to run"
+        end if
         ' "<project> <path>" — both, because the question being answered is
         ' "why will this project not close", and naming only the file leaves
         ' the user to connect it themselves.
@@ -1942,6 +1965,12 @@ library studio_ui
         if action = "ran" then
             ' "<section-id> <final-state>" — the strip already shows the state.
             return "finished " + studio_ui._token_leaf(detail, 0)
+        end if
+        ' A whole-file run that stopped part way. The line, because that is what
+        ' the user can act on, and the instruction to move the caret, because
+        ' the pane holding the engine's message follows it.
+        if action = "ran-stopped" then
+            return "stopped at line " + detail + " — put the caret there to see why"
         end if
         if action = "refused" then
             return "will not run it — " + detail
@@ -2888,31 +2917,94 @@ library studio_ui
     end function
 
     ' Run one SQL cell.
+    function _run_sql(app, doc, st, sid)
+        sec = studio_sections.section_by_id(st, sid)
+        if sec = nothing then
+            return { app: app, action: "no-section", detail: "", active: false }
+        end if
+        return studio_ui._launch_sql(app, doc, st, [sec], sid)
+    end function
+
+    ' Run every cell in the document, in order, against ONE connection.
+    '
+    ' This is the case the single-cell path deliberately is not. A cell on its
+    ' own runs alone because the DATABASE holds the state a replay would have
+    ' rebuilt; a whole-file run is the user saying they want that state built
+    ' from the top -- a schema rebuilt from nothing, or a transaction whose
+    ' `begin` and `commit` are different cells and only mean anything to one
+    ' session. So it is one child and one connection, not N children: connecting
+    ' per cell would roll a transaction back before its second statement
+    ' arrived.
+    '
+    ' It STOPS where a statement fails, because gBASIC cannot catch a raise and
+    ' a database error is one. That is the right behaviour to have fallen into
+    ' rather than a limitation worked around: a rebuild whose third statement
+    ' fails has no business running the fourth, and the diagnostic names the
+    ' line it stopped at.
+    '
+    ' Offered only for `.sql`. A gBASIC document has Run Section, which already
+    ' replays everything above the caret -- a second button meaning almost the
+    ' same thing would be one more control to tell apart, and §18 asks Studio to
+    ' stay quiet about what a user is not using.
+    function run_all(app)
+        doc = studio_docs.active_doc(app.dm)
+        if doc = nothing then
+            return { app: app, action: "none", detail: "", active: false }
+        end if
+        if not studio_ui.is_sql(doc.path) then
+            return { app: app, action: "not-sql", detail: doc.path, active: false }
+        end if
+        ex = app["exec"]
+        if ex != unknown then
+            if ex != nothing then
+                busy = studio_session.is_active(ex.session)
+                if busy then
+                    return { app: app, action: "busy", detail: ex.session.state, active: false }
+                end if
+            end if
+        end if
+        vw = studio_ui.view_for(app)
+        app = vw.app
+        st = vw.st
+        secs = []
+        for each sec in st.sections
+            if sec.status != "stale" then
+                secs = append(secs, sec)
+            end if
+        end for
+        if count(secs) = 0 then
+            return { app: app, action: "no-cells", detail: "", active: false }
+        end if
+        ' Filed against the LAST cell: that is where a run which got all the way
+        ' through ended, and what its capture describes. A run that stopped
+        ' early says so through the attribution, which names the cell it stopped
+        ' at -- two different facts, kept apart.
+        last = secs[count(secs) - 1]
+        return studio_ui._launch_sql(app, doc, st, secs, last.id)
+    end function
+
+    ' Launch a SQL run of `secs`, filing the result against `target_id`.
     '
     ' The shape of this is deliberately the same as the tail of `run_section`,
     ' and the differences are the whole of what "SQL" means to Studio:
     '
     '   * no branch BINDINGS. A branch injects assignments into a replayed
-    '     prefix, and there is no prefix here -- the database is the state.
-    '     The branch ID is still carried, because a result has to say which
-    '     branch it belongs to however it was produced.
+    '     prefix, and there is no materialized prefix here -- the connection is
+    '     the continuity. The branch ID is still carried, because a result has
+    '     to say which branch it belongs to however it was produced.
     '   * no overlay projection. An overlay replaces a SECTION of gBASIC source
-    '     with alternate text; a cell is run from the document as it stands.
+    '     with alternate text; cells are run from the document as it stands.
     '   * no table fetch. `fetch_table` re-runs a section to export a variable,
-    '     and for SQL "run it again with a bigger limit" is a sentence about
-    '     the user's own statement, not about the machinery. Left out rather
-    '     than half-wired.
+    '     and for SQL "run it again with a bigger limit" is a sentence about the
+    '     user's own statement, not about the machinery. Left out rather than
+    '     half-wired.
     '
     ' Everything that IS the same goes through the same code: the child, the
     ' poll loop, Stop, the variable capture, the durable result, and the
     ' project's interpreter pin -- a generated program is still one of this
     ' project's programs, and a project pinned to a particular gBASIC meant
     ' that one.
-    function _run_sql(app, doc, st, sid)
-        sec = studio_sections.section_by_id(st, sid)
-        if sec = nothing then
-            return { app: app, action: "no-section", detail: "", active: false }
-        end if
+    function _launch_sql(app, doc, st, secs, target_id)
         ' Which database, before anything is generated. Every refusal is
         ' returned under its OWN name so the status line says which of the five
         ' things is wrong rather than "cannot run".
@@ -2920,16 +3012,21 @@ library studio_ui
         if not c.ok then
             return { app: app, action: c.why, detail: c.name, active: false }
         end if
-        ' COUNT, not an end offset. `byte_slice(s, at, count)` is documented and
-        ' every offset in this codebase is half-open, so passing `end_offset`
-        ' straight through reads as correct and silently returns the rest of the
-        ' file.
-        sql = byte_slice(doc.content, sec.start_offset, sec.end_offset - sec.start_offset)
-        tier = "write"
-        if has(sec, "sql_tier") then
-            tier = sec.sql_tier
-        end if
-        pg = studio_sql.cell_program(c.conn, sql, tier, studio_session.vars_prefix())
+        cells = []
+        for each sec in secs
+            ' COUNT, not an end offset. `byte_slice(s, at, count)` is documented
+            ' and every offset in this codebase is half-open, so passing
+            ' `end_offset` straight through reads as correct and silently
+            ' returns the rest of the file.
+            sql = byte_slice(doc.content, sec.start_offset, sec.end_offset - sec.start_offset)
+            tier = "write"
+            if has(sec, "sql_tier") then
+                tier = sec.sql_tier
+            end if
+            cells = append(cells, { sql: sql, tier: tier,
+                                    line: sec.start_line, column: sec.start_column })
+        end for
+        fp = studio_sql.file_program(c.conn, cells, studio_session.vars_prefix())
 
         sess = studio_session.create(doc.id, app.paths.home + "/scratch")
         pin = studio_projfile.read_spec(studio_ui.project_path_for(app, doc))
@@ -2947,19 +3044,18 @@ library studio_ui
         ab = studio_ui.active_branch(app)
         app = ab.app
         sess.branch = ab.id
-        sess = studio_session.run_program(sess, st, sid, pg.text, pg.stmt_line,
-                                          sec.start_line, sec.start_column)
+        sess = studio_session.run_program(sess, st, target_id, fp.text, fp.marks)
 
         ' The SAME record the gBASIC path builds, field for field. Everything
         ' downstream -- tick_run, the run strip, the results pane, Stop --
         ' reads it, and a second shape here would be a second thing for each of
         ' them to know about.
-        app.exec = { doc_id: doc.id, doc_path: doc.path, sid: sid, secs: st,
+        app.exec = { doc_id: doc.id, doc_path: doc.path, sid: target_id, secs: st,
                      branch: ab.id, branch_name: ab.name,
                      src: doc.content, session: sess,
                      store: studio_results.open(app.paths.home, doc.path) }
         act = sess.state
-        detail = sid
+        detail = target_id
         if sess.state = "refused" then
             detail = sess.message
         end if
@@ -2992,6 +3088,11 @@ library studio_ui
             return { app: app, action: "running", detail: ex.sid, active: true }
         end if
         ex.session = studio_session.finalize(ex.session, ex.secs, ex.src)
+        ' `finalize` may have MOVED which cell this run belongs to -- a
+        ' whole-file run that stopped at the third of five is filed there and
+        ' not at the fifth it was aimed at. `ex.sid` follows, so the strip and
+        ' the session agree about which cell they are talking about.
+        ex.sid = ex.session.section_id
         home = app.paths.home
         ex.store = studio_results.add_result(home, ex.store, studio_session.to_result(ex.session, ex.secs))
         save_result = studio_results.save(home, ex.store)
@@ -3008,7 +3109,32 @@ library studio_ui
                 end if
             end if
         end if
+        ' A whole-file run that stopped early says WHERE, in the user's own line
+        ' numbers. "finished sec-3" is a true sentence about an id that appears
+        ' nowhere on screen, and the message itself is in the Errors pane --
+        ' which is keyed to the CARET (STU-5A'), so until the caret is in that
+        ' statement the pane says nothing. The status line is therefore the one
+        ' place that can say where to go.
+        if ex.session.multi then
+            if not ex.session.success then
+                ln = studio_ui._stopped_line(ex)
+                if ln > 0 then
+                    return { app: app, action: "ran-stopped", detail: string(ln), active: false }
+                end if
+            end if
+        end if
         return { app: app, action: "ran", detail: ex.sid + " " + ex.session.state, active: false }
+    end function
+
+    ' The DOCUMENT line of the cell a run ended at, or 0 when there is no
+    ' saying. Read off the sections the run was launched against, not off the
+    ' document as it is now: the user may have typed since.
+    function _stopped_line(ex)
+        sec = studio_sections.section_by_id(ex.secs, ex.session.section_id)
+        if sec = nothing then
+            return 0
+        end if
+        return sec.start_line
     end function
 
     ' Ask the child to stop (SIGTERM). It may not go; polling continues either way

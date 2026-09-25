@@ -36,5 +36,36 @@ Results — sec-4  (1 run(s))
 latest: res-4  finished exit 1  at 1969-12-31 19:16:40  0s
   variables: none — the section did not finish
   ! target 9:1 SQLite prepare failed: no such table: nosuch
+== Run All: a schema rebuilt from the top, in one child ==
+-> Run All: action=running active=true
+   exec: run: finished [sec-4] — exit 0
+   status: finished sec-4
+  caret in the last cell:
+    Results — sec-4  (1 run(s))
+    latest: res-1  finished exit 0  at 1969-12-31 19:16:40  0s
+      variables (3, 3 changed):
+        + args array[0] = (empty)
+        + result record[2]
+            field | value
+            command | INSERT
+            rows_affected | 2
+        + rows array[2]
+            id | label
+            1 | left
+            2 | right
+== and again, because a rebuild that only works once is not one ==
+-> Run All: action=running active=true
+   exec: run: finished [sec-4] — exit 0
+   status: finished sec-4
+== a run stops at the statement that fails, and says which ==
+-> Run All: action=running active=true
+   exec: run: finished [sec-3] — exit 1
+   status: stopped at line 7 — put the caret there to see why
+  with the caret on line 7: <target [sec-3] 7:1  SQLite prepare failed: no such table: nosuchtable>
+== Run All is offered for a .sql document and for nothing else ==
+  rebuild.sql -> true
+  main.bas    -> false
+  -> not-sql  status=main.bas is not a SQL file — Run All runs the cells of a .sql document
 == a project that declares no database refuses by name ==
   -> no-databases  status=this project declares no databases — add one to .gstudio.json
+  -> Run All: no-databases  status=this project declares no databases — add one to .gstudio.json

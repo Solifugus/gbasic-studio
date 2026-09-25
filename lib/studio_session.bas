@@ -150,6 +150,10 @@ library studio_session
             ' STU-7: branch bindings to splice in, [ { offset, text } ]. Empty
             ' unless a caller has a branch selected.
             binds: [],
+            ' STU-14: this run covers MORE THAN ONE cell, so where it ended is
+            ' not necessarily where it was aimed. Only `run_program` sets it,
+            ' and only for a whole-file run; see `_refile`.
+            multi: false,
             ' STU-8: the recognition table the variable epilogue is compiled
             ' against, supplied by the caller as plain data. Empty means no
             ' registered viewer exists, which is every run until a library ships
@@ -1031,6 +1035,9 @@ library studio_session
         session.map = nothing
         session.hoisted = []
         session.appended = ""
+        ' `run` never sets this; `run_program` sets it right after. Cleared
+        ' here so a session cannot inherit a previous run's answer.
+        session.multi = false
         session.stderr_raw = ""
         session.diagnostics = []
         session.attribution = []
@@ -1156,31 +1163,38 @@ library studio_session
         return session
     end function
 
-    ' A position map for a program Studio generated WHOLE, in which exactly one
-    ' line is the user's.
+    ' A position map for a program Studio generated WHOLE, in which a known set
+    ' of lines are the user's and everything else is Studio's own.
     '
-    ' Every other line is Studio's own and is `generated`, so it reports no
-    ' document position at all rather than a plausible wrong one -- the whole
-    ' point of a map built while the content was written is that it never has to
-    ' guess. The one document line carries a COLUMN too, which the gBASIC path
-    ' never needs: there, both injections are whole-line operations and a column
-    ' means the same thing on both sides. Here the statement occupies one line
-    ' of the generated program and several of the document, so the engine's
-    ' column is a position inside `sqlite.query(db, "...` and carrying it across
-    ' would be an address the user cannot follow. The statement's own start is
-    ' what is known, so that is what is reported.
-    function text_map(stmt_line, doc_line, doc_column)
+    ' Studio's lines are `generated`, so they report no document position at
+    ' all rather than a plausible wrong one -- the whole point of a map built
+    ' while the content was written is that it never has to guess. Each of the
+    ' user's lines carries a COLUMN too, which the gBASIC path never needs:
+    ' there, both injections are whole-line operations and a column means the
+    ' same thing on both sides. Here a statement occupies one line of the
+    ' generated program and several of the document, so the engine's column is
+    ' a position inside `sqlite.query(db, "...` and carrying it across would be
+    ' an address the user cannot follow. The statement's own start is what is
+    ' known, so that is what is reported.
+    '
+    '   marks   [{ child, line, column }], in ascending `child` order
+    function text_map(marks)
         segs = []
-        if stmt_line > 1 then
-            segs = append(segs, { kind: "generated", c_start: 1, c_end: stmt_line - 1, delta: 0, column: 0 })
-        end if
-        segs = append(segs, { kind: "document", c_start: stmt_line, c_end: stmt_line,
-                              delta: doc_line - stmt_line, column: doc_column })
-        ' Everything after it, to a line number no generated program reaches.
-        ' Left unbounded the tail would fall through to `unmapped`, which passes
-        ' a CHILD line through as though it were a document line -- exactly the
-        ' plausible wrong answer the rest of this is written to avoid.
-        segs = append(segs, { kind: "generated", c_start: stmt_line + 1, c_end: 100000000, delta: 0, column: 0 })
+        prev = 0
+        for each m in marks
+            if m.child > prev + 1 then
+                segs = append(segs, { kind: "generated", c_start: prev + 1, c_end: m.child - 1, delta: 0, column: 0 })
+            end if
+            segs = append(segs, { kind: "document", c_start: m.child, c_end: m.child,
+                                  delta: m.line - m.child, column: m.column })
+            prev = m.child
+        end for
+        ' Everything after the last of them, to a line number no generated
+        ' program reaches. Left unbounded the tail would fall through to
+        ' `unmapped`, which passes a CHILD line through as though it were a
+        ' document line -- exactly the plausible wrong answer the rest of this
+        ' is written to avoid.
+        segs = append(segs, { kind: "generated", c_start: prev + 1, c_end: 100000000, delta: 0, column: 0 })
         return { schema_version: 1, marker_line: 0, segments: segs }
     end function
 
@@ -1201,12 +1215,16 @@ library studio_session
     ' program block, for the reason it always is -- code after `end program`
     ' does not execute, so an epilogue past it would report nothing, silently.
     '
+    ' `section_id` is the cell the RESULT is filed against. For a one-cell run
+    ' that is the cell; for a whole-file run it is the LAST one, because that is
+    ' where a run that got all the way through ended and what its capture
+    ' describes. Which cell a run STOPPED at, when one failed, is a different
+    ' fact and is carried by the attribution rather than by the id.
+    '
     '   body        the program, still open: `load`, `program main(args)`, the
     '               statements. No `end program`; this adds it.
-    '   stmt_line   the 1-based line of `body` holding the user's own text
-    '   doc_line    the line of the DOCUMENT that text came from
-    '   doc_column  its column there (see `text_map`)
-    function run_program(session, sections, section_id, body, stmt_line, doc_line, doc_column)
+    '   marks       where the user's own lines are in it (see `text_map`)
+    function run_program(session, sections, section_id, body, marks)
         if studio_session.is_active(session) then
             session.reason = "already-running"
             session.message = "a run is already in progress for this document"
@@ -1238,6 +1256,7 @@ library studio_session
         session.split_out = "exact"
         session.split_err = "exact"
         session.section_index = 0
+        session.multi = count(marks) > 1
 
         session.vars_marker = studio_session._vars_marker(session)
         session.vars_raw = ""
@@ -1254,7 +1273,7 @@ library studio_session
         text = text + studio_session._vars_epilogue_opt(session.vars_marker, true, session.detail_rules)
         text = text + "end program\n"
         session.appended = studio_session._tag("vars", "end-program")
-        session.map = studio_session.text_map(stmt_line, doc_line, doc_column)
+        session.map = studio_session.text_map(marks)
         session.prefix_bytes = byte_count(text)
 
         persist.ensure_dir(session.scratch_dir)
@@ -1662,7 +1681,44 @@ library studio_session
     ' Convenience: everything that must happen once a run has finished.
     function finalize(session, sections, source)
         session = studio_session.parse_diagnostics(session)
-        return studio_session.attribute(session, sections, source)
+        session = studio_session.attribute(session, sections, source)
+        ' A multi-cell run that stopped early belongs to the cell it stopped at.
+        ' It is launched against the LAST cell, because that is where a run
+        ' which gets all the way through ends -- but a run that failed at the
+        ' third of five never reached the fifth, and filing it there would be a
+        ' result saying "this cell finished, exit 1" about a statement that did
+        ' not execute. Attribution is redone afterwards so the failing cell
+        ' reads as `target` rather than as `prefix` of itself.
+        moved = studio_session._refile(session)
+        if moved != session.section_id then
+            session.section_id = moved
+            session = studio_session.attribute(session, sections, source)
+        end if
+        return session
+    end function
+
+    ' Which cell a multi-cell run actually ended at.
+    '
+    ' Only for a run that FAILED: one that succeeded ended at the cell it was
+    ' already filed against. And only when the failure HAS a cell -- a
+    ' diagnostic Studio generated, or one outside every statement, names
+    ' nothing to move to, and inventing a cell for it would be worse than
+    ' leaving the run where it was launched.
+    function _refile(session)
+        if not session.multi then
+            return session.section_id
+        end if
+        if session.success then
+            return session.section_id
+        end if
+        for each a in session.attribution
+            if a.severity = "error" then
+                if a.section_id != nothing then
+                    return a.section_id
+                end if
+            end if
+        end for
+        return session.section_id
     end function
 
     ' ---- STU-5A: emitting a durable result ---------------------------------

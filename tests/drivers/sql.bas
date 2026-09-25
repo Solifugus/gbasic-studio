@@ -22,7 +22,13 @@ function show(label, text)
 end function
 
 function show_prog(pg)
-  print pg.text + "  (result bound to `" + pg.name + "`)"
+  print pg.text + "  (result bound to `" + pg.names[0] + "`)"
+end function
+
+' One cell is the one-element case of a whole file, which is the point: there
+' is no second generator to keep in step with this one.
+function one(conn, sql, tier)
+  return studio_sql.file_program(conn, [{ sql: sql, tier: tier, line: 1, column: 1 }], studio_session.vars_prefix())
 end function
 
 function shown(m)
@@ -109,30 +115,52 @@ program main(args)
     print "== the program one cell becomes =="
     sq = { driver: "sqlite", path: "/tmp/app.db" }
     print "-- a read goes through query --"
-    show_prog(studio_sql.cell_program(sq, "select * from t", "read", studio_session.vars_prefix()))
+    show_prog(one(sq, "select * from t", "read"))
     print "-- a write goes through exec, which reports rows_affected --"
-    show_prog(studio_sql.cell_program(sq, "delete from t", "destructive", studio_session.vars_prefix()))
+    show_prog(one(sq, "delete from t", "destructive"))
     ' The statement is the USER'S text going into a gBASIC string literal. An
     ' apostrophe in it would end that literal early and the rest would be read
     ' as code, so it goes in through `quote` and never hand-written marks.
     print "-- an apostrophe in the statement does not end the literal --"
-    show_prog(studio_sql.cell_program(sq, "select * from t where name = 'O''Brien'", "read", studio_session.vars_prefix()))
+    show_prog(one(sq, "select * from t where name = 'O''Brien'", "read"))
 
     print "== and for the other two drivers =="
-    show_prog(studio_sql.cell_program({ driver: "pg", host: "db.example", port: 5432, database: "acme", user: "matthew", password: "a b'c" }, "select 1", "read", studio_session.vars_prefix()))
-    show_prog(studio_sql.cell_program({ driver: "odbc", dsn: "ERP" }, "select 1", "read", studio_session.vars_prefix()))
+    show_prog(one({ driver: "pg", host: "db.example", port: 5432, database: "acme", user: "matthew", password: "a b'c" }, "select 1", "read"))
+    show_prog(one({ driver: "odbc", dsn: "ERP" }, "select 1", "read"))
 
-    ' The line the user's own text lands on is DERIVED as the program is built,
-    ' and it is what carries an engine error back to the cell it came from.
-    print "== and where the user's own line is =="
-    print "  stmt_line=" + studio_sql.cell_program(sq, "select 1", "read", studio_session.vars_prefix()).stmt_line
-    print "  map for a statement starting at document line 7:"
-    for each seg in studio_session.text_map(4, 7, 3).segments
+    ' Run All is the SAME generator with more cells -- one connect, one close,
+    ' and the statements between them. One connection is the entire point: a
+    ' `begin` in the first cell and a `commit` in the last only mean anything
+    ' to the session that ran the ones between, and a child per cell would roll
+    ' the transaction back before the second statement arrived.
+    print "== a whole file is the same program with more statements =="
+    whole = studio_sql.file_program(sq, [
+        { sql: "begin",                          tier: "write",       line: 1, column: 1 },
+        { sql: "delete from t",                  tier: "destructive", line: 3, column: 1 },
+        { sql: "insert into t values (1, 'a')",  tier: "write",       line: 5, column: 1 },
+        { sql: "select * from t",                tier: "read",        line: 7, column: 1 },
+        { sql: "commit",                         tier: "write",       line: 9, column: 1 }
+    ], studio_session.vars_prefix())
+    print whole.text
+    print "  names: " + join(whole.names, ", ")
+
+    ' Each statement's line in the generated program is counted WHILE it is
+    ' built, and it is what carries an engine error back to the cell it came
+    ' from. Nothing catches: a failing statement ends the run where it failed,
+    ' which for a schema rebuild is the behaviour you want.
+    print "== and where each cell's own line went =="
+    for each m in whole.marks
+      print "    child " + m.child + " -> document " + m.line + ":" + m.column
+    end for
+    print "  the map that produces:"
+    for each seg in studio_session.text_map(whole.marks).segments
       print "    " + seg.kind + " child " + seg.c_start + ".." + seg.c_end + " delta=" + seg.delta + " column=" + seg.column
     end for
-    print "  child 4:11 -> " + shown(studio_session.map_line(studio_session.text_map(4, 7, 3), 4))
-    print "  child 2:1  -> " + shown(studio_session.map_line(studio_session.text_map(4, 7, 3), 2))
-    print "  child 9:1  -> " + shown(studio_session.map_line(studio_session.text_map(4, 7, 3), 9))
+    mp = studio_session.text_map(whole.marks)
+    print "  child 4:11 -> " + shown(studio_session.map_line(mp, 4))
+    print "  child 7:11 -> " + shown(studio_session.map_line(mp, 7))
+    print "  child 3:1  -> " + shown(studio_session.map_line(mp, 3))
+    print "  child 99:1 -> " + shown(studio_session.map_line(mp, 99))
   end if
 
   if mode = "verbs" then

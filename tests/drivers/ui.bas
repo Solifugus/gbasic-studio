@@ -192,6 +192,24 @@ function conn(app)
   print line
 end function
 
+' Run every cell of the active .sql document, and poll to the end.
+function runall(app)
+  r = studio_ui.run_all(app)
+  app = r.app
+  print "-> Run All: action=" + r.action + " active=" + r.active
+  if r.active then
+    t = studio_ui.tick_run(app)
+    app = t.app
+    while t.active
+      t = studio_ui.tick_run(app)
+      app = t.app
+    end while
+    print "   " + studio_ui.exec_summary(app)
+    print "   status: " + studio_ui.action_notice(t.action, t.detail)
+  end if
+  return app
+end function
+
 ' Run the cell the caret is in, exactly as the window does: sync the caret,
 ' press Run, poll to the end. `line1` is 1-based, like everything a user sees.
 function sqlrun(app, id, line1)
@@ -1897,13 +1915,72 @@ program main(args)
     ' The connection is resolved BEFORE anything is generated, and its refusal
     ' is what the status line says. A cell that cannot name a database is not
     ' a cell that failed to run.
+    ' Run All: every cell, in order, against ONE connection. That is the whole
+    ' difference from pressing Run four times -- a schema rebuilt from nothing
+    ' and a transaction spanning cells both only mean anything to the session
+    ' that ran the statements before them, and a child per cell would connect
+    ' four times and roll the `begin` back before the second statement.
+    banner("Run All: a schema rebuilt from the top, in one child")
+    bf{file} = projdir + "/rebuild.sql"
+    write(bf, "-- @database app\n\ndrop table if exists widgets;\n\ncreate table widgets (id integer primary key, label text);\n\ninsert into widgets (id, label) values (1, 'left'), (2, 'right');\n\nselect id, label from widgets order by id;\n")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "rebuild.sql"))
+    app = r.app
+    bid = studio_docs.active_doc(app.dm).id
+    app = runall(app)
+
+    ' Filed against the LAST cell -- where a run that got all the way through
+    ' ended, and what its capture describes.
+    print "  caret in the last cell:"
+    c = studio_ui.sync_cursor(app, bid, 8, 0)
+    app = c.app
+    for each rl in split(studio_ui.results_body(app), "\n")
+      print "    " + rl
+    end for
+
+    ' Again, unchanged. A rebuild you cannot re-run is not a rebuild, and
+    ' `drop table if exists` is what makes it one -- Studio adds nothing to the
+    ' user's SQL to achieve that.
+    banner("and again, because a rebuild that only works once is not one")
+    app = runall(app)
+
+    ' Nothing CATCHES: gBASIC cannot catch a raise and a database error is one,
+    ' so the run ends where it failed and the statements after it never
+    ' execute. For a schema rebuild that is the behaviour you want, and the
+    ' attribution names the cell it stopped at -- which is a different fact
+    ' from the cell the result is filed against.
+    banner("a run stops at the statement that fails, and says which")
+    app = studio.edit_document(app, bid, "-- @database app\n\ndrop table if exists widgets;\n\ncreate table widgets (id integer primary key, label text);\n\ninsert into nosuchtable (id) values (1);\n\nselect id, label from widgets order by id;\n")
+    app = runall(app)
+    ' The panes are keyed to the CARET (STU-5A'), so the message is where the
+    ' failure is -- which is what the status line just said to do.
+    c = studio_ui.sync_cursor(app, bid, 6, 0)
+    app = c.app
+    print "  with the caret on line 7: <" + studio_ui.error_body(app) + ">"
+
+    banner("Run All is offered for a .sql document and for nothing else")
+    print "  rebuild.sql -> " + studio_ui.shows_run_all(app)
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "main.bas"))
+    app = r.app
+    print "  main.bas    -> " + studio_ui.shows_run_all(app)
+    ra = studio_ui.run_all(app)
+    app = ra.app
+    print "  -> " + ra.action + "  status=" + studio_ui.action_notice(ra.action, safe_detail(ra.detail))
+
     banner("a project that declares no database refuses by name")
     write(pf, "{\"schema_version\":1,\"id\":\"gsp-1-1\",\"name\":\"Alpha\"}")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "schema.sql"))
+    app = r.app
     c = studio_ui.sync_cursor(app, id, 6, 0)
     app = c.app
     r = studio_ui.run_section(app, 6, 0)
     app = r.app
     print "  -> " + r.action + "  status=" + studio_ui.action_notice(r.action, r.detail)
+    ra = studio_ui.run_all(app)
+    app = ra.app
+    print "  -> Run All: " + ra.action + "  status=" + studio_ui.action_notice(ra.action, ra.detail)
   end if
 
   ' ---- filetypes: a project is not only its .bas files ---------------------

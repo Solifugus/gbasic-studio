@@ -685,14 +685,24 @@ library studio_sql
 
     ' ---- the program a cell becomes -----------------------------------------
 
-    ' The gBASIC program that runs one statement.
+    ' The gBASIC program that runs a RUN of cells against ONE connection.
     '
-    ' A cell runs in a CHILD, like every other execution in Studio, and for the
-    ' same reasons: a thirty-second query would otherwise freeze the window with
-    ' no Stop button, and the child is where the poll loop, the timeout and
-    ' Force Stop already live. What differs from a gBASIC section is that there
-    ' is no PREFIX -- the database holds the state a replay would have rebuilt,
-    ' and re-running the inserts above your cursor would duplicate rows.
+    ' One function and not two, because "run this cell" is the one-cell case and
+    ' nothing else about it differs: the same connect, the same per-statement
+    ' line, the same close. Two generators would be two places for the quoting
+    ' rule and the `query`/`exec` choice to drift apart, and the difference
+    ' between them would be an argument count.
+    '
+    ' A run happens in a CHILD, like every other execution in Studio, and for
+    ' the same reasons: a thirty-second query would otherwise freeze the window
+    ' with no Stop button, and the child is where the poll loop, the timeout and
+    ' Force Stop already live.
+    '
+    ' ONE connection for the whole run, which is the entire point of running
+    ' more than one cell at a time -- a schema rebuild and a transaction are
+    ' both statements that only mean anything to the session that ran the ones
+    ' before them. Running each cell in its own child would connect N times and
+    ' a `begin` in the first would be rolled back before the second arrived.
     '
     ' `quote` and never hand-written quotation marks. The statement is the
     ' user's text going into a gBASIC string literal, so an apostrophe in it
@@ -703,6 +713,7 @@ library studio_sql
     ' which is the only thing an `update` has to say. (A PostgreSQL
     ' `insert ... returning` therefore reports a count rather than its rows;
     ' that is a known gap, not a silent one.)
+    '
     ' It comes back OPEN, without its `end program`, because
     ' `studio_session.run_program` closes it -- after appending the same
     ' variable epilogue every gBASIC run already gets. That sharing is the
@@ -712,42 +723,60 @@ library studio_sql
     ' after `end program` would report nothing, silently, which is why the
     ' closing line is not written here.
     '
-    ' Returns { text, stmt_line, name }:
-    '   stmt_line  which 1-based line of `text` holds the user's own statement,
-    '              counted WHILE the program is built. A literal beside this
-    '              shape would drift from it the first time a line is added,
-    '              and it would then point every engine diagnostic at the wrong
-    '              row of the user's file -- silently, which is the failure
-    '              this codebase keeps meeting.
-    '   name       what the result is bound to. Two names and not one: `rows`
-    '              for a query and `result` for an exec, because a DELETE does
-    '              not return rows and a variables pane calling its
-    '              `{command, rows_affected}` record "rows" would be saying so.
+    ' Nothing catches. gBASIC cannot catch a raise, and a database error IS a
+    ' raise, so a failing statement ends the run where it failed and the ones
+    ' after it do not execute. That is the right behaviour to have fallen into:
+    ' a schema rebuild whose third statement fails should not go on to the
+    ' fourth, and the diagnostic names the line it stopped at.
     '
-    ' `hidden` is the name prefix the epilogue leaves OUT of what it reports,
-    ' and the connection handle takes it. Otherwise a user who wrote one
-    ' statement gets three variables back, two of them Studio's own plumbing --
-    ' and a `sqlite_connection` reported as "(live)" is a thing they can neither
-    ' use nor dismiss. The prefix is PASSED rather than written out here: it
-    ' belongs to `studio_session`, and a copy of it in this file is a copy that
-    ' can drift into hiding nothing.
-    function cell_program(conn, sql, tier, hidden)
+    '   cells   [{ sql, tier, line, column }] in FILE ORDER -- `line`/`column`
+    '           being where the statement lives in the user's document, which
+    '           is the only thing this needs them for
+    '   hidden  the name prefix the epilogue leaves OUT of what it reports. The
+    '           connection handle takes it, or a user who wrote one statement
+    '           gets three variables back, two of them Studio's own plumbing --
+    '           and a `sqlite_connection` rendered as "(live)" is a thing they
+    '           can neither use nor dismiss. PASSED rather than written out
+    '           here: it belongs to `studio_session`, and a copy of it in this
+    '           file is a copy that can drift into hiding nothing.
+    '
+    ' Returns { text, marks, names }:
+    '   marks   [{ child, line, column }] -- which 1-based line of `text` each
+    '           statement landed on, counted WHILE the program is built. A
+    '           literal beside this shape would drift from it the first time a
+    '           line is added, and it would then point every engine diagnostic
+    '           at the wrong row of the user's file -- silently, which is the
+    '           failure this codebase keeps meeting.
+    '   names   what each statement's result is bound to. Two names and not
+    '           one: `rows` for a query and `result` for an exec, because a
+    '           DELETE returns no rows and a variables pane calling its
+    '           `{command, rows_affected}` record "rows" would be saying it did.
+    '           Reused across the run rather than numbered, so what the capture
+    '           reports is the LAST query's rows and the LAST exec's count --
+    '           a file of forty statements would otherwise hand the inspector
+    '           forty variables, thirty-nine of which nobody asked about.
+    function file_program(conn, cells, hidden)
         drv = conn.driver
-        call = "query"
-        name = "rows"
-        if tier != "read" then
-            call = "exec"
-            name = "result"
-        end if
         db = hidden + "_db"
         lines = []
         lines = append(lines, "load " + drv)
         lines = append(lines, "program main(args)")
         lines = append(lines, "  " + db + " = " + drv + ".connect(" + studio_sql._target(conn) + ")")
-        stmt_line = count(lines) + 1
-        lines = append(lines, "  " + name + " = " + drv + "." + call + "(" + db + ", " + quote(sql) + ", [])")
+        marks = []
+        names = []
+        for each c in cells
+            call = "query"
+            name = "rows"
+            if c.tier != "read" then
+                call = "exec"
+                name = "result"
+            end if
+            marks = append(marks, { child: count(lines) + 1, line: c.line, column: c.column })
+            names = append(names, name)
+            lines = append(lines, "  " + name + " = " + drv + "." + call + "(" + db + ", " + quote(c.sql) + ", [])")
+        end for
         lines = append(lines, "  " + drv + ".close(" + db + ")")
-        return { text: join(lines, "\n") + "\n", stmt_line: stmt_line, name: name }
+        return { text: join(lines, "\n") + "\n", marks: marks, names: names }
     end function
 
     ' What `connect` is handed. One line per driver, and the only place the

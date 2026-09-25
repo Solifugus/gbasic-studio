@@ -407,6 +407,7 @@ library studio_shell
         ' provider went on at build time, and this runs sixteen times a second.
         studio_style.set_state(shell.bar.state, studio_style.state_class(sess))
         shell.bar.section.label = studio_ui.section_label(app)
+        shell.bar.runall.set_visible(studio_ui.shows_run_all(app))
         shell.bar.standing.label = studio_ui.standing_line(app)
         shell.pane.prefix.label = studio_ui.prefix_body(app)
         shell.pane.target.label = studio_ui.target_body(app)
@@ -1144,6 +1145,13 @@ library studio_shell
         ' what you came here to press and two are what you press when it goes
         ' wrong, and they were indistinguishable.
         run_btn.add_css_class(studio_style.css_class("suggested-action"))
+        ' Run All is for a `.sql` document and is HIDDEN for anything else --
+        ' `refresh_run` sets that from `studio_ui.shows_run_all`. A gBASIC
+        ' document already replays everything above the caret when you press
+        ' Run Section, so the button would mean nearly the same thing there and
+        ' be one more control to tell apart. Built once and shown or hidden,
+        ' like the branch pane, rather than added and removed.
+        all_btn = gtk.button("Run All")
         halt_btn = gtk.button("Stop")
         force_btn = gtk.button("Force Stop")
         ' The state carried in the TEXT only — "run: running" and "run: failed" in
@@ -1187,6 +1195,7 @@ library studio_shell
         branch.ellipsize = gi.enum("Pango.EllipsizeMode.END")
         bar = studio_style.apply(bar, "panel")
         controls.append(run_btn)
+        controls.append(all_btn)
         controls.append(halt_btn)
         controls.append(force_btn)
         controls.append(section)
@@ -1199,8 +1208,8 @@ library studio_shell
         ' away, and a fifth label turned the strip into two ellipsized stubs.
         ' The widget stays so a caller can read the text without the pane.
         ' `stop` is a gBASIC keyword and cannot be a record key, hence `halt`.
-        return { box: bar, controls: controls, run: run_btn, halt: halt_btn,
-                 force: force_btn,
+        return { box: bar, controls: controls, run: run_btn, runall: all_btn,
+                 halt: halt_btn, force: force_btn,
                  state: state, section: section, standing: standing, branch: branch }
     end function
 
