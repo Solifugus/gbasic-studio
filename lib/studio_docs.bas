@@ -219,6 +219,17 @@ library studio_docs
     '   "opened_missing" — no such file; an empty, missing-flagged document created
     '   "is_directory" — the path is a directory; nothing opened (id "")
     function open(dm, project_id, path)
+        ' ONE spelling, from here on.
+        '
+        ' `find_open` already compared canonically, so a document's IDENTITY
+        ' was canonical while `doc.path` kept whatever the caller happened to
+        ' type. Everything downstream reads `doc.path`: `studio_ui.doc_key`
+        ' files section anchors under it, and `project_path_for` decides which
+        ' project a document belongs to by matching it as a PREFIX. So a path
+        ' arriving with a `..` in it -- `<project>/../loose.sql` -- was
+        ' attributed to the project it had just climbed out of, because the
+        ' string still began with the project's own path.
+        path = studio_docs._canonical(path)
         existing = studio_docs.find_open(dm, path)
         if existing != "" then
             dm = studio_docs.set_active(dm, existing)

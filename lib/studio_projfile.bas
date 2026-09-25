@@ -67,7 +67,8 @@ library studio_projfile
             name: "",
             ignore: [],
             interpreter: "",
-            gbasic_path: ""
+            gbasic_path: "",
+            databases: {}
         }
     end function
 
@@ -125,6 +126,15 @@ library studio_projfile
         out.interpreter = studio_projfile._string(raw, "interpreter")
         out.gbasic_path = studio_projfile._string(raw, "gbasic_path")
         out.ignore = studio_projfile._strings(raw, "ignore")
+        ' The connections this project knows, BY NAME. No passwords here: this
+        ' file is committed, and a credential that travels with the project is
+        ' a credential in everybody's clone. Those go in `studio_secrets`,
+        ' which is keyed by the same name.
+        if has(raw, "databases") then
+            if is_record(raw.databases) then
+                out.databases = raw.databases
+            end if
+        end if
         return out
     end function
 
@@ -265,6 +275,7 @@ library studio_projfile
         line = line + " name=" + spec.name
         line = line + " ignore=" + count(spec.ignore)
         line = line + " pinned=" + studio_projfile.pinned(spec)
+        line = line + " databases=" + count(keys(spec.databases))
         return line
     end function
 

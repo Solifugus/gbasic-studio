@@ -618,6 +618,141 @@ library studio_sql
         return true
     end function
 
+    ' ---- what the file says about itself ------------------------------------
+
+    ' The value of a `-- @key value` directive, or "".
+    '
+    ' A `.sql` file names the connection it is meant to run against:
+    '
+    '     -- @database app
+    '
+    ' IN THE FILE, not in a picker, because opening somebody else's .sql should
+    ' not silently point it at your database. A picker remembers what YOU chose
+    ' last; a line in the file travels with the file and is visible in the diff.
+    '
+    ' Only `--` line comments are read, and only the first match. A directive
+    ' inside a string or a block comment is not one: this goes through the same
+    ' scanner as everything else rather than matching text, so `'-- @database'`
+    ' in an insert is a value and not an instruction.
+    function directive(text, key)
+        want = "@" + key
+        n = byte_count(text)
+        i = 0
+        while i < n
+            skip = studio_sql._skip(text, i, n)
+            if skip > i then
+                two = false
+                if byte_at(text, i) = 45 then
+                    if i + 1 < n then
+                        if byte_at(text, i + 1) = 45 then
+                            two = true
+                        end if
+                    end if
+                end if
+                if two then
+                    w = studio_sql._words(byte_slice(text, i + 2, skip - (i + 2)), 2)
+                    ' `_words` drops the `@`, so the comment `-- @database app`
+                    ' reads as ["database", "app"]. Compare on the key itself.
+                    if count(w) >= 2 then
+                        if w[0] = key then
+                            return studio_sql._raw_after(text, i + 2, skip, key)
+                        end if
+                    end if
+                end if
+                i = skip
+                continue
+            end if
+            i = i + 1
+        end while
+        return ""
+    end function
+
+    ' The rest of a `-- @key ...` comment after the key, trimmed. Taken from the
+    ' RAW bytes rather than from `_words`, because a value can be a path with
+    ' characters no word rule would keep.
+    ' `lo`/`hi` and not `from`/`to`: TO is a reserved word in gBASIC (`print to
+    ' error`), and a parameter named one is a parse error in a library nothing
+    ' can then load.
+    function _raw_after(text, lo, hi, key)
+        body = byte_slice(text, lo, hi - lo)
+        at = find(body, "@" + key)
+        if at = nothing then
+            return ""
+        end if
+        rest = byte_slice(body, at + byte_count(key) + 1, byte_count(body))
+        return trim(rest)
+    end function
+
+    ' ---- the program a cell becomes -----------------------------------------
+
+    ' The gBASIC program that runs one statement.
+    '
+    ' A cell runs in a CHILD, like every other execution in Studio, and for the
+    ' same reasons: a thirty-second query would otherwise freeze the window with
+    ' no Stop button, and the child is where the poll loop, the timeout and
+    ' Force Stop already live. What differs from a gBASIC section is that there
+    ' is no PREFIX -- the database holds the state a replay would have rebuilt,
+    ' and re-running the inserts above your cursor would duplicate rows.
+    '
+    ' `quote` and never hand-written quotation marks. The statement is the
+    ' user's text going into a gBASIC string literal, so an apostrophe in it
+    ' would end the literal early and the rest would be read as code. Same rule
+    ' the viewer registry follows for field names, and the same reason.
+    '
+    ' `query` for a read and `exec` otherwise: `exec` reports rows_affected,
+    ' which is the only thing an `update` has to say. (A PostgreSQL
+    ' `insert ... returning` therefore reports a count rather than its rows;
+    ' that is a known gap, not a silent one.)
+    function program_for(conn, sql, tier, out_path)
+        drv = conn.driver
+        call = "query"
+        if tier != "read" then
+            call = "exec"
+        end if
+        lines = []
+        lines = append(lines, "load " + drv)
+        lines = append(lines, "program main(args)")
+        lines = append(lines, "  db = " + drv + ".connect(" + studio_sql._target(conn) + ")")
+        lines = append(lines, "  r = " + drv + "." + call + "(db, " + quote(sql) + ", [])")
+        lines = append(lines, "  out{file} = " + quote(out_path))
+        lines = append(lines, "  write(out, encode(r))")
+        lines = append(lines, "  " + drv + ".close(db)")
+        lines = append(lines, "end program")
+        return join(lines, "\n") + "\n"
+    end function
+
+    ' What `connect` is handed. One line per driver, and the only place the
+    ' three differ at all.
+    function _target(conn)
+        if conn.driver = "sqlite" then
+            return quote(conn.path)
+        end if
+        if conn.driver = "odbc" then
+            return quote(conn.dsn)
+        end if
+        ' pg takes a record. Built here rather than pasted together as a
+        ' connection string, so a password with a space or a quote in it is not
+        ' a parsing problem.
+        parts = []
+        for each k in ["host", "port", "database", "user", "password"]
+            if has(conn, k) then
+                v = conn[k]
+                if v != "" then
+                    if is_string(v) then
+                        parts = append(parts, k + ": " + quote(v))
+                    else
+                        ' A port is a NUMBER. Quoting it would hand `pg.connect`
+                        ' a string where it expects an integer, and the failure
+                        ' would be about types rather than about the project
+                        ' file that set it.
+                        parts = append(parts, k + ": " + string(v))
+                    end if
+                end if
+            end if
+        end for
+        return "{ " + join(parts, ", ") + " }"
+    end function
+
     ' ---- reporting ----------------------------------------------------------
 
     ' A deterministic one-line summary of a statement, for the goldens.

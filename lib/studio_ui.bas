@@ -43,6 +43,7 @@ library studio_ui
     load studio_results
     load studio_projects
     load studio_projfile
+    load studio_sql
     load studio_branches
     load studio_overlays
     load studio_viewers
@@ -1517,6 +1518,114 @@ library studio_ui
         return { app: app, action: "selected", detail: row.path }
     end function
 
+    ' ---- SQL: which database a cell runs against (STU-14) -------------------
+
+    ' Is this a document whose cells are SQL statements?
+    ' Suffix and case-insensitive, like `is_gbasic` and for the same two
+    ' reasons: `notes.sql.txt` is not SQL, and `SCHEMA.SQL` is.
+    function is_sql(path)
+        return ends_with(lower(path), ".sql")
+    end function
+
+    ' Resolve the connection a `.sql` document names.
+    '
+    ' Returns { ok, name, conn, why } where `why` is a refusal reason, all of
+    ' them NAMED so the status line can say which of the four things is wrong
+    ' rather than "cannot run":
+    '   "file-no-project" the document is under no project, so there is no
+    '                    `.gstudio.json` to read connections from. NOT the
+    '                    `no-project` the project-file action answers with:
+    '                    that one means nothing is open, and "open a project
+    '                    first" about a window with three of them open is a
+    '                    sentence that sends the user nowhere
+    '   "no-databases"   the project declares none
+    '   "no-database"    the file names none and the project has no single
+    '                    obvious answer
+    '   "unknown-database" the file names one the project does not declare
+    '   "bad-database"   the entry is there but unusable (no driver, or a
+    '                    driver Studio does not have)
+    function sql_connection(app, doc)
+        if doc = nothing then
+            return studio_ui._noconn("file-no-project", "")
+        end if
+        proj_path = studio_ui.project_path_for(app, doc)
+        if proj_path = "" then
+            return studio_ui._noconn("file-no-project", "")
+        end if
+        spec = studio_projfile.read_spec(proj_path)
+        names = keys(spec.databases)
+        if count(names) = 0 then
+            return studio_ui._noconn("no-databases", "")
+        end if
+        want = studio_sql.directive(doc.content, "database")
+        if want = "" then
+            ' No `-- @database` line. One declared connection is an obvious
+            ' answer; two is a question, and guessing at it is how a statement
+            ' lands on the wrong database.
+            if count(names) = 1 then
+                want = names[0]
+            else
+                return studio_ui._noconn("no-database", "")
+            end if
+        end if
+        if not has(spec.databases, want) then
+            return studio_ui._noconn("unknown-database", want)
+        end if
+        raw = spec.databases[want]
+        if not is_record(raw) then
+            return studio_ui._noconn("bad-database", want)
+        end if
+        if not has(raw, "driver") then
+            return studio_ui._noconn("bad-database", want)
+        end if
+        if not studio_ui._known_driver(raw.driver) then
+            return studio_ui._noconn("bad-database", want)
+        end if
+        conn = raw
+        ' A SQLite path is relative to the PROJECT, not to wherever Studio was
+        ' launched from -- `data/app.db` in a committed file has to mean the
+        ' same thing in everybody's clone.
+        if conn.driver = "sqlite" then
+            if has(conn, "path") then
+                conn.path = studio_ui._project_relative(proj_path, conn.path)
+            else
+                return studio_ui._noconn("bad-database", want)
+            end if
+        end if
+        return { ok: true, name: want, conn: conn, why: "" }
+    end function
+
+    function _noconn(why, name)
+        return { ok: false, name: name, conn: nothing, why: why }
+    end function
+
+    ' The three gBASIC has a module for. A name outside this list is refused
+    ' rather than generated against: the program would `load` something that is
+    ' not there and the error would be about gBASIC rather than about the
+    ' project file that named it.
+    function _known_driver(d)
+        if d = "sqlite" then
+            return true
+        end if
+        if d = "pg" then
+            return true
+        end if
+        return d = "odbc"
+    end function
+
+    function _project_relative(proj_path, p)
+        if p = "" then
+            return ""
+        end if
+        if left(p, 1) = "/" then
+            return p
+        end if
+        if left(p, 1) = "~" then
+            return studio_ui.expand_path(p, studio_ui.home_dir(), studio_ui.launch_dir())
+        end if
+        return studio_docs._canonical(proj_path + "/" + p)
+    end function
+
     ' ---- the browser's context menu (STU-13) --------------------------------
     '
     ' What a right-click OFFERS is decided here, over the row model, so the menu
@@ -1765,6 +1874,24 @@ library studio_ui
         end if
         if action = "project-no-folder" then
             return "that project has no folder on disk"
+        end if
+        ' ---- a .sql cell's connection. Four ways it can be unanswerable, and
+        ' each says which one, because "cannot run" sends a user looking in the
+        ' wrong file.
+        if action = "file-no-project" then
+            return "this file is not in any open project, so it has no databases"
+        end if
+        if action = "no-databases" then
+            return "this project declares no databases — add one to .gstudio.json"
+        end if
+        if action = "no-database" then
+            return "which database? add a `-- @database <name>` line at the top"
+        end if
+        if action = "unknown-database" then
+            return "this project declares no database called " + detail
+        end if
+        if action = "bad-database" then
+            return detail + " needs a driver of sqlite, pg or odbc"
         end if
         ' "<project> <path>" — both, because the question being answered is
         ' "why will this project not close", and naming only the file leaves

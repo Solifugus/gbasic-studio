@@ -79,6 +79,37 @@ program main(args)
          "select 1;\n-- a trailing note\n")
   end if
 
+  ' The two things a .sql file says about itself, and the program a cell
+  ' becomes. Both pure -- nothing here connects to anything.
+  if mode = "gen" then
+    print "== the connection a file names =="
+    f = "-- a note\n-- @database app\n\nselect 1;\n"
+    print "  named:        [" + studio_sql.directive(f, "database") + "]"
+    print "  absent key:   [" + studio_sql.directive(f, "nope") + "]"
+    print "  no directive: [" + studio_sql.directive("select 1;\n", "database") + "]"
+    ' It goes through the SCANNER, so a directive is only a directive where a
+    ' comment is a comment. Otherwise a row of data could redirect the file.
+    print "  inside a string:       [" + studio_sql.directive("insert into t values ('-- @database evil');\n", "database") + "]"
+    print "  inside a block comment:[" + studio_sql.directive("/* -- @database evil */\nselect 1;\n", "database") + "]"
+    print "  a path as the value:   [" + studio_sql.directive("-- @database ../shared/app\n", "database") + "]"
+
+    print "== the program one cell becomes =="
+    sq = { driver: "sqlite", path: "/tmp/app.db" }
+    print "-- a read goes through query --"
+    print studio_sql.program_for(sq, "select * from t", "read", "/tmp/out")
+    print "-- a write goes through exec, which reports rows_affected --"
+    print studio_sql.program_for(sq, "delete from t", "destructive", "/tmp/out")
+    ' The statement is the USER'S text going into a gBASIC string literal. An
+    ' apostrophe in it would end that literal early and the rest would be read
+    ' as code, so it goes in through `quote` and never hand-written marks.
+    print "-- an apostrophe in the statement does not end the literal --"
+    print studio_sql.program_for(sq, "select * from t where name = 'O''Brien'", "read", "/tmp/out")
+
+    print "== and for the other two drivers =="
+    print studio_sql.program_for({ driver: "pg", host: "db.example", port: 5432, database: "acme", user: "matthew", password: "a b'c" }, "select 1", "read", "/tmp/out")
+    print studio_sql.program_for({ driver: "odbc", dsn: "ERP" }, "select 1", "read", "/tmp/out")
+  end if
+
   if mode = "verbs" then
     ' The verb decides how far a statement can be taken back, and the name is
     ' what lets a result stay attached to `create table customers` after the

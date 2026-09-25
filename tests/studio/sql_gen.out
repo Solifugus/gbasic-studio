@@ -1,0 +1,57 @@
+== the connection a file names ==
+  named:        [app]
+  absent key:   []
+  no directive: []
+  inside a string:       []
+  inside a block comment:[]
+  a path as the value:   [../shared/app]
+== the program one cell becomes ==
+-- a read goes through query --
+load sqlite
+program main(args)
+  db = sqlite.connect("/tmp/app.db")
+  r = sqlite.query(db, "select * from t", [])
+  out{file} = "/tmp/out"
+  write(out, encode(r))
+  sqlite.close(db)
+end program
+
+-- a write goes through exec, which reports rows_affected --
+load sqlite
+program main(args)
+  db = sqlite.connect("/tmp/app.db")
+  r = sqlite.exec(db, "delete from t", [])
+  out{file} = "/tmp/out"
+  write(out, encode(r))
+  sqlite.close(db)
+end program
+
+-- an apostrophe in the statement does not end the literal --
+load sqlite
+program main(args)
+  db = sqlite.connect("/tmp/app.db")
+  r = sqlite.query(db, "select * from t where name = 'O''Brien'", [])
+  out{file} = "/tmp/out"
+  write(out, encode(r))
+  sqlite.close(db)
+end program
+
+== and for the other two drivers ==
+load pg
+program main(args)
+  db = pg.connect({ host: "db.example", port: 5432, database: "acme", user: "matthew", password: "a b'c" })
+  r = pg.query(db, "select 1", [])
+  out{file} = "/tmp/out"
+  write(out, encode(r))
+  pg.close(db)
+end program
+
+load odbc
+program main(args)
+  db = odbc.connect("ERP")
+  r = odbc.query(db, "select 1", [])
+  out{file} = "/tmp/out"
+  write(out, encode(r))
+  odbc.close(db)
+end program
+

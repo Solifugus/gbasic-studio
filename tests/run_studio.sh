@@ -882,7 +882,7 @@ run_ui() { # mode
 # type sits on -- split wrongly and every cell boundary, result and stable id is
 # filed against the wrong text -- and it needs no fixture at all.
 SQLD=tests/drivers/sql.bas
-for m in scan edges verbs; do
+for m in scan edges verbs gen; do
     : >"$stdout_file"
     if ! timeout 60 "$GBASIC" "$SQLD" "$m" >"$stdout_file" 2>&1; then
         cat "$stdout_file"; fail "sql_$m (nonzero exit)"
@@ -894,7 +894,7 @@ for m in scan edges verbs; do
     fi
 done
 
-for m in rows open expand project bounds tabs edit save newproj refresh \
+for m in sqlconn rows open expand project bounds tabs edit save newproj refresh \
          newfile newfolder adopt exit \
          names rename delete closetab notice \
          run runstop runerr runrefuse badsyntax filetypes projfile projpin newproj2 panes context projtabs anchors cursor drafts branch table overlay overlay_conflict; do

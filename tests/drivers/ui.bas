@@ -172,6 +172,26 @@ function tabnames(app)
   return join(out, ",")
 end function
 
+' The connection a .sql document resolves to, path-free: what matters is which
+' name won and whether the path landed under the project, not where the test
+' directory happens to be.
+function conn(app)
+  doc = studio_docs.active_doc(app.dm)
+  r = studio_ui.sql_connection(app, doc)
+  line = "  " + leafof(doc.path) + ": ok=" + r.ok
+  if r.ok then
+    line = line + " name=" + r.name + " driver=" + r.conn.driver
+    line = line + " path=" + leafof(r.conn.path) + " under-project=" + (find(r.conn.path, "_proj/data/") != nothing)
+  else
+    line = line + " refused=" + r.why
+    if r.name != "" then
+      line = line + " (" + r.name + ")"
+    end if
+    line = line + "  status=" + studio_ui.action_notice(r.why, r.name)
+  end if
+  print line
+end function
+
 program main(args)
   load persist
   load filetree
@@ -1712,6 +1732,67 @@ program main(args)
     o = studio.open_from_browser(app, "", loose)
     app = o.app
     print "tabs shown: " + tabnames(app)
+  end if
+
+  ' ---- sqlconn: which database a .sql cell runs against ---------------------
+  '
+  ' The file NAMES its connection and the project says what that name means.
+  ' In the file rather than in a picker, because opening somebody else's .sql
+  ' must not silently point it at your database -- a picker remembers what YOU
+  ' chose last; a line in the file travels with it and shows up in the diff.
+  '
+  ' Every refusal is named, so the status line can say which of the four things
+  ' is wrong instead of "cannot run".
+  if mode = "sqlconn" then
+    pf{file} = projdir + "/.gstudio.json"
+    sf{file} = projdir + "/notes.sql"
+
+    banner("a project that declares nothing")
+    write(pf, "{\"schema_version\":1,\"id\":\"gsp-1-1\",\"name\":\"Alpha\"}")
+    write(sf, "select 1;\n")
+    o = studio.open_from_browser(app, "proj-1", projdir + "/notes.sql")
+    app = o.app
+    conn(app)
+
+    banner("one connection, and a file that names none")
+    write(pf, "{\"schema_version\":1,\"id\":\"gsp-1-1\",\"databases\":{\"app\":{\"driver\":\"sqlite\",\"path\":\"data/app.db\"}}}")
+    conn(app)
+
+    banner("two connections, and a file that names none — a question, not a guess")
+    write(pf, "{\"schema_version\":1,\"id\":\"gsp-1-1\",\"databases\":{\"app\":{\"driver\":\"sqlite\",\"path\":\"data/app.db\"},\"reporting\":{\"driver\":\"sqlite\",\"path\":\"data/rep.db\"}}}")
+    conn(app)
+
+    banner("and the same two with the file naming one")
+    id = studio_docs.active_doc(app.dm).id
+    app = studio.edit_document(app, id, "-- @database reporting\n\nselect 1;\n")
+    conn(app)
+
+    banner("naming one the project does not declare")
+    app = studio.edit_document(app, id, "-- @database nosuch\n\nselect 1;\n")
+    conn(app)
+
+    banner("a driver Studio has no module for")
+    write(pf, "{\"schema_version\":1,\"id\":\"gsp-1-1\",\"databases\":{\"app\":{\"driver\":\"oracle\",\"path\":\"x\"}}}")
+    app = studio.edit_document(app, id, "select 1;\n")
+    conn(app)
+
+    banner("and an entry with no driver at all")
+    write(pf, "{\"schema_version\":1,\"id\":\"gsp-1-1\",\"databases\":{\"app\":{\"path\":\"x\"}}}")
+    conn(app)
+
+    banner("a .sql file under NO project")
+    write(pf, "{\"schema_version\":1,\"id\":\"gsp-1-1\",\"databases\":{\"app\":{\"driver\":\"sqlite\",\"path\":\"data/app.db\"}}}")
+    loose = projdir + "/../ui_sqlconn_loose.sql"
+    lf{file} = loose
+    write(lf, "select 1;\n")
+    o = studio.open_from_browser(app, "", loose)
+    app = o.app
+    conn(app)
+
+    banner("what counts as a .sql document")
+    for each p in ["notes.sql", "NOTES.SQL", "notes.sql.txt", "notes.bas", "sql"]
+      print "  " + p + " -> " + studio_ui.is_sql(p)
+    end for
   end if
 
   ' ---- filetypes: a project is not only its .bas files ---------------------

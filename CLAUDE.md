@@ -49,7 +49,7 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 181 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 183 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 29 cases, headless AND offline (scripted transport)
 ```
 
@@ -553,6 +553,48 @@ Two consequences worth knowing before you touch the shell:
   destructive: those are the ones that read as ordinary and empty a table.
   `with` is reported as a write rather than guessed at — over-stating what a
   statement does costs a reader a moment, under-stating it costs them a table.
+- **`studio_docs.open` CANONICALISES the path it stores.** `find_open` always
+  compared canonically, so a document's identity was canonical while
+  `doc.path` kept whatever the caller typed — and everything downstream reads
+  `doc.path`: `studio_ui.doc_key` files section anchors under it, and
+  `project_path_for` decides which project a document belongs to by matching it
+  as a PREFIX. A path arriving with a `..` in it (`<project>/../loose.sql`) was
+  therefore attributed to the project it had just climbed out of, because the
+  string still began with that project's path. Found by a `.sql` file outside
+  every project resolving to a project's database.
+- **A `.sql` file NAMES its connection, in the file**: `-- @database app`, read
+  through the same scanner, so a directive inside a string or a block comment
+  is not one. In the file and not in a picker because opening somebody else's
+  `.sql` must not silently point it at your database — a picker remembers what
+  YOU chose last; a line in the file travels with it and shows in the diff.
+  With no directive, ONE declared connection is an obvious answer and two is a
+  question (`no-database`), because guessing is how a statement lands on the
+  wrong database.
+- `.gstudio.json` gains `databases`, by NAME. No passwords: that file is
+  committed, and a credential that travels with the project is a credential in
+  everybody's clone. Those go in `studio_secrets`, keyed by the same name.
+- A SQLite `path` is resolved against the PROJECT, not the launch directory —
+  `data/app.db` in a committed file has to mean the same thing in every clone.
+- **Every refusal is named**: `file-no-project`, `no-databases`, `no-database`,
+  `unknown-database`, `bad-database`. `file-no-project` is deliberately NOT the
+  `no-project` the project-file action uses — that one means nothing is open,
+  and "open a project first" about a window with three projects open sends the
+  user nowhere.
+- The generated program puts the statement in through `quote` and never
+  hand-written quotation marks: it is the user's text going into a gBASIC
+  string literal, and an apostrophe would end that literal early and leave the
+  rest to be read as code. Same rule the viewer registry follows for field
+  names.
+- `query` for a read and `exec` otherwise, because `exec` reports
+  `rows_affected` and that is the only thing an `update` has to say. A
+  PostgreSQL `insert ... returning` therefore reports a count rather than its
+  rows — a known gap, not a silent one.
+- A pg `port` is emitted as a NUMBER. Quoting it hands `pg.connect` a string
+  where it wants an integer, and the failure would be about types rather than
+  about the project file that set it.
+- **`to` is a reserved word** (`print to error`), so a parameter named one is a
+  parse error in a library nothing can then load. `from` is fine; `lo`/`hi` is
+  what `_raw_after` uses.
 - **`ctx_open_on` in `ui_gui_ctx` goes by INDEX, not by scanning for a y.** The
   scan is the faithful path and is used once, where it is the thing being
   tested; everywhere else it is a race and it lost one — a phase that redraws

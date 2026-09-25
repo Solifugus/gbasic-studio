@@ -452,7 +452,7 @@ workspace instead:
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 181 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 183 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 29 cases, headless AND offline — no network, no key
 ```
 

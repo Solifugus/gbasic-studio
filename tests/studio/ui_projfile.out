@@ -1,5 +1,5 @@
 == nothing there, and nothing put it there ==
-spec: status=absent present=false id=(none) name= ignore=0 pinned=false
+spec: status=absent present=false id=(none) name= ignore=0 pinned=false databases=0
 browser sees it=false
 == open a file and give it sections, filed under the PATH key ==
 sections   : sec-3,sec-1,sec-2
@@ -7,7 +7,7 @@ state docs=1
 == Project File ==
 -> Project File: project-file .gstudio.json
    wrote .gstudio.json
-spec: status=ok present=true id=gsp-#-# name=Alpha ignore=0 pinned=false
+spec: status=ok present=true id=gsp-#-# name=Alpha ignore=0 pinned=false databases=0
 == the one dotfile the browser shows ==
 browser sees it=true
 browser sees .hidden=false
@@ -24,6 +24,6 @@ docs hidden=true
 README.md hidden=true
 main.bas still shown=true
 == a file that is not JSON at all ==
-spec: status=unreadable present=true id=(none) name= ignore=0 pinned=false
+spec: status=unreadable present=true id=(none) name= ignore=0 pinned=false databases=0
 browser recovers, rows=true
 -> Project File over the broken one: exists .gstudio.json

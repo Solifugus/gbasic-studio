@@ -1,0 +1,22 @@
+== a project that declares nothing ==
+  notes.sql: ok=false refused=no-databases  status=this project declares no databases — add one to .gstudio.json
+== one connection, and a file that names none ==
+  notes.sql: ok=true name=app driver=sqlite path=app.db under-project=true
+== two connections, and a file that names none — a question, not a guess ==
+  notes.sql: ok=false refused=no-database  status=which database? add a `-- @database <name>` line at the top
+== and the same two with the file naming one ==
+  notes.sql: ok=true name=reporting driver=sqlite path=rep.db under-project=true
+== naming one the project does not declare ==
+  notes.sql: ok=false refused=unknown-database (nosuch)  status=this project declares no database called nosuch
+== a driver Studio has no module for ==
+  notes.sql: ok=false refused=bad-database (app)  status=app needs a driver of sqlite, pg or odbc
+== and an entry with no driver at all ==
+  notes.sql: ok=false refused=bad-database (app)  status=app needs a driver of sqlite, pg or odbc
+== a .sql file under NO project ==
+  ui_sqlconn_loose.sql: ok=false refused=file-no-project  status=this file is not in any open project, so it has no databases
+== what counts as a .sql document ==
+  notes.sql -> true
+  NOTES.SQL -> true
+  notes.sql.txt -> false
+  notes.bas -> false
+  sql -> false
