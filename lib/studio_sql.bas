@@ -755,28 +755,61 @@ library studio_sql
     '           reports is the LAST query's rows and the LAST exec's count --
     '           a file of forty statements would otherwise hand the inspector
     '           forty variables, thirty-nine of which nobody asked about.
-    function file_program(conn, cells, hidden)
+    function file_program(conn, cells, hidden, prelude)
         drv = conn.driver
         db = hidden + "_db"
         lines = []
         lines = append(lines, "load " + drv)
+        ' Between the `load` and the `program` line, because a function defined
+        ' inside a program block AFTER the call to it is not hoisted -- and
+        ' every statement below calls the reporter. studio_session writes that
+        ' code; this only decides where it goes.
+        if prelude != "" then
+            for each pl in split(prelude, "\n")
+                if pl != "" then
+                    lines = append(lines, pl)
+                end if
+            end for
+        end if
         lines = append(lines, "program main(args)")
         lines = append(lines, "  " + db + " = " + drv + ".connect(" + studio_sql._target(conn) + ")")
         marks = []
         names = []
+        i = 0
         for each c in cells
-            call = "query"
-            name = "rows"
-            if c.tier != "read" then
-                call = "exec"
-                name = "result"
+            name = studio_sql.result_name(c.tier)
+            call = "exec"
+            if c.tier = "read" then
+                call = "query"
             end if
             marks = append(marks, { child: count(lines) + 1, line: c.line, column: c.column })
             names = append(names, name)
             lines = append(lines, "  " + name + " = " + drv + "." + call + "(" + db + ", " + quote(c.sql) + ", [])")
+            ' Each cell reports itself, here, rather than the run reporting
+            ' everything at the end: a statement that fails takes the program
+            ' down, and a capture held to the end would lose every cell that
+            ' had already succeeded.
+            lines = append(lines, "  " + hidden + "_cell(" + i + ", " + quote(name) + ", " + name + ")")
+            i = i + 1
         end for
         lines = append(lines, "  " + drv + ".close(" + db + ")")
         return { text: join(lines, "\n") + "\n", marks: marks, names: names }
+    end function
+
+    ' What a statement's result is bound to. Two names and not one: `rows` for
+    ' a query and `result` for an exec, because a DELETE returns no rows and a
+    ' variables pane calling its `{command, rows_affected}` record "rows" would
+    ' be saying it did.
+    '
+    ' Reused across a run rather than numbered. Each cell REPORTS itself as it
+    ' goes, so nothing is lost by the next statement rebinding the name -- and
+    ' forty numbered variables would all still be live in the scope at the end
+    ' for no one's benefit.
+    function result_name(tier)
+        if tier = "read" then
+            return "rows"
+        end if
+        return "result"
     end function
 
     ' What `connect` is handed. One line per driver, and the only place the

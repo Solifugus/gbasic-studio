@@ -11,6 +11,7 @@ load sqlite
 program main(args)
   __gbstudio_db = sqlite.connect("/tmp/app.db")
   rows = sqlite.query(__gbstudio_db, "select * from t", [])
+  __gbstudio_cell(0, "rows", rows)
   sqlite.close(__gbstudio_db)
   (result bound to `rows`)
 -- a write goes through exec, which reports rows_affected --
@@ -18,6 +19,7 @@ load sqlite
 program main(args)
   __gbstudio_db = sqlite.connect("/tmp/app.db")
   result = sqlite.exec(__gbstudio_db, "delete from t", [])
+  __gbstudio_cell(0, "result", result)
   sqlite.close(__gbstudio_db)
   (result bound to `result`)
 -- an apostrophe in the statement does not end the literal --
@@ -25,6 +27,7 @@ load sqlite
 program main(args)
   __gbstudio_db = sqlite.connect("/tmp/app.db")
   rows = sqlite.query(__gbstudio_db, "select * from t where name = 'O''Brien'", [])
+  __gbstudio_cell(0, "rows", rows)
   sqlite.close(__gbstudio_db)
   (result bound to `rows`)
 == and for the other two drivers ==
@@ -32,12 +35,14 @@ load pg
 program main(args)
   __gbstudio_db = pg.connect({ host: "db.example", port: 5432, database: "acme", user: "matthew", password: "a b'c" })
   rows = pg.query(__gbstudio_db, "select 1", [])
+  __gbstudio_cell(0, "rows", rows)
   pg.close(__gbstudio_db)
   (result bound to `rows`)
 load odbc
 program main(args)
   __gbstudio_db = odbc.connect("ERP")
   rows = odbc.query(__gbstudio_db, "select 1", [])
+  __gbstudio_cell(0, "rows", rows)
   odbc.close(__gbstudio_db)
   (result bound to `rows`)
 == a whole file is the same program with more statements ==
@@ -45,28 +50,37 @@ load sqlite
 program main(args)
   __gbstudio_db = sqlite.connect("/tmp/app.db")
   result = sqlite.exec(__gbstudio_db, "begin", [])
+  __gbstudio_cell(0, "result", result)
   result = sqlite.exec(__gbstudio_db, "delete from t", [])
+  __gbstudio_cell(1, "result", result)
   result = sqlite.exec(__gbstudio_db, "insert into t values (1, 'a')", [])
+  __gbstudio_cell(2, "result", result)
   rows = sqlite.query(__gbstudio_db, "select * from t", [])
+  __gbstudio_cell(3, "rows", rows)
   result = sqlite.exec(__gbstudio_db, "commit", [])
+  __gbstudio_cell(4, "result", result)
   sqlite.close(__gbstudio_db)
 
   names: result, result, result, rows, result
 == and where each cell's own line went ==
     child 4 -> document 1:1
-    child 5 -> document 3:1
-    child 6 -> document 5:1
-    child 7 -> document 7:1
-    child 8 -> document 9:1
+    child 6 -> document 3:1
+    child 8 -> document 5:1
+    child 10 -> document 7:1
+    child 12 -> document 9:1
   the map that produces:
     generated child 1..3 delta=0 column=0
     document child 4..4 delta=-3 column=1
-    document child 5..5 delta=-2 column=1
-    document child 6..6 delta=-1 column=1
-    document child 7..7 delta=0 column=1
-    document child 8..8 delta=1 column=1
-    generated child 9..100000000 delta=0 column=0
+    generated child 5..5 delta=0 column=0
+    document child 6..6 delta=-3 column=1
+    generated child 7..7 delta=0 column=0
+    document child 8..8 delta=-3 column=1
+    generated child 9..9 delta=0 column=0
+    document child 10..10 delta=-3 column=1
+    generated child 11..11 delta=0 column=0
+    document child 12..12 delta=-3 column=1
+    generated child 13..100000000 delta=0 column=0
   child 4:11 -> document 1:1
-  child 7:11 -> document 7:1
+  child 7:11 -> generated 0:0
   child 3:1  -> generated 0:0
   child 99:1 -> generated 0:0

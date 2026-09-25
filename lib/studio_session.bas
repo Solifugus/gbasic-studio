@@ -151,9 +151,17 @@ library studio_session
             ' unless a caller has a branch selected.
             binds: [],
             ' STU-14: this run covers MORE THAN ONE cell, so where it ended is
-            ' not necessarily where it was aimed. Only `run_program` sets it,
-            ' and only for a whole-file run; see `_refile`.
+            ' not necessarily where it was aimed. Only `run_program` sets it;
+            ' see `_ended_at`.
             multi: false,
+            ' STU-14: the cells this run covers, in order, by SECTION ID --
+            ' empty for a materialized gBASIC run, which has one target and a
+            ' prefix rather than a list. `cells` is what came BACK: one entry
+            ' per statement that completed, in the order they did. Comparing
+            ' the two is how Studio knows where the run stopped, exactly,
+            ' without reading a diagnostic.
+            cell_ids: [],
+            cells: [],
             ' STU-8: the recognition table the variable epilogue is compiled
             ' against, supplied by the caller as plain data. Empty means no
             ' registered viewer exists, which is every run until a library ships
@@ -480,6 +488,15 @@ library studio_session
     ' a million-element array to keep fifty of them would be exactly the
     ' auto-materialization `reflect.inspect` is shallow to avoid.
     function _vars_epilogue_opt(marker, with_preview, rules)
+        return studio_session._vars_helpers(with_preview, rules) + studio_session._vars_walk(marker, with_preview, rules)
+    end function
+
+    ' The FUNCTIONS the capture is written in terms of, split out from the walk
+    ' that calls them. Two callers now: the gBASIC path, which defines them and
+    ' walks the scope once at the end; and the SQL path, which defines them and
+    ' calls them after every cell. The definitions are identical and there is
+    ' one copy of them.
+    function _vars_helpers(with_preview, rules)
         p = studio_session.vars_prefix()
         cell = studio_session.preview_cell()
         rows = studio_session.preview_rows()
@@ -556,6 +573,19 @@ library studio_session
                 lines = append(lines, studio_session._detail_fn(rules))
             end if
         end if
+        if count(lines) = 0 then
+            return ""
+        end if
+        return join(lines, "\n") + "\n"
+    end function
+
+    ' The walk: everything in scope, once, at the end of the run. This is the
+    ' gBASIC answer to "what did that section leave behind" and it is a
+    ' question only a gBASIC section has -- a SQL cell left exactly one thing
+    ' behind and knows which, so it reports that instead (`_cell_fn`).
+    function _vars_walk(marker, with_preview, rules)
+        p = studio_session.vars_prefix()
+        lines = []
         lines = append(lines, "print \"" + marker + "\"")
         lines = append(lines, p + "_o = []")
         lines = append(lines, "for each " + p + "_n in reflect.variables()")
@@ -574,6 +604,63 @@ library studio_session
         lines = append(lines, "end for")
         lines = append(lines, "print json_encode(" + p + "_o)")
         return join(lines, "\n") + "\n"
+    end function
+
+    ' The code a SQL cell reports itself with, called once per statement.
+    '
+    ' PRINTED AS THE RUN GOES, not accumulated and printed at the end. gBASIC
+    ' cannot catch a raise and a database error is one, so a statement that
+    ' fails takes the whole program down -- and a capture held to the end would
+    ' lose every cell that had already succeeded, which is exactly the half a
+    ' failed rebuild most needs to show.
+    '
+    ' It reports ONE variable, by name, rather than walking the scope. A cell
+    ' left exactly one thing behind and Studio wrote the line that bound it, so
+    ' there is nothing to discover -- and the walk would report `args` and every
+    ' earlier cell's leftovers alongside it, once per statement.
+    function _cell_fn(marker, rules)
+        p = studio_session.vars_prefix()
+        lines = []
+        lines = append(lines, "function " + p + "_cell(" + p + "_i, " + p + "_nm, " + p + "_v)")
+        lines = append(lines, "  " + p + "_d = reflect.inspect(" + p + "_v)")
+        entry = "{ name: " + p + "_nm, kind: " + p + "_d.kind, type: " + p + "_d.type, category: " + p + "_d.category, serializable: " + p + "_d.serializable, count: " + p + "_d.count, preview: " + p + "_prev(" + p + "_v)"
+        if count(rules) > 0 then
+            entry = entry + ", detail: " + p + "_dtl(" + p + "_v)"
+        end if
+        entry = entry + " }"
+        lines = append(lines, "  print \"" + marker + "\"")
+        ' The same shape the scope walk prints -- an ARRAY of descriptors --
+        ' so what is stored is the RAW line the child wrote, byte for byte,
+        ' and `studio_results` needs no second reader. A wrapper carrying the
+        ' cell index was the first version; the index is the capture\'s
+        ' POSITION in the stream, which the statements printed in order, so
+        ' the wrapper only added a shape to translate out of.
+        lines = append(lines, "  print json_encode([" + entry + "])")
+        lines = append(lines, "end function")
+        return join(lines, "\n") + "\n"
+    end function
+
+    ' Everything a generated SQL program needs defined before its statements:
+    ' the shared preview helpers and the per-cell reporter.
+    '
+    ' It goes at the TOP of the file, between the `load` and the `program`
+    ' line, because a function defined INSIDE a program block after the call
+    ' is not hoisted -- measured, `invalid function call: emit`. The gBASIC
+    ' epilogue never met this because it is appended after the code that uses
+    ' it and is called from further down still.
+    '
+    ' Always with previews: a preview is how a query's rows reach the grid, and
+    ' a SQL run with none would capture a row count and nothing to look at.
+    function cell_epilogue(marker, rules)
+        return studio_session._vars_helpers(true, rules) + studio_session._cell_fn(marker, rules)
+    end function
+
+    ' The marker, mintable by a CALLER -- the SQL path needs it before the
+    ' program is generated, because the program contains it. `run_program`
+    ' mints one only when the session has none, so the gBASIC path is
+    ' unchanged and nothing has two markers.
+    function vars_marker_for(session)
+        return studio_session._vars_marker(session)
     end function
 
     ' STU-8: the code that writes ONE named variable's rows out to a file.
@@ -1035,9 +1122,11 @@ library studio_session
         session.map = nothing
         session.hoisted = []
         session.appended = ""
-        ' `run` never sets this; `run_program` sets it right after. Cleared
-        ' here so a session cannot inherit a previous run's answer.
+        ' `run` never sets these; `run_program` sets them right after. Cleared
+        ' here so a session cannot inherit a previous run's answers.
         session.multi = false
+        session.cell_ids = []
+        session.cells = []
         session.stderr_raw = ""
         session.diagnostics = []
         session.attribution = []
@@ -1224,7 +1313,7 @@ library studio_session
     '   body        the program, still open: `load`, `program main(args)`, the
     '               statements. No `end program`; this adds it.
     '   marks       where the user's own lines are in it (see `text_map`)
-    function run_program(session, sections, section_id, body, marks)
+    function run_program(session, sections, cell_ids, body, marks)
         if studio_session.is_active(session) then
             session.reason = "already-running"
             session.message = "a run is already in progress for this document"
@@ -1235,20 +1324,30 @@ library studio_session
         session.started_epoch = now
         session.finished_epoch = now
 
-        ' The same gate, for the same reason. Two identical statements in one
-        ' file come back `ambiguous` from the id matcher, and running "the one
-        ' that is probably meant" would file a result against a cell the user
-        ' did not point at.
-        gate = studio_session.can_run(sections, section_id)
-        if not gate.ok then
-            session = studio_session._to(session, "refused")
-            session.section_id = section_id
-            session.reason = gate.reason
-            session.message = gate.message
-            return session
-        end if
+        ' The same gate, for the same reason, and for EVERY cell rather than
+        ' only the one the result lands on. Two identical statements in one
+        ' file come back `ambiguous` from the id matcher, and a run that
+        ' executed one of them anyway would file its result against a cell the
+        ' user did not point at -- which is as true of the third statement of a
+        ' Run All as it is of the one under the caret.
+        last = cell_ids[count(cell_ids) - 1]
+        for each cid in cell_ids
+            gate = studio_session.can_run(sections, cid)
+            if not gate.ok then
+                session = studio_session._to(session, "refused")
+                session.section_id = cid
+                session.reason = gate.reason
+                session.message = gate.message
+                return session
+            end if
+        end for
 
-        session = studio_session._reset(session, section_id)
+        ' Launched against the LAST cell, which is where a run that gets all
+        ' the way through ends. `finalize` moves it to the cell the run
+        ' actually stopped at, which for a whole-file run is a different fact.
+        session = studio_session._reset(session, last)
+        session.cell_ids = cell_ids
+        session.cells = []
 
         ' A cell runs alone, so both streams are unambiguously its own. This is
         ' the `exact` that section 1 of a gBASIC document gets, for the same
@@ -1256,9 +1355,14 @@ library studio_session
         session.split_out = "exact"
         session.split_err = "exact"
         session.section_index = 0
-        session.multi = count(marks) > 1
+        session.multi = count(cell_ids) > 1
 
-        session.vars_marker = studio_session._vars_marker(session)
+        ' Only when the caller has not already minted one. The SQL path needs
+        ' the marker BEFORE the program is generated, because the program
+        ' contains it; the gBASIC path has no such need and is unchanged.
+        if session.vars_marker = "" then
+            session.vars_marker = studio_session._vars_marker(session)
+        end if
         session.vars_raw = ""
         session.vars = []
         session.vars_status = "none"
@@ -1269,9 +1373,11 @@ library studio_session
 
         session = studio_session._to(session, "materializing")
 
-        text = body
-        text = text + studio_session._vars_epilogue_opt(session.vars_marker, true, session.detail_rules)
-        text = text + "end program\n"
+        ' The capture code is already IN the body, at the top, where the
+        ' statements below can call it -- a function defined inside a program
+        ' block after its call is not hoisted. So all that is appended here is
+        ' the closing line.
+        text = body + "end program\n"
         session.appended = studio_session._tag("vars", "end-program")
         session.map = studio_session.text_map(marks)
         session.prefix_bytes = byte_count(text)
@@ -1410,6 +1516,73 @@ library studio_session
         return session
     end function
 
+    ' Take the PER-CELL captures off stdout.
+    '
+    ' One occurrence of the marker per statement that completed, each followed
+    ' by one JSON line. Everything else on the stream is the program's own
+    ' output and goes back on it -- which for SQL is nothing at all today, and
+    ' is still handled rather than assumed away.
+    '
+    ' A capture that will not decode is DROPPED, and dropping one SHIFTS every
+    ' cell after it, because a capture\'s position in the stream is which
+    ' statement it came from. That is the cost of not wrapping each one in a
+    ' record carrying its index -- and it is the right trade: the wrapper made
+    ' the stored capture a different shape from the one `studio_results`
+    ' already reads, which is a translation layer to keep in step forever
+    ' against a failure mode that needs `json_encode` itself to have gone
+    ' wrong.
+    function _peel_cells(session)
+        if session.vars_marker = "" then
+            session.vars_status = "none"
+            return session
+        end if
+        parts = split(session.out_raw, session.vars_marker)
+        out = parts[0]
+        cells = []
+        i = 1
+        while i < count(parts)
+            rest = parts[i]
+            ' The marker statement printed marker + newline, so the capture
+            ' starts on the NEXT line.
+            if byte_count(rest) > 0 then
+                if byte_at(rest, 0) = 10 then
+                    rest = mid(rest, 1, len(rest) - 1)
+                end if
+            end if
+            nl = find(rest, "\n")
+            head = rest
+            tail = ""
+            if nl != nothing then
+                head = mid(rest, 0, nl)
+                tail = mid(rest, nl + 1, len(rest) - nl - 1)
+            end if
+            out = out + tail
+            r = try_decode(head)
+            if r.ok then
+                if is_array(r.value) then
+                    cells = append(cells, { raw: head, vars: r.value })
+                end if
+            end if
+            i = i + 1
+        end while
+        session.out_raw = out
+        session.cells = cells
+        ' The session-level capture reports the LAST cell, so anything reading
+        ' a session rather than a result -- the run strip, a summary -- still
+        ' describes something true. Per-cell results carry their own.
+        if count(cells) > 0 then
+            last = cells[count(cells) - 1]
+            session.vars = last.vars
+            session.vars_raw = last.raw
+            session.vars_status = "captured"
+        else
+            ' The ordinary outcome for a run that failed on its first
+            ' statement, or was stopped before one finished. Not an error.
+            session.vars_status = "absent"
+        end if
+        return session
+    end function
+
     ' The before-scope, peeled with the same discipline as the after-scope. It
     ' sits in the PREFIX portion of the stream (it runs before the boundary
     ' marker), so this must happen before the prefix/target split.
@@ -1461,7 +1634,14 @@ library studio_session
     end function
 
     function _resolve_split(session)
-        session = studio_session._peel_vars(session)
+        ' Two shapes of capture, and which one this run wrote is a fact about
+        ' how it was launched rather than a guess: a run with cells reported
+        ' per cell, and a run without walked the scope once at the end.
+        if count(session.cell_ids) > 0 then
+            session = studio_session._peel_cells(session)
+        else
+            session = studio_session._peel_vars(session)
+        end if
         session = studio_session._peel_before(session)
         if session.split_out = "exact" then
             session.out_target = session.out_raw
@@ -1689,7 +1869,7 @@ library studio_session
         ' result saying "this cell finished, exit 1" about a statement that did
         ' not execute. Attribution is redone afterwards so the failing cell
         ' reads as `target` rather than as `prefix` of itself.
-        moved = studio_session._refile(session)
+        moved = studio_session._ended_at(session)
         if moved != session.section_id then
             session.section_id = moved
             session = studio_session.attribute(session, sections, source)
@@ -1697,28 +1877,99 @@ library studio_session
         return session
     end function
 
-    ' Which cell a multi-cell run actually ended at.
+    ' Which cell a run ended at. COUNTED, not inferred from a diagnostic.
     '
-    ' Only for a run that FAILED: one that succeeded ended at the cell it was
-    ' already filed against. And only when the failure HAS a cell -- a
-    ' diagnostic Studio generated, or one outside every statement, names
-    ' nothing to move to, and inventing a cell for it would be worse than
-    ' leaving the run where it was launched.
-    function _refile(session)
-        if not session.multi then
+    ' Every statement reports itself the moment it completes, so the number of
+    ' captures that came back IS the number that ran: with five cells and three
+    ' captures, the run stopped in the fourth. That is exact, it needs no
+    ' message to parse, and it is right for the cases a diagnostic cannot
+    ' answer -- a run stopped by the user, or one killed before it printed.
+    '
+    ' A run that got all the way through ended at its last cell, which is where
+    ' it was already filed.
+    function _ended_at(session)
+        n = count(session.cell_ids)
+        if n = 0 then
             return session.section_id
         end if
-        if session.success then
-            return session.section_id
+        k = count(session.cells)
+        if k >= n then
+            k = n - 1
         end if
-        for each a in session.attribution
-            if a.severity = "error" then
-                if a.section_id != nothing then
-                    return a.section_id
-                end if
+        return session.cell_ids[k]
+    end function
+
+    ' ---- STU-14: one result per cell ---------------------------------------
+
+    ' The records a SQL run persists: one per cell that RAN.
+    '
+    ' A cell that completed has a capture and is recorded as finished, with its
+    ' own variable and nothing else -- the run's exit code belongs to the
+    ' statement that produced it, not to the four before it that worked. The
+    ' cell the run STOPPED in gets that: the exit code, the signal, the
+    ' engine's message and the attribution.
+    '
+    ' A cell that never started gets NOTHING. A result saying "not run" would
+    ' be a row in a history about an execution that did not happen, and the
+    ' absence is already legible: the cell simply has no result from this run.
+    function to_results(session, sections)
+        out = []
+        base = studio_session.to_result(session, sections)
+        ran = count(session.cells)
+        n = count(session.cell_ids)
+        k = 0
+        while k < ran
+            if k < n then
+                r = studio_session._stamp(base, sections, session.cell_ids[k])
+                r.outcome = "finished"
+                ' It completed: whatever the run exited with belongs further
+                ' down. Claiming this cell exited 1 because a later one did
+                ' would be the misattribution STU-3 exists to prevent, arrived
+                ' at through the outcome instead of through the id.
+                r.exit_code = 0
+                r.signal = 0
+                r.success = true
+                r.reason = ""
+                r.message = ""
+                r.attribution = []
+                r.err_target = ""
+                r.err_prefix = ""
+                r.vars = session.cells[k].raw
+                r.vars_status = "captured"
+                out = append(out, r)
+            end if
+            k = k + 1
+        end while
+        ' Where it stopped, when it did. `ran` is the index of the first cell
+        ' with no capture, which is the one that was executing.
+        if not session.success then
+            if ran < n then
+                r = studio_session._stamp(base, sections, session.cell_ids[ran])
+                r.vars = ""
+                r.vars_status = "absent"
+                out = append(out, r)
+            end if
+        end if
+        return out
+    end function
+
+    ' Re-point a result record at a different section, fingerprint and all.
+    ' The fingerprint is what lets `studio_results` say "this result predates
+    ' the cell's current text", so a record carrying another cell's would
+    ' claim staleness about the wrong statement.
+    function _stamp(r, sections, sid)
+        r.section_id = sid
+        r.section_fingerprint = ""
+        r.section_kind = ""
+        r.section_name = nothing
+        for each sec in sections.sections
+            if sec.id = sid then
+                r.section_fingerprint = studio_results.fingerprint_of(sec)
+                r.section_kind = sec.kind
+                r.section_name = sec.name
             end if
         end for
-        return session.section_id
+        return r
     end function
 
     ' ---- STU-5A: emitting a durable result ---------------------------------

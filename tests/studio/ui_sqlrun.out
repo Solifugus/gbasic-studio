@@ -40,15 +40,34 @@ latest: res-4  finished exit 1  at 1969-12-31 19:16:40  0s
 -> Run All: action=running active=true
    exec: run: finished [sec-4] — exit 0
    status: finished sec-4
-  caret in the last cell:
-    Results — sec-4  (1 run(s))
+  line 3 (section: sec-1 drop widgets):
+    Results — sec-1  (1 run(s))
     latest: res-1  finished exit 0  at 1969-12-31 19:16:40  0s
-      variables (3, 3 changed):
-        + args array[0] = (empty)
+      variables (1, 1 changed):
+        + result record[2]
+            field | value
+            command | DROP
+            rows_affected | 0
+  line 5 (section: sec-2 create widgets):
+    Results — sec-2  (1 run(s))
+    latest: res-2  finished exit 0  at 1969-12-31 19:16:40  0s
+      variables (1, 1 changed):
+        + result record[2]
+            field | value
+            command | CREATE
+            rows_affected | 0
+  line 7 (section: sec-3 insert):
+    Results — sec-3  (1 run(s))
+    latest: res-3  finished exit 0  at 1969-12-31 19:16:40  0s
+      variables (1, 1 changed):
         + result record[2]
             field | value
             command | INSERT
             rows_affected | 2
+  line 9 (section: sec-4 select):
+    Results — sec-4  (1 run(s))
+    latest: res-4  finished exit 0  at 1969-12-31 19:16:40  0s
+      variables (1, 1 changed):
         + rows array[2]
             id | label
             1 | left
@@ -62,6 +81,46 @@ latest: res-4  finished exit 1  at 1969-12-31 19:16:40  0s
    exec: run: finished [sec-3] — exit 1
    status: stopped at line 7 — put the caret there to see why
   with the caret on line 7: <target [sec-3] 7:1  SQLite prepare failed: no such table: nosuchtable>
+  line 3 (section: sec-1 drop widgets):
+    Results — sec-1  (3 run(s))
+    latest: res-9  finished exit 0  at 1969-12-31 19:16:40  0s
+      variables (1, 1 changed):
+        + result record[2]
+            field | value
+            command | DROP
+            rows_affected | 0
+    history:
+      res-5  finished exit 0  at 1969-12-31 19:16:40  0s
+      res-1  finished exit 0  at 1969-12-31 19:16:40  0s
+  line 5 (section: sec-2 create widgets):
+    Results — sec-2  (3 run(s))
+    latest: res-10  finished exit 0  at 1969-12-31 19:16:40  0s
+      variables (1, 1 changed):
+        + result record[2]
+            field | value
+            command | CREATE
+            rows_affected | 0
+    history:
+      res-6  finished exit 0  at 1969-12-31 19:16:40  0s
+      res-2  finished exit 0  at 1969-12-31 19:16:40  0s
+  line 7 (section: sec-3 insert):
+    Results — sec-3  (3 run(s))
+    latest: res-11  finished exit 1  at 1969-12-31 19:16:40  0s
+      variables: none — the section did not finish
+      ! target 7:1 SQLite prepare failed: no such table: nosuchtable
+    history:
+      res-7  finished exit 0  at 1969-12-31 19:16:40  0s  [section edited since this run]
+      res-3  finished exit 0  at 1969-12-31 19:16:40  0s  [section edited since this run]
+  line 9 (section: sec-4 select):
+    Results — sec-4  (2 run(s))
+    latest: res-8  finished exit 0  at 1969-12-31 19:16:40  0s
+      variables (1, 1 changed):
+        + rows array[2]
+            id | label
+            1 | left
+            2 | right
+    history:
+      res-4  finished exit 0  at 1969-12-31 19:16:40  0s
 == Run All is offered for a .sql document and for nothing else ==
   rebuild.sql -> true
   main.bas    -> false

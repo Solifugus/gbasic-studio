@@ -729,11 +729,61 @@ Two consequences worth knowing before you touch the shell:
   removed.
 - `run_all` refuses by name too: `not-sql` and `no-cells`, both worded about
   the DOCUMENT rather than about the connection, because that is what is wrong.
-- **Per-cell results from one Run All are NOT built.** The child could print a
-  capture after every statement and Studio could file N results, which is the
-  Jupyter shape and the obvious next step; what exists files ONE result, for
-  the cell the run ended at. Said here because "Run All fills in every cell"
-  is a reasonable thing to assume and is not true yet.
+- **ONE RESULT PER CELL.** Every statement reports itself the moment it
+  completes, so a Run All that rebuilt a schema leaves a result under each of
+  the statements that did it — and the panes, which follow the caret, have
+  something to show wherever it lands. That is the notebook picture, and it is
+  what `.sql` was framed as from the start.
+- **Printed as the run goes, never accumulated.** gBASIC cannot catch a raise
+  and a database error is one, so a statement that fails takes the whole
+  program down — and a capture held to the end would lose every cell that had
+  already succeeded, which is exactly the half a failed rebuild most needs to
+  show. Measured: a five-cell run that fails at the third leaves two finished
+  results, one failure carrying the engine's message, and nothing at all for
+  the two that never started.
+- **A cell that never started gets NO result.** Not a row reading "not run":
+  that would be a history entry about an execution that did not happen. The
+  absence is already legible — the cell simply keeps whatever result it had,
+  which is the truth about it (it has not been re-run).
+- **A cell that completed is recorded as `finished, exit 0`, whatever the run
+  exited with.** Claiming the first cell exited 1 because the fourth did would
+  be the STU-3 misattribution arrived at through the outcome instead of
+  through the id. The exit code, the signal, the message and the attribution
+  all go to the cell the run stopped in.
+- `studio_session._cell_fn` reports ONE variable, by name, rather than walking
+  the scope. Studio wrote the line that bound it, so there is nothing to
+  discover — and the walk would report `args` and every earlier cell's
+  leftovers alongside it, once per statement. That is also what finally got
+  `args` out of the inspector for a single cell.
+- It prints the SAME SHAPE the scope walk prints — a bare array of descriptors
+  — so what is stored is the raw line the child wrote and `studio_results`
+  needs no second reader. A wrapper carrying the cell index was the first
+  version and cost a debugging round (`variables: unreadable`, and an empty
+  grid); the index is the capture's POSITION in the stream, which the
+  statements printed in order, so the wrapper only added a shape to translate
+  out of.
+- **`_vars_epilogue_opt` split into `_vars_helpers` + `_vars_walk`.** Two
+  callers now define the same preview functions — the gBASIC path, which walks
+  the scope once at the end, and the SQL path, which calls them after every
+  cell. One copy of the definitions; the goldens did not move.
+- **A function defined INSIDE a program block after the call to it is NOT
+  hoisted** — measured, `invalid function call: emit`. Top level before
+  `program` works, and so does inside the block before the call. So the SQL
+  prelude goes between the `load` line and `program main(args)`, and
+  `studio_sql.file_program` takes it as a parameter. The gBASIC epilogue never
+  met this because it is appended after the code that uses it.
+- The marker therefore has to exist BEFORE the program is generated, because
+  the program contains it. `studio_session.vars_marker_for` is the seam and
+  `run_program` mints one only when the session has none, so the gBASIC path
+  is untouched and nothing ends up with two.
+- **`_ended_at` COUNTS rather than reading a diagnostic.** Five cells and three
+  captures means the run stopped in the fourth. Exact, needs no message to
+  parse, and right for the cases a diagnostic cannot answer — a run the user
+  stopped, or one killed before it printed. It replaced a first version that
+  scanned the attribution for a section id.
+- `can_run` gates EVERY cell of a Run All, not only the one the result lands
+  on. An ambiguous third statement is as much a reason to refuse as an
+  ambiguous one under the caret.
 - **`to` is a reserved word** (`print to error`), so a parameter named one is a
   parse error in a library nothing can then load. `from` is fine; `lo`/`hi` is
   what `_raw_after` uses.

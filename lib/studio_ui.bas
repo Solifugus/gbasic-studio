@@ -2922,7 +2922,7 @@ library studio_ui
         if sec = nothing then
             return { app: app, action: "no-section", detail: "", active: false }
         end if
-        return studio_ui._launch_sql(app, doc, st, [sec], sid)
+        return studio_ui._launch_sql(app, doc, st, [sec])
     end function
 
     ' Run every cell in the document, in order, against ONE connection.
@@ -2979,11 +2979,10 @@ library studio_ui
         ' through ended, and what its capture describes. A run that stopped
         ' early says so through the attribution, which names the cell it stopped
         ' at -- two different facts, kept apart.
-        last = secs[count(secs) - 1]
-        return studio_ui._launch_sql(app, doc, st, secs, last.id)
+        return studio_ui._launch_sql(app, doc, st, secs)
     end function
 
-    ' Launch a SQL run of `secs`, filing the result against `target_id`.
+    ' Launch a SQL run of `secs`. Each of them gets a result of its own.
     '
     ' The shape of this is deliberately the same as the tail of `run_section`,
     ' and the differences are the whole of what "SQL" means to Studio:
@@ -3004,7 +3003,7 @@ library studio_ui
     ' project's interpreter pin -- a generated program is still one of this
     ' project's programs, and a project pinned to a particular gBASIC meant
     ' that one.
-    function _launch_sql(app, doc, st, secs, target_id)
+    function _launch_sql(app, doc, st, secs)
         ' Which database, before anything is generated. Every refusal is
         ' returned under its OWN name so the status line says which of the five
         ' things is wrong rather than "cannot run".
@@ -3026,8 +3025,6 @@ library studio_ui
             cells = append(cells, { sql: sql, tier: tier,
                                     line: sec.start_line, column: sec.start_column })
         end for
-        fp = studio_sql.file_program(c.conn, cells, studio_session.vars_prefix())
-
         sess = studio_session.create(doc.id, app.paths.home + "/scratch")
         pin = studio_projfile.read_spec(studio_ui.project_path_for(app, doc))
         if pin.interpreter != "" then
@@ -3044,18 +3041,29 @@ library studio_ui
         ab = studio_ui.active_branch(app)
         app = ab.app
         sess.branch = ab.id
-        sess = studio_session.run_program(sess, st, target_id, fp.text, fp.marks)
+        ' The marker has to exist BEFORE the program is generated, because the
+        ' program contains it: every statement calls the reporter, and the
+        ' reporter prints the marker. `run_program` mints one only when the
+        ' session has none, so the gBASIC path is untouched.
+        sess.vars_marker = studio_session.vars_marker_for(sess)
+        prelude = studio_session.cell_epilogue(sess.vars_marker, sess.detail_rules)
+        fp = studio_sql.file_program(c.conn, cells, studio_session.vars_prefix(), prelude)
+        ids = []
+        for each sec in secs
+            ids = append(ids, sec.id)
+        end for
+        sess = studio_session.run_program(sess, st, ids, fp.text, fp.marks)
 
         ' The SAME record the gBASIC path builds, field for field. Everything
         ' downstream -- tick_run, the run strip, the results pane, Stop --
         ' reads it, and a second shape here would be a second thing for each of
         ' them to know about.
-        app.exec = { doc_id: doc.id, doc_path: doc.path, sid: target_id, secs: st,
+        app.exec = { doc_id: doc.id, doc_path: doc.path, sid: sess.section_id, secs: st,
                      branch: ab.id, branch_name: ab.name,
                      src: doc.content, session: sess,
                      store: studio_results.open(app.paths.home, doc.path) }
         act = sess.state
-        detail = target_id
+        detail = sess.section_id
         if sess.state = "refused" then
             detail = sess.message
         end if
@@ -3094,7 +3102,18 @@ library studio_ui
         ' the session agree about which cell they are talking about.
         ex.sid = ex.session.section_id
         home = app.paths.home
-        ex.store = studio_results.add_result(home, ex.store, studio_session.to_result(ex.session, ex.secs))
+        ' A SQL run files ONE RESULT PER CELL: every statement reported itself
+        ' as it completed, so the run that rebuilt a schema leaves a result
+        ' under each of the statements that did it, rather than one under the
+        ' last. That is the notebook picture, and it is why the panes -- which
+        ' follow the caret -- have something to show wherever the caret lands.
+        if count(ex.session.cell_ids) > 0 then
+            for each one in studio_session.to_results(ex.session, ex.secs)
+                ex.store = studio_results.add_result(home, ex.store, one)
+            end for
+        else
+            ex.store = studio_results.add_result(home, ex.store, studio_session.to_result(ex.session, ex.secs))
+        end if
         save_result = studio_results.save(home, ex.store)
         app.exec = ex
         ' The panes read through app.view's cached store, and that store has just

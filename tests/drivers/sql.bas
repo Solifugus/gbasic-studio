@@ -28,7 +28,7 @@ end function
 ' One cell is the one-element case of a whole file, which is the point: there
 ' is no second generator to keep in step with this one.
 function one(conn, sql, tier)
-  return studio_sql.file_program(conn, [{ sql: sql, tier: tier, line: 1, column: 1 }], studio_session.vars_prefix())
+  return studio_sql.file_program(conn, [{ sql: sql, tier: tier, line: 1, column: 1 }], studio_session.vars_prefix(), "")
 end function
 
 function shown(m)
@@ -140,7 +140,7 @@ program main(args)
         { sql: "insert into t values (1, 'a')",  tier: "write",       line: 5, column: 1 },
         { sql: "select * from t",                tier: "read",        line: 7, column: 1 },
         { sql: "commit",                         tier: "write",       line: 9, column: 1 }
-    ], studio_session.vars_prefix())
+    ], studio_session.vars_prefix(), "")
     print whole.text
     print "  names: " + join(whole.names, ", ")
 

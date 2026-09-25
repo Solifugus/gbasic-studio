@@ -192,6 +192,20 @@ function conn(app)
   print line
 end function
 
+' The latest result at each of these lines, which is what a user gets by
+' clicking down the file after a Run All.
+function walk(app, id, lines)
+  for each ln in lines
+    c = studio_ui.sync_cursor(app, id, ln - 1, 0)
+    app = c.app
+    print "  line " + ln + " (" + studio_ui.section_label(app) + "):"
+    for each rl in split(studio_ui.results_body(app), "\n")
+      print "    " + rl
+    end for
+  end for
+  return app
+end function
+
 ' Run every cell of the active .sql document, and poll to the end.
 function runall(app)
   r = studio_ui.run_all(app)
@@ -1929,14 +1943,11 @@ program main(args)
     bid = studio_docs.active_doc(app.dm).id
     app = runall(app)
 
-    ' Filed against the LAST cell -- where a run that got all the way through
-    ' ended, and what its capture describes.
-    print "  caret in the last cell:"
-    c = studio_ui.sync_cursor(app, bid, 8, 0)
-    app = c.app
-    for each rl in split(studio_ui.results_body(app), "\n")
-      print "    " + rl
-    end for
+    ' ONE RESULT PER CELL. Every statement reported itself the moment it
+    ' completed, so a run that rebuilt the schema leaves a result under each of
+    ' the statements that did it -- and the panes, which follow the caret, have
+    ' something to show wherever it lands. That is the notebook picture.
+    app = walk(app, bid, [3, 5, 7, 9])
 
     ' Again, unchanged. A rebuild you cannot re-run is not a rebuild, and
     ' `drop table if exists` is what makes it one -- Studio adds nothing to the
@@ -1957,6 +1968,12 @@ program main(args)
     c = studio_ui.sync_cursor(app, bid, 6, 0)
     app = c.app
     print "  with the caret on line 7: <" + studio_ui.error_body(app) + ">"
+    ' And the two cells ABOVE it did run, and say so. The one BELOW it never
+    ' started and has no result from this run at all -- it still shows the one
+    ' the last Run All gave it, which is the truth about that statement: it has
+    ' not been re-run. A result reading "not run" would be a row in a history
+    ' about an execution that did not happen.
+    app = walk(app, bid, [3, 5, 7, 9])
 
     banner("Run All is offered for a .sql document and for nothing else")
     print "  rebuild.sql -> " + studio_ui.shows_run_all(app)
