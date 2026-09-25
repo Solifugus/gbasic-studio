@@ -12,7 +12,7 @@ heading: Errors
 errors:  <(none)>
 gutter:  error marks= section marks=
 -> Run: not-gbasic
-   status: NOTES.md is not a gBASIC file — Run Section needs .bas or .gb
+   status: NOTES.md is not a gBASIC or SQL file — Run Section needs .bas, .gb or .sql
 == editing and saving one works exactly as before ==
 dirty=1
 save: saved dirty=0

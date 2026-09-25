@@ -979,28 +979,67 @@ library studio_session
     '   kind = "unmapped"   past the end of what Studio generated (a diagnostic can
     '                       name a line that does not exist). No shift is known to
     '                       apply, so the line is passed through unchanged.
+    '
+    ' `column` is 0 for every segment a materialized gBASIC run produces, and 0
+    ' means "no opinion" -- the child's own column is carried across unchanged,
+    ' because both injections there are whole-line operations and a column
+    ' means the same thing on both sides. A generated program is the case where
+    ' it does not (see `text_map`), and that is the only place a segment names
+    ' one.
     function map_line(map, child_line)
         if map = nothing then
-            return { kind: "unmapped", line: child_line }
+            return { kind: "unmapped", line: child_line, column: 0 }
         end if
         for each s in map.segments
             if child_line >= s.c_start then
                 if child_line <= s.c_end then
                     if s.kind = "marker" then
-                        return { kind: "marker", line: 0 }
+                        return { kind: "marker", line: 0, column: 0 }
                     end if
                     if s.kind = "generated" then
-                        return { kind: "generated", line: 0 }
+                        return { kind: "generated", line: 0, column: 0 }
                     end if
-                    return { kind: s.kind, line: child_line + s.delta }
+                    col = 0
+                    if has(s, "column") then
+                        col = s.column
+                    end if
+                    return { kind: s.kind, line: child_line + s.delta, column: col }
                 end if
             end if
         end for
-        return { kind: "unmapped", line: child_line }
+        return { kind: "unmapped", line: child_line, column: 0 }
     end function
 
     function _prefix_path(session)
         return session.scratch_dir + "/run-" + session.doc_id + "-" + session.run_seq + ".bas"
+    end function
+
+    ' Everything a new run must forget about the last one. One place, because
+    ' there are two ways into a run now -- a materialized gBASIC section and a
+    ' program Studio generated whole -- and a field cleared in one of them and
+    ' not the other is last run's output reported as this run's.
+    function _reset(session, section_id)
+        session.reason = ""
+        session.message = ""
+        session.out_raw = ""
+        session.out_prefix = ""
+        session.out_target = ""
+        session.err_prefix = ""
+        session.err_target = ""
+        session.split_reason = ""
+        session.marker = ""
+        session.map = nothing
+        session.hoisted = []
+        session.appended = ""
+        session.stderr_raw = ""
+        session.diagnostics = []
+        session.attribution = []
+        session.exit_code = -1
+        session.signal = 0
+        session.success = false
+        session.section_id = section_id
+        session.run_seq = session.run_seq + 1
+        return session
     end function
 
     ' ---- running -----------------------------------------------------------
@@ -1029,26 +1068,7 @@ library studio_session
             return session
         end if
 
-        ' Reset per-run results before the new run so nothing leaks across.
-        session.reason = ""
-        session.message = ""
-        session.out_raw = ""
-        session.out_prefix = ""
-        session.out_target = ""
-        session.err_prefix = ""
-        session.err_target = ""
-        session.split_reason = ""
-        session.marker = ""
-        session.map = nothing
-        session.hoisted = []
-        session.stderr_raw = ""
-        session.diagnostics = []
-        session.attribution = []
-        session.exit_code = -1
-        session.signal = 0
-        session.success = false
-        session.section_id = section_id
-        session.run_seq = session.run_seq + 1
+        session = studio_session._reset(session, section_id)
 
         idx = -1
         i = 0
@@ -1128,6 +1148,133 @@ library studio_session
         ' Only when there is one: process.start validates `env` whenever the
         ' key exists, and `nothing` is not a record, so passing it always would
         ' raise on every run that pins nothing — which is nearly all of them.
+        if session.env != nothing then
+            opts.env = session.env
+        end if
+        session.handle = process.start(opts)
+        session = studio_session._to(session, "running")
+        return session
+    end function
+
+    ' A position map for a program Studio generated WHOLE, in which exactly one
+    ' line is the user's.
+    '
+    ' Every other line is Studio's own and is `generated`, so it reports no
+    ' document position at all rather than a plausible wrong one -- the whole
+    ' point of a map built while the content was written is that it never has to
+    ' guess. The one document line carries a COLUMN too, which the gBASIC path
+    ' never needs: there, both injections are whole-line operations and a column
+    ' means the same thing on both sides. Here the statement occupies one line
+    ' of the generated program and several of the document, so the engine's
+    ' column is a position inside `sqlite.query(db, "...` and carrying it across
+    ' would be an address the user cannot follow. The statement's own start is
+    ' what is known, so that is what is reported.
+    function text_map(stmt_line, doc_line, doc_column)
+        segs = []
+        if stmt_line > 1 then
+            segs = append(segs, { kind: "generated", c_start: 1, c_end: stmt_line - 1, delta: 0, column: 0 })
+        end if
+        segs = append(segs, { kind: "document", c_start: stmt_line, c_end: stmt_line,
+                              delta: doc_line - stmt_line, column: doc_column })
+        ' Everything after it, to a line number no generated program reaches.
+        ' Left unbounded the tail would fall through to `unmapped`, which passes
+        ' a CHILD line through as though it were a document line -- exactly the
+        ' plausible wrong answer the rest of this is written to avoid.
+        segs = append(segs, { kind: "generated", c_start: stmt_line + 1, c_end: 100000000, delta: 0, column: 0 })
+        return { schema_version: 1, marker_line: 0, segments: segs }
+    end function
+
+    ' Start a run of a program Studio generated WHOLE, for a document whose
+    ' cells are not gBASIC.
+    '
+    ' The replay model does not apply to SQL: the DATABASE holds the state a
+    ' replay would have rebuilt, and re-running the inserts above the cursor
+    ' would duplicate rows. So a cell runs ALONE -- no prefix, nothing on stdout
+    ' to tell apart, no boundary marker, no before-scope. That is why this is a
+    ' separate entry point rather than `materialize_text` with a flag: almost
+    ' none of materialization applies, and a flag threaded through all of it
+    ' would be a second meaning for every branch in there.
+    '
+    ' Everything else about a run is the same and is reached the same way: the
+    ' child, the tick loop, Stop and Force Stop, the variable capture, the
+    ' diagnostics, the durable result. The epilogue is appended HERE, inside the
+    ' program block, for the reason it always is -- code after `end program`
+    ' does not execute, so an epilogue past it would report nothing, silently.
+    '
+    '   body        the program, still open: `load`, `program main(args)`, the
+    '               statements. No `end program`; this adds it.
+    '   stmt_line   the 1-based line of `body` holding the user's own text
+    '   doc_line    the line of the DOCUMENT that text came from
+    '   doc_column  its column there (see `text_map`)
+    function run_program(session, sections, section_id, body, stmt_line, doc_line, doc_column)
+        if studio_session.is_active(session) then
+            session.reason = "already-running"
+            session.message = "a run is already in progress for this document"
+            return session
+        end if
+
+        now = studio_session._now(session)
+        session.started_epoch = now
+        session.finished_epoch = now
+
+        ' The same gate, for the same reason. Two identical statements in one
+        ' file come back `ambiguous` from the id matcher, and running "the one
+        ' that is probably meant" would file a result against a cell the user
+        ' did not point at.
+        gate = studio_session.can_run(sections, section_id)
+        if not gate.ok then
+            session = studio_session._to(session, "refused")
+            session.section_id = section_id
+            session.reason = gate.reason
+            session.message = gate.message
+            return session
+        end if
+
+        session = studio_session._reset(session, section_id)
+
+        ' A cell runs alone, so both streams are unambiguously its own. This is
+        ' the `exact` that section 1 of a gBASIC document gets, for the same
+        ' reason and not by analogy: there is no prefix.
+        session.split_out = "exact"
+        session.split_err = "exact"
+        session.section_index = 0
+
+        session.vars_marker = studio_session._vars_marker(session)
+        session.vars_raw = ""
+        session.vars = []
+        session.vars_status = "none"
+        session.vars_before_marker = ""
+        session.vars_before_raw = ""
+        session.vars_before = []
+        session.vars_before_status = "none"
+
+        session = studio_session._to(session, "materializing")
+
+        text = body
+        text = text + studio_session._vars_epilogue_opt(session.vars_marker, true, session.detail_rules)
+        text = text + "end program\n"
+        session.appended = studio_session._tag("vars", "end-program")
+        session.map = studio_session.text_map(stmt_line, doc_line, doc_column)
+        session.prefix_bytes = byte_count(text)
+
+        persist.ensure_dir(session.scratch_dir)
+        path = studio_session._prefix_path(session)
+        persist.write_text_atomic(path, text)
+        session.prefix_path = path
+
+        pf{file} = path
+        if not exists(pf) then
+            session = studio_session._to(session, "failed")
+            session.reason = "materialize-failed"
+            session.message = "could not write the generated program"
+            session.finished_epoch = studio_session._now(session)
+            return session
+        end if
+
+        opts = {
+            command: session.interpreter,
+            args: ["--line-buffered", "--json-diagnostics", path]
+        }
         if session.env != nothing then
             opts.env = session.env
         end if
@@ -1474,6 +1621,9 @@ library studio_session
             child_line = d.start.line
             col = d.start.column
             m = studio_session.map_line(session.map, child_line)
+            if m.column > 0 then
+                col = m.column
+            end if
             if m.kind = "marker" or m.kind = "generated" then
                 out = append(out, {
                     section_id: nothing,

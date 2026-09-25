@@ -9,49 +9,43 @@
 -- a read goes through query --
 load sqlite
 program main(args)
-  db = sqlite.connect("/tmp/app.db")
-  r = sqlite.query(db, "select * from t", [])
-  out{file} = "/tmp/out"
-  write(out, encode(r))
-  sqlite.close(db)
-end program
-
+  __gbstudio_db = sqlite.connect("/tmp/app.db")
+  rows = sqlite.query(__gbstudio_db, "select * from t", [])
+  sqlite.close(__gbstudio_db)
+  (result bound to `rows`)
 -- a write goes through exec, which reports rows_affected --
 load sqlite
 program main(args)
-  db = sqlite.connect("/tmp/app.db")
-  r = sqlite.exec(db, "delete from t", [])
-  out{file} = "/tmp/out"
-  write(out, encode(r))
-  sqlite.close(db)
-end program
-
+  __gbstudio_db = sqlite.connect("/tmp/app.db")
+  result = sqlite.exec(__gbstudio_db, "delete from t", [])
+  sqlite.close(__gbstudio_db)
+  (result bound to `result`)
 -- an apostrophe in the statement does not end the literal --
 load sqlite
 program main(args)
-  db = sqlite.connect("/tmp/app.db")
-  r = sqlite.query(db, "select * from t where name = 'O''Brien'", [])
-  out{file} = "/tmp/out"
-  write(out, encode(r))
-  sqlite.close(db)
-end program
-
+  __gbstudio_db = sqlite.connect("/tmp/app.db")
+  rows = sqlite.query(__gbstudio_db, "select * from t where name = 'O''Brien'", [])
+  sqlite.close(__gbstudio_db)
+  (result bound to `rows`)
 == and for the other two drivers ==
 load pg
 program main(args)
-  db = pg.connect({ host: "db.example", port: 5432, database: "acme", user: "matthew", password: "a b'c" })
-  r = pg.query(db, "select 1", [])
-  out{file} = "/tmp/out"
-  write(out, encode(r))
-  pg.close(db)
-end program
-
+  __gbstudio_db = pg.connect({ host: "db.example", port: 5432, database: "acme", user: "matthew", password: "a b'c" })
+  rows = pg.query(__gbstudio_db, "select 1", [])
+  pg.close(__gbstudio_db)
+  (result bound to `rows`)
 load odbc
 program main(args)
-  db = odbc.connect("ERP")
-  r = odbc.query(db, "select 1", [])
-  out{file} = "/tmp/out"
-  write(out, encode(r))
-  odbc.close(db)
-end program
-
+  __gbstudio_db = odbc.connect("ERP")
+  rows = odbc.query(__gbstudio_db, "select 1", [])
+  odbc.close(__gbstudio_db)
+  (result bound to `rows`)
+== and where the user's own line is ==
+  stmt_line=4
+  map for a statement starting at document line 7:
+    generated child 1..3 delta=0 column=0
+    document child 4..4 delta=3 column=3
+    generated child 5..100000000 delta=0 column=0
+  child 4:11 -> document 7:3
+  child 2:1  -> generated 0:0
+  child 9:1  -> generated 0:0

@@ -703,22 +703,51 @@ library studio_sql
     ' which is the only thing an `update` has to say. (A PostgreSQL
     ' `insert ... returning` therefore reports a count rather than its rows;
     ' that is a known gap, not a silent one.)
-    function program_for(conn, sql, tier, out_path)
+    ' It comes back OPEN, without its `end program`, because
+    ' `studio_session.run_program` closes it -- after appending the same
+    ' variable epilogue every gBASIC run already gets. That sharing is the
+    ' whole reason a query's rows reach the existing grid with no second
+    ' mechanism: `rows` is an ordinary captured variable, and the results pane,
+    ' the table offer and the DataGrid have never heard of SQL. An epilogue
+    ' after `end program` would report nothing, silently, which is why the
+    ' closing line is not written here.
+    '
+    ' Returns { text, stmt_line, name }:
+    '   stmt_line  which 1-based line of `text` holds the user's own statement,
+    '              counted WHILE the program is built. A literal beside this
+    '              shape would drift from it the first time a line is added,
+    '              and it would then point every engine diagnostic at the wrong
+    '              row of the user's file -- silently, which is the failure
+    '              this codebase keeps meeting.
+    '   name       what the result is bound to. Two names and not one: `rows`
+    '              for a query and `result` for an exec, because a DELETE does
+    '              not return rows and a variables pane calling its
+    '              `{command, rows_affected}` record "rows" would be saying so.
+    '
+    ' `hidden` is the name prefix the epilogue leaves OUT of what it reports,
+    ' and the connection handle takes it. Otherwise a user who wrote one
+    ' statement gets three variables back, two of them Studio's own plumbing --
+    ' and a `sqlite_connection` reported as "(live)" is a thing they can neither
+    ' use nor dismiss. The prefix is PASSED rather than written out here: it
+    ' belongs to `studio_session`, and a copy of it in this file is a copy that
+    ' can drift into hiding nothing.
+    function cell_program(conn, sql, tier, hidden)
         drv = conn.driver
         call = "query"
+        name = "rows"
         if tier != "read" then
             call = "exec"
+            name = "result"
         end if
+        db = hidden + "_db"
         lines = []
         lines = append(lines, "load " + drv)
         lines = append(lines, "program main(args)")
-        lines = append(lines, "  db = " + drv + ".connect(" + studio_sql._target(conn) + ")")
-        lines = append(lines, "  r = " + drv + "." + call + "(db, " + quote(sql) + ", [])")
-        lines = append(lines, "  out{file} = " + quote(out_path))
-        lines = append(lines, "  write(out, encode(r))")
-        lines = append(lines, "  " + drv + ".close(db)")
-        lines = append(lines, "end program")
-        return join(lines, "\n") + "\n"
+        lines = append(lines, "  " + db + " = " + drv + ".connect(" + studio_sql._target(conn) + ")")
+        stmt_line = count(lines) + 1
+        lines = append(lines, "  " + name + " = " + drv + "." + call + "(" + db + ", " + quote(sql) + ", [])")
+        lines = append(lines, "  " + drv + ".close(" + db + ")")
+        return { text: join(lines, "\n") + "\n", stmt_line: stmt_line, name: name }
     end function
 
     ' What `connect` is handed. One line per driver, and the only place the

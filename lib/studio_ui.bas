@@ -1836,7 +1836,7 @@ library studio_ui
         ' the button. Studio opens supporting files on purpose; it just cannot
         ' run them.
         if action = "not-gbasic" then
-            return leaf + " is not a gBASIC file — Run Section needs .bas or .gb"
+            return leaf + " is not a gBASIC or SQL file — Run Section needs .bas, .gb or .sql"
         end if
         if action = "not-empty" then
             return leaf + " is not empty — empty it first"
@@ -2769,11 +2769,23 @@ library studio_ui
         ' to run, and saying so by its NAME is the difference between a refusal
         ' and a puzzle.
         gb = studio_ui.is_gbasic(doc.path)
+        sq = studio_ui.is_sql(doc.path)
         if not gb then
-            return { app: app, action: "not-gbasic", detail: doc.path, active: false }
+            if not sq then
+                return { app: app, action: "not-gbasic", detail: doc.path, active: false }
+            end if
         end if
         sid = studio_ui.section_for(st, doc.content, line0 + 1, column0 + 1)
         if sid = "" then
+            ' A `.sql` document has no parser that can fail -- the scanner
+            ' always answers -- so there is exactly one reason there is no cell
+            ' at the caret: the file holds no statements. The gBASIC branch
+            ' below has to tell that apart from a file that did not parse, and
+            ' answering `no-parse` about SQL would name a diagnostic that
+            ' cannot exist.
+            if sq then
+                return { app: app, action: "no-section", detail: "", active: false }
+            end if
             ' "the cursor is not inside a runnable section" is TRUE and useless
             ' when the reason there are no sections is that the file does not
             ' parse: the cursor is plainly inside a function, and it is the
@@ -2785,6 +2797,12 @@ library studio_ui
                          detail: studio_ui.first_diagnostic(st), active: false }
             end if
             return { app: app, action: "no-section", detail: "", active: false }
+        end if
+
+        ' From here the two document types part company: a SQL cell runs ALONE,
+        ' so almost nothing below applies to it.
+        if sq then
+            return studio_ui._run_sql(app, doc, st, sid)
         end if
 
         sess = studio_session.create(doc.id, app.paths.home + "/scratch")
@@ -2867,6 +2885,89 @@ library studio_ui
         end if
         active = studio_session.is_active(sess)
         return { app: app, action: act, detail: detail, active: active }
+    end function
+
+    ' Run one SQL cell.
+    '
+    ' The shape of this is deliberately the same as the tail of `run_section`,
+    ' and the differences are the whole of what "SQL" means to Studio:
+    '
+    '   * no branch BINDINGS. A branch injects assignments into a replayed
+    '     prefix, and there is no prefix here -- the database is the state.
+    '     The branch ID is still carried, because a result has to say which
+    '     branch it belongs to however it was produced.
+    '   * no overlay projection. An overlay replaces a SECTION of gBASIC source
+    '     with alternate text; a cell is run from the document as it stands.
+    '   * no table fetch. `fetch_table` re-runs a section to export a variable,
+    '     and for SQL "run it again with a bigger limit" is a sentence about
+    '     the user's own statement, not about the machinery. Left out rather
+    '     than half-wired.
+    '
+    ' Everything that IS the same goes through the same code: the child, the
+    ' poll loop, Stop, the variable capture, the durable result, and the
+    ' project's interpreter pin -- a generated program is still one of this
+    ' project's programs, and a project pinned to a particular gBASIC meant
+    ' that one.
+    function _run_sql(app, doc, st, sid)
+        sec = studio_sections.section_by_id(st, sid)
+        if sec = nothing then
+            return { app: app, action: "no-section", detail: "", active: false }
+        end if
+        ' Which database, before anything is generated. Every refusal is
+        ' returned under its OWN name so the status line says which of the five
+        ' things is wrong rather than "cannot run".
+        c = studio_ui.sql_connection(app, doc)
+        if not c.ok then
+            return { app: app, action: c.why, detail: c.name, active: false }
+        end if
+        ' COUNT, not an end offset. `byte_slice(s, at, count)` is documented and
+        ' every offset in this codebase is half-open, so passing `end_offset`
+        ' straight through reads as correct and silently returns the rest of the
+        ' file.
+        sql = byte_slice(doc.content, sec.start_offset, sec.end_offset - sec.start_offset)
+        tier = "write"
+        if has(sec, "sql_tier") then
+            tier = sec.sql_tier
+        end if
+        pg = studio_sql.cell_program(c.conn, sql, tier, studio_session.vars_prefix())
+
+        sess = studio_session.create(doc.id, app.paths.home + "/scratch")
+        pin = studio_projfile.read_spec(studio_ui.project_path_for(app, doc))
+        if pin.interpreter != "" then
+            sess.interpreter = pin.interpreter
+        end if
+        if pin.gbasic_path != "" then
+            sess.env = { GBASIC_PATH: pin.gbasic_path }
+        end if
+        fixed = app["clock_fixed"]
+        if fixed != unknown then
+            sess.clock_fixed = fixed
+        end if
+        sess.detail_rules = studio_viewers.capture_rules(studio_ui.viewers_of(app))
+        ab = studio_ui.active_branch(app)
+        app = ab.app
+        sess.branch = ab.id
+        sess = studio_session.run_program(sess, st, sid, pg.text, pg.stmt_line,
+                                          sec.start_line, sec.start_column)
+
+        ' The SAME record the gBASIC path builds, field for field. Everything
+        ' downstream -- tick_run, the run strip, the results pane, Stop --
+        ' reads it, and a second shape here would be a second thing for each of
+        ' them to know about.
+        app.exec = { doc_id: doc.id, doc_path: doc.path, sid: sid, secs: st,
+                     branch: ab.id, branch_name: ab.name,
+                     src: doc.content, session: sess,
+                     store: studio_results.open(app.paths.home, doc.path) }
+        act = sess.state
+        detail = sid
+        if sess.state = "refused" then
+            detail = sess.message
+        end if
+        if sess.state = "failed" then
+            detail = sess.message
+        end if
+        return { app: app, action: act, detail: detail,
+                 active: studio_session.is_active(sess) }
     end function
 
     ' Advance an in-flight run one step. The caller polls this on a timer and stops
@@ -3118,8 +3219,19 @@ library studio_ui
             ' errors pane and the gutter all then report as a broken program.
             ' Skipping the refresh leaves the state valid and empty, which is
             ' the truth: no sections, and no complaint about that.
-            if studio_ui.is_gbasic(doc.path) then
+            gb = studio_ui.is_gbasic(doc.path)
+            sq = studio_ui.is_sql(doc.path)
+            if gb then
                 v.st = studio_sections.refresh(v.st, doc.content)
+            end if
+            ' A `.sql` document's cells come from the SCANNER instead, and
+            ' everything below the candidates is the same machinery -- the id
+            ' matching, the stale set, the revision. That is what lets a result
+            ' stay attached to `create table customers` after its columns are
+            ' rewritten, with nothing in `studio_sections` knowing which
+            ' language it is looking at.
+            if sq then
+                v.st = studio_sections.refresh_sql(v.st, doc.content)
             end if
             v.src = doc.content
             v.doc_id = doc.id

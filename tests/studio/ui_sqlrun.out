@@ -1,0 +1,40 @@
+== the document splits into cells, each with an id and a tier ==
+  sec-1  create [write]  lines 3-3
+  sec-2  insert [write]  lines 5-5
+  sec-3  select [read]  lines 7-7
+  sec-4  select [read]  lines 9-9
+== where the caret lands, gaps included ==
+  line 1 col 1 -> section: sec-1 create customers
+  line 3 col 1 -> section: sec-1 create customers
+  line 3 col 44 -> section: sec-1 create customers
+  line 4 col 1 -> section: sec-1 create customers
+  line 5 col 1 -> section: sec-2 insert
+  line 9 col 22 -> section: sec-4 select
+  line 10 col 1 -> section: sec-4 select
+== run the create, then the insert ==
+-> Run at line 3 (section: sec-1 create customers)
+   action=running active=true
+   exec: run: finished [sec-1] — exit 0
+-> Run at line 5 (section: sec-2 insert)
+   action=running active=true
+   exec: run: finished [sec-2] — exit 0
+== run the select: its rows are an ordinary captured variable ==
+-> Run at line 7 (section: sec-3 select)
+   action=running active=true
+   exec: run: finished [sec-3] — exit 0
+  offer: rows: 1 rows (table)
+  grid: rows: 1 rows
+  columns: id | name
+  row 0: 1 | Acme
+== an engine error comes back addressed to the cell it came from ==
+-> Run at line 9 (section: sec-4 select)
+   action=running active=true
+   exec: run: finished [sec-4] — exit 1
+  errors: <target [sec-4] 9:1  SQLite prepare failed: no such table: nosuch>
+== and the whole run is a durable result like any other ==
+Results — sec-4  (1 run(s))
+latest: res-4  finished exit 1  at 1969-12-31 19:16:40  0s
+  variables: none — the section did not finish
+  ! target 9:1 SQLite prepare failed: no such table: nosuch
+== a project that declares no database refuses by name ==
+  -> no-databases  status=this project declares no databases — add one to .gstudio.json

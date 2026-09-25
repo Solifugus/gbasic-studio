@@ -192,6 +192,21 @@ function conn(app)
   print line
 end function
 
+' Run the cell the caret is in, exactly as the window does: sync the caret,
+' press Run, poll to the end. `line1` is 1-based, like everything a user sees.
+function sqlrun(app, id, line1)
+  c = studio_ui.sync_cursor(app, id, line1 - 1, 0)
+  app = c.app
+  print "-> Run at line " + line1 + " (" + studio_ui.section_label(app) + ")"
+  r = studio_ui.run_section(app, line1 - 1, 0)
+  app = r.app
+  print "   action=" + r.action + " active=" + r.active
+  if r.active then
+    app = drive(app)
+  end if
+  return app
+end function
+
 program main(args)
   load persist
   load filetree
@@ -1793,6 +1808,102 @@ program main(args)
     for each p in ["notes.sql", "NOTES.SQL", "notes.sql.txt", "notes.bas", "sql"]
       print "  " + p + " -> " + studio_ui.is_sql(p)
     end for
+  end if
+
+  ' ---- sqlrun: a .sql cell actually runs -----------------------------------
+  '
+  ' The whole slice, against a REAL SQLite file: the scanner splits the
+  ' document into cells, the caret picks one, the project says which database,
+  ' Studio generates a program, a child runs it, and what comes back is an
+  ' ordinary result. Nothing downstream of the run knows this was SQL --
+  ' `rows` is a captured variable like any other, which is why the results
+  ' pane and the table offer needed no SQL in them.
+  '
+  ' A cell runs ALONE. There is no prefix to replay: the database holds the
+  ' state, and re-running the inserts above the cursor would duplicate rows.
+  if mode = "sqlrun" then
+    pf{file} = projdir + "/.gstudio.json"
+    write(pf, "{\"schema_version\":1,\"id\":\"gsp-1-1\",\"databases\":{\"app\":{\"driver\":\"sqlite\",\"path\":\"data/app.db\"}}}")
+    persist.ensure_dir(projdir + "/data")
+    sf{file} = projdir + "/schema.sql"
+    write(sf, "-- @database app\n\ncreate table customers (id int, name text);\n\ninsert into customers values (1, 'Acme');\n\nselect id, name from customers order by id;\n\nselect * from nosuch;\n")
+
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "schema.sql"))
+    app = r.app
+    app.clock_fixed = 1000
+    id = studio_docs.active_doc(app.dm).id
+
+    banner("the document splits into cells, each with an id and a tier")
+    v = studio_ui.view_for(app)
+    app = v.app
+    for each sec in v.st.sections
+      print "  " + sec.id + "  " + sec.kind + " [" + sec.sql_tier + "]  lines " + sec.start_line + "-" + sec.end_line
+    end for
+
+    ' Which cell the caret is in, including the places it is in NONE of them.
+    ' Single-line cells make the gaps far likelier than gBASIC's multi-line
+    ' blocks do: the caret sits just past a `;` every time you finish typing
+    ' one. A gap resolves BACKWARDS, to the statement it follows, which is the
+    ' one the user just wrote.
+    banner("where the caret lands, gaps included")
+    for each probe in [[1, 1], [3, 1], [3, 44], [4, 1], [5, 1], [9, 22], [10, 1]]
+      c = studio_ui.sync_cursor(app, id, probe[0] - 1, probe[1] - 1)
+      app = c.app
+      print "  line " + probe[0] + " col " + probe[1] + " -> " + studio_ui.section_label(app)
+    end for
+
+    banner("run the create, then the insert")
+    app = sqlrun(app, id, 3)
+    app = sqlrun(app, id, 5)
+
+    banner("run the select: its rows are an ordinary captured variable")
+    app = sqlrun(app, id, 7)
+    tr = studio_ui.table_rows(app)
+    app = tr.app
+    for each t in tr.rows
+      print "  offer: " + t.label
+    end for
+    ot = studio_ui.open_table(app, tr.rows, 0)
+    app = ot.app
+    print "  grid: " + ot.caption
+    src = ot.src
+    print "  columns: " + join(src.cols, " | ")
+    i = 0
+    while i < src.known
+      cells = []
+      ci = 0
+      while ci < count(src.cols)
+        cr = studio_table.cell(src, i, ci)
+        src = cr.src
+        cells = append(cells, cr.text)
+        ci = ci + 1
+      end while
+      print "  row " + i + ": " + join(cells, " | ")
+      i = i + 1
+    end while
+
+    ' The engine's own message, at the line of the DOCUMENT the statement is
+    ' on. The child reports a position in a program Studio generated in a
+    ' scratch directory, and neither that path nor its line numbers belong in
+    ' a window about the user's file.
+    banner("an engine error comes back addressed to the cell it came from")
+    app = sqlrun(app, id, 9)
+    print "  errors: <" + studio_ui.error_body(app) + ">"
+
+    banner("and the whole run is a durable result like any other")
+    print studio_ui.results_body(app)
+
+    ' The connection is resolved BEFORE anything is generated, and its refusal
+    ' is what the status line says. A cell that cannot name a database is not
+    ' a cell that failed to run.
+    banner("a project that declares no database refuses by name")
+    write(pf, "{\"schema_version\":1,\"id\":\"gsp-1-1\",\"name\":\"Alpha\"}")
+    c = studio_ui.sync_cursor(app, id, 6, 0)
+    app = c.app
+    r = studio_ui.run_section(app, 6, 0)
+    app = r.app
+    print "  -> " + r.action + "  status=" + studio_ui.action_notice(r.action, r.detail)
   end if
 
   ' ---- filetypes: a project is not only its .bas files ---------------------

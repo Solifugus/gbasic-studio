@@ -21,8 +21,17 @@ function show(label, text)
   end if
 end function
 
+function show_prog(pg)
+  print pg.text + "  (result bound to `" + pg.name + "`)"
+end function
+
+function shown(m)
+  return m.kind + " " + m.line + ":" + m.column
+end function
+
 program main(args)
   load studio_sql
+  load studio_session
 
   mode = args[0]
 
@@ -93,21 +102,37 @@ program main(args)
     print "  inside a block comment:[" + studio_sql.directive("/* -- @database evil */\nselect 1;\n", "database") + "]"
     print "  a path as the value:   [" + studio_sql.directive("-- @database ../shared/app\n", "database") + "]"
 
+    ' It comes back OPEN -- no `end program` -- because studio_session appends
+    ' the shared variable epilogue first and closes it after. So there is no
+    ' out-file here and nothing to read back: the query's rows come home the
+    ' same way every gBASIC run's variables do.
     print "== the program one cell becomes =="
     sq = { driver: "sqlite", path: "/tmp/app.db" }
     print "-- a read goes through query --"
-    print studio_sql.program_for(sq, "select * from t", "read", "/tmp/out")
+    show_prog(studio_sql.cell_program(sq, "select * from t", "read", studio_session.vars_prefix()))
     print "-- a write goes through exec, which reports rows_affected --"
-    print studio_sql.program_for(sq, "delete from t", "destructive", "/tmp/out")
+    show_prog(studio_sql.cell_program(sq, "delete from t", "destructive", studio_session.vars_prefix()))
     ' The statement is the USER'S text going into a gBASIC string literal. An
     ' apostrophe in it would end that literal early and the rest would be read
     ' as code, so it goes in through `quote` and never hand-written marks.
     print "-- an apostrophe in the statement does not end the literal --"
-    print studio_sql.program_for(sq, "select * from t where name = 'O''Brien'", "read", "/tmp/out")
+    show_prog(studio_sql.cell_program(sq, "select * from t where name = 'O''Brien'", "read", studio_session.vars_prefix()))
 
     print "== and for the other two drivers =="
-    print studio_sql.program_for({ driver: "pg", host: "db.example", port: 5432, database: "acme", user: "matthew", password: "a b'c" }, "select 1", "read", "/tmp/out")
-    print studio_sql.program_for({ driver: "odbc", dsn: "ERP" }, "select 1", "read", "/tmp/out")
+    show_prog(studio_sql.cell_program({ driver: "pg", host: "db.example", port: 5432, database: "acme", user: "matthew", password: "a b'c" }, "select 1", "read", studio_session.vars_prefix()))
+    show_prog(studio_sql.cell_program({ driver: "odbc", dsn: "ERP" }, "select 1", "read", studio_session.vars_prefix()))
+
+    ' The line the user's own text lands on is DERIVED as the program is built,
+    ' and it is what carries an engine error back to the cell it came from.
+    print "== and where the user's own line is =="
+    print "  stmt_line=" + studio_sql.cell_program(sq, "select 1", "read", studio_session.vars_prefix()).stmt_line
+    print "  map for a statement starting at document line 7:"
+    for each seg in studio_session.text_map(4, 7, 3).segments
+      print "    " + seg.kind + " child " + seg.c_start + ".." + seg.c_end + " delta=" + seg.delta + " column=" + seg.column
+    end for
+    print "  child 4:11 -> " + shown(studio_session.map_line(studio_session.text_map(4, 7, 3), 4))
+    print "  child 2:1  -> " + shown(studio_session.map_line(studio_session.text_map(4, 7, 3), 2))
+    print "  child 9:1  -> " + shown(studio_session.map_line(studio_session.text_map(4, 7, 3), 9))
   end if
 
   if mode = "verbs" then

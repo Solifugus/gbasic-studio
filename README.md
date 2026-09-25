@@ -409,6 +409,37 @@ everything older is compacted into per-kind rollups — still a true statement
 about what happened, just a coarser one — so the log cannot grow until Studio
 gets slow.
 
+**A `.sql` file is a notebook too (STU-14, in progress).** Open one and it
+splits into *cells* — one per statement, found by a scanner that knows where a
+`;` is not a terminator (inside a string, a line comment, a nested block
+comment, a quoted identifier in any of the three spellings, a dollar-quoted
+body). Each cell gets a stable id from the same matcher gBASIC sections use, so
+a result stays attached to `create table customers` after its columns are
+rewritten.
+
+The file says which database it runs against, in the file:
+
+```sql
+-- @database app
+
+select id, name from customers order by id;
+```
+
+and `.gstudio.json` says what `app` means — by name, with no password, because
+that file is committed. Put the caret in a cell and press **Run Section**:
+Studio generates a small gBASIC program around that one statement, runs it in a
+child like every other execution, and what comes back is an ordinary result.
+A query's rows are an ordinary captured variable called `rows`, which is why
+they land in the results pane and the DataGrid with no SQL anywhere in them;
+an `insert` reports its `rows_affected`; and an engine error arrives addressed
+to the line of *your* file, carrying SQLite's own message.
+
+A cell runs **alone**. There is no prefix replay — the database holds the state
+a replay would have rebuilt, and re-running the inserts above your cursor would
+duplicate rows. Three drivers are generated for (`sqlite`, `pg`, `odbc`); only
+SQLite is wired end to end so far. Run All, PostgreSQL and ODBC connections,
+and the dialogs that *write the SQL they are about to run* are still ahead.
+
 Interaction is covered by tests rather than by hand. The rule STU-2B established
 is that a signal handler is an *adapter* — read one value off the widget, call
 one `studio_ui` function, redraw — so what a click MEANS lives in `lib/studio_ui.bas`
@@ -452,7 +483,7 @@ workspace instead:
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 183 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 184 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 29 cases, headless AND offline — no network, no key
 ```
 

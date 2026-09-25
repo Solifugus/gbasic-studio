@@ -901,6 +901,19 @@ for m in sqlconn rows open expand project bounds tabs edit save newproj refresh 
     run_ui "$m"
 done
 
+# STU-14: a .sql cell run end to end, against a REAL SQLite file. Its own tier
+# because it needs something the others do not -- an interpreter with the sqlite
+# module compiled in, which is a build option and not a given. Probed rather
+# than assumed: a missing module would otherwise fail as "the cell did not run"
+# and send someone looking in Studio.
+sqlprobe="$tmproot/sqlite_probe.bas"
+printf 'load sqlite\nprogram main(args)\n  print "yes"\nend program\n' > "$sqlprobe"
+if GBASIC_PATH="$GBASIC_STDLIB" timeout 60 "$GBASIC" "$sqlprobe" >/dev/null 2>&1; then
+    run_ui sqlrun
+else
+    printf 'SKIP ui_sqlrun (this gBASIC has no sqlite module)\n'
+fi
+
 # STU-2B memory: the interaction paths under valgrind. Redraw churn allocates a
 # fresh row model on every mutation, so a leak here would grow with clicks.
 if command -v valgrind >/dev/null 2>&1; then

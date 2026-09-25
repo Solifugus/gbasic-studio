@@ -49,7 +49,7 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 183 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 184 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 29 cases, headless AND offline (scripted transport)
 ```
 
@@ -91,8 +91,13 @@ lib/studio_sections.bas execution sections with stable ids — over source_outli
 lib/studio_sql.bas      STU-14 where one SQL statement ends and the next
                         begins: a SCANNER, not a parser, plus the two shallow
                         facts (verb, object name) that section identity and the
-                        destructive-statement arm need
-lib/studio_session.bas  replay-first execution in a child interpreter, 8 states
+                        destructive-statement arm need — and the program one
+                        cell becomes, handed OPEN to studio_session to close
+lib/studio_session.bas  replay-first execution in a child interpreter, 8 states.
+                        `run` materializes a gBASIC section with its prefix;
+                        `run_program` takes a program Studio generated whole (a
+                        SQL cell, which runs alone). Everything after the launch
+                        is the same code for both
 lib/studio_results.bas  durable per-run results, retention, truncation, standing
 lib/studio_ui.bas       what an interaction MEANS — the browser/tab row models and
                         one function per interaction, over plain data, no GTK
@@ -592,6 +597,88 @@ Two consequences worth knowing before you touch the shell:
 - A pg `port` is emitted as a NUMBER. Quoting it hands `pg.connect` a string
   where it wants an integer, and the failure would be about types rather than
   about the project file that set it.
+- **The generated program comes back OPEN, and `studio_session.run_program`
+  closes it — after appending the SAME variable epilogue every gBASIC run
+  gets.** That one decision is why a query's rows reach the existing grid with
+  no second mechanism: `rows` is an ordinary captured variable, so
+  `studio_results.vars_of`, `studio_table.tier`, the table offer, the caption
+  and the DataGrid have never heard of SQL and did not change. The epilogue
+  must go INSIDE the program block for the reason it always must — code after
+  `end program` does not execute, so an epilogue past it would report nothing,
+  silently — which is why `cell_program` does not write the closing line.
+- There is therefore **no out-file and nothing to read back**. The first
+  version wrote `encode(r)` to a path in the scratch directory and re-read it;
+  the capture path already does that, better, with a bound on how much of a
+  large value it carries.
+- **`program` is a RESERVED WORD**, so the function is `cell_program`. Fourth
+  in the series after `read`, `on` and `to`, and the failure is the same each
+  time: a parse error in a library, and nothing that loads it can run.
+- `cell_program` takes the epilogue's hidden-name prefix and gives it to the
+  CONNECTION HANDLE (`__gbstudio_db`). Otherwise a user who wrote one statement
+  gets three variables back, two of them Studio's own plumbing, and a
+  `sqlite_connection` rendered as "(live)" is a thing they can neither use nor
+  dismiss. The prefix is PASSED from `studio_session.vars_prefix()`, not
+  written out in `studio_sql`: a second copy is a copy that can drift into
+  hiding nothing.
+- Two result names and not one — `rows` for a query, `result` for an exec.
+  A DELETE returns no rows, and a variables pane calling its
+  `{command, rows_affected}` record "rows" would be saying it did. Measured:
+  an insert reports `result record[2] / command INSERT / rows_affected 1` in
+  the pane that already existed.
+- **`stmt_line` is derived WHILE the program is built** (`count(lines) + 1`),
+  never a literal beside the shape. A literal drifts the first time a line is
+  added, and it would then point every engine diagnostic at the wrong row of
+  the user's file — silently, which is this codebase's recurring failure.
+- **`studio_session.text_map` maps a program Studio generated whole**: one
+  `document` line and `generated` either side of it. The tail segment runs to
+  a line number no program reaches, because an unbounded tail falls through to
+  `unmapped`, and `unmapped` passes a CHILD line through as though it were a
+  document line — the plausible wrong answer the map exists to avoid.
+- A map segment now carries a **`column`**, and 0 means "no opinion" — the
+  child's own column is used, which is every segment a materialized gBASIC run
+  produces and is why no golden moved. A generated program is the case where
+  the column does NOT survive: the statement is one line there and several in
+  the document, so the engine's column is a position inside
+  `sqlite.query(db, "…` and carrying it across would be an address the user
+  cannot follow. The statement's own start is what is known, so that is what
+  is reported.
+- **The scratch path never reaches the user.** It never did through this route:
+  with `--json-diagnostics` the child emits `{severity, path, start, message}`
+  and Studio reads the position and the message, never the path. Measured
+  end to end — a `select * from nosuch` comes back as
+  `target [sec-4] 9:1  SQLite prepare failed: no such table: nosuch`, at the
+  line of the user's own file.
+- **`run_program` is a separate entry point, not a flag on `materialize_text`.**
+  Almost none of materialization applies to a cell — no prefix, no boundary
+  marker, no before-scope, no hoisting, no overlay projection, no branch
+  bindings — and a flag threaded through all of it would be a second meaning
+  for every branch in there. What IS shared is shared by being called: the
+  child, the poll loop, Stop and Force Stop, the capture, the diagnostics, the
+  durable result, `can_run`, and `_reset`.
+- `studio_session._reset` was split out when the second entry point arrived.
+  There are two ways into a run now, and a field cleared in one and not the
+  other is last run's output reported as this run's.
+- **The caret gap needed no fix — `studio_ui.section_for` already resolved it
+  backwards.** Measured before writing anything: with the caret just past the
+  `;` of `create table customers (…);`, on the blank line after it, and past
+  the end of the file, the strip answers `sec-1`, `sec-1` and the last cell.
+  The concern was about `studio_sections.section_at`, which is half-open and
+  does answer `nothing` there; `section_for` falls back to the nearest section
+  starting at or before the caret, and has since STU-4. Single-line cells make
+  that path far commoner than gBASIC's multi-line blocks do, so `ui_sqlrun`
+  pins it.
+- The caret in a file's HEADER — above every statement — runs the FIRST cell,
+  through the same fall-through. Inherited rather than chosen, and the strip
+  says which cell Run would run before it is pressed, which is the mitigation
+  the design already relies on.
+- **`ui_sqlrun` PROBES for the sqlite module and skips without it.** It is
+  compiled in as a build option, not a given, and a missing module would fail
+  as "the cell did not run" and send someone looking in Studio. The other
+  `ui_*` tiers need no such probe because nothing they run loads a driver.
+- **`view_for` derives `.sql` sections through `refresh_sql`**, beside the
+  `is_gbasic` branch that derives gBASIC ones. Without it a `.sql` document
+  had no sections at all: the strip said `(none)`, Run refused, and the
+  scanner that STU-14 had already built and tested was reached by nothing.
 - **`to` is a reserved word** (`print to error`), so a parameter named one is a
   parse error in a library nothing can then load. `from` is fine; `lo`/`hi` is
   what `_raw_after` uses.
