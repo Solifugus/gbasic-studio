@@ -2404,6 +2404,79 @@ library studio_ui
         return { ok: false, why: why, detail: detail, source: "", columns: [] }
     end function
 
+    ' ---- settings (STU-18) --------------------------------------------------
+    '
+    ' `settings.theme` has been in the model since STU-0 and read since the
+    ' style work, and until now there was no way for a user to SET it -- you
+    ' had to hand-edit the settings file. Same for `restore_last_session`.
+    ' These are the two the application actually reads; see `menus()` for why
+    ' `recent_limit` is not offered.
+
+    ' The three values `theme` may take. A closed set, checked rather than
+    ' trusted: this is a field a user can hand-edit, and an unrecognised value
+    ' must READ as "system" rather than making the editor's scheme undefined.
+    function themes()
+        return ["system", "light", "dark"]
+    end function
+
+    ' The theme in force, as the rest of Studio should see it.
+    function theme_of(app)
+        t = app.model.settings["theme"]
+        if not is_string(t) then
+            return "system"
+        end if
+        if not contains(studio_ui.themes(), t) then
+            return "system"
+        end if
+        return t
+    end function
+
+    function restores_session(app)
+        v = app.model.settings["restore_last_session"]
+        if v = unknown then
+            return true
+        end if
+        if not is_boolean(v) then
+            return true
+        end if
+        return v
+    end function
+
+    ' Choose a theme. Takes effect IMMEDIATELY -- the shell re-applies the
+    ' editor scheme to every open page on the next redraw -- and is written
+    ' with the rest of the settings when Studio exits.
+    function set_theme(app, value)
+        if not contains(studio_ui.themes(), value) then
+            return { app: app, action: "bad-theme", detail: value }
+        end if
+        if studio_ui.theme_of(app) = value then
+            ' Said rather than done silently. Pressing the item that is already
+            ' filled in is not a failure and not a change, and a status line
+            ' that goes on saying "theme: dark" after every press would be
+            ' reporting work that did not happen.
+            return { app: app, action: "theme-same", detail: value }
+        end if
+        st = app.model.settings
+        st.theme = value
+        app.model.settings = st
+        return { app: app, action: "theme-set", detail: value }
+    end function
+
+    ' Toggle whether the last session reopens. Read by `studio.startup`, so it
+    ' takes effect on the NEXT launch and the notice says so -- a setting whose
+    ' effect is invisible until tomorrow is one a user will otherwise press
+    ' twice wondering whether it worked.
+    function toggle_restore(app)
+        st = app.model.settings
+        now = not studio_ui.restores_session(app)
+        st.restore_last_session = now
+        app.model.settings = st
+        if now then
+            return { app: app, action: "restore-on", detail: "" }
+        end if
+        return { app: app, action: "restore-off", detail: "" }
+    end function
+
     ' ---- the header menus (STU-16) ------------------------------------------
     '
     ' The toolbar was TEN buttons in one row, and the complaint about it was that
@@ -2461,6 +2534,15 @@ library studio_ui
                             items: ["new-file", "new-folder", "-",
                                     "rename", "delete", "-",
                                     "reload", "close-tab"] })
+        ' STU-18. Only what the application actually READS is here.
+        ' `settings.recent_limit` is deliberately absent: `touch_recent` has one
+        ' call site, in the canned-workspace demo, with a literal 10 -- so
+        ' `session.recent` is never maintained by the running app and that
+        ' setting gates nothing. A control for it would be a dead button with a
+        ' number in it, which is worse than no control.
+        out = append(out, { id: "settings", label: "Settings",
+                            items: ["theme-system", "theme-light", "theme-dark", "-",
+                                    "restore-session"] })
         return out
     end function
 
@@ -2520,7 +2602,69 @@ library studio_ui
         if action = "close-tab" then
             return "Close Tab"
         end if
+        if action = "theme-system" then
+            return "Follow the desktop"
+        end if
+        if action = "theme-light" then
+            return "Light"
+        end if
+        if action = "theme-dark" then
+            return "Dark"
+        end if
+        if action = "restore-session" then
+            return "Reopen last session on start"
+        end if
         return action
+    end function
+
+    ' ---- which of a set of items is the one in force (STU-18) ---------------
+
+    ' The glyph in front of a settings item: filled for the one in force,
+    ' hollow for the alternatives, and EMPTY for an item that has no state.
+    '
+    ' The same two shapes the browser uses for the active project, on purpose.
+    ' A menu of plain buttons cannot draw a radio button -- a Gtk.PopoverMenu
+    ' could, and is built from a GMenuModel the bridge cannot reach -- so the
+    ' state goes in the label, and a vocabulary the window already uses for
+    ' "this is the one" beats inventing a second.
+    function menu_mark(app, action)
+        th = studio_ui.theme_of(app)
+        if action = "theme-system" then
+            return studio_ui._mark(th = "system")
+        end if
+        if action = "theme-light" then
+            return studio_ui._mark(th = "light")
+        end if
+        if action = "theme-dark" then
+            return studio_ui._mark(th = "dark")
+        end if
+        if action = "restore-session" then
+            return studio_ui._mark(studio_ui.restores_session(app))
+        end if
+        return ""
+    end function
+
+    ' `chosen`, not `on`: `on` is a RESERVED WORD and a parameter named one is
+    ' a parse error in a library, so nothing that loads it can run. CLAUDE.md
+    ' records it (it is why the New Project checkbox helper takes `ticked`) and
+    ' I walked into it anyway -- second reserved word this phase, after
+    ' `program`.
+    function _mark(chosen)
+        if chosen then
+            return studio_ui.glyph_active()
+        end if
+        return studio_ui.glyph_inactive()
+    end function
+
+    ' The label as the menu shows it: the mark, a space, then the wording. One
+    ' function, because the goldens address these items by the whole string and
+    ' two renderings of one thing is the mistake `row_label` exists to prevent.
+    function menu_text(app, action)
+        m = studio_ui.menu_mark(app, action)
+        if m = "" then
+            return studio_ui.menu_label(action)
+        end if
+        return m + " " + studio_ui.menu_label(action)
     end function
 
     ' The sentence under the label. A menu item has room for one and a toolbar
@@ -2558,6 +2702,22 @@ library studio_ui
         end if
         if action = "close-tab" then
             return "Close the active document's tab. Unsaved text is discarded, so press it twice — the first press arms it."
+        end if
+        ' All three say what the setting REACHES, because it is less than the
+        ' word "theme" suggests: Studio's own chrome is drawn in GTK's named
+        ' colours and follows your desktop, and asking GTK for its dark variant
+        ' does not work on every theme (measured — see studio_shell).
+        if action = "theme-system" then
+            return "Use whatever your desktop is set to. Affects the editor's colours and the section highlight; the rest of the window follows your desktop either way."
+        end if
+        if action = "theme-light" then
+            return "A light editor, whatever your desktop is set to. Takes effect at once, in tabs that are already open."
+        end if
+        if action = "theme-dark" then
+            return "A dark editor, whatever your desktop is set to. Takes effect at once, in tabs that are already open."
+        end if
+        if action = "restore-session" then
+            return "Whether Studio reopens the projects and files you had open. Read when Studio starts, so it takes effect on the next launch."
         end if
         return ""
     end function
@@ -2791,6 +2951,22 @@ library studio_ui
         end if
         if action = "no-interpreter" then
             return "no interpreter at " + detail + " — check `interpreter` in .gstudio.json"
+        end if
+        ' ---- STU-18, the settings menu.
+        if action = "theme-set" then
+            return "theme: " + detail
+        end if
+        if action = "theme-same" then
+            return "the theme is already " + detail
+        end if
+        if action = "bad-theme" then
+            return "no such theme: " + detail
+        end if
+        if action = "restore-on" then
+            return "the last session will reopen on start"
+        end if
+        if action = "restore-off" then
+            return "Studio will start with nothing open — this takes effect on the next launch"
         end if
         if action = "no-table-picked" then
             return "pick a table first"

@@ -1,0 +1,37 @@
+== the settings the menu offers, and the one it deliberately does not ==
+  theme-system    ● Follow the desktop
+  theme-light     ○ Light
+  theme-dark      ○ Dark
+  --
+  restore-session ● Reopen last session on start
+  recent_limit is offered: false
+== choosing a theme ==
+  set dark    -> theme-set   theme: dark
+      in force: dark   menu: ● Dark
+  set dark    -> theme-same  the theme is already dark
+      in force: dark   menu: ● Dark
+  set light   -> theme-set   theme: light
+      in force: light   menu: ● Light
+  set system  -> theme-set   theme: system
+      in force: system   menu: ● Follow the desktop
+== a theme nobody defined is refused, and changes nothing ==
+  bad-theme: no such theme: solarized
+  still in force: system
+== a hand-edited file with rubbish in it READS as system ==
+  <> reads as system
+  <DARK> reads as system
+  <nonsense> reads as system
+== and what the editor and the tint do with each of the three ==
+  system  dark=false scheme=classic
+  light   dark=false scheme=classic
+  dark    dark=true  scheme=classic-dark
+== reopening the last session ==
+  starts as: true   menu: ● Reopen last session on start
+  toggled -> restore-off   Studio will start with nothing open — this takes effect on the next launch
+      menu: ○ Reopen last session on start
+  toggled -> restore-on    the last session will reopen on start
+      menu: ● Reopen last session on start
+== both survive a save and a reload ==
+  written: settings, session
+  theme after reload:   dark
+  restore after reload: false

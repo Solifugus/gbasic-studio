@@ -334,6 +334,7 @@ program main(args)
   load studio_secrets
   load studio_templates
   load studio_schema
+  load studio_style
   load studio_sql
   load studio_session
 
@@ -1764,6 +1765,73 @@ program main(args)
   ' already calls — the menu is an adapter, not a second implementation — which
   ' matters most for Delete, where a second implementation would quietly undo
   ' the two-click rule on the same file.
+  if mode = "settings" then
+    banner("the settings the menu offers, and the one it deliberately does not")
+    for each m in studio_ui.menus()
+      if m.id = "settings" then
+        for each a in m.items
+          if a = "-" then
+            print "  --"
+          else
+            print "  " + padto(a, 16) + studio_ui.menu_text(app, a)
+          end if
+        end for
+      end if
+    end for
+    print "  recent_limit is offered: " + string(contains(studio_ui.menu_all(), "recent-limit"))
+
+    banner("choosing a theme")
+    for each t in ["dark", "dark", "light", "system"]
+      r = studio_ui.set_theme(app, t)
+      app = r.app
+      print "  set " + padto(t, 8) + "-> " + padto(r.action, 12) + studio_ui.action_notice(r.action, r.detail)
+      print "      in force: " + studio_ui.theme_of(app) + "   menu: " + studio_ui.menu_text(app, "theme-" + t)
+    end for
+
+    banner("a theme nobody defined is refused, and changes nothing")
+    r = studio_ui.set_theme(app, "solarized")
+    app = r.app
+    print "  " + r.action + ": " + studio_ui.action_notice(r.action, r.detail)
+    print "  still in force: " + studio_ui.theme_of(app)
+
+    banner("a hand-edited file with rubbish in it READS as system")
+    for each bad in ["", "DARK", "nonsense"]
+      app.model.settings.theme = bad
+      print "  <" + bad + "> reads as " + studio_ui.theme_of(app)
+    end for
+    app.model.settings.theme = "dark"
+
+    banner("and what the editor and the tint do with each of the three")
+    for each t in ["system", "light", "dark"]
+      r = studio_ui.set_theme(app, t)
+      app = r.app
+      ' The toolkit says light here (no GTK_THEME, no prefer-dark), so
+      ' "system" and "light" agree and "dark" overrules.
+      d = studio_style.dark_for(studio_ui.theme_of(app), "Adwaita", false, "unknown")
+      print "  " + padto(t, 8) + "dark=" + padto(string(d), 6) + "scheme=" + studio_style.scheme_for(studio_ui.theme_of(app), "Adwaita", false, "unknown")
+    end for
+
+    banner("reopening the last session")
+    print "  starts as: " + string(studio_ui.restores_session(app)) + "   menu: " + studio_ui.menu_text(app, "restore-session")
+    for each i in [1, 2]
+      r = studio_ui.toggle_restore(app)
+      app = r.app
+      print "  toggled -> " + padto(r.action, 14) + studio_ui.action_notice(r.action, r.detail)
+      print "      menu: " + studio_ui.menu_text(app, "restore-session")
+    end for
+
+    banner("both survive a save and a reload")
+    r = studio_ui.set_theme(app, "dark")
+    app = r.app
+    r = studio_ui.toggle_restore(app)
+    app = r.app
+    saved = studio.shutdown(app)
+    print "  written: " + join(saved, ", ")
+    fresh = studio.startup(home)
+    print "  theme after reload:   " + studio_ui.theme_of(fresh)
+    print "  restore after reload: " + string(studio_ui.restores_session(fresh))
+  end if
+
   if mode = "menus" then
     banner("the header menus")
     for each m in studio_ui.menus()

@@ -931,7 +931,7 @@ done
 for m in sqlconn rows open expand project bounds tabs edit save newproj refresh \
          newfile newfolder adopt exit \
          names rename delete closetab notice \
-         run runstop runerr runrefuse badsyntax filetypes projfile projpin newproj2 panes context menus projtabs anchors cursor drafts branch table overlay overlay_conflict; do
+         run runstop runerr runrefuse badsyntax filetypes projfile projpin newproj2 panes context menus settings projtabs anchors cursor drafts branch table overlay overlay_conflict; do
     run_ui "$m"
 done
 
@@ -1259,6 +1259,30 @@ if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
         fi
     else
         printf 'SKIP ui_gui_schema (this gBASIC has no sqlite module)\n'
+    fi
+
+    # STU-18: the settings menu. What only a window can show is that picking a
+    # theme reaches an editor that is ALREADY OPEN -- the scheme was applied
+    # only to pages being created, which was invisible while nothing could
+    # change the setting.
+    se_home="$tmproot/ui_gui_settings"; se_proj="$tmproot/ui_gui_settings_proj"
+    rm -rf "$se_home" "$se_proj"
+    mkdir -p "$se_home"; mkproj_ui "$se_proj"
+    : >"$stdout_file"
+    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
+            "$GBASIC" "$APP" stu18_smoke "$se_home" "$se_proj" \
+            >"$stdout_file" 2>/dev/null; then
+        if diff -u tests/studio/ui_gui_settings.out "$stdout_file"; then
+            printf 'PASS ui_gui_settings (a theme picked, reaching editors already open)\n'
+        else
+            fail "ui_gui_settings (output diff)"
+        fi
+    else
+        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
+            printf 'SKIP ui_gui_settings (GTK 4 typelib not available)\n'
+        else
+            cat "$stdout_file"; fail "ui_gui_settings (nonzero exit)"
+        fi
     fi
 
     # STU-16: the header menus. What only a window can show -- that a
@@ -1594,6 +1618,7 @@ else
     printf 'SKIP ui_gui_ctx (no display)\n'
     printf 'SKIP ui_gui_menus (no display)\n'
     printf 'SKIP ui_gui_schema (no display)\n'
+    printf 'SKIP ui_gui_settings (no display)\n'
     printf 'SKIP ui_gui_branch (no display)\n'
     printf 'SKIP ui_gui_table (no display)\n'
     printf 'SKIP ui_gui_overlay (no display)\n'

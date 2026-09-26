@@ -616,6 +616,11 @@ library studio_shell
         fg = studio_shell._fill_git(shell, app)
         shell = fg.shell
         app = fg.app
+        ' STU-18: the settings items carry their own state in their labels, so
+        ' they are re-rendered on every full redraw. Not in `refresh_run` --
+        ' that is the run poller at sixteen ticks a second and none of this
+        ' changes while a program is running.
+        studio_shell.refresh_menu_marks(shell, app)
         line = studio_shell.status_text(app)
         if notice != "" then
             line = notice
@@ -625,6 +630,33 @@ library studio_shell
             shell.name_entry.text = ""
         end if
         return { shell: shell, app: app, new_editors: rec.new_editors }
+    end function
+
+    ' Put each settings item's own state into its label (STU-18).
+    '
+    ' A menu of plain `Gtk.Button`s cannot draw a radio mark -- that needs a
+    ' `Gtk.PopoverMenu` over a `GMenuModel`, which is built from class statics
+    ' the `gi` bridge cannot reach and which no test could press either. So the
+    ' mark is a character, and `studio_ui.menu_text` is the ONE place the
+    ' string is assembled, because the goldens address these items by it.
+    ' Returns NOTHING, deliberately. Every widget it touches is a gobject
+    ' handle, so setting a label reaches the real button and there is no
+    ' updated record to hand back -- and returning `shell` and discarding it
+    ' earns gBASIC warning 2101 on stderr at every redraw, which several
+    ' golden tiers capture. `sections_gui` caught it immediately.
+    function refresh_menu_marks(shell, app)
+        for each spec in studio_ui.menus()
+            for each a in spec.items
+                if a != "-" then
+                    m = studio_ui.menu_mark(app, a)
+                    if m != "" then
+                        b = shell.menubar.items[a]
+                        b.label = studio_ui.menu_text(app, a)
+                    end if
+                end if
+            end for
+        end for
+        return nothing
     end function
 
     ' The run strip and its two output panes and the results pane — everything a
@@ -866,6 +898,30 @@ library studio_shell
                                             tset.gtk_application_prefer_dark_theme,
                                             env("GTK_THEME"))
         scheme = studio_shell._scheme(scheme_id)
+
+        ' A THEME CHANGE HAS TO REACH THE PAGES THAT ALREADY EXIST (STU-18).
+        '
+        ' The scheme was derived on every redraw from the first day, and
+        ' applied only to pages being CREATED -- which was invisible while
+        ' nothing could change the setting, because the only way to change it
+        ' was to hand-edit the file and restart. With a Settings menu, picking
+        ' Dark would have left every open editor light until you closed and
+        ' reopened its tab, one tab at a time.
+        '
+        ' Cached on the shell and compared, rather than re-set every redraw:
+        ' this runs at cursor-move rate through `refresh`, and handing every
+        ' buffer a style scheme sixteen times a second is the mistake
+        ' `refresh_run` exists to avoid. The cache is primed to "-", which is
+        ' not reachable as a real scheme id, for the same reason the mark
+        ' caches are.
+        if scheme_id != shell.scheme_id then
+            if scheme != nothing then
+                for each pg in shell.pages
+                    pg.editor.buffer.set_style_scheme(scheme)
+                end for
+            end if
+            shell.scheme_id = scheme_id
+        end if
 
         ' Create a page for every document that does not have one yet.
         for each t in want
@@ -1332,6 +1388,10 @@ library studio_shell
                  ' STU-10 teaching state: what currently carries a class.
                  pulsing: nothing, pulse_class: "", highlighted: nothing, highlight_class: "",
                  teach_tag: nothing,
+                 ' STU-18: the editor style scheme currently applied to every
+                 ' page. Primed to "-", which is not reachable as a real
+                 ' scheme id, so the first redraw always applies one.
+                 scheme_id: "-",
                  rows: [], pages: [], welcome: false }
         ' STU-10: the teaching stylesheet, installed once on each widget an agent
         ' may point at. After the record exists, because it is what names them.

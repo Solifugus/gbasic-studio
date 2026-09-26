@@ -14,8 +14,14 @@ File (file)
   --
   reload        Reload Changed Files
   close-tab     Close Tab
+Settings (settings)
+  theme-system  Follow the desktop
+  theme-light   Light
+  theme-dark    Dark
+  --
+  restore-sessionReopen last session on start
 == every item has a label and a hint, and no two share a label ==
-items=10 problems=0
+items=14 problems=0
 == an item nobody declared ==
   unknown -> no-such-item
   hint    -> []

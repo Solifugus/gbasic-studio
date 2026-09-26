@@ -15,7 +15,7 @@ STU-8 rich viewers and the tabular tier, STU-10 the assistant acting under a
 permission model, STU-11 optional git, STU-13 the browser pane and its
 right-click menu, STU-14 `.sql` as a document type, STU-15 declarative
 templates and the SQL builders, STU-16 the header menus, STU-17 the schema
-browser. The 2x series wired the shell onto the model (2B interactions, 2C a
+browser, STU-18 the settings menu. The 2x series wired the shell onto the model (2B interactions, 2C a
 cold start that reaches a file you can type in, 2D the name field and the
 two-click Delete/Close, 2E the run strip and results), and STU-5A' pointed the
 panes at the CARET rather than at the last run.
@@ -52,7 +52,7 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 200 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 202 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 29 cases, headless AND offline (scripted transport)
 ```
 
@@ -64,7 +64,8 @@ Display tiers (`sections_gui`, `sessions_gui`, `results_gui`, `ui_gui`,
 `ui_gui_cold`, `ui_gui_new`, `ui_gui_name`, `ui_gui_solo`, `ui_gui_run`,
 `ui_gui_cursor`, `ui_gui_open`, `ui_gui_newproj`, `ui_gui_layout`,
 `ui_gui_ctx`, `ui_gui_branch`, `ui_gui_table`, `ui_gui_overlay`, `ui_gui_teach`,
-`ui_gui_git`, `ui_gui_snippet`, `ui_gui_menus`, `ui_gui_schema`) SKIP cleanly
+`ui_gui_git`, `ui_gui_snippet`, `ui_gui_menus`, `ui_gui_schema`,
+`ui_gui_settings`) SKIP cleanly
 without GTK 4 or a display.
 `ui_gui_new` is the only case that spans two processes: the GUI builds a project
 from nothing and closes, and a second interpreter run reopens the same home —
@@ -808,6 +809,73 @@ Two consequences worth knowing before you touch the shell:
   `e.entry.text = x` inside a `for each`, where `e.entry` is a gobject HANDLE
   and the write really does reach the widget. Bind it out first
   (`ent = e.entry`); several golden tiers capture stderr. Also in DOGFOOD.
+
+### The settings menu (STU-18)
+
+- **`settings.theme` had been in the model since STU-0, readable since the
+  style work, and settable only by hand-editing the file.** Same for
+  `restore_last_session`. A third header menu, `Settings ▾`, is where they
+  finally become reachable.
+- **Only what the application actually READS is offered.**
+  `settings.recent_limit` is deliberately absent: `touch_recent` has exactly
+  one call site, in the canned-workspace demo, with a literal `10` — so
+  `session.recent` is never maintained by the running app and that setting
+  gates nothing. A control for it would be a dead button with a number in it,
+  which is worse than no control. That `recent` is unmaintained is a separate
+  gap and is not fixed here.
+- **A THEME CHANGE HAS TO REACH THE PAGES THAT ALREADY EXIST.** The scheme was
+  derived on every redraw from the first day and applied only to pages being
+  CREATED — which was invisible while nothing could change the setting, because
+  the only way to change it was to hand-edit and restart. With a menu, picking
+  Dark would have left every open editor light until you closed and reopened
+  its tab, one tab at a time. `_reconcile_tabs` now re-applies to
+  `shell.pages`, gated on `shell.scheme_id` so it does not hand every buffer a
+  scheme at cursor-move rate; the cache is primed to `"-"`, unreachable as a
+  real id, exactly like the two mark caches.
+- **The setting governs the EDITOR and the section tint, not the chrome, and
+  the obvious fix was tried and does not work.** Setting
+  `gtk-application-prefer-dark-theme` on the same GtkSettings object the scheme
+  is decided from is how an application is supposed to ask GTK for its dark
+  variant; looked at, the window stayed light under Breeze — which agrees with
+  what `toolkit_is_dark` already records about that property reading FALSE on a
+  plainly dark window here. GTK 4 deprecated it in favour of libadwaita's style
+  manager, which the bridge cannot reach. The line is NOT shipped, because a
+  call that does nothing on the theme the user actually runs is the dead button
+  this project keeps refusing — and all three `menu_hint`s say what the setting
+  reaches instead of leaving it to be discovered. Studio's own chrome is drawn
+  in GTK's named colours and follows the desktop, which is the behaviour
+  `studio_style`'s header already describes.
+- **The state is a CHARACTER in the label, not a radio button.** A menu of
+  plain `Gtk.Button`s cannot draw one — that needs a `Gtk.PopoverMenu` over a
+  `GMenuModel`, which is built from class statics the bridge cannot reach and
+  which no test could press either. `●` and `○` are the same two shapes the
+  browser uses for the active project, so the window is not learning a second
+  vocabulary for "this is the one".
+- `studio_ui.menu_text` is the ONE place mark and label are joined, because the
+  goldens address these items by the whole string — the same rule `row_label`
+  establishes.
+- The labels are refreshed on the FULL redraw, never in `refresh_run`. That is
+  the run poller at sixteen ticks a second and none of this changes while a
+  program runs.
+- **`refresh_menu_marks` returns `nothing`.** Every widget it touches is a
+  gobject handle, so setting a label reaches the real button and there is no
+  updated record to hand back — and returning `shell` and discarding it earns
+  warning 2101 on STDERR at every redraw, which several golden tiers capture.
+  `sections_gui` caught it on the first run.
+- `theme_of` and `restores_session` GUARD the stored value: this is a file a
+  user can hand-edit, and `"DARK"` or `"nonsense"` must read as `system`
+  rather than leaving the editor's scheme undefined. The closed set is
+  `studio_ui.themes()`.
+- **Pressing the theme already in force answers `theme-same`, not `theme-set`.**
+  It is not a failure and not a change, and a status line that said
+  "theme: dark" after a press that did nothing would be reporting work that did
+  not happen.
+- The restore toggle's notice SAYS it takes effect next launch. `studio.startup`
+  reads it, so a setting whose effect is invisible until tomorrow is one a user
+  presses twice wondering whether it worked.
+- **`on` is a reserved word**, so the mark helper takes `chosen`. Second
+  reserved word this phase after `program` — both were already recorded in this
+  file, and both were walked into anyway.
 
 ### The schema browser (STU-17)
 

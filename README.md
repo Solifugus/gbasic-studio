@@ -36,7 +36,7 @@ it, delete it, and close the window — and what is left is still there next tim
 because closing now writes the session. The status bar says what each click did,
 including what it refused to do and why.
 
-The header is **Project ▾**, **File ▾**, the name field, and **Save**. It used
+The header is **Project ▾**, **File ▾**, **Settings ▾**, the name field, and **Save**. It used
 to be ten buttons in a row, which mixed three different subjects — the
 workspace, whatever is selected in the browser, and the document you have open
 — with nothing saying which was which. A menu item is a row of text rather than
@@ -162,6 +162,20 @@ Where a driver is known to answer wrongly, Studio says nothing rather than
 repeating it — SQLite reports a primary key as nullable through ODBC, so a
 connection that has not declared which engine it reaches gets `null?` instead
 of a claim.
+
+**Settings ▾** is the third header menu. Two things live there, because two
+things are what Studio actually reads: the **theme** — Follow the desktop,
+Light or Dark — and whether the **last session reopens** on start. The one in
+force is marked `●`, the alternatives `○`, the same shapes the browser uses for
+the active project.
+
+Picking a theme takes effect at once, including in editors that are already
+open. It governs **the editor and the section highlight** — Studio's own
+toolbar, panes and menus are drawn in GTK's named colours and follow your
+desktop theme, which is deliberate and is what keeps Studio looking like the
+rest of your system. Both settings are written when Studio exits. (`recent_limit` is in the
+settings file and is deliberately *not* offered — nothing in the running
+application reads it, and a control that changes nothing is a dead button.)
 
 **Right-click a row in the browser.** A file offers Open, Rename and Delete; a
 directory offers New File here, New Folder here, Rename and Delete; a project
@@ -603,7 +617,7 @@ workspace instead:
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 200 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 202 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 29 cases, headless AND offline — no network, no key
 ```
 

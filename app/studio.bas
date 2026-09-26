@@ -340,6 +340,45 @@ function on_snippet_cancel()
     return nothing
 end function
 
+' ---- STU-18: the settings menu --------------------------------------------
+'
+' Five adapters, one per item, each reading no widget at all -- the value IS
+' the item that was pressed. `studio_ui` decides what each means, including
+' that pressing the one already in force is not a change.
+
+function on_theme_system()
+    return set_theme_to("system")
+end function
+
+function on_theme_light()
+    return set_theme_to("light")
+end function
+
+function on_theme_dark()
+    return set_theme_to("dark")
+end function
+
+function set_theme_to(value)
+    r = studio_ui.set_theme(G.app, value)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    ' A full redraw, not `refresh_run`: the editor scheme is re-applied to
+    ' every open page from `_reconcile_tabs`, and the section tint is derived
+    ' in the highlight pass. Both are inside `refresh`.
+    redraw()
+    return nothing
+end function
+
+function on_restore_session()
+    r = studio_ui.toggle_restore(G.app)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    redraw()
+    return nothing
+end function
+
 ' ---- STU-17: the schema browser -------------------------------------------
 '
 ' The same adapter shape as every other handler: read one plain value off the
@@ -1231,6 +1270,13 @@ function wire_shell()
     gi.connect(sh.save_btn, "clicked", on_save)
     gi.connect(sh.refresh_btn, "clicked", on_refresh)
     gi.connect(sh.closeproj_btn, "clicked", on_close_project)
+    ' STU-18: connected by ACTION through the flat item map, like the rest of
+    ' the menus.
+    mi = sh.menubar.items
+    gi.connect(mi["theme-system"], "clicked", on_theme_system)
+    gi.connect(mi["theme-light"], "clicked", on_theme_light)
+    gi.connect(mi["theme-dark"], "clicked", on_theme_dark)
+    gi.connect(mi["restore-session"], "clicked", on_restore_session)
     gi.connect(sh.bar.run, "clicked", on_run)
     gi.connect(sh.bar.runall, "clicked", on_run_all)
     gi.connect(sh.bar.snippet, "clicked", on_snippet)
@@ -1930,6 +1976,94 @@ end function
 ' catalog read, that `notify::selected` runs a second read and swaps the
 ' columns over, and that Insert writes a statement naming those columns into
 ' the document. The reads themselves are `ui_schema`, headless.
+' STU-18: the settings menu, through real signals.
+'
+' What only a window can show, and the whole reason this tier exists: that
+' picking a theme reaches an editor that is ALREADY OPEN. The scheme was
+' derived on every redraw from the first day and applied only to pages being
+' created, which was invisible while nothing could change the setting -- so
+' without this, Dark would have left every open tab light until you closed and
+' reopened it.
+function scheme_of(doc_id)
+    ed = studio_shell.editor_for(G.shell, doc_id)
+    if ed = nothing then
+        return "(no editor)"
+    end if
+    sch = ed.buffer.get_style_scheme()
+    if sch = nothing then
+        return "(none)"
+    end if
+    return sch.get_id()
+end function
+
+function stu18_step()
+    G.phase = G.phase + 1
+    if G.phase = 1 then
+        print "opening two files, so the change has to reach both"
+        click_row(find_row("file", "main.bas"))
+        return true
+    end if
+    if G.phase = 2 then
+        click_row(find_row("file", "README.md"))
+        return true
+    end if
+    if G.phase = 3 then
+        print "tabs open=" + count(G.app.dm.docs)
+        print "the menu, as it stands:"
+        for each a in ["theme-system", "theme-light", "theme-dark", "restore-session"]
+            print "  " + G.shell.menubar.items[a].label
+        end for
+        print "editors are on: " + scheme_of("doc-1") + ", " + scheme_of("doc-2")
+        print "picking Dark"
+        menu_click("theme-dark")
+        return true
+    end if
+    if G.phase = 4 then
+        print "action=" + G.last_action + " status=" + G.shell.status.label
+        print "the menu now:"
+        for each a in ["theme-system", "theme-light", "theme-dark"]
+            print "  " + G.shell.menubar.items[a].label
+        end for
+        ' BOTH of them, including the one that was open before the change.
+        print "editors are on: " + scheme_of("doc-1") + ", " + scheme_of("doc-2")
+        print "pressing Dark again"
+        menu_click("theme-dark")
+        return true
+    end if
+    if G.phase = 5 then
+        print "action=" + G.last_action + " status=" + G.shell.status.label
+        print "back to Light"
+        menu_click("theme-light")
+        return true
+    end if
+    if G.phase = 6 then
+        print "action=" + G.last_action
+        print "editors are on: " + scheme_of("doc-1") + ", " + scheme_of("doc-2")
+        ' A file opened AFTER the change gets it too -- that path always
+        ' worked, and it is the one the cache must not break.
+        print "opening a third file now the theme has changed"
+        click_row(find_row("dir", "src"))
+        return true
+    end if
+    if G.phase = 7 then
+        click_row(find_row("file", "a.bas"))
+        return true
+    end if
+    if G.phase = 8 then
+        print "the new editor is on: " + scheme_of("doc-3")
+        print "toggling the session setting"
+        menu_click("restore-session")
+        return true
+    end if
+    if G.phase = 9 then
+        print "action=" + G.last_action + " status=" + G.shell.status.label
+        print "  " + G.shell.menubar.items["restore-session"].label
+        G.shell.window.close()
+        return false
+    end if
+    return false
+end function
+
 function stu17_step()
     G.phase = G.phase + 1
     if G.phase = 1 then
@@ -2728,6 +2862,10 @@ function on_activate(gtkapp)
         gi.timeout(400, stu17_step)
         return nothing
     end if
+    if G.stu18 then
+        gi.timeout(400, stu18_step)
+        return nothing
+    end if
     if G.stu11 then
         gi.timeout(600, stu11_step)
     end if
@@ -3256,6 +3394,7 @@ program main(args)
     G.stu15 = false
     G.stu16 = false
     G.stu17 = false
+    G.stu18 = false
     G.stu7 = false
     G.stu8 = false
     G.stu9 = false
@@ -3345,6 +3484,16 @@ program main(args)
     ' STU-15: the snippet window — a builder that writes the statement into
     ' the file and never runs it. The window is one Studio BUILDS, so the form
     ' can be filled and Insert pressed for real.
+    ' STU-18: the settings menu, over the standard fixture.
+    if mode = "stu18_smoke" then
+        G.stu18 = true
+        projdir = args[2]
+        G.app = studio.create_registered_workspace(G.app, "ws")
+        ws = G.app.model.workspace
+        ws = studio_model.add_project(ws, "Alpha", projdir)
+        G.app = studio.set_workspace(G.app, ws)
+    end if
+
     ' STU-17: the schema browser, over a project whose database a previous
     ' step already built.
     if mode = "stu17_smoke" then
