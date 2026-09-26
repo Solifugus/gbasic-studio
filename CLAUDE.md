@@ -9,19 +9,22 @@ from the language, which lives at `~/development/gbasic`. Studio depends on
 gBASIC the way any application depends on its runtime; nothing in gBASIC depends
 on Studio.
 
-**Read `README.md` first for status.** The model and persistence layers are built
-and tested (phases STU-0 through STU-5A), and STU-2B wired the shell's first
-input handlers on top of them: browser rows, tabs, editor edits, and the
-Save / Refresh / New Project buttons all respond. STU-2C added New File and
-New Folder (a cold start now reaches a file you can type in), opening an existing
-directory from the command line, and saving the session when the window closes.
-STU-2D added the name field, Rename, Delete and Close — the last two behind a
-two-click confirmation — plus a status line that reports every outcome. STU-2E
-mounted the run strip and the results pane that STU-4/STU-5A had built but
-nothing displayed: Run / Stop / Force Stop drive a real child interpreter and
-every finished run becomes a durable result. STU-5A′ pointed the run strip and
-the results pane at the CARET rather than at the last run. STU-5's gutter and
-variable inspector still do not exist; see README.
+**Read `README.md` first for status.** Every phase the plan named is built:
+STU-0..STU-6 the MVP, STU-7 and STU-9 the two kinds of exploratory branch,
+STU-8 rich viewers and the tabular tier, STU-10 the assistant acting under a
+permission model, STU-11 optional git, STU-13 the browser pane and its
+right-click menu, STU-14 `.sql` as a document type, STU-15 declarative
+templates and the SQL builders, STU-16 the header menus, STU-17 the schema
+browser. The 2x series wired the shell onto the model (2B interactions, 2C a
+cold start that reaches a file you can type in, 2D the name field and the
+two-click Delete/Close, 2E the run strip and results), and STU-5A' pointed the
+panes at the CARET rather than at the last run.
+
+The gutter and the variable inspector DO exist — this paragraph said they did
+not for several phases after they were built, which is why the sections below
+are the authority and this one is a summary. The gutter marks the parse error
+with an icon Studio ships; the inspector is fed by the variable epilogue
+(STU-4C) and reads captures through `studio_results`.
 
 ## Build & run
 

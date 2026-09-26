@@ -8,15 +8,24 @@ library — and nothing in gBASIC depends on Studio.
 
 ## Status
 
-**The model and persistence layer are built and tested, and the shell now
-responds to input.** Phases STU-0 through STU-11 are complete — STU-0..STU-6 are
-the design's MVP, STU-7 and STU-9 are the two kinds of exploratory branch,
-STU-8 added rich viewers and the tabular tier, STU-10 gave the assistant the ability to
-act under a permission model, and STU-11 added optional git. **The plan's phases
-are all complete.**
-STU-2B wired the first interactions on top of them, STU-2C made a cold start go
-all the way through, STU-2D made the browser editable, STU-2E made Run work, and
-STU-5A′ pointed the panes at the caret.
+**Every phase the plan named is built, and the work since has been what using
+it turned up.** STU-0..STU-6 are the design's MVP; STU-7 and STU-9 are the two
+kinds of exploratory branch; STU-8 added rich viewers and the tabular tier;
+STU-10 gave the assistant the ability to act under a permission model; STU-11
+added optional git. STU-2B wired the first interactions onto the model, STU-2C
+made a cold start go all the way through, STU-2D made the browser editable,
+STU-2E made Run work, and STU-5A′ pointed the panes at the caret.
+
+Since then, from actually using it: **STU-13** rebuilt the browser pane (names
+that elide instead of clipping, a glyph column, a right-click menu, and a
+layout that is remembered); **STU-14** made `.sql` a document type — a scanner
+that knows where one statement ends, a cell per statement with its own result,
+Run All through one connection, and SQLite, PostgreSQL and ODBC behind it with
+the password in neither the file nor the generated program; **STU-15** made
+boilerplate declarative text with holes in it and built the SQL builders on
+that, which write the statement into your file and never run it; **STU-16**
+replaced ten toolbar buttons with two menus that can say what they act on;
+**STU-17** added the schema browser, which shows you the question it asked.
 
 What works when you click it: a browser row (a file opens into a tab, a
 directory expands, a project becomes active), a notebook tab, typing in the
