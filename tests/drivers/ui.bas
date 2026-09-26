@@ -180,6 +180,37 @@ end function
 ' `password` written into `.gstudio.json` and never puts the resolved one in,
 ' which is what makes "a password cannot reach a golden" a property rather than
 ' a promise: this function prints that record, and so do the panes.
+' What the snippet picker would offer, and why not when it would not.
+function snips(app)
+  r = studio_ui.snippet_rows(app)
+  if not r.ok then
+    print "  refused=" + r.why + "  " + studio_ui.action_notice(r.why, r.name)
+  else
+    print "  engine=" + r.engine + " via " + r.name + ", " + count(r.rows) + " snippet(s):"
+    for each row in r.rows
+      fs = []
+      for each f in row.fields
+        mark = f.name
+        if f.secret then
+          ' The one field whose value is going to be written into the user's
+          ' own file in plain text, because CREATE ROLE takes it in the
+          ' statement and there is nowhere else for it to go. Marked so the
+          ' form can say so rather than letting it be a surprise.
+          mark = mark + "!"
+        end if
+        fs = append(fs, mark)
+      end for
+      print "    " + row.id + " — " + row.name + " (" + join(fs, ", ") + ")"
+    end for
+  end if
+end function
+
+function ins(app, id, values)
+  r = studio_ui.insert_snippet(app, id, values)
+  print "-> " + r.action + ": " + studio_ui.action_notice(r.action, r.detail)
+  return r.app
+end function
+
 function dbline(app, projdir)
   doc = studio_docs.active_doc(app.dm)
   r = studio_ui.sql_connection(app, doc)
@@ -1948,6 +1979,120 @@ program main(args)
     app = studio.edit_document(app, id, "-- @database pgtest\n\nselect count(*) as n from pg_class where relname = 'gbstudio_widgets';\n")
     app = runall(app)
     app = walk(app, id, [3])
+  end if
+
+  ' ---- snippets: a builder that writes the code instead of running it ------
+  '
+  ' The whole point, and the reason it needs so little machinery: a builder
+  ' RENDERS a statement into the document and stops. The Run that was already
+  ' there runs it, the scanner makes it a cell, the cell gets an id and a
+  ' result -- and the user is left holding the statement rather than holding
+  ' the effect of one they never saw.
+  if mode = "snippets" then
+    pf{file} = projdir + "/.gstudio.json"
+    sf{file} = projdir + "/work.sql"
+    write(sf, "-- @database prod\n\nselect 1;\n")
+    write(pf, "{\"schema_version\":1,\"id\":\"gsp-1-1\",\"databases\":{\"prod\":{\"driver\":\"pg\",\"host\":\"db.example\",\"database\":\"acme\",\"user\":\"matthew\"}}}")
+    o = studio.open_from_browser(app, "proj-1", projdir + "/work.sql")
+    app = o.app
+    id = studio_docs.active_doc(app.dm).id
+
+    ' `pg` and `sqlite` reach exactly one engine each, so those are derived.
+    ' `odbc` is a TRANSPORT -- the same driver name reaches SQL Server,
+    ' MariaDB, Oracle and SQLite -- so it has to be declared, and offering a
+    ' T-SQL login statement to somebody connected to MariaDB is the class of
+    ' wrong answer that looks right until it runs.
+    banner("which engine a connection speaks")
+    for each c in [{ driver: "pg" }, { driver: "sqlite" }, { driver: "odbc" },
+                   { driver: "odbc", engine: "mssql" }, { driver: "odbc", engine: "MariaDB" },
+                   { driver: "pg", engine: "postgres" }]
+      e = studio_ui.sql_engine(c)
+      if e = "" then
+        e = "(not said)"
+      end if
+      said = studio_sql._sfield(c, "engine")
+      if said = "" then
+        said = "-"
+      end if
+      print "  driver=" + c.driver + " engine=" + said + " -> " + e
+    end for
+
+    banner("what PostgreSQL is offered")
+    snips(app)
+
+    banner("and SQLite, which has no users at all")
+    write(pf, "{\"schema_version\":1,\"id\":\"gsp-1-1\",\"databases\":{\"prod\":{\"driver\":\"sqlite\",\"path\":\"data/app.db\"}}}")
+    snips(app)
+
+    banner("SQL Server, once the connection says so")
+    write(pf, "{\"schema_version\":1,\"id\":\"gsp-1-1\",\"databases\":{\"prod\":{\"driver\":\"odbc\",\"dsn\":\"ERP\"}}}")
+    snips(app)
+    write(pf, "{\"schema_version\":1,\"id\":\"gsp-1-1\",\"databases\":{\"prod\":{\"driver\":\"odbc\",\"dsn\":\"ERP\",\"engine\":\"mssql\"}}}")
+    snips(app)
+
+    banner("insert one, and it is just text in the file")
+    write(pf, "{\"schema_version\":1,\"id\":\"gsp-1-1\",\"databases\":{\"prod\":{\"driver\":\"pg\",\"host\":\"db.example\",\"database\":\"acme\",\"user\":\"matthew\"}}}")
+    c = studio_ui.sync_cursor(app, id, 2, 0)
+    app = c.app
+    app = ins(app, "sql.pg.create_role", { role: "reporting", password: "hunter2" })
+    print studio_docs.active_doc(app.dm).content
+
+    ' And it is a CELL, with an id, which Run would run -- the caret was moved
+    ' to its first line, so the strip names the statement that was just
+    ' written rather than the one it was written above.
+    banner("the inserted statement is an ordinary cell")
+    print "  " + studio_ui.section_label(app)
+    v = studio_ui.view_for(app)
+    app = v.app
+    for each sec in v.st.sections
+      print "  " + sec.id + " [" + sec.sql_tier + "] lines " + sec.start_line + "-" + sec.end_line
+    end for
+
+    ' A template holding two statements stays two statements. SQL Server's
+    ' LOGIN and USER are genuinely two things -- a login with no user in the
+    ' database can connect and see nothing -- and a builder that hid the
+    ' second would be teaching the wrong shape.
+    banner("a template that is two statements becomes two cells")
+    write(pf, "{\"schema_version\":1,\"id\":\"gsp-1-1\",\"databases\":{\"prod\":{\"driver\":\"odbc\",\"dsn\":\"ERP\",\"engine\":\"mssql\"}}}")
+    app = studio.edit_document(app, id, "-- @database prod\n\nselect 1;\n")
+    c = studio_ui.sync_cursor(app, id, 2, 0)
+    app = c.app
+    app = ins(app, "sql.mssql.create_login", { login: "app", password: "hunter2" })
+    v = studio_ui.view_for(app)
+    app = v.app
+    print "  cells: " + count(v.st.sections)
+    for each sec in v.st.sections
+      nm = "-"
+      if sec.name != nothing then
+        nm = sec.name
+      end if
+      print "    " + sec.id + " [" + sec.sql_tier + "] " + nm
+    end for
+
+    ' Substitution is LITERAL -- it has to be, because a template is never
+    ' evaluated -- so a value carrying a quote or a semicolon changes the
+    ' SHAPE of the statement rather than filling a hole in it. Refused by
+    ' name, not escaped: the right escape depends on where the hole is, and
+    ' any single rule would be silently wrong somewhere.
+    banner("a value that would change the statement's shape")
+    for each v in ["O'Brien", "a;b", "x--y", "he said \"hi\"", "ordinary"]
+      r = studio_ui.insert_snippet(app, "sql.pg.create_role", { role: "r", password: v })
+      print "  password <" + v + "> -> " + r.action + ": " + studio_ui.action_notice(r.action, r.detail)
+    end for
+
+    banner("and a hole with nothing to put in it")
+    r = studio_ui.insert_snippet(app, "sql.pg.create_role", { role: "r" })
+    print "  " + r.action + ": " + studio_ui.action_notice(r.action, r.detail)
+    r = studio_ui.insert_snippet(app, "sql.nosuch", {})
+    print "  " + r.action + ": " + studio_ui.action_notice(r.action, r.detail)
+
+    banner("a gBASIC file is offered none of this")
+    gf{file} = projdir + "/main.bas"
+    write(gf, "program main(args)\n  print 1\nend program\n")
+    o = studio.open_from_browser(app, "proj-1", projdir + "/main.bas")
+    app = o.app
+    snips(app)
+    print "  shows the button: " + studio_ui.shows_snippets(app)
   end if
 
   ' ---- sqlodbc: a .sql document run through ODBC, for real -----------------

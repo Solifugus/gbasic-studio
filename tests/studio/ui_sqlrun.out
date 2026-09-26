@@ -124,7 +124,7 @@ latest: res-4  finished exit 1  at 1969-12-31 19:16:40  0s
 == Run All is offered for a .sql document and for nothing else ==
   rebuild.sql -> true
   main.bas    -> false
-  -> not-sql  status=main.bas is not a SQL file — Run All runs the cells of a .sql document
+  -> not-sql  status=main.bas is not a SQL file — Run All and the snippets are for .sql documents
 == a project that declares no database refuses by name ==
   -> no-databases  status=this project declares no databases — add one to .gstudio.json
   -> Run All: no-databases  status=this project declares no databases — add one to .gstudio.json

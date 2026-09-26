@@ -1,8 +1,21 @@
-templates: 4 from 1 file(s)
+templates: 17 from 2 file(s)
   project.main {project*}
   project.readme {project*}
   project.readme_licensed {project*, license*}
   project.gitignore
+  sql.pg.create_role [sql postgres users] {role*, password*}
+  sql.pg.drop_role [sql postgres users] {role*}
+  sql.pg.grant_read [sql postgres permissions] {role*, database*, schema*}
+  sql.pg.create_database [sql postgres ddl] {database*, owner*, encoding}
+  sql.mssql.create_login [sql mssql users] {login*, password*}
+  sql.mssql.grant_read [sql mssql permissions] {user*, schema*}
+  sql.mssql.create_database [sql mssql ddl] {database*}
+  sql.mariadb.create_user [sql mariadb users] {user*, host*, password*}
+  sql.mariadb.grant_read [sql mariadb permissions] {user*, host*, database*}
+  sql.mariadb.create_database [sql mariadb ddl] {database*, charset}
+  sql.sqlite.attach [sql sqlite ddl] {path*, alias*}
+  sql.table [sql postgres mssql mariadb sqlite ddl] {table*}
+  sql.index [sql postgres mssql mariadb sqlite ddl] {table*, column*, index*}
 
 == what New Project writes ==
   project.main -> <' My Thing\n\nprint "hello from My Thing"\n>

@@ -21,6 +21,11 @@
 ' output, so a project named `{{holder}}` would start picking up somebody's
 ' name. It is the kind of defect that never shows up until the one day it does.
 '
+' `tags` is how a consumer asks for the templates that fit a SITUATION --
+' `["sql", "postgres"]` -- and `secret` on a field is how one warns that what
+' it collects will be written down. Both are declarative and neither changes
+' what substitution does.
+'
 ' The registry mirrors `studio_viewers` on purpose — same `.suffix` idea, same
 ' problems-not-raises rule, same load-and-validate order — because a second
 ' shape for "read declarative sidecars off a search path" would be a second set
@@ -296,6 +301,7 @@ library studio_templates
         if fr.why != "" then
             return bad(fr.why)
         end if
+        tags = studio_templates._strings(t, "tags")
         ' Every hole has to be declared. A `{{athor}}` nobody declared would
         ' otherwise survive substitution and land, verbatim, in the file the
         ' user asked for — which is exactly the silent-plausible-wrong-answer
@@ -313,6 +319,7 @@ library studio_templates
         return { tpl: { id: id,
                         name: studio_templates._str(t, "name"),
                         description: studio_templates._str(t, "description"),
+                        tags: tags,
                         fields: fr.fields,
                         text: text,
                         source: "" },
@@ -355,9 +362,16 @@ library studio_templates
                     req = true
                 end if
             end if
+            sec = false
+            if has(f, "secret") then
+                if f.secret = true then
+                    sec = true
+                end if
+            end if
             out = append(out, { name: nm,
                                 label: studio_templates._str(f, "label"),
                                 required: req,
+                                secret: sec,
                                 default: studio_templates._str(f, "default") })
         end for
         return { fields: out, why: "" }
@@ -370,6 +384,28 @@ library studio_templates
             end if
         end for
         return false
+    end function
+
+    ' A list of strings, or empty. Anything that is not a string is DROPPED
+    ' rather than stringified: a tag list is matched against, and a tag of `42`
+    ' is a typo whose only possible effect is a template that never matches.
+    function _strings(r, k)
+        out = []
+        if not has(r, k) then
+            return out
+        end if
+        v = r[k]
+        if not is_array(v) then
+            return out
+        end if
+        for each one in v
+            if is_string(one) then
+                if one != "" then
+                    out = append(out, one)
+                end if
+            end if
+        end for
+        return out
     end function
 
     function _str(r, k)
@@ -457,8 +493,13 @@ library studio_templates
         for each f in tpl.fields
             if f.required then
                 if studio_templates._value(values, f.name, "") = "" then
+                    ' Named the way the form named it. `id` and `name` are the
+                    ' template's two spellings and `label` and `name` are a
+                    ' field's; a message about "Role name" beats one about
+                    ' "role" for somebody looking at a form that said the
+                    ' first.
                     return { ok: false, text: "",
-                             why: quote(tpl.id) + " needs a value for " + quote(f.name) }
+                             why: studio_templates.title(tpl) + " needs a value for " + studio_templates.field_label(f) }
                 end if
             end if
         end for
@@ -500,6 +541,22 @@ library studio_templates
 
     ' ---- looking things up --------------------------------------------------
 
+    ' What to call a template when talking to a user: its name if it has one,
+    ' its id otherwise. Same rule for a field.
+    function title(tpl)
+        if tpl.name != "" then
+            return tpl.name
+        end if
+        return tpl.id
+    end function
+
+    function field_label(f)
+        if f.label != "" then
+            return f.label
+        end if
+        return f.name
+    end function
+
     function by_id(reg, id)
         for each t in reg.templates
             if t.id = id then
@@ -507,6 +564,30 @@ library studio_templates
             end if
         end for
         return nothing
+    end function
+
+    ' The templates carrying EVERY tag in `want`, in registry order.
+    '
+    ' All and not any, because a query is a description of a situation -- "a
+    ' SQL snippet, for PostgreSQL" -- and a template that matched on one word
+    ' of it would offer a SQL Server statement to somebody connected to
+    ' SQLite. A template usable on several engines LISTS them, which is more
+    ' typing and is the point: a template claiming to work everywhere has
+    ' usually been tried on one.
+    function tagged(reg, want)
+        out = []
+        for each t in reg.templates
+            ok = true
+            for each w in want
+                if not contains(t.tags, w) then
+                    ok = false
+                end if
+            end for
+            if ok then
+                out = append(out, t)
+            end if
+        end for
+        return out
     end function
 
     function ids(reg)
@@ -542,6 +623,9 @@ library studio_templates
                 fs = append(fs, mark)
             end for
             line = "  " + t.id
+            if count(t.tags) > 0 then
+                line = line + " [" + join(t.tags, " ") + "]"
+            end if
             if count(fs) > 0 then
                 line = line + " {" + join(fs, ", ") + "}"
             end if

@@ -506,6 +506,24 @@ and is asserted headlessly. The display tier then synthesises real GTK signals
 `GtkTextBuffer`'s text setter and `GtkButton.activate` emit what is needed) to
 prove the handlers are actually connected.
 
+**The SQL builders write the code instead of running it (STU-15).** Press
+**Snippet…** on a `.sql` document and you get a form built from a template's own
+declared fields — *Create a login role*, *Grant read access to a schema*,
+*Create a database*. Pressing Insert writes the statement **into your file**. It
+does not run it, and the window has no way to: there is no connection there.
+You read it, edit it, and press Run, and the statement stays in your repository
+as the record of what was done.
+
+Which snippets you are offered depends on the engine, and `.gstudio.json` says
+which that is — `odbc` is a transport, not an engine, so a connection that has
+not said whether it reaches SQL Server or MariaDB is asked rather than guessed
+at. SQLite is offered no login templates at all, because it has no users.
+
+A password typed into that form lands in your document in plain text, because
+`CREATE ROLE` carries it in the statement and there is nowhere else for it to
+go. Studio says so rather than masking the field, which would suggest the
+opposite.
+
 **Boilerplate is declared, not written out in code (STU-15).** The `main.bas`,
 `README.md` and `.gitignore` New Project writes live in
 `share/templates/project.templates` with `{{project}}` holes in them, and
@@ -551,7 +569,7 @@ workspace instead:
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 193 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 195 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 29 cases, headless AND offline — no network, no key
 ```
 

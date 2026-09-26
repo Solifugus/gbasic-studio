@@ -33,6 +33,7 @@ library studio_shell
     load studio_docs
     load studio_results
     load studio_ui
+    load studio_templates
     load studio_model
     ' The window's appearance, in one place. Every class this file writes goes on
     ' through `studio_style.apply`, which attaches the shared provider at the same
@@ -408,6 +409,7 @@ library studio_shell
         studio_style.set_state(shell.bar.state, studio_style.state_class(sess))
         shell.bar.section.label = studio_ui.section_label(app)
         shell.bar.runall.set_visible(studio_ui.shows_run_all(app))
+        shell.bar.snippet.set_visible(studio_ui.shows_snippets(app))
         shell.bar.standing.label = studio_ui.standing_line(app)
         shell.pane.prefix.label = studio_ui.prefix_body(app)
         shell.pane.target.label = studio_ui.target_body(app)
@@ -1152,6 +1154,13 @@ library studio_shell
         ' be one more control to tell apart. Built once and shown or hidden,
         ' like the branch pane, rather than added and removed.
         all_btn = gtk.button("Run All")
+        ' Same rule, same place: `.sql` only, set by `refresh_run` from
+        ' `studio_ui.shows_snippets`. It sits on the run strip rather than on
+        ' the toolbar because this is where SQL's verbs already are -- and
+        ' because the toolbar is nine buttons that want redesigning, and a
+        ' tenth would be making that worse on purpose.
+        snip_btn = gtk.button("Snippet…")
+        snip_btn.set_tooltip_text("Write a statement into this file. It is not run -- you read it, edit it, and press Run.")
         halt_btn = gtk.button("Stop")
         force_btn = gtk.button("Force Stop")
         ' The state carried in the TEXT only — "run: running" and "run: failed" in
@@ -1196,6 +1205,7 @@ library studio_shell
         bar = studio_style.apply(bar, "panel")
         controls.append(run_btn)
         controls.append(all_btn)
+        controls.append(snip_btn)
         controls.append(halt_btn)
         controls.append(force_btn)
         controls.append(section)
@@ -1209,7 +1219,7 @@ library studio_shell
         ' The widget stays so a caller can read the text without the pane.
         ' `stop` is a gBASIC keyword and cannot be a record key, hence `halt`.
         return { box: bar, controls: controls, run: run_btn, runall: all_btn,
-                 halt: halt_btn, force: force_btn,
+                 snippet: snip_btn, halt: halt_btn, force: force_btn,
                  state: state, section: section, standing: standing, branch: branch }
     end function
 
@@ -1819,6 +1829,168 @@ library studio_shell
                  main: main_chk, readme: readme_chk, projfile: proj_chk,
                  git: git_chk, note: note,
                  create_btn: create_btn, cancel_btn: cancel_btn }
+    end function
+
+    ' ---- the snippet window (STU-15) ----------------------------------------
+    '
+    ' A drop-down of the snippets this connection's engine has, the selected
+    ' one's description, and one entry per field it DECLARES. The form is built
+    ' from the template's own `fields`, so adding a builder is adding a
+    ' template file and no code at all -- which is the whole reason `fields`
+    ' carries `label`, `required` and `default`.
+    '
+    ' Pressing Insert writes the statement into the document. It does not run
+    ' it, and this window has no way to: there is no session here and no
+    ' connection. That is the point rather than a limitation.
+    '
+    ' A window Studio BUILDS, like New Project and for the same reason: every
+    ' control is an ordinary widget whose value can be SET, so a display tier
+    ' can fill the form and press the button for real. A GtkAlertDialog is an
+    ' async surface no test can press.
+    function snippet_window(gtkapp, rows, engine, conn_name)
+        u = studio_style.unit()
+        win = gtk.application_window(gtkapp)
+        win.title = "gBASIC Studio — snippet"
+        win.default_width = 560
+        outer = gtk.box("v", u)
+        outer.margin_start = u * 2
+        outer.margin_end = u * 2
+        outer.margin_top = u * 2
+        outer.margin_bottom = u * 2
+
+        head = studio_shell._left(gtk.label("Write a statement into this file"))
+        head = studio_style.apply(head, "head")
+        outer.append(head)
+
+        ' WHICH database this is about, said out loud. The connection is named
+        ' in a comment three lines up in the file and the engine is a field in
+        ' `.gstudio.json`; a form offering `create login` without saying it
+        ' means SQL Server on `erp` is a form you have to already know the
+        ' answer to.
+        where = studio_shell._left(gtk.label(conn_name + " — " + engine))
+        where = studio_style.apply(where, "dim")
+        outer.append(where)
+
+        names = []
+        for each r in rows
+            names = append(names, r.name)
+        end for
+        model = gi.new("Gtk.StringList")
+        for each n in names
+            model.append(n)
+        end for
+        pick = gi.new("Gtk.DropDown")
+        pick.set_model(model)
+        if count(names) > 0 then
+            pick.set_selected(0)
+        end if
+        pick.hexpand = false
+        pick.halign = gi.enum("Gtk.Align.START")
+        outer.append(pick)
+
+        ' What the statement IS and what to watch out for -- the template's own
+        ' description, which is also readable in the file it came from.
+        desc = studio_shell._wrapped(gtk.label(""))
+        desc = studio_style.apply(desc, "dim")
+        outer.append(desc)
+
+        ' EVERY field of EVERY snippet, built once and shown or hidden, exactly
+        ' like the browser's context menu. Minting widgets inside a selection
+        ' handler is the doubling `ui_gui_solo` exists to catch one level up,
+        ' and a grid rebuilt under a live window is a parent destroyed out from
+        ' under whatever had focus.
+        grid = gi.new("Gtk.Grid")
+        grid.set_column_spacing(u * 2)
+        grid.set_row_spacing(u)
+        entries = []
+        row_at = 0
+        ri = 0
+        while ri < count(rows)
+            r = rows[ri]
+            for each f in r.fields
+                lab = studio_shell._left(gtk.label(studio_templates.field_label(f)))
+                ent = studio_shell._field(f.default)
+                if f.secret then
+                    ' NOT hidden. The value is about to be written into the
+                    ' user's own document in plain text, because CREATE ROLE
+                    ' takes it in the statement and there is nowhere else for
+                    ' it to go -- and a masked entry would say the opposite of
+                    ' what is true about where it is going.
+                    ent.set_tooltip_text("This is written into your document in plain text — the statement carries it, so there is nowhere else for it to go.")
+                end if
+                grid.attach(lab, 0, row_at, 1, 1)
+                grid.attach(ent, 1, row_at, 1, 1)
+                entries = append(entries, { row: ri, name: f.name, label: lab, entry: ent })
+                row_at = row_at + 1
+            end for
+            ri = ri + 1
+        end while
+        outer.append(grid)
+
+        note = studio_shell._wrapped(gtk.label(""))
+        note = studio_style.apply(note, "dim")
+        outer.append(note)
+
+        row = gtk.box("h", u)
+        row.halign = gi.enum("Gtk.Align.END")
+        cancel_btn = gtk.button("Cancel")
+        ins_btn = gtk.button("Insert")
+        ins_btn.add_css_class(studio_style.css_class("suggested-action"))
+        row.append(cancel_btn)
+        row.append(ins_btn)
+        outer.append(row)
+
+        win.set_child(outer)
+        w = { window: win, pick: pick, rows: rows, entries: entries,
+              desc: desc, note: note, insert_btn: ins_btn, cancel_btn: cancel_btn }
+        return studio_shell.snippet_show(w)
+    end function
+
+    ' Show the selected snippet's fields and hide the rest. Called when the
+    ' window is built and again whenever the drop-down changes -- one function,
+    ' so "which fields belong to this snippet" has one answer.
+    function snippet_show(w)
+        sel = studio_shell.snippet_index(w)
+        for each e in w.entries
+            e.label.set_visible(e.row = sel)
+            e.entry.set_visible(e.row = sel)
+        end for
+        if sel >= 0 then
+            if sel < count(w.rows) then
+                w.desc.label = w.rows[sel].description
+            end if
+        end if
+        return w
+    end function
+
+    function snippet_index(w)
+        if count(w.rows) = 0 then
+            return 0 - 1
+        end if
+        sel = w.pick.get_selected()
+        if sel < 0 then
+            return 0 - 1
+        end if
+        if sel >= count(w.rows) then
+            return 0 - 1
+        end if
+        return sel
+    end function
+
+    ' Read the window back as { id, values }. The whole of the widget-to-value
+    ' read for this window, in one place, so the handler stays an adapter.
+    function snippet_values(w)
+        sel = studio_shell.snippet_index(w)
+        if sel < 0 then
+            return { id: "", values: {} }
+        end if
+        vals = {}
+        for each e in w.entries
+            if e.row = sel then
+                vals[e.name] = e.entry.text
+            end if
+        end for
+        return { id: w.rows[sel].id, values: vals }
     end function
 
     ' Read the window back as the options record studio_ui consumes. The whole

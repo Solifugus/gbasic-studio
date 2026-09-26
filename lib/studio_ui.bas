@@ -1878,6 +1878,191 @@ library studio_ui
         return studio_docs._canonical(proj_path + "/" + p)
     end function
 
+    ' ---- SQL snippets: a builder that writes the code instead of running it --
+    '
+    ' The whole shape of this is one decision: **a builder does not run
+    ' anything.** It renders a template and INSERTS it into the document, and
+    ' then the Run that was already there runs it.
+    '
+    ' That is what "I do not believe in hiding magic" asks for, taken seriously.
+    ' A dialog that created a role would leave the user with a role and no idea
+    ' what statement made it; this leaves them with the statement, in their own
+    ' file, where they can read it, edit it before running it, keep it in the
+    ' repository as the record of what was done, and learn the engine's own
+    ' syntax from it. A template being read and never run is what makes that
+    ' true all the way down -- there is no second thing happening somewhere
+    ' else.
+    '
+    ' It also costs Studio almost nothing: no new execution path, no new result
+    ' path. The inserted text becomes an ordinary cell with a stable id, and
+    ' everything STU-14 built applies to it unchanged.
+
+    ' Which ENGINE a connection speaks, which is a different question from which
+    ' gBASIC module reaches it.
+    '
+    ' `odbc` is a transport, not an engine: the same driver name reaches SQL
+    ' Server, MariaDB, Oracle and SQLite, and `create user` is spelled
+    ' differently on all of them. So the project file DECLARES it
+    ' (`"engine": "mssql"`), and an odbc connection that does not is answered
+    ' with `no-engine` rather than guessed at -- offering a T-SQL login
+    ' statement to somebody connected to MariaDB is the class of wrong answer
+    ' that looks right until it runs. `pg` and `sqlite` reach exactly one engine
+    ' each, so those two are derived.
+    function sql_engine(conn)
+        e = studio_sql._sfield(conn, "engine")
+        if e != "" then
+            return lower(e)
+        end if
+        if conn.driver = "pg" then
+            return "postgres"
+        end if
+        if conn.driver = "sqlite" then
+            return "sqlite"
+        end if
+        return ""
+    end function
+
+    ' Whether the window offers snippets at all -- `.sql` only, like Run All,
+    ' and for the same §18 reason.
+    function shows_snippets(app)
+        doc = studio_docs.active_doc(app.dm)
+        if doc = nothing then
+            return false
+        end if
+        return studio_ui.is_sql(doc.path)
+    end function
+
+    ' The snippets this document could use, which is a question about its
+    ' CONNECTION and not about the file. Returns { ok, engine, name, rows, why }
+    ' and every refusal is the connection's own, by name, plus one of its own:
+    '   "no-engine"  an odbc connection that has not said which engine it
+    '                reaches. Actionable, and the fix is one line in the file.
+    function snippet_rows(app)
+        doc = studio_docs.active_doc(app.dm)
+        if doc = nothing then
+            return studio_ui._nosnip("none", "")
+        end if
+        if not studio_ui.is_sql(doc.path) then
+            return studio_ui._nosnip("not-sql", doc.path)
+        end if
+        c = studio_ui.sql_connection(app, doc)
+        if not c.ok then
+            return studio_ui._nosnip(c.why, c.name)
+        end if
+        eng = studio_ui.sql_engine(c.conn)
+        if eng = "" then
+            return studio_ui._nosnip("no-engine", c.name)
+        end if
+        reg = studio_ui.templates_for(app, studio_ui.project_path_for(app, doc))
+        rows = []
+        for each t in studio_templates.tagged(reg, ["sql", eng])
+            rows = append(rows, { id: t.id, name: t.name,
+                                  description: t.description, fields: t.fields })
+        end for
+        return { ok: true, engine: eng, name: c.name, rows: rows, why: "" }
+    end function
+
+    function _nosnip(why, detail)
+        return { ok: false, engine: "", name: detail, rows: [], why: why }
+    end function
+
+    ' Render a snippet and put it in the document. Nothing is run.
+    '
+    ' It lands at the start of the caret's LINE, with the blank line after it
+    ' that makes it a cell of its own, and the caret moves to its first line --
+    ' so the run strip immediately names the new cell and Run runs what was
+    ' just inserted. Mid-line would splice the text into the middle of whatever
+    ' statement the caret was in the middle of.
+    function insert_snippet(app, id, values)
+        doc = studio_docs.active_doc(app.dm)
+        if doc = nothing then
+            return { app: app, action: "none", detail: "" }
+        end if
+        reg = studio_ui.templates_for(app, studio_ui.project_path_for(app, doc))
+        t = studio_templates.by_id(reg, id)
+        if t = nothing then
+            return { app: app, action: "no-template", detail: id }
+        end if
+        if contains(t.tags, "sql") then
+            bad = studio_ui._sql_value_problem(t, values)
+            if bad != "" then
+                return { app: app, action: "bad-value", detail: bad }
+            end if
+        end if
+        r = studio_templates.render(t, values)
+        if not r.ok then
+            return { app: app, action: "need-value", detail: r.why }
+        end if
+        line1 = doc.cursor.line
+        app = studio.edit_document(app, doc.id,
+                                   studio_ui._insert_at_line(doc.content, line1, r.text))
+        app = studio.set_document_cursor(app, doc.id, line1, 1)
+        return { app: app, action: "inserted", detail: t.name }
+    end function
+
+    ' A value that would not survive being pasted into SQL.
+    '
+    ' Substitution is literal -- it has to be, because a template is never
+    ' evaluated -- so a value carrying a quote, a semicolon or a comment marker
+    ' changes the SHAPE of the statement rather than filling a hole in it:
+    ' `password 'O'Brien'` ends the literal at the apostrophe, and a `;` splits
+    ' one cell into two.
+    '
+    ' REFUSED by name, not escaped. The correct escape depends on where the
+    ' hole IS -- `''` inside a string literal, `""` inside a Postgres
+    ' identifier, `]]` inside a T-SQL one -- and a template cannot say which,
+    ' so any single rule would be silently wrong somewhere. Naming the field
+    ' and the character leaves the user able to fix it in one keystroke;
+    ' escaping it three ways out of four does not.
+    function _sql_value_problem(t, values)
+        for each f in t.fields
+            v = studio_templates._value(values, f.name, "")
+            ' Every character that can end one of SQL's quoting forms early:
+            ' `'` a string literal, `"` a standard identifier, `]` a T-SQL
+            ' one, `;` the statement itself, `--` the rest of the line, and a
+            ' backslash, which MySQL treats as an escape inside a literal.
+            for each ch in ["'", "\"", "]", ";", "--", "\\"]
+                if find(v, ch) != nothing then
+                    return studio_templates.field_label(f) + " contains " + quote(ch)
+                end if
+            end for
+        end for
+        return ""
+    end function
+
+    ' Splice text in at the start of a 1-based line. `text` ends in a newline,
+    ' so splitting it leaves an empty last element -- which becomes the blank
+    ' line separating the new statement from the one it was inserted above.
+    function _insert_at_line(content, line1, text)
+        lines = split(content, "\n")
+        add = split(text, "\n")
+        n = count(lines)
+        at = line1 - 1
+        if at < 0 then
+            at = 0
+        end if
+        if at > n then
+            at = n
+        end if
+        out = []
+        i = 0
+        while i < n
+            if i = at then
+                for each tl in add
+                    out = append(out, tl)
+                end for
+            end if
+            out = append(out, lines[i])
+            i = i + 1
+        end while
+        if at >= n then
+            for each tl in add
+                out = append(out, tl)
+            end for
+        end if
+        return join(out, "\n")
+    end function
+
     ' ---- the browser's context menu (STU-13) --------------------------------
     '
     ' What a right-click OFFERS is decided here, over the row model, so the menu
@@ -2145,6 +2330,23 @@ library studio_ui
         if action = "bad-database" then
             return detail + " needs a driver of sqlite, pg or odbc"
         end if
+        ' ---- SQL snippets. A builder writes the statement into your file; it
+        ' never runs it, so every outcome here is about the DOCUMENT.
+        if action = "inserted" then
+            return "inserted " + detail + " — read it, edit it, then Run it"
+        end if
+        if action = "no-engine" then
+            return detail + " does not say which engine it reaches — add \"engine\": \"mssql\" (or postgres, mariadb, sqlite) to it in .gstudio.json"
+        end if
+        if action = "bad-value" then
+            return detail + ", which would change the shape of the statement rather than fill a hole in it"
+        end if
+        if action = "need-value" then
+            return detail
+        end if
+        if action = "no-template" then
+            return detail
+        end if
         if action = "bad-password" then
             ' The one character an ODBC connection string cannot carry. Said
             ' outright rather than mangled into a connection that fails with
@@ -2155,7 +2357,7 @@ library studio_ui
         ' ---- Run All. Its two refusals are about the DOCUMENT rather than the
         ' connection, so they are worded about the document.
         if action = "not-sql" then
-            return leaf + " is not a SQL file — Run All runs the cells of a .sql document"
+            return leaf + " is not a SQL file — Run All and the snippets are for .sql documents"
         end if
         if action = "no-cells" then
             return "there are no statements in this file to run"

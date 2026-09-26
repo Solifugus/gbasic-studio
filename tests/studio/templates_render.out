@@ -17,8 +17,8 @@ templates: 6 from 1 file(s)
   nosuch -> refused: no template called "nosuch"
 
 == a required hole with nothing to put in it ==
-  greet -> refused: "greet" needs a value for "who"
-  greet -> refused: "greet" needs a value for "who"
+  greet -> refused: greet needs a value for who
+  greet -> refused: greet needs a value for who
 
 == a value that looks like a placeholder is not one ==
   two -> <[{{b}}][SECRET]>

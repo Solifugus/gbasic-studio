@@ -1,0 +1,28 @@
+opening the .sql file
+Snippet is visible on a .sql document=true
+Run All is too=true
+clicking Snippet
+the window is open=true
+offered 6 snippet(s) for this connection
+the first is Create a login role
+description: PostgreSQL. The password is written into your document in plain text, because CREATE ROLE takes it in the statement — there is nowhere else for it to go.
+fields shown: role, password
+pressing Insert with a required field empty
+action=need-value note=Create a login role needs a value for Role name
+the window stayed open=true
+picking the third snippet instead
+now offering Grant read access to a schema
+fields shown: role, database, schema
+back to the first, and filling it in
+action=inserted status=inserted Create a login role — read it, edit it, then Run it
+the window closed=true
+-- the document now --
+create role reporting with login password 'hunter2';
+
+-- @database prod
+
+select 1;
+
+-- and the strip names the statement just written --
+section: sec-2 create reporting
+app-exited

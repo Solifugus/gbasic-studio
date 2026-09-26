@@ -49,7 +49,7 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 193 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 195 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 29 cases, headless AND offline (scripted transport)
 ```
 
@@ -60,7 +60,8 @@ tree, so an interpreter change is what gets tested rather than a stale binary.
 Display tiers (`sections_gui`, `sessions_gui`, `results_gui`, `ui_gui`,
 `ui_gui_cold`, `ui_gui_new`, `ui_gui_name`, `ui_gui_solo`, `ui_gui_run`,
 `ui_gui_cursor`, `ui_gui_open`, `ui_gui_newproj`, `ui_gui_layout`,
-`ui_gui_ctx`, `ui_gui_branch`, `ui_gui_table`, `ui_gui_overlay`, `ui_gui_teach`, `ui_gui_git`) SKIP cleanly
+`ui_gui_ctx`, `ui_gui_branch`, `ui_gui_table`, `ui_gui_overlay`, `ui_gui_teach`,
+`ui_gui_git`, `ui_gui_snippet`) SKIP cleanly
 without GTK 4 or a display.
 `ui_gui_new` is the only case that spans two processes: the GUI builds a project
 from nothing and closes, and a second interpreter run reopens the same home —
@@ -542,6 +543,13 @@ Two consequences worth knowing before you touch the shell:
   caller's job, in gBASIC, where it is testable — which is why there are two
   READMEs (`project.readme`, `project.readme_licensed`) and `project_plan`
   picks between them. A template language with conditionals is a language.
+- **"Read and never run" is also what makes a template TEACH.** A file that is
+  only ever substituted into is a file a user can open and learn the thing from
+  — the SQL, the gBASIC, the shape of a project — because there is nothing in
+  it that happens somewhere else. The moment a template could branch or call
+  out, reading it would stop telling you what you are going to get, and the
+  same argument that keeps the SQL builders emitting the code they run would
+  have been given up one layer down.
 - **Substitution is ONE PASS**, over `_parts`. A value that itself contains
   `{{other}}` is output verbatim and never looked at again. Repeated
   `replace()` calls would NOT have that property — the second call reaches into
@@ -604,6 +612,76 @@ Two consequences worth knowing before you touch the shell:
   else). The git checkbox already exists in the New Project window and nothing
   else wants one, and a closed vocabulary with one member and no consumer is
   the speculative mechanism this repository keeps not building.
+
+### The SQL builders (STU-15)
+
+- **A builder does not run anything. It writes the statement into your file.**
+  That is the whole design, and it is what "I do not believe in hiding magic"
+  asks for taken seriously. A dialog that created a role would leave the user
+  with a role and no idea what statement made it; this leaves them with the
+  statement, in their own document, where they can read it, edit it before
+  running it, keep it in the repository as the record of what was done, and
+  learn the engine's syntax from it.
+- It also costs Studio almost nothing. There is no new execution path and no
+  new result path: the inserted text becomes an ordinary cell with a stable id,
+  and everything STU-14 built applies unchanged. `ui_gui_snippet` needs no
+  database and no probe, which is the design showing through the test — there
+  is nothing to connect to.
+- **The form is built from the template's own `fields`**, so adding a builder
+  is adding a template file and no code at all. That is what `label`,
+  `required`, `default` and `secret` are for.
+- `secret: true` does NOT mask the entry. The value is about to be written into
+  the user's document in plain text — `CREATE ROLE` takes the password in the
+  statement and there is nowhere else for it to go — and a masked field would
+  say the opposite of what is true about where it is going. It gets a tooltip
+  saying so instead, and the template's description says it again.
+- **`engine` is DECLARED in `.gstudio.json`, and `odbc` is a transport rather
+  than an engine.** The same driver name reaches SQL Server, MariaDB, Oracle
+  and SQLite, and `create user` is spelled differently on all of them — so an
+  odbc connection that has not said which engine it reaches is answered
+  `no-engine` rather than guessed at. `pg` and `sqlite` reach exactly one each,
+  so those two are derived.
+- A template LISTS the engines it works on; `tagged` matches on ALL the tags
+  asked for. All and not any, because a query describes a situation ("a SQL
+  snippet, for PostgreSQL") and matching on one word of it would offer a T-SQL
+  statement to somebody connected to SQLite. Listing four engines is more
+  typing and is the point: a template claiming to work everywhere has usually
+  been tried on one.
+- **A value carrying `'`, `"`, `]`, `;`, `--` or a backslash is REFUSED by
+  name, not escaped.** Substitution is literal — it has to be, because a
+  template is never evaluated — so such a value changes the SHAPE of the
+  statement rather than filling a hole in it. The correct escape depends on
+  where the hole IS (`''` in a string literal, `""` in a Postgres identifier,
+  `]]` in a T-SQL one) and a template cannot say which, so any single rule
+  would be silently wrong somewhere. Naming the field and the character leaves
+  the user able to fix it in one keystroke; escaping it three ways out of four
+  does not. Per-hole context declarations are deliberately NOT built.
+- The snippet lands at the start of the CARET'S line, with the blank line after
+  it that makes it a cell of its own, and the caret moves to its first line —
+  so the strip immediately names the new cell and Run runs what was just
+  written. Mid-line would splice text into the middle of whatever statement the
+  caret was inside.
+- **Every field of every snippet is built once and shown or hidden**, exactly
+  like the browser's context menu. Minting widgets inside a selection handler
+  is the doubling `ui_gui_solo` exists to catch one level up, and a grid
+  rebuilt under a live window destroys the parent of whatever had focus.
+  `notify::selected` drives it — the same detailed signal shape the editor's
+  caret already uses, measured before the window was written.
+- The button is on the RUN STRIP and not the toolbar, and hidden for anything
+  that is not `.sql` (`shows_snippets`, the same rule as Run All). The toolbar
+  is nine buttons that want redesigning; a tenth would be making that worse on
+  purpose.
+- **`gi.new("Gtk.<Widget>")` SEGFAULTS before GTK is initialized**, rather than
+  raising — found probing `notify::selected` in a standalone file, logged in
+  gBASIC's DOGFOOD. Studio is never exposed because it builds everything inside
+  `activate`. Two things made it cost more than it should: the crash takes the
+  process down before stdout flushes, so a `print`-traced program produces NO
+  output and looks like it failed at line 1 (`print to error` located it), and
+  in a pipeline the exit status is the pipe's, so it reads as a clean exit 0.
+- gBASIC warning 2107 ("writes to a COPY of the element") fires on
+  `e.entry.text = x` inside a `for each`, where `e.entry` is a gobject HANDLE
+  and the write really does reach the widget. Bind it out first
+  (`ent = e.entry`); several golden tiers capture stderr. Also in DOGFOOD.
 
 ### SQL as a document type (STU-14, in progress)
 

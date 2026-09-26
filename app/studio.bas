@@ -275,6 +275,76 @@ function on_create_project()
     return nothing
 end function
 
+' ---- the snippet window --------------------------------------------------
+'
+' Three adapters and no decisions. What snippets exist is
+' `studio_ui.snippet_rows`; what inserting one does is
+' `studio_ui.insert_snippet`; both are over plain data and both are asserted
+' headlessly by `ui_snippets`.
+function on_snippet()
+    if G.snippet_win != nothing then
+        G.snippet_win.window.present()
+        return nothing
+    end if
+    r = studio_ui.snippet_rows(G.app)
+    if not r.ok then
+        ' Refused before a window opens. Every reason is the connection's own,
+        ' by name, and the status line is where the user is already looking.
+        G.last_action = r.why
+        G.last_detail = r.name
+        redraw()
+        return nothing
+    end if
+    w = studio_shell.snippet_window(G.app_ref, r.rows, r.engine, r.name)
+    gi.connect(w.insert_btn, "clicked", on_snippet_insert)
+    gi.connect(w.cancel_btn, "clicked", on_snippet_cancel)
+    ' The same detailed `notify::` shape the editor's caret already uses.
+    gi.connect(w.pick, "notify::selected", on_snippet_pick)
+    G.snippet_win = w
+    w.window.present()
+    return nothing
+end function
+
+function on_snippet_pick()
+    if G.snippet_win = nothing then
+        return nothing
+    end if
+    G.snippet_win = studio_shell.snippet_show(G.snippet_win)
+    return nothing
+end function
+
+function on_snippet_insert()
+    w = G.snippet_win
+    v = studio_shell.snippet_values(w)
+    r = studio_ui.insert_snippet(G.app, v.id, v.values)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    if r.action = "inserted" then
+        close_snippet()
+    else
+        ' A refusal keeps the window open with what was typed still in it: the
+        ' field to change is in this window, and closing it to put the reason
+        ' in a status line behind it would hide both.
+        w.note.label = studio_ui.action_notice(r.action, r.detail)
+    end if
+    redraw()
+    return nothing
+end function
+
+function on_snippet_cancel()
+    close_snippet()
+    return nothing
+end function
+
+function close_snippet()
+    if G.snippet_win != nothing then
+        G.snippet_win.window.close()
+        G.snippet_win = nothing
+    end if
+    return nothing
+end function
+
 function on_cancel_project()
     close_newproj()
     return nothing
@@ -1051,6 +1121,7 @@ function wire_shell()
     gi.connect(sh.refresh_btn, "clicked", on_refresh)
     gi.connect(sh.bar.run, "clicked", on_run)
     gi.connect(sh.bar.runall, "clicked", on_run_all)
+    gi.connect(sh.bar.snippet, "clicked", on_snippet)
     gi.connect(sh.bar.halt, "clicked", on_stop)
     gi.connect(sh.bar.force, "clicked", on_force_stop)
     gi.connect(sh.apane.ask, "clicked", on_ask_agent)
@@ -1685,6 +1756,110 @@ end function
 ' is the whole reason it is not a GtkAlertDialog: this case could not exist.
 ' The form is filled, Create is clicked, and the project it made is asserted
 ' from the browser rows and from the directory on disk.
+function stu15_step()
+    G.phase = G.phase + 1
+    if G.phase = 1 then
+        print "opening the .sql file"
+        click_row(find_row("file", "work.sql"))
+        return true
+    end if
+    if G.phase = 2 then
+        print "Snippet is visible on a .sql document=" + G.shell.bar.snippet.get_visible()
+        print "Run All is too=" + G.shell.bar.runall.get_visible()
+        print "clicking Snippet"
+        G.shell.bar.snippet.activate()
+        return true
+    end if
+    if G.phase = 3 then
+        w = G.snippet_win
+        print "the window is open=" + (w != nothing)
+        print "offered " + count(w.rows) + " snippet(s) for this connection"
+        print "the first is " + w.rows[0].name
+        print "description: " + w.desc.label
+        ' The fields on screen are the SELECTED snippet's and nobody else's.
+        print "fields shown: " + shown_fields(w)
+        print "pressing Insert with a required field empty"
+        w.insert_btn.activate()
+        return true
+    end if
+    if G.phase = 4 then
+        w = G.snippet_win
+        print "action=" + G.last_action + " note=" + w.note.label
+        print "the window stayed open=" + (w != nothing)
+        ' Change the selection through the REAL signal, which is what swaps
+        ' the fields over -- the same detailed `notify::` shape the editor's
+        ' caret already uses.
+        print "picking the third snippet instead"
+        w.pick.set_selected(2)
+        return true
+    end if
+    if G.phase = 5 then
+        w = G.snippet_win
+        print "now offering " + w.rows[w.pick.get_selected()].name
+        print "fields shown: " + shown_fields(w)
+        print "back to the first, and filling it in"
+        w.pick.set_selected(0)
+        return true
+    end if
+    if G.phase = 6 then
+        w = G.snippet_win
+        ' It lands at the CARET'S line, and the caret is still at the top of a
+        ' file that was just opened -- so the statement goes in above the
+        ' `-- @database` line rather than below it. That is the placement rule
+        ' doing what it says, not a mis-insert: `ui_snippets` moves the caret
+        ' first and the statement follows it there.
+        set_field(w, "role", "reporting")
+        set_field(w, "password", "hunter2")
+        w.insert_btn.activate()
+        return true
+    end if
+    if G.phase = 7 then
+        print "action=" + G.last_action + " status=" + G.shell.status.label
+        print "the window closed=" + (G.snippet_win = nothing)
+        print "-- the document now --"
+        print studio_docs.active_doc(G.app.dm).content
+        print "-- and the strip names the statement just written --"
+        print studio_ui.section_label(G.app)
+        G.app_ref.quit()
+        return false
+    end if
+    G.app_ref.quit()
+    return false
+end function
+
+' The labels of the field rows currently on screen. `snippet_show` hides every
+' field that does not belong to the selected snippet rather than rebuilding the
+' grid: minting widgets inside a selection handler is the doubling
+' `ui_gui_solo` exists to catch one level up.
+function shown_fields(w)
+    out = []
+    for each e in w.entries
+        if e.entry.get_visible() then
+            out = append(out, e.name)
+        end if
+    end for
+    return join(out, ", ")
+end function
+
+function set_field(w, name, text)
+    sel = w.pick.get_selected()
+    for each e in w.entries
+        if e.row = sel then
+            if e.name = name then
+                ' Bound out first. `e` is a COPY of the element, and gBASIC
+                ' warns about writing to a field of one -- correctly in
+                ' general, and wrongly here, because `e.entry` is a gobject
+                ' HANDLE and setting a property on it reaches the widget. The
+                ' warning goes to stderr at every run, so the shape is worth
+                ' avoiding even where the write works.
+                ent = e.entry
+                ent.text = text
+            end if
+        end if
+    end for
+    return nothing
+end function
+
 function stu12_step()
     G.phase = G.phase + 1
     if G.phase = 1 then
@@ -2194,6 +2369,10 @@ function on_activate(gtkapp)
     end if
     if G.stu14 then
         gi.timeout(400, stu14_step)
+        return nothing
+    end if
+    if G.stu15 then
+        gi.timeout(400, stu15_step)
         return nothing
     end if
     if G.stu11 then
@@ -2721,6 +2900,7 @@ program main(args)
     G.stu12 = false
     G.stu13 = false
     G.stu14 = false
+    G.stu15 = false
     G.stu7 = false
     G.stu8 = false
     G.stu9 = false
@@ -2735,6 +2915,8 @@ program main(args)
     ' New Project presents the one that is already open rather than minting a
     ' second set of widgets over the same handlers.
     G.newproj_win = nothing
+    ' STU-15: the snippet window, the same way and for the same reason.
+    G.snippet_win = nothing
     ' STU-13: which browser row the context menu is about, and whether the
     ' popover is currently parented to a row (a redraw destroys those).
     G.ctx_index = -1
@@ -2801,6 +2983,18 @@ program main(args)
     if mode = "stu13_smoke" then
         G.stu13 = true
         G.save_on_exit = true
+    end if
+
+    ' STU-15: the snippet window — a builder that writes the statement into
+    ' the file and never runs it. The window is one Studio BUILDS, so the form
+    ' can be filled and Insert pressed for real.
+    if mode = "stu15_smoke" then
+        G.stu15 = true
+        projdir = args[2]
+        G.app = studio.create_registered_workspace(G.app, "ws")
+        ws = G.app.model.workspace
+        ws = studio_model.add_project(ws, "Alpha", projdir)
+        G.app = studio.set_workspace(G.app, ws)
     end if
 
     ' STU-13: the browser's right-click menu, over the standard fixture.

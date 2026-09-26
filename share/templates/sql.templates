@@ -1,0 +1,150 @@
+{
+  "schema_version": 1,
+  "templates": [
+    {
+      "id": "sql.pg.create_role",
+      "name": "Create a login role",
+      "description": "PostgreSQL. The password is written into your document in plain text, because CREATE ROLE takes it in the statement — there is nowhere else for it to go.",
+      "tags": ["sql", "postgres", "users"],
+      "fields": [
+        { "name": "role", "label": "Role name", "required": true },
+        { "name": "password", "label": "Password", "required": true, "secret": true }
+      ],
+      "text": "create role {{role}} with login password '{{password}}';\n"
+    },
+    {
+      "id": "sql.pg.drop_role",
+      "name": "Drop a role",
+      "description": "PostgreSQL. Fails while the role still owns anything; REASSIGN OWNED first.",
+      "tags": ["sql", "postgres", "users"],
+      "fields": [
+        { "name": "role", "label": "Role name", "required": true }
+      ],
+      "text": "drop role {{role}};\n"
+    },
+    {
+      "id": "sql.pg.grant_read",
+      "name": "Grant read access to a schema",
+      "description": "PostgreSQL. Three statements: connect to the database, use the schema, read what is in it now. ALTER DEFAULT PRIVILEGES is what covers tables made later.",
+      "tags": ["sql", "postgres", "permissions"],
+      "fields": [
+        { "name": "role", "label": "Role name", "required": true },
+        { "name": "database", "label": "Database", "required": true },
+        { "name": "schema", "label": "Schema", "required": true, "default": "public" }
+      ],
+      "text": "grant connect on database {{database}} to {{role}};\n\ngrant usage on schema {{schema}} to {{role}};\n\ngrant select on all tables in schema {{schema}} to {{role}};\n\nalter default privileges in schema {{schema}} grant select on tables to {{role}};\n"
+    },
+    {
+      "id": "sql.pg.create_database",
+      "name": "Create a database",
+      "description": "PostgreSQL. Cannot run inside a transaction, so it is a cell of its own.",
+      "tags": ["sql", "postgres", "ddl"],
+      "fields": [
+        { "name": "database", "label": "Database name", "required": true },
+        { "name": "owner", "label": "Owner role", "required": true },
+        { "name": "encoding", "label": "Encoding", "default": "UTF8" }
+      ],
+      "text": "create database {{database}} owner {{owner}} encoding '{{encoding}}';\n"
+    },
+    {
+      "id": "sql.mssql.create_login",
+      "name": "Create a login and a user",
+      "description": "SQL Server. Two things, not one: a LOGIN is server-wide and a USER is per-database, and a login with no user in the database can connect and see nothing. The password lands in your document in plain text.",
+      "tags": ["sql", "mssql", "users"],
+      "fields": [
+        { "name": "login", "label": "Login name", "required": true },
+        { "name": "password", "label": "Password", "required": true, "secret": true }
+      ],
+      "text": "create login [{{login}}] with password = '{{password}}';\n\ncreate user [{{login}}] for login [{{login}}];\n"
+    },
+    {
+      "id": "sql.mssql.grant_read",
+      "name": "Grant read access to a schema",
+      "description": "SQL Server. Schema-scoped, which is the grain SQL Server actually works in.",
+      "tags": ["sql", "mssql", "permissions"],
+      "fields": [
+        { "name": "user", "label": "User name", "required": true },
+        { "name": "schema", "label": "Schema", "required": true, "default": "dbo" }
+      ],
+      "text": "grant select on schema::{{schema}} to [{{user}}];\n"
+    },
+    {
+      "id": "sql.mssql.create_database",
+      "name": "Create a database",
+      "description": "SQL Server.",
+      "tags": ["sql", "mssql", "ddl"],
+      "fields": [
+        { "name": "database", "label": "Database name", "required": true }
+      ],
+      "text": "create database [{{database}}];\n"
+    },
+    {
+      "id": "sql.mariadb.create_user",
+      "name": "Create a user",
+      "description": "MariaDB and MySQL. A user is a name AND a host — 'app'@'%' and 'app'@'localhost' are two different users. The password lands in your document in plain text.",
+      "tags": ["sql", "mariadb", "users"],
+      "fields": [
+        { "name": "user", "label": "User name", "required": true },
+        { "name": "host", "label": "Host", "required": true, "default": "localhost" },
+        { "name": "password", "label": "Password", "required": true, "secret": true }
+      ],
+      "text": "create user '{{user}}'@'{{host}}' identified by '{{password}}';\n"
+    },
+    {
+      "id": "sql.mariadb.grant_read",
+      "name": "Grant read access to a database",
+      "description": "MariaDB and MySQL.",
+      "tags": ["sql", "mariadb", "permissions"],
+      "fields": [
+        { "name": "user", "label": "User name", "required": true },
+        { "name": "host", "label": "Host", "required": true, "default": "localhost" },
+        { "name": "database", "label": "Database", "required": true }
+      ],
+      "text": "grant select on {{database}}.* to '{{user}}'@'{{host}}';\n"
+    },
+    {
+      "id": "sql.mariadb.create_database",
+      "name": "Create a database",
+      "description": "MariaDB and MySQL. utf8mb4 is the one that holds every character; utf8 in MySQL is three bytes and silently loses the rest.",
+      "tags": ["sql", "mariadb", "ddl"],
+      "fields": [
+        { "name": "database", "label": "Database name", "required": true },
+        { "name": "charset", "label": "Character set", "default": "utf8mb4" }
+      ],
+      "text": "create database {{database}} character set {{charset}};\n"
+    },
+    {
+      "id": "sql.sqlite.attach",
+      "name": "Attach another database file",
+      "description": "SQLite. This is as close as SQLite comes to a second database, and it has no users or permissions at all — which is why no login templates are offered for it.",
+      "tags": ["sql", "sqlite", "ddl"],
+      "fields": [
+        { "name": "path", "label": "File path", "required": true },
+        { "name": "alias", "label": "Name to use for it", "required": true }
+      ],
+      "text": "attach database '{{path}}' as {{alias}};\n"
+    },
+    {
+      "id": "sql.table",
+      "name": "Create a table",
+      "description": "Every engine listed, because this much of CREATE TABLE is the same on all of them. Edit the columns before you run it.",
+      "tags": ["sql", "postgres", "mssql", "mariadb", "sqlite", "ddl"],
+      "fields": [
+        { "name": "table", "label": "Table name", "required": true }
+      ],
+      "text": "create table {{table}} (\n  id integer primary key,\n  name varchar(80) not null\n);\n"
+    },
+    {
+      "id": "sql.index",
+      "name": "Create an index",
+      "description": "Every engine listed. The name carries the table and the column, which is the convention that makes an index list readable.",
+      "tags": ["sql", "postgres", "mssql", "mariadb", "sqlite", "ddl"],
+      "fields": [
+        { "name": "table", "label": "Table name", "required": true },
+        { "name": "column", "label": "Column name", "required": true },
+        { "name": "index", "label": "Index name", "required": true }
+      ],
+      "text": "create index {{index}} on {{table}} ({{column}});\n"
+    }
+  ]
+}

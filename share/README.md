@@ -10,7 +10,8 @@ share/applications/org.gbasic.Studio.desktop   the desktop entry
 share/icons/hicolor/<size>/apps/org.gbasic.Studio.png   the icon, 16 … 256
 share/icons/hicolor/<size>/status/gbasic-studio-error.png   the gutter's error mark, 16/24/32
 share/licenses/<spdx-id>.txt                   the licence texts New Project can write
-share/templates/<name>.templates               the boilerplate New Project renders
+share/templates/project.templates              the boilerplate New Project renders
+share/templates/sql.templates                  the statements the SQL builders write
 ```
 
 Not everything here is a desktop file. `licenses/` and `templates/` are DATA

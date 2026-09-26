@@ -1,0 +1,58 @@
+== which engine a connection speaks ==
+  driver=pg engine=- -> postgres
+  driver=sqlite engine=- -> sqlite
+  driver=odbc engine=- -> (not said)
+  driver=odbc engine=mssql -> mssql
+  driver=odbc engine=MariaDB -> mariadb
+  driver=pg engine=postgres -> postgres
+== what PostgreSQL is offered ==
+  engine=postgres via prod, 6 snippet(s):
+    sql.pg.create_role — Create a login role (role, password!)
+    sql.pg.drop_role — Drop a role (role)
+    sql.pg.grant_read — Grant read access to a schema (role, database, schema)
+    sql.pg.create_database — Create a database (database, owner, encoding)
+    sql.table — Create a table (table)
+    sql.index — Create an index (table, column, index)
+== and SQLite, which has no users at all ==
+  engine=sqlite via prod, 3 snippet(s):
+    sql.sqlite.attach — Attach another database file (path, alias)
+    sql.table — Create a table (table)
+    sql.index — Create an index (table, column, index)
+== SQL Server, once the connection says so ==
+  refused=no-engine  prod does not say which engine it reaches — add "engine": "mssql" (or postgres, mariadb, sqlite) to it in .gstudio.json
+  engine=mssql via prod, 5 snippet(s):
+    sql.mssql.create_login — Create a login and a user (login, password!)
+    sql.mssql.grant_read — Grant read access to a schema (user, schema)
+    sql.mssql.create_database — Create a database (database)
+    sql.table — Create a table (table)
+    sql.index — Create an index (table, column, index)
+== insert one, and it is just text in the file ==
+-> inserted: inserted Create a login role — read it, edit it, then Run it
+-- @database prod
+
+create role reporting with login password 'hunter2';
+
+select 1;
+
+== the inserted statement is an ordinary cell ==
+  section: sec-2 create reporting
+  sec-2 [write] lines 3-3
+  sec-1 [read] lines 5-5
+== a template that is two statements becomes two cells ==
+-> inserted: inserted Create a login and a user — read it, edit it, then Run it
+  cells: 3
+    sec-3 [write] login
+    sec-4 [write] app
+    sec-1 [read] -
+== a value that would change the statement's shape ==
+  password <O'Brien> -> bad-value: Password contains "'", which would change the shape of the statement rather than fill a hole in it
+  password <a;b> -> bad-value: Password contains ";", which would change the shape of the statement rather than fill a hole in it
+  password <x--y> -> bad-value: Password contains "--", which would change the shape of the statement rather than fill a hole in it
+  password <he said "hi"> -> bad-value: Password contains "\"", which would change the shape of the statement rather than fill a hole in it
+  password <ordinary> -> inserted: inserted Create a login role — read it, edit it, then Run it
+== and a hole with nothing to put in it ==
+  need-value: Create a login role needs a value for Password
+  no-template: sql.nosuch
+== a gBASIC file is offered none of this ==
+  refused=not-sql  main.bas is not a SQL file — Run All and the snippets are for .sql documents
+  shows the button: false

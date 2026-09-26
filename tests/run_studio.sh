@@ -948,6 +948,11 @@ else
     printf 'SKIP ui_sqlrun (this gBASIC has no sqlite module)\n'
 fi
 
+# STU-15: the snippet builder. Needs no database and no probe -- a builder
+# WRITES the statement into the file and never runs it, which is the design
+# showing through the test: there is nothing to connect to.
+run_ui snippets
+
 # Where a database password comes from. Two of its cases read the ENCRYPTED
 # store, and `crypto` is behind HAVE_LIBCRYPTO -- a build without it answers
 # "unusable" where this golden says "ready", so it is probed rather than
@@ -1239,6 +1244,33 @@ if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
             printf 'SKIP ui_gui_layout (GTK 4 typelib not available)\n'
         else
             cat "$stdout_file"; fail "ui_gui_layout (nonzero exit)"
+        fi
+    fi
+
+    # STU-15: the snippet window. A builder that WRITES the statement into the
+    # file and never runs it, so this tier needs no database at all -- which is
+    # the design showing through the test: there is no connection to make,
+    # because nothing is executed.
+    sn_home="$tmproot/ui_gui_snip"; sn_proj="$tmproot/ui_gui_snip_proj"
+    rm -rf "$sn_home" "$sn_proj"
+    mkdir -p "$sn_home"; mkproj_ui "$sn_proj"
+    printf -- '-- @database prod\n\nselect 1;\n' > "$sn_proj/work.sql"
+    printf '{"schema_version":1,"id":"gsp-1-1","databases":{"prod":{"driver":"pg","host":"db.example","database":"acme","user":"matthew"}}}\n' > "$sn_proj/.gstudio.json"
+    : >"$stdout_file"
+    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
+            "$GBASIC" "$APP" stu15_smoke "$sn_home" "$sn_proj" \
+            >"$stdout_file" 2>/dev/null; then
+        if diff -u tests/studio/ui_gui_snippet.out "$stdout_file"; then
+            printf 'PASS ui_gui_snippet (a snippet picked, filled and inserted for real)\n'
+        else
+            fail "ui_gui_snippet (output diff)"
+        fi
+    else
+        rc=$?
+        if grep -q 'Typelib file for namespace' "$stdout_file" 2>/dev/null; then
+            printf 'SKIP ui_gui_snippet (GTK 4 typelib not available)\n'
+        else
+            cat "$stdout_file"; fail "ui_gui_snippet (exit $rc)"
         fi
     fi
 
