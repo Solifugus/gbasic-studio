@@ -586,6 +586,28 @@ function on_ctx_close_project()
     return nothing
 end function
 
+' The Project menu's Close Project: the ACTIVE project, which is the one the
+' browser is showing. That is the whole difference from the context menu's,
+' which names the ROW it came from -- because a right-click must not change
+' which project you are in, and a menu at the top of the window has no row.
+'
+' `close_project` takes a real id and answers `no-project` for anything it
+' cannot find, including "". The active one is on the workspace, so it is read
+' here rather than given a second meaning inside studio_ui.
+function on_close_project()
+    ws = G.app.model.workspace
+    pid = ""
+    if ws != nothing then
+        pid = ws.active_project
+    end if
+    r = studio_ui.close_project(G.app, pid)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    redraw()
+    return nothing
+end function
+
 function on_rename()
     r = studio_ui.rename_selected(G.app, G.shell.name_entry.text)
     G.app = r.app
@@ -1119,6 +1141,7 @@ function wire_shell()
     gi.connect(sh.close_btn, "clicked", on_close_tab)
     gi.connect(sh.save_btn, "clicked", on_save)
     gi.connect(sh.refresh_btn, "clicked", on_refresh)
+    gi.connect(sh.closeproj_btn, "clicked", on_close_project)
     gi.connect(sh.bar.run, "clicked", on_run)
     gi.connect(sh.bar.runall, "clicked", on_run_all)
     gi.connect(sh.bar.snippet, "clicked", on_snippet)
@@ -1253,14 +1276,14 @@ function stu2b_button_step()
         print "action=" + G.last_action
         probe_state("after Save")
         print "clicking Refresh"
-        G.shell.refresh_btn.activate()
+        menu_click("reload")
         return true
     end if
     if G.phase = 3 then
         print "action=" + G.last_action
         probe_state("after Refresh")
         print "clicking New Project"
-        G.shell.new_btn.activate()
+        menu_click("new-project")
         return true
     end if
     if G.phase = 4 then
@@ -1291,7 +1314,7 @@ function stu2c_step()
     G.phase = G.phase + 1
     if G.phase = 1 then
         print "clicking New Project on a cold home"
-        G.shell.new_btn.activate()
+        menu_click("new-project")
         return true
     end if
     if G.phase = 2 then
@@ -1308,7 +1331,7 @@ function stu2c_step()
         print "action=" + G.last_action
         probe_state("after New Project — main.bas is already there, which is where STU-2B stopped")
         print "clicking New File"
-        G.shell.file_btn.activate()
+        menu_click("new-file")
         return true
     end if
     if ph = 3 then
@@ -1328,7 +1351,7 @@ function stu2c_step()
         print "action=" + G.last_action
         probe_state("after Save")
         print "clicking New Folder"
-        G.shell.folder_btn.activate()
+        menu_click("new-folder")
         return true
     end if
     print "action=" + G.last_action
@@ -1358,7 +1381,7 @@ function stu2d_step()
     if G.phase = 1 then
         print "typing \"notes.bas\" into the name field, then clicking New File"
         G.shell.name_entry.text = "notes.bas"
-        G.shell.file_btn.activate()
+        menu_click("new-file")
         return true
     end if
     if G.phase = 2 then
@@ -1367,28 +1390,28 @@ function stu2d_step()
         probe_state("after New File")
         print "typing \"notes-2.bas\" and clicking Rename"
         G.shell.name_entry.text = "notes-2.bas"
-        G.shell.rename_btn.activate()
+        menu_click("rename")
         return true
     end if
     if G.phase = 3 then
         print "action=" + G.last_action + " status=" + G.shell.status.label
         probe_state("after Rename")
         print "clicking Delete once"
-        G.shell.delete_btn.activate()
+        menu_click("delete")
         return true
     end if
     if G.phase = 4 then
         print "action=" + G.last_action + " status=" + G.shell.status.label
         probe_state("armed, and still there")
         print "clicking Delete again"
-        G.shell.delete_btn.activate()
+        menu_click("delete")
         return true
     end if
     if G.phase = 5 then
         print "action=" + G.last_action + " status=" + G.shell.status.label
         probe_state("deleted")
         print "clicking Delete with nothing selected"
-        G.shell.delete_btn.activate()
+        menu_click("delete")
         return true
     end if
     print "action=" + G.last_action + " status=" + G.shell.status.label
@@ -1502,7 +1525,7 @@ function stu2g_step()
     if G.phase = 1 then
         print "typing the folder path into the name field, then clicking Open Folder"
         G.shell.name_entry.text = G.open_target
-        G.shell.open_btn.activate()
+        menu_click("open-folder")
         return true
     end if
     if G.phase = 2 then
@@ -1511,7 +1534,7 @@ function stu2g_step()
         probe_state("after Open Folder")
         print "clicking Open Folder again on the same path"
         G.shell.name_entry.text = G.open_target
-        G.shell.open_btn.activate()
+        menu_click("open-folder")
         return true
     end if
     if G.phase = 3 then
@@ -1523,21 +1546,21 @@ function stu2g_step()
         print "the folder Studio just opened twice is untouched"
         probe_state("still no project file")
         print "clicking Project File"
-        G.shell.projfile_btn.activate()
+        menu_click("project-file")
         return true
     end if
     if G.phase = 4 then
         print "action=" + G.last_action + " status=" + path_free(G.shell.status.label)
         probe_state("the one dotfile the browser shows")
         print "clicking Project File again"
-        G.shell.projfile_btn.activate()
+        menu_click("project-file")
         return true
     end if
     if G.phase = 5 then
         print "action=" + G.last_action + " status=" + G.shell.status.label
         print "clicking Open Folder on a path that is not there"
         G.shell.name_entry.text = G.open_target + "/nowhere"
-        G.shell.open_btn.activate()
+        menu_click("open-folder")
         return true
     end if
     ' The status line carries the WHOLE path on purpose — a user who mistyped
@@ -1756,6 +1779,172 @@ end function
 ' is the whole reason it is not a GtkAlertDialog: this case could not exist.
 ' The form is filled, Create is clicked, and the project it made is asserted
 ' from the browser rows and from the directory on disk.
+' STU-16: the header menus.
+'
+' What only a window can show: that the two menus are real GTK menus which
+' OPEN, that the items inside them are ordinary buttons a press reaches, and
+' that pressing one does exactly what the toolbar button did -- including the
+' two that arm. The wording and the grouping are asserted headlessly by
+' `ui_menus`, where they are pure data.
+function menu_items_of(id)
+    out = ""
+    for each spec in studio_ui.menus()
+        if spec.id = id then
+            for each a in spec.items
+                if a != "-" then
+                    if out != "" then
+                        out = out + ", "
+                    end if
+                    out = out + studio_ui.menu_label(a)
+                end if
+            end for
+        end if
+    end for
+    return out
+end function
+
+' Open the menu, press the item, shut the menu -- the gesture a user makes, and
+' the ONLY way a smoke mode can reach a menu item (STU-16).
+'
+' Not a flourish: a `Gtk.Button` inside a popover that has NEVER been shown does
+' not respond to `activate()` at all. Measured twice over -- the File menu's
+' items fired only because an earlier phase had popped that menu up once, and
+' Close Project silently did nothing until its own menu was opened; then
+' `ui_gui` failed the same way on Refresh and New Project, which had been
+' `menu_click("reload")` since STU-2B and went on returning without
+' doing anything. An unmapped widget is not an activatable one, and the failure
+' is a press that reports NOTHING rather than an error -- which is why every
+' call site goes through here rather than through the widget.
+'
+' `ui_gui_ctx` never met this because a right-click opens the popover before
+' anything is pressed. This is the same gesture, made explicit.
+function menu_click(action)
+    for each spec in studio_ui.menus()
+        if contains(spec.items, action) then
+            m = G.shell.menubar.menus[spec.id]
+            m.button.popup()
+            G.shell.menubar.items[action].activate()
+            m.button.popdown()
+            return nothing
+        end if
+    end for
+    ' A name no menu holds. Loud, because the alternative is a phase that
+    ' quietly does nothing and a golden that records the absence as normal.
+    print "menu_click: no menu holds " + action
+    return nothing
+end function
+
+function stu16_step()
+    G.phase = G.phase + 1
+    if G.phase = 1 then
+        print "the header holds " + count(studio_ui.menus()) + " menu(s) and one button"
+        print "Save is the button=" + (G.shell.save_btn.label = "Save")
+        for each spec in studio_ui.menus()
+            m = G.shell.menubar.menus[spec.id]
+            print "  " + m.button.label + ": " + menu_items_of(spec.id)
+        end for
+        return true
+    end if
+    if G.phase = 2 then
+        ' Opened for real. A MenuButton's popup() needs the button to be inside
+        ' a toplevel -- outside one it crashes, which is GTK's own rule and why
+        ' this cannot be probed in a standalone file.
+        fm = G.shell.menubar.menus["file"]
+        fm.button.popup()
+        print "the File menu is open=" + fm.popover.get_visible()
+        fm.button.popdown()
+        print "and shuts again=" + fm.popover.get_visible()
+        return true
+    end if
+    if G.phase = 3 then
+        print "-- New File, from the menu --"
+        click_row(find_row("dir", "src"))
+        return true
+    end if
+    if G.phase = 4 then
+        G.shell.name_entry.text = "from_the_menu.bas"
+        menu_click("new-file")
+        return true
+    end if
+    if G.phase = 5 then
+        print "action=" + G.last_action + " status=" + G.shell.status.label
+        print "-- Delete Selected still arms --"
+        click_row(find_row("file", "from_the_menu.bas"))
+        return true
+    end if
+    if G.phase = 6 then
+        menu_click("delete")
+        return true
+    end if
+    if G.phase = 7 then
+        print "first press: action=" + G.last_action
+        print "  " + G.shell.status.label
+        menu_click("delete")
+        return true
+    end if
+    if G.phase = 8 then
+        print "second press: action=" + G.last_action
+        print "  " + G.shell.status.label
+        print "-- Reload Changed Files does not discard what you typed --"
+        click_row(find_row("file", "main.bas"))
+        return true
+    end if
+    if G.phase = 9 then
+        id = studio_docs.active_doc(G.app.dm).id
+        G.app = studio.edit_document(G.app, id, "print \"typed, never saved\"\n")
+        menu_click("reload")
+        return true
+    end if
+    if G.phase = 10 then
+        d = studio_docs.active_doc(G.app.dm)
+        print "action=" + G.last_action
+        print "still dirty after the reload=" + studio_docs.is_dirty(d)
+        print "-- Close Tab arms over that same unsaved text --"
+        menu_click("close-tab")
+        return true
+    end if
+    if G.phase = 11 then
+        print "first press: action=" + G.last_action
+        print "  " + G.shell.status.label
+        print "tabs open=" + count(G.app.dm.docs)
+        print "-- Close Project, which had no toolbar button at all --"
+        menu_click("close-project")
+        return true
+    end if
+    if G.phase = 12 then
+        print "action=" + G.last_action
+        print "  " + G.shell.status.label
+        print "projects=" + count(G.app.model.workspace.projects)
+        ' The same guard the context menu's item obeys, from the other route.
+        ' Save what it named, and it goes through.
+        print "saving what it named, then again"
+        G.shell.save_btn.activate()
+        return true
+    end if
+    if G.phase = 13 then
+        menu_click("close-project")
+        return true
+    end if
+    if G.phase = 14 then
+        print "action=" + G.last_action
+        print "  " + G.shell.status.label
+        print "projects=" + count(G.app.model.workspace.projects)
+        print "tabs open=" + count(G.app.dm.docs)
+        ' The two teaching names that used to point at toolbar buttons. A cue
+        ' on an item inside a shut popover would resolve and draw NOTHING, so
+        ' what has to be true is that these resolve to widgets the user can
+        ' see -- which is the menus themselves.
+        print "-- the teaching names that moved --"
+        for each n in ["project_menu", "file_menu"]
+            w = studio_shell.teach_widget(G.shell, n)
+            print "  " + n + " resolves=" + (w != nothing) + " visible=" + w.get_visible()
+        end for
+        G.shell.window.close()
+        return false
+    end if
+    return false
+end function
+
 function stu15_step()
     G.phase = G.phase + 1
     if G.phase = 1 then
@@ -1864,7 +2053,7 @@ function stu12_step()
     G.phase = G.phase + 1
     if G.phase = 1 then
         print "clicking New Project"
-        G.shell.new_btn.activate()
+        menu_click("new-project")
         return true
     end if
     if G.phase = 2 then
@@ -2309,7 +2498,7 @@ function stu2b_cold_step()
     G.phase = G.phase + 1
     if G.phase = 1 then
         print "clicking New Project on a cold home"
-        G.shell.new_btn.activate()
+        menu_click("new-project")
         return true
     end if
     if G.phase = 2 then
@@ -2373,6 +2562,10 @@ function on_activate(gtkapp)
     end if
     if G.stu15 then
         gi.timeout(400, stu15_step)
+        return nothing
+    end if
+    if G.stu16 then
+        gi.timeout(400, stu16_step)
         return nothing
     end if
     if G.stu11 then
@@ -2901,6 +3094,7 @@ program main(args)
     G.stu13 = false
     G.stu14 = false
     G.stu15 = false
+    G.stu16 = false
     G.stu7 = false
     G.stu8 = false
     G.stu9 = false
@@ -2988,6 +3182,16 @@ program main(args)
     ' STU-15: the snippet window — a builder that writes the statement into
     ' the file and never runs it. The window is one Studio BUILDS, so the form
     ' can be filled and Insert pressed for real.
+    ' STU-16: the header menus, over the standard fixture.
+    if mode = "stu16_smoke" then
+        G.stu16 = true
+        projdir = args[2]
+        G.app = studio.create_registered_workspace(G.app, "ws")
+        ws = G.app.model.workspace
+        ws = studio_model.add_project(ws, "Alpha", projdir)
+        G.app = studio.set_workspace(G.app, ws)
+    end if
+
     if mode = "stu15_smoke" then
         G.stu15 = true
         projdir = args[2]

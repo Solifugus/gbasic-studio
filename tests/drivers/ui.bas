@@ -151,6 +151,17 @@ function head3(text)
 end function
 
 ' The menu a row offers, as a flat string.
+' Left-pad to a column so the action ids line up beside their labels. Named
+' `padto` and not `pad`: a driver function that shadows a loaded library's
+' earns a note on stderr at every load, and several tiers capture it.
+function padto(text, width)
+  out = text
+  while byte_count(out) < width
+    out = out + " "
+  end while
+  return out
+end function
+
 function acts(rows, i)
   a = studio_ui.context_actions(rows, i)
   if count(a) = 0 then
@@ -1749,6 +1760,56 @@ program main(args)
   ' already calls — the menu is an adapter, not a second implementation — which
   ' matters most for Delete, where a second implementation would quietly undo
   ' the two-click rule on the same file.
+  if mode = "menus" then
+    banner("the header menus")
+    for each m in studio_ui.menus()
+      print m.label + " (" + m.id + ")"
+      for each a in m.items
+        if a = "-" then
+          print "  --"
+        else
+          print "  " + padto(a, 14) + studio_ui.menu_label(a)
+        end if
+      end for
+    end for
+
+    banner("every item has a label and a hint, and no two share a label")
+    seen = []
+    bad = 0
+    for each a in studio_ui.menu_all()
+      lb = studio_ui.menu_label(a)
+      if lb = a then
+        print "  UNLABELLED " + a
+        bad = bad + 1
+      end if
+      if studio_ui.menu_hint(a) = "" then
+        print "  NO HINT " + a
+        bad = bad + 1
+      end if
+      if contains(seen, lb) then
+        print "  DUPLICATE LABEL " + lb
+        bad = bad + 1
+      end if
+      seen = append(seen, lb)
+    end for
+    print "items=" + string(count(studio_ui.menu_all())) + " problems=" + string(bad)
+
+    banner("an item nobody declared")
+    print "  unknown -> " + studio_ui.menu_label("no-such-item")
+    print "  hint    -> [" + studio_ui.menu_hint("no-such-item") + "]"
+
+    banner("what the menus say about themselves")
+    print "  Save is not in a menu: " + string(contains(studio_ui.menu_all(), "save"))
+    print "  every selection verb says so:"
+    for each a in ["rename", "delete"]
+      print "    " + studio_ui.menu_label(a)
+    end for
+    print "  and the two that used to read as something else:"
+    for each a in ["reload", "close-tab"]
+      print "    " + studio_ui.menu_label(a) + " — " + studio_ui.menu_hint(a)
+    end for
+  end if
+
   if mode = "context" then
     rows = studio_ui.nav_rows(app)
     banner("what each kind of row offers")

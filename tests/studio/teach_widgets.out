@@ -25,9 +25,9 @@ widgets an agent may point at:
       can: highlight, pulse, focus
   save_button (control) — the Save button
       can: highlight, pulse, focus
-  new_file_button (control) — the New File button
+  project_menu (control) — the Project menu: new project, open folder, project file, close project
       can: highlight, pulse, focus
-  new_folder_button (control) — the New Folder button
+  file_menu (control) — the File menu: new file, new folder, rename, delete, reload, close tab
       can: highlight, pulse, focus
   overlay_strip (control) — the overlay acts: edit, save, compare, rebase, promote, discard
       can: highlight, pulse, focus

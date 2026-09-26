@@ -8,5 +8,5 @@ pulsing the name field
 annotating lines 2-4 of the editor
   a tag is on the buffer: true
 pointing at something that is not there
-  action=point_at — no widget named "run_panel"; there is browser, tabs, editor, gutter, run_strip, output, results, branches, tables, assistant, name_field, run_button, save_button, new_file_button, new_folder_button, overlay_strip
+  action=point_at — no widget named "run_panel"; there is browser, tabs, editor, gutter, run_strip, output, results, branches, tables, assistant, name_field, run_button, save_button, project_menu, file_menu, overlay_strip
 app-exited

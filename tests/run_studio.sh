@@ -931,7 +931,7 @@ done
 for m in sqlconn rows open expand project bounds tabs edit save newproj refresh \
          newfile newfolder adopt exit \
          names rename delete closetab notice \
-         run runstop runerr runrefuse badsyntax filetypes projfile projpin newproj2 panes context projtabs anchors cursor drafts branch table overlay overlay_conflict; do
+         run runstop runerr runrefuse badsyntax filetypes projfile projpin newproj2 panes context menus projtabs anchors cursor drafts branch table overlay overlay_conflict; do
     run_ui "$m"
 done
 
@@ -1216,6 +1216,30 @@ if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
             printf 'SKIP ui_gui_ctx (GTK 4 typelib not available)\n'
         else
             cat "$stdout_file"; fail "ui_gui_ctx (nonzero exit)"
+        fi
+    fi
+
+    # STU-16: the header menus. What only a window can show -- that a
+    # Gtk.MenuButton's popover really opens, and that pressing an item inside it
+    # reaches the same handler its toolbar button did, arming and refusing
+    # included. The wording and the grouping are `ui_menus`, headless.
+    mn_home="$tmproot/ui_gui_menus"; mn_proj="$tmproot/ui_gui_menus_proj"
+    rm -rf "$mn_home" "$mn_proj"
+    mkdir -p "$mn_home"; mkproj_ui "$mn_proj"
+    : >"$stdout_file"
+    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
+            "$GBASIC" "$APP" stu16_smoke "$mn_home" "$mn_proj" \
+            >"$stdout_file" 2>/dev/null; then
+        if diff -u tests/studio/ui_gui_menus.out "$stdout_file"; then
+            printf 'PASS ui_gui_menus (a header menu opened and its items pressed)\n'
+        else
+            fail "ui_gui_menus (output diff)"
+        fi
+    else
+        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
+            printf 'SKIP ui_gui_menus (GTK 4 typelib not available)\n'
+        else
+            cat "$stdout_file"; fail "ui_gui_menus (nonzero exit)"
         fi
     fi
 
@@ -1526,6 +1550,7 @@ else
     printf 'SKIP ui_gui_newproj (no display)\n'
     printf 'SKIP ui_gui_layout (no display)\n'
     printf 'SKIP ui_gui_ctx (no display)\n'
+    printf 'SKIP ui_gui_menus (no display)\n'
     printf 'SKIP ui_gui_branch (no display)\n'
     printf 'SKIP ui_gui_table (no display)\n'
     printf 'SKIP ui_gui_overlay (no display)\n'

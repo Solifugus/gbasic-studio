@@ -1,0 +1,29 @@
+== the header menus ==
+Project (project)
+  new-project   New Project…
+  open-folder   Open Folder
+  --
+  project-file  Add Project File
+  close-project Close Project
+File (file)
+  new-file      New File
+  new-folder    New Folder
+  --
+  rename        Rename Selected
+  delete        Delete Selected
+  --
+  reload        Reload Changed Files
+  close-tab     Close Tab
+== every item has a label and a hint, and no two share a label ==
+items=10 problems=0
+== an item nobody declared ==
+  unknown -> no-such-item
+  hint    -> []
+== what the menus say about themselves ==
+  Save is not in a menu: false
+  every selection verb says so:
+    Rename Selected
+    Delete Selected
+  and the two that used to read as something else:
+    Reload Changed Files — Check every open document against the file on disk: re-read the ones you have not edited, and flag the ones you have as conflicts. Nothing you typed is discarded.
+    Close Tab — Close the active document's tab. Unsaved text is discarded, so press it twice — the first press arms it.

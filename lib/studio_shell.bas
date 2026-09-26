@@ -225,6 +225,87 @@ library studio_shell
         return any
     end function
 
+    ' ---- the header menus (STU-16) ------------------------------------------
+
+    ' One menu: a `Gtk.MenuButton` with a popover of ordinary buttons hanging off
+    ' it. The SAME construction as the browser's right-click menu, for the same
+    ' reason -- a `Gtk.PopoverMenu` is driven by a `GMenuModel` built through
+    ' class statics the `gi` bridge cannot reach, and plain buttons are also what
+    ' makes a menu testable, because a test can press one.
+    '
+    ' Measured before it was written: `Gtk.MenuButton` constructs through
+    ' `gi.new`, and `set_popover`, `get_popover`, `set_always_show_arrow` and
+    ' `popup`/`popdown` are all ordinary instance methods. `popup()` on a button
+    ' that is not yet inside a toplevel crashes -- GTK's own rule, the same shape
+    ' as the widget-before-init crash -- which is not a constraint here because
+    ' the header is built into the window.
+    '
+    ' Returns the button, and the item widgets keyed by ACTION, so the entry
+    ' program connects them by name and nothing here holds a handler.
+    function menu_button(spec)
+        mb = gi.new("Gtk.MenuButton")
+        ' THE ARROW IS A CHARACTER IN THE LABEL, not `always-show-arrow`.
+        '
+        ' Looked at: with `set_always_show_arrow(true)` on GTK 4.22 the two
+        ' menus rendered as plain rectangles reading "Project" and "File",
+        ' indistinguishable from the Save button beside them -- which is the
+        ' complaint this whole phase exists to answer, reproduced by the fix for
+        ' it. The property is set and reads back true; nothing is drawn.
+        '
+        ' `▾` is not a new idea in this window: it is already the browser's
+        ' glyph for an expanded directory, so it already means "this opens" to
+        ' anyone who has clicked a folder. Geometric Shapes, which every
+        ' mainstream UI font carries -- the same ground the browser glyphs stand
+        ' on, and the opposite of the `dialog-error` situation where an icon
+        ' THEME could simply lack the name.
+        mb.label = spec.label + " ▾"
+        pop = gi.new("Gtk.Popover")
+        pop.set_has_arrow(true)
+        box = gtk.box("v", 0)
+        box = studio_style.apply(box, "panel")
+        items = {}
+        for each a in spec.items
+            if a = "-" then
+                box.append(studio_shell._rule())
+            else
+                b = gtk.button(studio_ui.menu_label(a))
+                ' Frameless and LEFT-aligned, or the column reads as a stack of
+                ' buttons rather than as a menu.
+                b.set_has_frame(false)
+                b.halign = gi.enum("Gtk.Align.FILL")
+                inner = b.get_child()
+                if inner != nothing then
+                    inner.xalign = 0
+                end if
+                ' The sentence the toolbar button had no room for.
+                b.set_tooltip_text(studio_ui.menu_hint(a))
+                box.append(b)
+                items[a] = b
+            end if
+        end for
+        pop.set_child(box)
+        mb.set_popover(pop)
+        return { button: mb, popover: pop, items: items }
+    end function
+
+    ' Every menu the header holds, keyed by id, plus one flat map from action to
+    ' item widget. The flat map is what the entry program connects and what a
+    ' display tier presses; the per-menu records are what a test opens.
+    function menu_bar()
+        menus = {}
+        items = {}
+        for each spec in studio_ui.menus()
+            m = studio_shell.menu_button(spec)
+            menus[spec.id] = m
+            for each a in spec.items
+                if a != "-" then
+                    items[a] = m.items[a]
+                end if
+            end for
+        end for
+        return { menus: menus, items: items }
+    end function
+
     ' A LEFT-ALIGNED label. `gtk.label` centres, which is right for a title and
     ' wrong for everything this shell shows: a browser row whose indentation
     ' encodes tree depth, a line of program output, an error, a table of
@@ -816,21 +897,30 @@ library studio_shell
         ' The buttons are returned, not connected: `gi.connect` lives only in the
         ' entry program (see this file's header).
         '
-        ' GROUPED, with a rule between groups: ten buttons in an undifferentiated
-        ' row is a row nobody reads, they scan it for the word they want. The
-        ' groups are project, file, name, then the two that destroy something.
+        ' TWO MENUS AND ONE BUTTON, where there were ten buttons (STU-16). The
+        ' row used to mix three scopes -- the workspace, the browser selection
+        ' and the active document -- with nothing saying which was which, and
+        ' `studio_ui.menus` is where that is now said: a menu NAME gives its
+        ' items a scope and a menu ITEM has room to name what it acts on, which
+        ' a rectangle with a width budget never did.
+        '
+        ' Every item dispatches to the same `studio_ui` function its button
+        ' called, and the shell keeps the SAME record keys, so nothing about
+        ' arming, refusing or naming changed -- only where the control lives and
+        ' what it is called.
         header = gtk.box("h", studio_style.unit())
         header = studio_style.apply(header, "toolbar")
         wordmark = studio_shell._left(gtk.label("gBASIC Studio"))
         wordmark = studio_style.apply(wordmark, "title")
         header.append(wordmark)
         header.append(studio_shell._bar())
-        ' The name field expanded to fill the header and pushed every button to
-        ' the right; it needs a width, not all of the width.
-        name_entry_width = 18
-        new_btn = gtk.button("New Project")
-        file_btn = gtk.button("New File")
-        folder_btn = gtk.button("New Folder")
+
+        menubar = studio_shell.menu_bar()
+        for each spec in studio_ui.menus()
+            header.append(menubar.menus[spec.id].button)
+        end for
+        header.append(studio_shell._bar())
+
         ' STU-2D's name field. `gtk` has no entry constructor, and that library
         ' says so on purpose ("callers drop straight down to the raw gi bridge for
         ' anything not wrapped here"), so this is one gi.new rather than a change
@@ -840,59 +930,53 @@ library studio_shell
         ' its text can be set programmatically, which means the display tier can
         ' type into it and click Rename for real. A modal dialog could not be
         ' driven by any test we can write.
+        '
+        ' It expanded to fill the header and pushed every button to the right; it
+        ' needs a width, not all of the width.
         name_entry = gi.new("Gtk.Entry")
         ' "name" was the whole of what this field said about itself, and Open
         ' Folder reads it as a PATH — so the one way to open a project you
         ' already have was spelled nowhere in the window. A placeholder is the
         ' cheapest label there is and it is already on screen.
         name_entry.placeholder_text = "name or path"
-        name_entry.set_tooltip_text("A name for New File / New Folder / New Project / Rename — or a folder path for Open Folder (~ works).")
-        name_entry.max_width_chars = name_entry_width
+        name_entry.set_tooltip_text("A name for New File / New Folder / Rename, or a folder path for Open Folder (~ works). New Project asks for its own.")
+        name_entry.max_width_chars = 18
         name_entry.hexpand = false
-        ' Reads the name field as a PATH. A real folder chooser is a
-        ' GtkFileDialog — async, with no signal a test can synthesise — so it
-        ' would be the one control in this window nothing could press. The field
-        ' is the same answer STU-2D gave for names, and a "Browse..." button that
-        ' merely FILLS the field can be added later without changing any of this.
-        open_btn = gtk.button("Open Folder")
-        open_btn.set_tooltip_text("Open a folder you already have as a project: type its path in the field, then press this. ~/ and relative paths work.")
-        ' The ONE control that puts a Studio file in your project directory,
-        ' and it is a button you have to find and press. Nothing else writes
-        ' `.gstudio.json` — not Open Folder, not Save, not exit.
-        projfile_btn = gtk.button("Project File")
-        projfile_btn.set_tooltip_text("Write a .gstudio.json in this project: a stable id so its saved state survives the folder moving, plus a place to list what the browser should hide and pin which gBASIC it runs under. Studio never creates this on its own.")
-        rename_btn = gtk.button("Rename")
-        delete_btn = gtk.button("Delete")
-        close_btn = gtk.button("Close")
-        save_btn = gtk.button("Save")
-        refresh_btn = gtk.button("Refresh")
-        ' Delete takes the stock destructive class. It is the only control in this
-        ' window that removes a file from disk, and it sat in a row of identical
-        ' grey buttons one pixel from Close. The class is the THEME's — red in
-        ' light, red in dark, whatever the user's accent is — not a colour of ours.
-        delete_btn.add_css_class(studio_style.css_class("destructive-action"))
-
-        ' Group 1: the project. What you press when there is nothing open yet.
-        header.append(new_btn)
-        header.append(open_btn)
-        header.append(projfile_btn)
-        header.append(studio_shell._bar())
-        ' Group 2: the file. Make one, put it somewhere, write it, re-read it.
-        header.append(file_btn)
-        header.append(folder_btn)
-        header.append(save_btn)
-        header.append(refresh_btn)
-        header.append(studio_shell._bar())
-        ' Group 3: the name field and the one button that consumes it on its own.
-        ' New File, New Folder and New Project read it too, which is why it sits
-        ' between them and Rename rather than inside either group.
         header.append(name_entry)
-        header.append(rename_btn)
         header.append(studio_shell._bar())
-        ' Group 4: the two that take something away, at the far end where a
-        ' mis-aimed click does not land on them.
-        header.append(delete_btn)
-        header.append(close_btn)
+
+        ' The ONE verb that stays a button. It is pressed constantly, it is the
+        ' only header control with a state of its own (the conflict arm, which is
+        ' why it is two clicks over a file that changed underneath), and putting
+        ' it in a menu as well would be a second widget for the teaching registry
+        ' and the smoke modes to tell apart.
+        save_btn = gtk.button("Save")
+        save_btn.set_tooltip_text("Write the active document to disk. Over a file that changed underneath, press twice — the first press arms it.")
+        header.append(save_btn)
+
+        ' The old names, kept: the entry program connects by these and several
+        ' smoke modes activate them. Delete takes the stock destructive class,
+        ' which the theme colours — it is the only control in this window that
+        ' removes a file from disk.
+        new_btn = menubar.items["new-project"]
+        open_btn = menubar.items["open-folder"]
+        projfile_btn = menubar.items["project-file"]
+        closeproj_btn = menubar.items["close-project"]
+        file_btn = menubar.items["new-file"]
+        folder_btn = menubar.items["new-folder"]
+        rename_btn = menubar.items["rename"]
+        delete_btn = menubar.items["delete"]
+        refresh_btn = menubar.items["reload"]
+        close_btn = menubar.items["close-tab"]
+        ' Delete keeps the stock destructive class it had as a button. Looked
+        ' at: on a FRAMELESS button the theme paints a filled block rather than
+        ' colouring the text, so the item is a tinted row in a column of plain
+        ' ones. That is louder than the old grey rectangle was and it is the
+        ' theme's own colour for this meaning, not one of ours -- but how it
+        ' composites with the hover highlight is NOT something a window-only
+        ' capture can show, and a popover is a separate surface a window
+        ' capture does not include.
+        delete_btn.add_css_class(studio_style.css_class("destructive-action"))
         outer.append(header)
 
         ' --- main split: project browser | editor tab notebook ---
@@ -1059,6 +1143,12 @@ library studio_shell
                  projfile_btn: projfile_btn, rename_btn: rename_btn,
                  delete_btn: delete_btn, close_btn: close_btn,
                  save_btn: save_btn, refresh_btn: refresh_btn,
+                 closeproj_btn: closeproj_btn,
+                 ' STU-16: the header menus. `menus` is keyed by menu id and
+                 ' holds the MenuButton and its popover -- a display tier opens
+                 ' one with `popup()`. `items` is flat, keyed by action, and is
+                 ' the same widgets the named keys above point at.
+                 menubar: menubar,
                  ' The three GtkPaneds themselves, so the exit path can ask
                  ' where they ended up. Nothing else reads them.
                  split: split, vsplit: vsplit, rsplit: rsplit,
@@ -1497,11 +1587,14 @@ library studio_shell
         if name = "save_button" then
             return shell.save_btn
         end if
-        if name = "new_file_button" then
-            return shell.file_btn
+        ' The MENU, not the item inside it: the item is in a popover that is
+        ' shut, and a highlight on a widget nobody can see is a cue that reports
+        ' success and draws nothing.
+        if name = "project_menu" then
+            return shell.menubar.menus["project"].button
         end if
-        if name = "new_folder_button" then
-            return shell.folder_btn
+        if name = "file_menu" then
+            return shell.menubar.menus["file"].button
         end if
         if name = "overlay_strip" then
             return shell.bpane.edit
@@ -1515,8 +1608,8 @@ library studio_shell
     function teachable()
         return ["browser", "tabs", "editor", "gutter", "run_strip", "output",
                 "results", "branches", "tables", "assistant", "name_field",
-                "run_button", "save_button", "new_file_button",
-                "new_folder_button", "overlay_strip"]
+                "run_button", "save_button", "project_menu",
+                "file_menu", "overlay_strip"]
     end function
 
     ' Install the teaching stylesheet, once, at build time.

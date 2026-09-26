@@ -1,0 +1,33 @@
+the header holds 2 menu(s) and one button
+Save is the button=true
+  Project ▾: New Project…, Open Folder, Add Project File, Close Project
+  File ▾: New File, New Folder, Rename Selected, Delete Selected, Reload Changed Files, Close Tab
+the File menu is open=true
+and shuts again=false
+-- New File, from the menu --
+action=created status=created from_the_menu.bas
+-- Delete Selected still arms --
+first press: action=armed
+  delete from_the_menu.bas? — click Delete again to confirm
+second press: action=deleted
+  deleted from_the_menu.bas
+-- Reload Changed Files does not discard what you typed --
+action=refreshed
+still dirty after the reload=true
+-- Close Tab arms over that same unsaved text --
+first press: action=armed-close
+  doc-2 has unsaved changes — click Close again to discard them
+tabs open=1
+-- Close Project, which had no toolbar button at all --
+action=project-dirty
+  Alpha has unsaved work in main.bas — save it first
+projects=1
+saving what it named, then again
+action=project-closed
+  closed Alpha — the folder is untouched
+projects=0
+tabs open=0
+-- the teaching names that moved --
+  project_menu resolves=true visible=true
+  file_menu resolves=true visible=true
+app-exited

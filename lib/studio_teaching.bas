@@ -75,8 +75,13 @@ library studio_teaching
         out = append(out, studio_teaching._w("name_field", "control", "the header field that names new files, folders and branches"))
         out = append(out, studio_teaching._w("run_button", "control", "the Run button"))
         out = append(out, studio_teaching._w("save_button", "control", "the Save button"))
-        out = append(out, studio_teaching._w("new_file_button", "control", "the New File button"))
-        out = append(out, studio_teaching._w("new_folder_button", "control", "the New Folder button"))
+        ' STU-16: these were `new_file_button` and `new_folder_button` until the
+        ' toolbar became two menus. A cue drawn on an item inside a CLOSED
+        ' popover draws nothing and reports success, which is the exact failure
+        ' `agent_widgets` exists to stop -- so the name points at the menu that
+        ' holds it, which is also the honest answer to "where is New File".
+        out = append(out, studio_teaching._w("project_menu", "control", "the Project menu: new project, open folder, project file, close project"))
+        out = append(out, studio_teaching._w("file_menu", "control", "the File menu: new file, new folder, rename, delete, reload, close tab"))
         out = append(out, studio_teaching._w("overlay_strip", "control", "the overlay acts: edit, save, compare, rebase, promote, discard"))
         return out
     end function

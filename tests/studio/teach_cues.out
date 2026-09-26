@@ -7,7 +7,7 @@
   annotate editor (source) at 7
 
 -- a bad widget name LISTS the real ones, so a model can correct itself
-  refused: no widget named "run_panel"; there is browser, tabs, editor, gutter, run_strip, output, results, branches, tables, assistant, name_field, run_button, save_button, new_file_button, new_folder_button, overlay_strip
+  refused: no widget named "run_panel"; there is browser, tabs, editor, gutter, run_strip, output, results, branches, tables, assistant, name_field, run_button, save_button, project_menu, file_menu, overlay_strip
 
 -- so does a bad gesture
   refused: no gesture named "wiggle"; there is highlight, pulse, focus, reveal, annotate

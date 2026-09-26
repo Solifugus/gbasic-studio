@@ -20,12 +20,22 @@ STU-5A′ pointed the panes at the caret.
 
 What works when you click it: a browser row (a file opens into a tab, a
 directory expands, a project becomes active), a notebook tab, typing in the
-editor (the tab's dirty marker follows), and the New Project / New File /
-New Folder / Rename / Delete / Close / Save / Refresh buttons. From an empty home
+editor (the tab's dirty marker follows), and every item in the two header
+menus. From an empty home
 you can make a project, make a file in it, name it, type into it, save it, rename
 it, delete it, and close the window — and what is left is still there next time,
 because closing now writes the session. The status bar says what each click did,
 including what it refused to do and why.
+
+The header is **Project ▾**, **File ▾**, the name field, and **Save**. It used
+to be ten buttons in a row, which mixed three different subjects — the
+workspace, whatever is selected in the browser, and the document you have open
+— with nothing saying which was which. A menu item is a row of text rather than
+a rectangle with a width budget, so it can say what it acts on: *Rename
+Selected*, *Delete Selected*, *Close Tab*, *Reload Changed Files*. Nothing is
+greyed out; every item is pressable and refuses by name into the status bar,
+which is more than a grey button ever says. Save stays a button because it is
+the one you press constantly.
 
 New File, New Folder, Rename and **Open Folder** read the header's **name
 field** — the last one as a path, with `~` and relative paths expanded the way
@@ -132,7 +142,7 @@ forgotten every launch. Both are saved when the window closes.
 **Right-click a row in the browser.** A file offers Open, Rename and Delete; a
 directory offers New File here, New Folder here, Rename and Delete; a project
 offers Add project file and Close project. Every item goes through the same
-function the toolbar button does, so Delete still arms on the first click and
+function the header menu does, so Delete still arms on the first click and
 asks for a second — a menu that deleted outright would have undone that rule
 from a different control. Rename fills the name field rather than renaming, and
 Close project only takes the project out of the workspace: the folder is
@@ -569,7 +579,7 @@ workspace instead:
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 195 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 197 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 29 cases, headless AND offline — no network, no key
 ```
 

@@ -2135,6 +2135,165 @@ library studio_ui
         return action
     end function
 
+
+    ' ---- the header menus (STU-16) ------------------------------------------
+    '
+    ' The toolbar was TEN buttons in one row, and the complaint about it was that
+    ' they were "not intuitive or well placed". Both halves were true, and they
+    ' were the same fault: the row mixed three different SCOPES with nothing
+    ' saying so. `New Project` and `Open Folder` act on the workspace; `New File`,
+    ' `New Folder`, `Rename`, `Delete` and `Project File` act on whatever is
+    ' selected in the browser; `Save`, `Refresh` and `Close` act on the active
+    ' document. Ten identical grey rectangles cannot say which -- so `Delete`
+    ' read as "delete what?", `Close` read as though it closed the project, and
+    ' `Refresh` read as though it redrew the window.
+    '
+    ' A menu ITEM can say it, because it is a row of text and not a rectangle
+    ' with a width budget. That is the whole redesign: the same functions, the
+    ' same refusals, the same arming -- moved into two menus whose names give
+    ' them a scope, and worded to name what they act on.
+    '
+    ' `Refresh` is the proof that this was worth doing. Writing the sentence
+    ' under it, I wrote "re-read the active document, discarding unsaved
+    ' changes" -- and then read `studio.checkpoint_documents`, which does
+    ' something else entirely: it checks EVERY open document against disk,
+    ' re-reads the ones that are clean, flags the ones you have edited as
+    ' CONFLICTS, and discards nothing. A one-word button had been on that
+    ' toolbar since STU-2B and was misread, in the dangerous direction, by
+    ' somebody who had the source open. So it is `Reload Changed Files` now, and
+    ' the sentence says which files and what happens to yours.
+    '
+    ' NOTHING IS DISABLED. The obvious move is to grey out `Delete Selected`
+    ' when nothing is selected, and this codebase has already decided against it
+    ' twice: a greyed control says no more than a dead one does, and every
+    ' action here already refuses BY NAME into the status line. `Delete` with no
+    ' selection says "select a file first", which is the sentence a grey button
+    ' would have left the user to guess.
+    '
+    ' Save is the one verb that stays a BUTTON, and it is not in a menu as well.
+    ' It is pressed constantly, it is the only header control with a state of its
+    ' own (the conflict arm), and a second route to it would be a second widget
+    ' for teaching and the smoke modes to tell apart.
+
+    ' The menus, in the order they are built: an id (for the shell's records), a
+    ' label, and the items. A "-" is a separator, which is how the File menu says
+    ' that making a file, renaming the selected one and closing the open one are
+    ' three different subjects.
+    '
+    ' A CLOSED VOCABULARY, like `context_all` and `studio_history.kinds`. The
+    ' shell builds exactly what this names; an item nothing connects is a menu
+    ' entry that reads as broken, and an action with no item is a verb with no
+    ' way in.
+    function menus()
+        out = []
+        out = append(out, { id: "project", label: "Project",
+                            items: ["new-project", "open-folder", "-",
+                                    "project-file", "close-project"] })
+        out = append(out, { id: "file", label: "File",
+                            items: ["new-file", "new-folder", "-",
+                                    "rename", "delete", "-",
+                                    "reload", "close-tab"] })
+        return out
+    end function
+
+    ' Every action any menu holds, separators dropped. The shell walks this to
+    ' connect them and the tests walk it to assert that each one has a label and
+    ' a home.
+    function menu_all()
+        out = []
+        for each m in studio_ui.menus()
+            for each a in m.items
+                if a != "-" then
+                    out = append(out, a)
+                end if
+            end for
+        end for
+        return out
+    end function
+
+    ' The wording. Every item that acts on the browser SELECTION says
+    ' "Selected", and every item that acts on the open document says which --
+    ' because that is the whole of what the buttons could not say.
+    '
+    ' ONE item ends in `…`, and it is the only one that asks for anything: New
+    ' Project opens a window. Open Folder and Rename Selected read the header
+    ' field and act, so an ellipsis on them would promise a prompt that never
+    ' comes. The browser's context menu spells its own Rename `Rename…` and is
+    ' right to -- that one FILLS the field and focuses it instead of renaming,
+    ' which is a different verb wearing the same word.
+    function menu_label(action)
+        if action = "new-project" then
+            return "New Project…"
+        end if
+        if action = "open-folder" then
+            return "Open Folder"
+        end if
+        if action = "project-file" then
+            return "Add Project File"
+        end if
+        if action = "close-project" then
+            return "Close Project"
+        end if
+        if action = "new-file" then
+            return "New File"
+        end if
+        if action = "new-folder" then
+            return "New Folder"
+        end if
+        if action = "rename" then
+            return "Rename Selected"
+        end if
+        if action = "delete" then
+            return "Delete Selected"
+        end if
+        if action = "reload" then
+            return "Reload Changed Files"
+        end if
+        if action = "close-tab" then
+            return "Close Tab"
+        end if
+        return action
+    end function
+
+    ' The sentence under the label. A menu item has room for one and a toolbar
+    ' button did not, which is where the three that read as something else get
+    ' corrected: Reload is about the FILE and not the window, Close Tab is about
+    ' the tab and not the project, and the two that take a name say where it
+    ' comes from.
+    function menu_hint(action)
+        if action = "new-project" then
+            return "Open the New Project window: name it, choose where it goes, and pick what to create."
+        end if
+        if action = "open-folder" then
+            return "Open a folder you already have as a project. Type its path in the name field first; ~/ and relative paths work."
+        end if
+        if action = "project-file" then
+            return "Write a .gstudio.json in this project: a stable id so its saved state survives the folder moving, plus a place to list what the browser should hide and pin which gBASIC it runs under. Studio never creates this on its own."
+        end if
+        if action = "close-project" then
+            return "Take this project out of the workspace and close its tabs. The folder is untouched and Open Folder puts it back."
+        end if
+        if action = "new-file" then
+            return "Create a file named by the header field — in the selected folder, the folder holding the selected file, or the project root."
+        end if
+        if action = "new-folder" then
+            return "Create a folder named by the header field — in the selected folder, the folder holding the selected file, or the project root."
+        end if
+        if action = "rename" then
+            return "Rename the selected file or folder to what the header field says."
+        end if
+        if action = "delete" then
+            return "Delete the selected file or folder from disk. Press it twice: the first press arms it."
+        end if
+        if action = "reload" then
+            return "Check every open document against the file on disk: re-read the ones you have not edited, and flag the ones you have as conflicts. Nothing you typed is discarded."
+        end if
+        if action = "close-tab" then
+            return "Close the active document's tab. Unsaved text is discarded, so press it twice — the first press arms it."
+        end if
+        return ""
+    end function
+
     ' ---- closing a project --------------------------------------------------
 
     ' Take a project out of the workspace.

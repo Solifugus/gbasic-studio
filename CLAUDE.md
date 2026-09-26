@@ -49,7 +49,7 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 195 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 197 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 29 cases, headless AND offline (scripted transport)
 ```
 
@@ -61,7 +61,7 @@ Display tiers (`sections_gui`, `sessions_gui`, `results_gui`, `ui_gui`,
 `ui_gui_cold`, `ui_gui_new`, `ui_gui_name`, `ui_gui_solo`, `ui_gui_run`,
 `ui_gui_cursor`, `ui_gui_open`, `ui_gui_newproj`, `ui_gui_layout`,
 `ui_gui_ctx`, `ui_gui_branch`, `ui_gui_table`, `ui_gui_overlay`, `ui_gui_teach`,
-`ui_gui_git`, `ui_gui_snippet`) SKIP cleanly
+`ui_gui_git`, `ui_gui_snippet`, `ui_gui_menus`) SKIP cleanly
 without GTK 4 or a display.
 `ui_gui_new` is the only case that spans two processes: the GUI builds a project
 from nothing and closes, and a second interpreter run reopens the same home —
@@ -612,6 +612,101 @@ Two consequences worth knowing before you touch the shell:
   else). The git checkbox already exists in the New Project window and nothing
   else wants one, and a closed vocabulary with one member and no consumer is
   the speculative mechanism this repository keeps not building.
+
+### The header menus (STU-16)
+
+- **The toolbar was ten buttons in one row, and the complaint about it was
+  that they were "not intuitive or well placed".** Both halves were true and
+  they were the same fault: the row mixed three SCOPES with nothing saying so.
+  `New Project` and `Open Folder` act on the workspace, `New File`,
+  `New Folder`, `Rename`, `Delete` and `Project File` act on the browser
+  SELECTION, and `Save`, `Refresh` and `Close` act on the active document. Ten
+  identical grey rectangles cannot say which — so `Delete` read as "delete
+  what?", `Close` read as though it closed the project, and `Refresh` read as
+  though it redrew the window.
+- **A menu ITEM can say it, because it is a row of text and not a rectangle
+  with a width budget.** That is the whole redesign: `Project ▾` and `File ▾`,
+  the same functions behind them, the same refusals, the same arming — moved
+  into menus whose names give them a scope and worded to name what they act on
+  (`Rename Selected`, `Delete Selected`, `Close Tab`,
+  `Reload Changed Files`). ONE item ends in `…` — `New Project…`, the only one
+  that asks for anything, because it opens a window. `Open Folder` and
+  `Rename Selected` read the header field and act, so an ellipsis would promise
+  a prompt that never comes; the browser's context menu spells its own
+  `Rename…` with one and is right to, because that item FILLS the field and
+  focuses it rather than renaming. `studio_ui.menus` is the closed vocabulary,
+  `menu_label` the wording, `menu_hint` the sentence a button had no room for.
+- **`Refresh` is the evidence this was worth doing.** Writing the hint under
+  it I wrote "re-read the active document, discarding unsaved changes" — and
+  then read `studio.checkpoint_documents`, which does something else entirely:
+  it checks EVERY open document against disk, re-reads the ones that are clean,
+  flags the ones you have edited as CONFLICTS, and discards nothing. A one-word
+  button had been on that toolbar since STU-2B and was misread, in the
+  dangerous direction, by somebody with the source open.
+- **NOTHING IS DISABLED.** The obvious move is to grey out `Delete Selected`
+  with nothing selected, and this codebase has decided against it twice
+  already: a greyed control says no more than a dead one does, and every action
+  here already refuses BY NAME into the status line. `Delete` with no selection
+  says "select a file first", which is the sentence a grey button would have
+  left the user to guess. It also keeps every item pressable, which is what
+  makes the smoke modes able to press one.
+- **Save is the one verb that stays a button, and it is NOT also in a menu.**
+  It is pressed constantly, it is the only header control with a state of its
+  own (the conflict arm), and a second route would be a second widget for the
+  teaching registry and the smoke modes to tell apart.
+- `Close Project` is in the Project menu and had no toolbar button at all —
+  it was reachable only by right-clicking a project row. The menu item acts on
+  the ACTIVE project, read from `ws.active_project` in the handler;
+  `studio_ui.close_project` takes a real id and answers `no-project` for "",
+  so the empty string was NOT given a second meaning inside studio_ui. The
+  context menu's item still names the row it came from, because a right-click
+  must not change which project you are in.
+- A `Gtk.MenuButton` with a `Gtk.Popover` of ordinary `Gtk.Button`s — the SAME
+  construction as the browser's right-click menu and for the same two reasons:
+  a `Gtk.PopoverMenu` needs a `GMenuModel` built through class statics the
+  bridge cannot reach, and plain buttons are what a test can press. Measured
+  before it was written: `set_popover`, `get_popover`, `set_always_show_arrow`,
+  `popup` and `popdown` are all ordinary instance methods that work through
+  `gi`.
+- **THE ARROW IS A CHARACTER IN THE LABEL, not `always-show-arrow`.** Looked
+  at: with the property set, the two menus rendered as plain rectangles reading
+  "Project" and "File", indistinguishable from the Save button beside them —
+  the complaint this phase exists to answer, reproduced by the fix for it. Then
+  measured in a four-button probe (label-then-property, property-then-label,
+  property-then-`set_label`, neither): the property reads back TRUE in three of
+  them and NONE of the four draws an arrow on GTK 4.22 here, so it is not an
+  ordering mistake. `▾` is already the browser's glyph for an expanded
+  directory, so it already means "this opens" — Geometric Shapes, the same
+  ground the browser glyphs stand on, and the opposite of the `dialog-error`
+  case where an icon THEME could lack the name.
+- **A `Gtk.Button` inside a popover that has NEVER been shown does not respond
+  to `activate()`.** Not an error — a press that does nothing. It cost two
+  rounds: Close Project silently did nothing until its own menu was opened, and
+  then `ui_gui` failed because `G.shell.refresh_btn.activate()` and
+  `new_btn.activate()` had been going through the header since STU-2B and now
+  reached an unmapped widget. So every smoke-mode press goes through
+  `app/studio.bas`'s `menu_click(action)`, which pops the owning menu up,
+  presses, and pops it down — the gesture a user makes. `ui_gui_ctx` never met
+  this because a right-click opens the popover before anything is pressed.
+  `menu_click` PRINTS on an action no menu holds, for the same reason: the
+  alternative is a phase that quietly does nothing and a golden that records
+  the absence as normal.
+- **The teaching names moved, because a cue on an item inside a shut popover
+  resolves and draws NOTHING** — which is exactly the failure `agent_widgets`
+  exists to stop, arriving through a door it does not watch (the entry resolves;
+  it is the drawing that is invisible). `new_file_button` and
+  `new_folder_button` are now `project_menu` and `file_menu`, pointing at the
+  MenuButtons, which is also the honest answer to "where is New File".
+- The shell keeps the OLD record keys (`new_btn`, `file_btn`, `refresh_btn`, …)
+  pointing at the menu items, so `app/studio.bas`'s connects did not change and
+  no `studio_ui` function moved. `menubar.items` is the same widgets keyed by
+  action. That is why the whole redesign moved only display goldens and the two
+  teaching ones: nothing about what an action MEANS changed.
+- `ui_menus` asserts the vocabulary headlessly — every item has a label and a
+  hint, no two items share a label, an undeclared action falls through to its
+  own id and an empty hint. `ui_gui_menus` asserts what only a window can show:
+  that the popover opens, and that an item press arms, refuses and acts exactly
+  as its button did.
 
 ### The SQL builders (STU-15)
 
