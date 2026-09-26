@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' STU-8 headless driver for library-registered rich viewers (studio_viewers).
 ' Discovery from sidecars, validation, descriptor matching, specificity, the
 ' capture rules the epilogue is compiled from, and rendering. No GTK, no child

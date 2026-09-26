@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' STU-6 headless driver: semantic history, the read-only tool surface, and the
 ' orientation agent. FULLY OFFLINE — the provider is a scripted transport, so no
 ' network is touched and no key is needed; what the goldens assert is what Studio

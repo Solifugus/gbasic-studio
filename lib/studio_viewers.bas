@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' studio_viewers — STU-8 library-registered rich viewers (headless).
 '
 ' Design Q11, and the §6.2 boundary it exists to respect: Studio must be able to

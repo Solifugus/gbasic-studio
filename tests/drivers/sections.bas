@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' STU-3 headless driver for the execution-section engine (studio_sections).
 ' Dispatches on args[0] to a scenario and prints a deterministic, path-free
 ' transcript for golden comparison. Exercises derivation, cursor resolution,

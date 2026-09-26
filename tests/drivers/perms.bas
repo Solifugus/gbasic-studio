@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' STU-10 headless driver for the permission model alone: tiers, policies, scope
 ' composition, the narrowing rule, confirmation tokens, and the malformed-config
 ' negatives. No app, no agent, no display.

@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' studio_overlays — STU-9 code-overlay branches (headless).
 '
 ' STU-7 gave branches that differ only in their BINDINGS: identical source, a

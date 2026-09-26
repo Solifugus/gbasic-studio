@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' STU-2B headless driver for the interaction INTENT layer (studio_ui).
 '
 ' Every interaction the shell wires is decided by a function in studio_ui, so this

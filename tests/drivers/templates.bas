@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' STU-15 the template registry: declared text with holes in it.
 '
 ' Everything here is over plain data and a temp directory. What a template

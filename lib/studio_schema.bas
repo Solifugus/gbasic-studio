@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' studio_schema — STU-17: what the database says about itself.
 '
 ' Three engines, three implementations, and that is not an accident of

@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' studio_projfile.bas — the project's OWN file, `.gstudio.json`.
 '
 ' The opposite case from `studio_projects`, and the two are easy to confuse, so

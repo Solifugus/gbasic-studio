@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' STU-7 headless driver for the state-only branch model (studio_branches).
 ' Tree operations, selection, nesting, bindings, staleness, and persistence —
 ' all over plain data, with no GTK and no display.

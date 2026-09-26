@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' Headless driver for studio_sql — where one SQL statement ends and the next
 ' begins.
 '

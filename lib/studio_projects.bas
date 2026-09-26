@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' studio_projects.bas — what Studio knows about ONE project, in a file of its own.
 '
 ' Section anchors, the branch tree and the code overlays all used to live in the

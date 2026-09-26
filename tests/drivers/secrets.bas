@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' STU-10 headless driver for credential storage (studio_secrets). Design Q13.
 '
 ' The property this exists to demonstrate is a NEGATIVE one -- that a secret is

@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' STU-5A headless driver for the persistent results store (studio_results).
 ' Dispatches on args[0] to a scenario and prints a deterministic, PATH-FREE
 ' transcript for golden comparison. args[1] is a scratch directory for materialized

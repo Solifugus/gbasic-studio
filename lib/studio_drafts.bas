@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' studio_drafts — unsaved buffers survive closing the window (headless).
 '
 ' Until this existed, closing Studio threw away every unsaved edit. It said so on

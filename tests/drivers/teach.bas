@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' STU-10 headless driver for the teaching model (studio_teaching). Which widgets
 ' an agent may point at, which gestures each can perform, the refusals, and the
 ' range parsing. Plain data throughout; no GTK and no display.

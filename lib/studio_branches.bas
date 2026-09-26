@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' studio_branches — STU-7 exploratory branching, state-only (headless).
 '
 ' At a section boundary the user may keep several alternate continuations and

@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' studio_providers — STU-10 selectable LLM providers (headless). §15.
 '
 ' Studio does not implement a provider. `llm.bas` already adapts three wire

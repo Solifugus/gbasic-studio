@@ -638,3 +638,30 @@ and it cannot be probed around: an older interpreter also lacks `has_builtin`,
 so there is no way to ask "do I have it?" without crashing — you cannot probe
 for the prober. A build that is too old fails loudly at the first git
 detection rather than degrading.
+
+## License
+
+gBASIC Studio is **[Apache-2.0](LICENSE)**, throughout. One licence, no
+dual-licensed parts, no contributor licence agreement — every source file
+declares it with an SPDX identifier, and they all say the same thing.
+
+    Copyright 2026 Matthew C. Tedder
+
+That matches the half of gBASIC you build on. The language is
+[dual-licensed](https://github.com/Solifugus/gbasic): Apache-2.0 for the
+interpreter and most of the standard library, AGPL-3.0-or-later for the EDGAR
+and spreadsheet-to-database libraries. Studio uses none of the AGPL ones.
+
+Apache-2.0 here is a deliberate match rather than a default. Studio is meant to
+be read and taken from — it is the largest gBASIC program there is, and the
+house rule is that anything it grows which is *not* about Studio belongs in the
+language's standard library instead. That has already happened more than once;
+`process.which` exists because this repository's hand-rolled PATH walk was its
+prototype. A copyleft licence here would have made that a one-way door.
+
+**Nothing Studio writes into your files is covered by this.** The boilerplate
+New Project creates, the statements the SQL builders insert, the `select` the
+schema browser writes, the programs Studio generates to run a cell — those are
+yours, under whatever licence you choose for your own project. The texts under
+`share/licenses/` are data for that purpose and carry their own upstream
+licensing; see [share/licenses/README.md](share/licenses/README.md).

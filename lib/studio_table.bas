@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' studio_table — STU-8 the tabular tier: which results get a table, and where
 ' the rows come from (headless).
 '

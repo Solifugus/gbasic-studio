@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' studio_history — STU-6 semantic action history (headless).
 '
 ' An append-only log of what the user DID, in Studio's own vocabulary: a file was

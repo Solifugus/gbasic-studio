@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' studio_session — STU-4 execution sessions (headless).
 '
 ' Runs an execution section by REPLAY: running section N means executing sections

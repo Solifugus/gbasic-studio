@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' studio_permissions — STU-10 the agent permission model (headless).
 '
 ' STU-6 made the agent read-only STRUCTURALLY: there was no write tool to permit

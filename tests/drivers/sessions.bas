@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' STU-4 headless driver for the execution-session engine (studio_session).
 ' Dispatches on args[0] to a scenario and prints a deterministic, path-free
 ' transcript for golden comparison. args[1] is a scratch directory (never printed).

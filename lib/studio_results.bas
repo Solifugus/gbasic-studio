@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' studio_results — STU-5A persistent, section-linked execution results (headless).
 '
 ' A run produces one durable RECORD. This library owns where those records live,

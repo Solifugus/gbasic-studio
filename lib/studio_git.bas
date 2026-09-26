@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' studio_git — STU-11 optional git, over the general process API (headless). §18.
 '
 ' Git is OPTIONAL and quiet when absent (§2.3). Everything here runs `git` through

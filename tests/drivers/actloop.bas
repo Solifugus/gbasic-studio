@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' STU-10 headless driver for the ACTING agent loop and provider selection.
 ' Offline throughout: `llm.with_transport` replaces the HTTP call with a
 ' function, so a scripted provider drives real tool calls against a real app and

@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' Every act tool must declare a permission tier, and it must be a real one.
 ' A tool with no tier is a tool nothing gates: `tier_of` answers "read" for it,
 ' which for something that writes is the worst available default.

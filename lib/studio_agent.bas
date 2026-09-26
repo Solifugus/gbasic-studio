@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' studio_agent — STU-6 the read-only orientation agent (headless).
 '
 ' One question, answered well: "where was I?" — after a week away, after a

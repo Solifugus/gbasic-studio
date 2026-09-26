@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' studio_tools — STU-6 the read-only semantic tool surface (headless).
 '
 ' The Agent observes Studio through the SAME operations the window uses. There is

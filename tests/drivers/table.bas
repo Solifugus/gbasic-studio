@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' STU-8 headless driver for the tabular tier (studio_table). What gets a table
 ' affordance, where its rows come from, and the two halves of the virtualization
 ' claim — measured, not asserted. No GTK and no display; the `model` mode uses

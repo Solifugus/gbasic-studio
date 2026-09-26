@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' The set of widgets an agent is TOLD it may point at, and the set the window can
 ' actually resolve, must be the same set. They live in two files — a registry the
 ' agent reads and a lookup the shell performs — and nothing but this keeps them

@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' studio_secrets — STU-10 credential storage (headless). Design Q13.
 '
 ' The requirement (§16) is short: API keys are NEVER stored as ordinary plaintext

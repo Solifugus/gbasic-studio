@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' studio_shell.bas — the gBASIC Studio application shell (GTK 4, over gtk.bas).
 '
 ' STU-1/STU-2 scope: a usable NAVIGATION + EDITING shell — a filesystem project

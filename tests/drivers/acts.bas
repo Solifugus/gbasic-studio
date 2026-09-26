@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' STU-10 headless driver for act tools and the permission model. Tier
 ' assignment, scope composition, confirmation binding, the audit trail, and the
 ' negatives — a denied act, an unknown tool, a confirmation spent on the wrong

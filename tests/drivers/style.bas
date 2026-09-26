@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' The one decision behind the editor's colours: which GtkSourceView STYLE SCHEME
 ' to paint with, given what the toolkit says.
 '

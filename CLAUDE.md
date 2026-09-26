@@ -1853,6 +1853,31 @@ the set of declarations its interpreter pre-registers, and it names
 `lib/studio_session.bas`'s `_hoistable_kind()` as what must change with it. If
 that test fails over there, the fix is probably here.
 
+## Licensing
+
+Studio is **Apache-2.0 throughout** — one licence, no dual-licensed parts, no
+CLA. Every `.bas` file starts with the two-line SPDX header, which is gBASIC's
+own convention (all 65 of its stdlib files carry one; its shell scripts do
+not, and neither do ours).
+
+- **A new `.bas` file gets the header.** Not a style point: the claim in
+  README and NOTICE is that every source file declares its licence, and one
+  that does not makes that sentence false.
+- It matches the half of gBASIC you build on, and the match is deliberate.
+  The house rule below — anything not about Studio belongs in the language's
+  stdlib — has already been exercised (`process.which` exists because
+  `studio_git`'s hand-rolled PATH walk was its prototype), and a copyleft
+  licence here would make that migration a ONE-WAY DOOR: Apache-2.0 code
+  cannot be taken into a GPL work and back out again.
+- **`share/licenses/` is DATA, not this project's licensing.** Those texts are
+  what New Project writes into a project the user creates, each verbatim from
+  upstream with its provenance in `share/licenses/README.md`. Nothing Studio
+  emits into a user's file — boilerplate, snippets, the schema browser's
+  `select`, a generated run program — is covered by Studio's own licence.
+- `LICENSE` is byte-identical to gBASIC's copy, deliberately: two spellings of
+  the same licence in one estate is a difference somebody eventually has to
+  investigate.
+
 ## House rules
 
 - **Before writing gBASIC code**, read `~/development/gbasic/docs/ai/START-HERE.md`

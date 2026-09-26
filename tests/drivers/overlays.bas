@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' STU-9 headless driver for code-overlay branches (studio_overlays). Projection,
 ' scope, conflicts, rebase, promote, discard and compare — over plain data, with
 ' no GTK, no display and no child process.

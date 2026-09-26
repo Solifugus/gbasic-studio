@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' Is the native GListModel adapter in this interpreter? It is behind gio-2.0, so
 ' a build without it must SKIP the virtualization tier rather than fail it.
 program main(args)

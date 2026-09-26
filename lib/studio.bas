@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' studio.bas — the gBASIC Studio application object and lifecycle (headless).
 '
 ' This is the backbone STU-0 delivers: a deterministic STARTUP pipeline that

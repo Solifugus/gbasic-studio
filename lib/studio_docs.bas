@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' studio_docs.bas — the gBASIC Studio document manager (STU-2, headless).
 '
 ' The authoritative store of OPEN DOCUMENTS. A document exists here with its content

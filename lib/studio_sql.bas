@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' studio_sql.bas — where one SQL statement ends and the next begins.
 '
 ' A `.sql` document is a notebook: each statement is a cell, runs on its own,

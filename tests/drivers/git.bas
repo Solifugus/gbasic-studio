@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' STU-11 headless driver for optional git (studio_git). Detection, status, diff,
 ' history, branches and commit — over a fixture repository built by `git init` in
 ' a temp directory. No network, no display.

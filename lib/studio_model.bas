@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' studio_model.bas — the gBASIC Studio domain model (headless, pure gBASIC).
 '
 ' This is the authoritative shape of Studio's persistent state. It has NO GTK and

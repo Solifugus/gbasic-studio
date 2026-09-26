@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' studio_ui.bas — the INTENT layer between the GTK shell and the app model.
 '
 ' STU-2B exists because the shell rendered but could not be driven: there were no

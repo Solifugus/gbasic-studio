@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' studio_teaching — STU-10 the agent teaches by pointing (headless).
 '
 ' §13: the agent should be able to say "the gutter, here" and have Studio draw

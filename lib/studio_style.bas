@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' studio_style.bas — the one stylesheet, and the one way to wear it.
 '
 ' Studio had no visual design: no margins anywhere in the repository, one CSS

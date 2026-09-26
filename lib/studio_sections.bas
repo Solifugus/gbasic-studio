@@ -1,3 +1,6 @@
+' SPDX-License-Identifier: Apache-2.0
+' Copyright 2026 Matthew C. Tedder. See LICENSE.
+
 ' studio_sections — STU-3 execution-section engine (headless).
 '
 ' Studio owns execution-section identity; the platform (source_outline) owns source
