@@ -702,6 +702,29 @@ Two consequences worth knowing before you touch the shell:
   no `studio_ui` function moved. `menubar.items` is the same widgets keyed by
   action. That is why the whole redesign moved only display goldens and the two
   teaching ones: nothing about what an action MEANS changed.
+- **`.destructive-action` DOES NOT SURVIVE HOVER on a menu item, and Delete
+  wears Studio's own `danger` class instead.** That stock class paints a
+  BACKGROUND, and the theme's own `button:hover` background beats it — looked
+  at, with the hover state forced on through
+  `set_state_flags(gi.enum("Gtk.StateFlags.PRELIGHT"), false)`: the tint
+  vanished and Delete rendered identically to Close Tab. Keeping the frame on
+  that one item did not help; measured both ways. So the warning was
+  disappearing at the one moment it is being read, the instant before the
+  click. `.studio-danger` colours the TEXT — `@error_color`, one of the three
+  GTK defines as a text colour, and Studio's provider goes on at 500 where the
+  theme is at 200, so the hover background changes underneath and the label
+  stays red. No golden can see any of this: the label is the same string in
+  every one of those states.
+- **Forcing a state flag is how a pointer-driven look gets measured at all.**
+  `set_state_flags` is an ordinary instance method, and a `get_state_flags`
+  readout is what identified the two blue outlines in the first screenshot as
+  ordinary focus and ordinary hover (`new-file flags=16544 focus=true`,
+  `close-tab flags=130` = DIR_LTR|PRELIGHT — the pointer happened to be there)
+  rather than a defect. A screenshot alone could not have told those apart.
+- A popover is a separate Wayland surface, so a window-only capture does not
+  include it and a full-screen grab captures the user's desktop. Ask first, and
+  `window.fullscreen()` before the grab so the frame is Studio rather than
+  whatever was behind it.
 - `ui_menus` asserts the vocabulary headlessly — every item has a label and a
   hint, no two items share a label, an undeclared action falls through to its
   own id and an empty hint. `ui_gui_menus` asserts what only a window can show:

@@ -187,6 +187,25 @@ library studio_style
         lines = append(lines, "  color: @error_color;")
         lines = append(lines, "  font-weight: bold;")
         lines = append(lines, "}")
+        ' The one menu item that removes a file from disk. NOT the stock
+        ' `.destructive-action`: that class paints a BACKGROUND, and the
+        ' theme's own `button:hover` background beats it -- looked at, with the
+        ' hover state forced on, the tint vanished and Delete rendered
+        ' identically to Close Tab. The warning disappeared at the one moment
+        ' it is being read, the instant before the click, and it did so whether
+        ' the button had a frame or not.
+        '
+        ' Colouring the TEXT survives that, because @error_color is one of the
+        ' three GTK defines as a text colour (the note above says so), and this
+        ' provider goes on at 500 where the theme is at 200 -- so the hover
+        ' background changes underneath and the label stays red. Said twice, at
+        ' rest and on hover, so the rule reads as the deliberate thing it is.
+        lines = append(lines, ".studio-danger {")
+        lines = append(lines, "  color: @error_color;")
+        lines = append(lines, "}")
+        lines = append(lines, ".studio-danger:hover {")
+        lines = append(lines, "  color: @error_color;")
+        lines = append(lines, "}")
         ' An unsaved buffer. Reserved for the tab marker studio_ui already spells
         ' with a "*", so the mark is legible with or without colour.
         lines = append(lines, ".studio-dirty {")

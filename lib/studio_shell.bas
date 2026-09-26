@@ -968,15 +968,20 @@ library studio_shell
         delete_btn = menubar.items["delete"]
         refresh_btn = menubar.items["reload"]
         close_btn = menubar.items["close-tab"]
-        ' Delete keeps the stock destructive class it had as a button. Looked
-        ' at: on a FRAMELESS button the theme paints a filled block rather than
-        ' colouring the text, so the item is a tinted row in a column of plain
-        ' ones. That is louder than the old grey rectangle was and it is the
-        ' theme's own colour for this meaning, not one of ours -- but how it
-        ' composites with the hover highlight is NOT something a window-only
-        ' capture can show, and a popover is a separate surface a window
-        ' capture does not include.
-        delete_btn.add_css_class(studio_style.css_class("destructive-action"))
+        ' The one item that removes a file from disk, and the ONE place in this
+        ' header with a colour.
+        '
+        ' `studio-danger` and NOT the stock `.destructive-action` it wore as a
+        ' toolbar button. Looked at, with the hover state forced on with
+        ' `set_state_flags(PRELIGHT)`: that class paints a BACKGROUND, the
+        ' theme's own `button:hover` background beats it, and the tint vanished
+        ' -- Delete rendered identically to Close Tab. Keeping the frame did
+        ' not help either; measured both ways. The warning was disappearing at
+        ' the one moment it is being read, the instant before the click, and no
+        ' golden can see it because the label is the same string either way.
+        ' Studio's own class colours the TEXT instead, which the hover
+        ' background cannot take away.
+        delete_btn = studio_style.apply(delete_btn, "danger")
         outer.append(header)
 
         ' --- main split: project browser | editor tab notebook ---
