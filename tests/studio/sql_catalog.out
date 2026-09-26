@@ -1,0 +1,77 @@
+== what Studio asks each driver ==
+-- sqlite tables --
+   sql: select name, type from sqlite_master where type in ('table', 'view') and name not like 'sqlite_%' order by type, name
+-- sqlite columns --
+   sql: pragma table_info("orders")
+   params: 0
+-- sqlite primary key --
+   not asked: pragma table_info already reported it
+-- pg tables --
+   sql: select table_schema, table_name, table_type from information_schema.tables where table_schema not in ('pg_catalog', 'information_schema') order by table_schema, table_name
+-- pg columns --
+   sql: select column_name, data_type, is_nullable, ordinal_position from information_schema.columns where table_schema = $1 and table_name = $2 order by ordinal_position
+   params: 2
+-- pg primary key --
+   sql: select kcu.column_name from information_schema.table_constraints tc join information_schema.key_column_usage kcu on kcu.constraint_name = tc.constraint_name and kcu.table_schema = tc.table_schema where tc.constraint_type = 'PRIMARY KEY' and tc.table_schema = $1 and tc.table_name = $2 order by kcu.ordinal_position
+   params: 2
+-- odbc tables --
+   catalog: odbc.tables(db, { table: "%" })
+-- odbc columns --
+   catalog: odbc.columns(db, { catalog: "acme", schema: "dbo", table: "orders" })
+   params: 0
+-- odbc primary key --
+   catalog: odbc.primary_keys(db, { catalog: "acme", schema: "dbo", table: "orders" })
+   params: 0
+-- mysql tables --
+   refused: Studio cannot read a schema through the mysql driver
+-- mysql columns --
+   refused: Studio cannot read a schema through the mysql driver
+-- mysql primary key --
+   not asked: 
+== the key, whatever the driver calls the column ==
+  pg:   id, tenant
+  odbc: id
+  none: []
+  marked: id  int  PK  not null
+  marked: note  text
+== a qualifier that is ABSENT is not a qualifier that is EMPTY ==
+  plain           odbc.columns(db, { table: "plain" })
+                  in SQL: plain
+  mariadb_shaped  odbc.columns(db, { catalog: "acme", table: "mariadb_shaped" })
+                  in SQL: mariadb_shaped
+  mssql_shaped    odbc.columns(db, { catalog: "acme", schema: "dbo", table: "mssql_shaped" })
+                  in SQL: dbo.mssql_shaped
+  schema_only     odbc.columns(db, { schema: "public", table: "schema_only" })
+                  in SQL: public.schema_only
+== an identifier with a quote in it ==
+  orders        "orders"
+  we"ird        "we""ird"
+  Order Lines   "Order Lines"
+== the tables each driver hands back, normalised ==
+-- sqlite (sqlite_master) --
+   cat=       schema=         customers
+   cat=       schema=         big_orders  (view)
+-- pg (information_schema) --
+   cat=       schema=public   public.customers
+   cat=       schema=rpt      rpt.daily  (view)
+-- odbc (the driver's own column names) --
+   cat=       schema=         customers
+   cat=acme   schema=         orders
+   cat=acme   schema=dbo      dbo.audit
+== and the columns ==
+-- sqlite: pragma table_info, whose notnull IS trustworthy --
+   1. id      INTEGER   nullable=yes  | id  INTEGER  PK
+   2. name    TEXT      nullable=no   | name  TEXT  not null
+-- pg: IS_NULLABLE is a string here and psqlODBC leaves it empty --
+   1. id      integer   nullable=no   | id  integer  not null
+   2. note    text      nullable=yes  | note  text
+-- odbc against SQL Server: the NUMERIC nullable, and TYPE_NAME --
+   1. id      int       nullable=no   | id  int  not null
+   2. note    varchar   nullable=yes  | note  varchar
+-- odbc against SQLITE, which reports a primary key as nullable --
+   so Studio declines to state it rather than repeating it:
+   1. id      integer   nullable=     | id  integer  null?
+== nothing at all is not a crash ==
+  tables from nothing:  0
+  columns from nothing: 0
+  a row missing every field:     null?|

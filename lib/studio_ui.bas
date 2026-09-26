@@ -46,6 +46,7 @@ library studio_ui
     load studio_sql
     load studio_secrets
     load studio_templates
+    load studio_schema
     load studio_branches
     load studio_overlays
     load studio_viewers
@@ -2136,6 +2137,270 @@ library studio_ui
     end function
 
 
+
+    ' ---- the schema browser (STU-17) ---------------------------------------
+    '
+    ' What the database says about itself, for the connection THIS document
+    ' names -- so the browser needs no picker and cannot point at somebody
+    ' else's database. The connection, the credential and every refusal are the
+    ' same ones a run uses, by the same names, resolved by the same functions.
+    '
+    ' A schema read is a BLOCKING child with a timeout (`studio_schema`'s header
+    ' says why), so these are ordinary functions that return data and the whole
+    ' path is testable with no window and no timer.
+
+    ' Whether the window offers a schema at all -- `.sql` only, like Run All and
+    ' the snippets, and for the same §18 reason.
+    function shows_schema(app)
+        doc = studio_docs.active_doc(app.dm)
+        if doc = nothing then
+            return false
+        end if
+        return studio_ui.is_sql(doc.path)
+    end function
+
+    ' The tables and views. Returns
+    '   { ok, why, detail, source, tables }
+    ' where `source` is the exact question Studio asked -- shown in the window,
+    ' because a tool that tells you about your database without saying what it
+    ' asked is the magic this project keeps refusing.
+    function schema_tables(app)
+        d = studio_ui._schema_doc(app)
+        if not d.ok then
+            return studio_ui._noschema(d.why, d.detail)
+        end if
+        ask = studio_schema.tables_ask(d.conn)
+        if not ask.ok then
+            return studio_ui._noschema("schema-driver", ask.why)
+        end if
+        r = studio_ui._schema_run(app, d, ask, [])
+        if not r.ok then
+            return studio_ui._noschema(r.why, r.detail)
+        end if
+        return { ok: true, why: "", detail: "", source: ask.text,
+                 tables: studio_schema.normalise_tables(r.rows, d.conn.driver) }
+    end function
+
+    ' The columns of one table, which is the question somebody writing SQL
+    ' actually has. `t` is a record `schema_tables` returned, so its qualifier
+    ' came from the database rather than from a text field.
+    function schema_columns(app, t)
+        d = studio_ui._schema_doc(app)
+        if not d.ok then
+            return studio_ui._nocols(d.why, d.detail)
+        end if
+        ask = studio_schema.columns_ask(d.conn, t)
+        if not ask.ok then
+            return studio_ui._nocols("schema-driver", ask.why)
+        end if
+        params = studio_schema.columns_params(d.conn, t)
+        r = studio_ui._schema_run(app, d, ask, params)
+        if not r.ok then
+            return studio_ui._nocols(r.why, r.detail)
+        end if
+        eng = studio_ui.sql_engine(d.conn)
+        cols = studio_schema.normalise_columns(r.rows, d.conn.driver, eng)
+        source = ask.text
+
+        ' The SECOND read, for the two drivers whose column list does not say
+        ' which columns are the key. Without it a PostgreSQL table showed no
+        ' PK at all beside a SQLite one that did, which does not read as
+        ' "Studio did not ask" -- it reads as "this table has no primary key".
+        '
+        ' A failure here is NOT a failure of the whole answer: the columns are
+        ' already in hand and are worth having, so the key is simply left
+        ' unmarked rather than throwing them away. Both questions are reported
+        ' in `source`, because the window's promise is that it shows what it
+        ' asked and there are two of them.
+        pk = studio_schema.pk_ask(d.conn, t)
+        if pk.ok then
+            source = source + "\n" + pk.text
+            pr = studio_ui._schema_run(app, d, pk, studio_schema.pk_params(d.conn, t))
+            if pr.ok then
+                cols = studio_schema.mark_pk(cols, studio_schema.pk_names(pr.rows, d.conn.driver))
+            end if
+        end if
+        return { ok: true, why: "", detail: "", source: source, columns: cols }
+    end function
+
+    ' The document, its connection and its credential, resolved once. Every
+    ' refusal here is one `sql_connection` already names, so a schema read that
+    ' will not go through says exactly what a run would have said.
+    function _schema_doc(app)
+        doc = studio_docs.active_doc(app.dm)
+        if doc = nothing then
+            return { ok: false, why: "none", detail: "" }
+        end if
+        if not studio_ui.is_sql(doc.path) then
+            return { ok: false, why: "not-sql", detail: doc.path }
+        end if
+        c = studio_ui.sql_connection(app, doc)
+        if not c.ok then
+            return { ok: false, why: c.why, detail: c.name }
+        end if
+        cred = studio_ui.sql_credential(app, doc)
+        if c.conn.driver = "odbc" then
+            if not studio_sql.odbc_password_ok(cred.value) then
+                return { ok: false, why: "bad-password", detail: c.name }
+            end if
+        end if
+        return { ok: true, why: "", detail: "", doc: doc, name: c.name,
+                 conn: c.conn, cred: cred }
+    end function
+
+    ' Ask the database, and wait for it.
+    '
+    ' `process.run` and not `process.start`: there is no cell to file a result
+    ' against and the caller wants the answer now, so the poll loop, the
+    ' durable result and Stop would all be machinery with nothing to do. The
+    ' TIMEOUT is what makes that acceptable -- a database that does not answer
+    ' comes back as a named refusal rather than as a window with nothing on it.
+    '
+    ' `process.run` RAISES on a missing executable and gBASIC cannot catch a
+    ' raise, so the interpreter is LOOKED FOR first, exactly as `studio_git`
+    ' looks for git. A pinned interpreter that is not there would otherwise
+    ' take the window down.
+    function _schema_run(app, d, ask, params)
+        interp = studio_session.default_interpreter()
+        pin = studio_projfile.read_spec(studio_ui.project_path_for(app, d.doc))
+        if pin.interpreter != "" then
+            interp = pin.interpreter
+        end if
+        found = studio_ui._interpreter_path(interp)
+        if found = "" then
+            return { ok: false, why: "no-interpreter", detail: interp, rows: [] }
+        end if
+
+        pw = studio_sql.password_expr(d.conn.driver, d.cred.value)
+        text = studio_schema.ask_program(d.conn, ask, params, pw)
+        dir = app.paths.home + "/scratch"
+        persist.ensure_dir(dir)
+        ' One path per document, overwritten: a schema read leaves nothing to
+        ' keep, and `studio_session.sweep_scratch` already clears this
+        ' directory at startup if Studio dies holding one.
+        path = dir + "/schema-" + d.doc.id + ".bas"
+        persist.write_text_atomic(path, text)
+
+        ' The SAME env record a run builds, for the same reason: the password
+        ' travels in the child's environment and appears in no file. The
+        ' program on disk says `env("GBSTUDIO_DB_PASSWORD")` and not the value,
+        ' which is checkable by reading it -- and `ui_schema` does.
+        envr = {}
+        if pin.gbasic_path != "" then
+            envr.GBASIC_PATH = pin.gbasic_path
+        end if
+        if d.cred.value != "" then
+            envr[studio_sql.password_var()] = d.cred.value
+        end if
+        opts = { command: found, args: [path], timeout: studio_schema.timeout_s() }
+        if count(keys(envr)) > 0 then
+            opts.env = envr
+        end if
+        r = process.run(opts)
+        if r.timed_out then
+            return { ok: false, why: "schema-timeout", detail: d.name, rows: [] }
+        end if
+        if not r.success then
+            return { ok: false, why: "schema-failed",
+                     detail: studio_ui._first_line(r.stderr), rows: [] }
+        end if
+        dec = try_decode(trim(r.stdout))
+        if not dec.ok then
+            return { ok: false, why: "schema-unreadable", detail: d.name, rows: [] }
+        end if
+        return { ok: true, why: "", detail: "", rows: dec.value }
+    end function
+
+    ' Where the interpreter is, or "" -- without running it.
+    function _interpreter_path(interp)
+        if find(interp, "/") != nothing then
+            ' `exists` takes a file REFERENCE, not a path string.
+            ip{file} = interp
+            if exists(ip) then
+                return interp
+            end if
+            return ""
+        end if
+        w = process.which(interp)
+        if is_string(w) then
+            return w
+        end if
+        return ""
+    end function
+
+    function _first_line(text)
+        if text = "" then
+            return ""
+        end if
+        parts = split(text, "\n")
+        return trim(parts[0])
+    end function
+
+    ' Write `select <every column> from <this table>;` into the document, at
+    ' the caret -- the same placement, the same edit and the same `inserted`
+    ' action a snippet uses, because it is the same act.
+    '
+    ' The columns are NAMED rather than `select *`, and that is the whole
+    ' reason this button is worth having over typing the table name yourself:
+    ' `select *` is the statement that breaks silently when somebody adds a
+    ' column, and a browser that has just read the column list has no excuse
+    ' for emitting it. It is also the habit worth teaching, which is the same
+    ' argument the SQL builders make.
+    '
+    ' Identifiers go through `studio_schema._ident` and not raw: a column
+    ' called `order` is a reserved word in every engine, and one with a space
+    ' in it is legal and unquotable by accident.
+    function insert_schema_select(app, t, columns)
+        doc = studio_docs.active_doc(app.dm)
+        if doc = nothing then
+            return { app: app, action: "none", detail: "" }
+        end if
+        if t = nothing then
+            ' `no-table-picked` and deliberately NOT the `no-table` STU-8's
+            ' table offers already answer with. That one means "this run left
+            ' nothing tabular behind"; this one means "the drop-down has no
+            ' selection", and one word answering both would send the user to
+            ' the wrong half of the window.
+            return { app: app, action: "no-table-picked", detail: "" }
+        end if
+        if count(columns) = 0 then
+            ' Rather than falling back to `select *`: the fallback is the thing
+            ' this function exists not to write, and an empty column list means
+            ' the read did not answer, which the user should know about.
+            return { app: app, action: "no-columns", detail: studio_schema.qualified(t) }
+        end if
+        names = []
+        for each c in columns
+            names = append(names, studio_schema._ident(c.name))
+        end for
+        text = "select " + join(names, ", ") + "\nfrom " + studio_ui._qualified_sql(t) + ";\n"
+        line1 = doc.cursor.line
+        app = studio.edit_document(app, doc.id,
+                                   studio_ui._insert_at_line(doc.content, line1, text))
+        app = studio.set_document_cursor(app, doc.id, line1, 1)
+        return { app: app, action: "inserted", detail: studio_schema.qualified(t) }
+    end function
+
+    ' The table name as it goes into the statement: each part quoted on its
+    ' own, because `"public.orders"` is one identifier with a dot in it and not
+    ' a qualified name.
+    function _qualified_sql(t)
+        if has(t, "schema") then
+            if t.schema != "" then
+                return studio_schema._ident(t.schema) + "." + studio_schema._ident(t.name)
+            end if
+        end if
+        return studio_schema._ident(t.name)
+    end function
+
+    function _noschema(why, detail)
+        return { ok: false, why: why, detail: detail, source: "", tables: [] }
+    end function
+
+    function _nocols(why, detail)
+        return { ok: false, why: why, detail: detail, source: "", columns: [] }
+    end function
+
     ' ---- the header menus (STU-16) ------------------------------------------
     '
     ' The toolbar was TEN buttons in one row, and the complaint about it was that
@@ -2505,6 +2770,30 @@ library studio_ui
         end if
         if action = "no-template" then
             return detail
+        end if
+        ' ---- STU-17, the schema browser. Its own refusals; every other one it
+        ' can produce is a connection refusal already worded above, because it
+        ' resolves the connection through the same function a run does.
+        if action = "schema-timeout" then
+            return detail + " did not answer within " + studio_schema.timeout_s() + " seconds"
+        end if
+        if action = "schema-failed" then
+            return "reading the schema failed — " + detail
+        end if
+        if action = "schema-unreadable" then
+            return "the schema read from " + detail + " came back in a form Studio could not read"
+        end if
+        if action = "schema-driver" then
+            return detail
+        end if
+        if action = "no-interpreter" then
+            return "no interpreter at " + detail + " — check `interpreter` in .gstudio.json"
+        end if
+        if action = "no-table-picked" then
+            return "pick a table first"
+        end if
+        if action = "no-columns" then
+            return "Studio has no column list for " + detail + " to name, and will not write `select *` instead"
         end if
         if action = "bad-password" then
             ' The one character an ODBC connection string cannot carry. Said

@@ -1,0 +1,26 @@
+-> Run All: action=running active=true
+   exec: run: finished [sec-3] — exit 0
+   status: finished sec-3
+== the tables this connection has ==
+ok=true why=
+asked: select name, type from sqlite_master where type in ('table', 'view') and name not like 'sqlite_%' order by type, name
+  customers
+  orders
+  big_orders  (view)
+== and the columns of one of them ==
+ok=true why=
+asked: pragma table_info("customers")
+  1. id  INTEGER  PK
+  2. name  TEXT  not null
+  3. note  TEXT
+== the program it ran is on disk, and carries no password ==
+  load sqlite
+  program main(args)
+    db = sqlite.connect("<project>/data/app.db")
+    rows = sqlite.query(db, "pragma table_info(\"customers\")", [])
+    sqlite.close(db)
+    print encode(rows)
+  end program
+== a document with no connection refuses by the same names a run does ==
+  ok=false why=not-sql
+  shows_schema=false

@@ -337,6 +337,92 @@ function on_snippet_cancel()
     return nothing
 end function
 
+' ---- STU-17: the schema browser -------------------------------------------
+'
+' The same adapter shape as every other handler: read one plain value off the
+' widget, call one `studio_ui` function, render. What is different is that the
+' `studio_ui` call BLOCKS -- it spawns a child and waits, bounded by
+' `studio_schema.timeout_s()` -- so against a remote database pressing this
+' pauses the window. That is the design and `studio_schema`'s header says why.
+
+function on_schema()
+    if G.schema_win != nothing then
+        G.schema_win.window.present()
+        return nothing
+    end if
+    r = studio_ui.schema_tables(G.app)
+    if not r.ok then
+        ' Refused before a window opens, like the snippets: every reason is
+        ' the connection's own or the read's own, by name, and the status line
+        ' is where the user is already looking.
+        G.last_action = r.why
+        G.last_detail = r.detail
+        redraw()
+        return nothing
+    end if
+    c = studio_ui.sql_connection(G.app, studio_docs.active_doc(G.app.dm))
+    w = studio_shell.schema_window(G.app_ref, r.tables, r.source, c.name, c.conn.driver)
+    gi.connect(w.insert_btn, "clicked", on_schema_insert)
+    gi.connect(w.close_btn, "clicked", on_schema_close)
+    gi.connect(w.pick, "notify::selected", on_schema_pick)
+    G.schema_win = w
+    w.window.present()
+    ' The first table's columns, so the window does not open on a blank pane
+    ' that reads as still loading.
+    on_schema_pick()
+    return nothing
+end function
+
+function on_schema_pick()
+    if G.schema_win = nothing then
+        return nothing
+    end if
+    i = studio_shell.schema_index(G.schema_win)
+    if i < 0 then
+        return nothing
+    end if
+    r = studio_ui.schema_columns(G.app, G.schema_win.tables[i])
+    G.schema_win = studio_shell.schema_set_columns(G.schema_win, r)
+    return nothing
+end function
+
+function on_schema_insert()
+    w = G.schema_win
+    i = studio_shell.schema_index(w)
+    t = nothing
+    if i >= 0 then
+        t = w.tables[i]
+    end if
+    r = studio_ui.insert_schema_select(G.app, t, w.columns)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    if r.action = "inserted" then
+        close_schema()
+    else
+        ' Kept OPEN on a refusal, like the snippet window: the thing to fix is
+        ' in this window, and closing it to put the reason in a status line
+        ' behind it would hide both.
+        ws = G.schema_win
+        ws.note.label = studio_ui.action_notice(r.action, r.detail)
+    end if
+    redraw()
+    return nothing
+end function
+
+function on_schema_close()
+    close_schema()
+    return nothing
+end function
+
+function close_schema()
+    if G.schema_win != nothing then
+        G.schema_win.window.close()
+        G.schema_win = nothing
+    end if
+    return nothing
+end function
+
 function close_snippet()
     if G.snippet_win != nothing then
         G.snippet_win.window.close()
@@ -1145,6 +1231,7 @@ function wire_shell()
     gi.connect(sh.bar.run, "clicked", on_run)
     gi.connect(sh.bar.runall, "clicked", on_run_all)
     gi.connect(sh.bar.snippet, "clicked", on_snippet)
+    gi.connect(sh.bar.schema, "clicked", on_schema)
     gi.connect(sh.bar.halt, "clicked", on_stop)
     gi.connect(sh.bar.force, "clicked", on_force_stop)
     gi.connect(sh.apane.ask, "clicked", on_ask_agent)
@@ -1832,6 +1919,72 @@ function menu_click(action)
     ' quietly does nothing and a golden that records the absence as normal.
     print "menu_click: no menu holds " + action
     return nothing
+end function
+
+' STU-17: the schema browser, driven through real signals.
+'
+' What only a window can show: that the drop-down is populated from a real
+' catalog read, that `notify::selected` runs a second read and swaps the
+' columns over, and that Insert writes a statement naming those columns into
+' the document. The reads themselves are `ui_schema`, headless.
+function stu17_step()
+    G.phase = G.phase + 1
+    if G.phase = 1 then
+        print "opening the .sql file"
+        click_row(find_row("file", "work.sql"))
+        return true
+    end if
+    if G.phase = 2 then
+        print "Schema is visible on a .sql document=" + G.shell.bar.schema.get_visible()
+        print "clicking Schema"
+        G.shell.bar.schema.activate()
+        return true
+    end if
+    if G.phase = 3 then
+        w = G.schema_win
+        print "the window is open=" + (w != nothing)
+        print "found " + count(w.tables) + " table(s)/view(s)"
+        for each t in w.tables
+            print "  " + studio_schema.table_label(t)
+        end for
+        print "-- the first one, which opened with it --"
+        print "asked: " + w.asked.label
+        for each ln in split(w.cols.label, "\n")
+            print "  " + ln
+        end for
+        print "picking the third"
+        w.pick.set_selected(2)
+        return true
+    end if
+    if G.phase = 4 then
+        w = G.schema_win
+        print "now showing " + studio_schema.table_label(w.tables[studio_shell.schema_index(w)])
+        print "asked: " + w.asked.label
+        for each ln in split(w.cols.label, "\n")
+            print "  " + ln
+        end for
+        print "back to the first, and inserting a select"
+        w.pick.set_selected(0)
+        return true
+    end if
+    if G.phase = 5 then
+        G.schema_win.insert_btn.activate()
+        return true
+    end if
+    if G.phase = 6 then
+        print "action=" + G.last_action + " status=" + G.shell.status.label
+        print "the window closed=" + (G.schema_win = nothing)
+        print "-- the document now --"
+        doc = studio_docs.active_doc(G.app.dm)
+        for each ln in split(doc.content, "\n")
+            print ln
+        end for
+        print "-- and the strip names what was written --"
+        print studio_ui.section_label(G.app)
+        G.shell.window.close()
+        return false
+    end if
+    return false
 end function
 
 function stu16_step()
@@ -2568,6 +2721,10 @@ function on_activate(gtkapp)
         gi.timeout(400, stu16_step)
         return nothing
     end if
+    if G.stu17 then
+        gi.timeout(400, stu17_step)
+        return nothing
+    end if
     if G.stu11 then
         gi.timeout(600, stu11_step)
     end if
@@ -3095,6 +3252,7 @@ program main(args)
     G.stu14 = false
     G.stu15 = false
     G.stu16 = false
+    G.stu17 = false
     G.stu7 = false
     G.stu8 = false
     G.stu9 = false
@@ -3111,6 +3269,8 @@ program main(args)
     G.newproj_win = nothing
     ' STU-15: the snippet window, the same way and for the same reason.
     G.snippet_win = nothing
+    ' STU-17: the schema browser, likewise.
+    G.schema_win = nothing
     ' STU-13: which browser row the context menu is about, and whether the
     ' popover is currently parented to a row (a redraw destroys those).
     G.ctx_index = -1
@@ -3182,6 +3342,17 @@ program main(args)
     ' STU-15: the snippet window — a builder that writes the statement into
     ' the file and never runs it. The window is one Studio BUILDS, so the form
     ' can be filled and Insert pressed for real.
+    ' STU-17: the schema browser, over a project whose database a previous
+    ' step already built.
+    if mode = "stu17_smoke" then
+        G.stu17 = true
+        projdir = args[2]
+        G.app = studio.create_registered_workspace(G.app, "ws")
+        ws = G.app.model.workspace
+        ws = studio_model.add_project(ws, "Alpha", projdir)
+        G.app = studio.set_workspace(G.app, ws)
+    end if
+
     ' STU-16: the header menus, over the standard fixture.
     if mode = "stu16_smoke" then
         G.stu16 = true
@@ -3386,6 +3557,10 @@ program main(args)
     load gtk
     load sourceeditor
     load studio_ui
+    ' Declared rather than assumed: `stu17_step` calls `studio_schema` by name,
+    ' and a namespace another library happens to load is not one this file may
+    ' reach. No `gi` below it, so it is safe in any mode that gets this far.
+    load studio_schema
     load llm
     load studio_tools
     load studio_agent

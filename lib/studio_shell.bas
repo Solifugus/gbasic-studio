@@ -34,6 +34,7 @@ library studio_shell
     load studio_results
     load studio_ui
     load studio_templates
+    load studio_schema
     load studio_model
     ' The window's appearance, in one place. Every class this file writes goes on
     ' through `studio_style.apply`, which attaches the shared provider at the same
@@ -223,6 +224,161 @@ library studio_shell
             end if
         end for
         return any
+    end function
+
+    ' ---- the schema browser (STU-17) ---------------------------------------
+
+    ' What the database says about itself, for the connection this document
+    ' names. A window Studio BUILDS, like the snippet and New Project windows
+    ' and for the same reason: every control is an ordinary widget whose value
+    ' can be set, so a display tier can drive it.
+    '
+    ' The columns are read ON DEMAND, one table at a time, rather than fetched
+    ' for the whole database when the window opens. Two reasons, and the second
+    ' is the one that decided it: a browser that pre-fetches every column of
+    ' every table does work nobody asked for and returns a payload nobody
+    ' bounded -- and the window can only show the EXACT question it asked about
+    ' the table you are looking at if it asks one per table. A bulk fetch would
+    ' have to display a query that is not about what is on screen, which is the
+    ' magic this whole surface refuses.
+    '
+    ' The cost, stated: each pick is a blocking child (see `studio_schema`), so
+    ' against a remote database there is a pause. `studio_schema.timeout_s()`
+    ' bounds it.
+    function schema_window(gtkapp, tables, source, conn_name, driver)
+        u = studio_style.unit()
+        win = gtk.application_window(gtkapp)
+        win.title = "gBASIC Studio — schema"
+        win.default_width = 600
+        win.default_height = 520
+        outer = gtk.box("v", u)
+        outer.margin_start = u * 2
+        outer.margin_end = u * 2
+        outer.margin_top = u * 2
+        outer.margin_bottom = u * 2
+
+        head = studio_shell._left(gtk.label("What this database says about itself"))
+        head = studio_style.apply(head, "head")
+        outer.append(head)
+
+        ' WHICH database, said out loud -- the same reason the snippet window
+        ' says it. The connection is named in a comment three lines up in the
+        ' file and nothing else on screen repeats it.
+        where = studio_shell._left(gtk.label(conn_name + " — " + driver))
+        where = studio_style.apply(where, "dim")
+        outer.append(where)
+
+        names = []
+        for each t in tables
+            names = append(names, studio_schema.table_label(t))
+        end for
+        model = gi.new("Gtk.StringList")
+        for each n in names
+            model.append(n)
+        end for
+        pick = gi.new("Gtk.DropDown")
+        pick.set_model(model)
+        if count(names) > 0 then
+            pick.set_selected(0)
+        end if
+        pick.hexpand = false
+        pick.halign = gi.enum("Gtk.Align.START")
+        outer.append(pick)
+
+        ' The columns. `_mono` because this is a list of identifiers and types
+        ' in three aligned columns, and a proportional font takes the alignment
+        ' away -- the same argument program output already makes.
+        '
+        ' And `_fill` ON TOP, which is not optional inside a `_vscroll`. Looked
+        ' at without it: `_mono` composes `_wrapped`, which wraps at the
+        ' label's NATURAL width, and inside a scroller whose horizontal policy
+        ' is NEVER the label is handed its minimum -- so the list rendered one
+        ' character wide and hyphenated, `id / IN- / TE- / GER`. The identical
+        ' string passes the golden either way, which is the whole reason this
+        ' section of CLAUDE.md exists and the reason I looked.
+        cols = studio_shell._fill(studio_shell._mono(gtk.label("")))
+        ' Pinned to the TOP of the scroller. A label given more height than it
+        ' needs centres in it, so a three-column table floated in the middle of
+        ' the pane with a gap above and below and nothing saying why -- looked
+        ' at. A list starts where the control above it ends.
+        cols.valign = gi.enum("Gtk.Align.START")
+        cols_scroll = studio_shell._vscroll(cols)
+        cols_scroll.vexpand = true
+        outer.append(cols_scroll)
+
+        ' THE QUESTION STUDIO ASKED, character for character. Not a nicety: it
+        ' is the difference between a tool that tells you about your database
+        ' and one that shows you how to ask. `pragma table_info` and
+        ' `information_schema.columns` are both worth learning from the tool
+        ' that used them.
+        asked_head = studio_shell._left(gtk.label("Studio asked"))
+        asked_head = studio_style.apply(asked_head, "head")
+        outer.append(asked_head)
+        asked = studio_shell._mono(gtk.label(source))
+        asked = studio_shell._wrapped(asked)
+        outer.append(asked)
+
+        note = studio_shell._wrapped(gtk.label(""))
+        note = studio_style.apply(note, "dim")
+        outer.append(note)
+
+        row = gtk.box("h", u)
+        row.halign = gi.enum("Gtk.Align.END")
+        close_btn = gtk.button("Close")
+        ins_btn = gtk.button("Insert a select")
+        ins_btn.set_tooltip_text("Write `select <every column> from <this table>;` into your document, at the caret. Naming the columns rather than `select *` is the habit worth keeping.")
+        ins_btn.add_css_class(studio_style.css_class("suggested-action"))
+        row.append(close_btn)
+        row.append(ins_btn)
+        outer.append(row)
+
+        win.set_child(outer)
+        return { window: win, pick: pick, tables: tables, cols: cols,
+                 asked: asked, note: note, columns: [],
+                 close_btn: close_btn, insert_btn: ins_btn }
+    end function
+
+    ' Which table is selected, or -1.
+    function schema_index(w)
+        if count(w.tables) = 0 then
+            return 0 - 1
+        end if
+        sel = w.pick.get_selected()
+        if sel < 0 then
+            return 0 - 1
+        end if
+        if sel >= count(w.tables) then
+            return 0 - 1
+        end if
+        return sel
+    end function
+
+    ' Render one table's columns, and the question that produced them. Takes
+    ' the record `studio_ui.schema_columns` returned -- refusal included, so
+    ' the window says why rather than going blank.
+    function schema_set_columns(w, r)
+        if not r.ok then
+            w.cols.label = ""
+            w.note.label = studio_ui.action_notice(r.why, r.detail)
+            w.columns = []
+            return w
+        end if
+        lines = []
+        for each c in r.columns
+            lines = append(lines, studio_schema.column_label(c))
+        end for
+        if count(lines) = 0 then
+            ' A table with no columns is not a thing; an empty answer means the
+            ' name did not match, which is worth saying rather than showing a
+            ' blank pane that reads as still loading.
+            w.cols.label = "(the database returned no columns for this table)"
+        else
+            w.cols.label = join(lines, "\n")
+        end if
+        w.asked.label = r.source
+        w.note.label = ""
+        w.columns = r.columns
+        return w
     end function
 
     ' ---- the header menus (STU-16) ------------------------------------------
@@ -491,6 +647,7 @@ library studio_shell
         shell.bar.section.label = studio_ui.section_label(app)
         shell.bar.runall.set_visible(studio_ui.shows_run_all(app))
         shell.bar.snippet.set_visible(studio_ui.shows_snippets(app))
+        shell.bar.schema.set_visible(studio_ui.shows_schema(app))
         shell.bar.standing.label = studio_ui.standing_line(app)
         shell.pane.prefix.label = studio_ui.prefix_body(app)
         shell.pane.target.label = studio_ui.target_body(app)
@@ -1250,11 +1407,14 @@ library studio_shell
         ' like the branch pane, rather than added and removed.
         all_btn = gtk.button("Run All")
         ' Same rule, same place: `.sql` only, set by `refresh_run` from
-        ' `studio_ui.shows_snippets`. It sits on the run strip rather than on
-        ' the toolbar because this is where SQL's verbs already are -- and
-        ' because the toolbar is nine buttons that want redesigning, and a
-        ' tenth would be making that worse on purpose.
+        ' `studio_ui.shows_snippets`. It sits on the run strip rather than in
+        ' the header menus because this is where SQL's verbs already are, and
+        ' because both of these are about the DOCUMENT's connection rather than
+        ' about the workspace, the selection or the file.
         snip_btn = gtk.button("Snippet…")
+        ' STU-17, and the third of the three. Same rule again.
+        schema_btn = gtk.button("Schema…")
+        schema_btn.set_tooltip_text("What this database says about itself: its tables and views, and the columns of one. It shows the exact question it asked.")
         snip_btn.set_tooltip_text("Write a statement into this file. It is not run -- you read it, edit it, and press Run.")
         halt_btn = gtk.button("Stop")
         force_btn = gtk.button("Force Stop")
@@ -1301,6 +1461,7 @@ library studio_shell
         controls.append(run_btn)
         controls.append(all_btn)
         controls.append(snip_btn)
+        controls.append(schema_btn)
         controls.append(halt_btn)
         controls.append(force_btn)
         controls.append(section)
@@ -1314,7 +1475,8 @@ library studio_shell
         ' The widget stays so a caller can read the text without the pane.
         ' `stop` is a gBASIC keyword and cannot be a record key, hence `halt`.
         return { box: bar, controls: controls, run: run_btn, runall: all_btn,
-                 snippet: snip_btn, halt: halt_btn, force: force_btn,
+                 snippet: snip_btn, schema: schema_btn,
+                 halt: halt_btn, force: force_btn,
                  state: state, section: section, standing: standing, branch: branch }
     end function
 

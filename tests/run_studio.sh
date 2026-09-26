@@ -916,7 +916,7 @@ run_ui() { # mode
 # type sits on -- split wrongly and every cell boundary, result and stable id is
 # filed against the wrong text -- and it needs no fixture at all.
 SQLD=tests/drivers/sql.bas
-for m in scan edges verbs gen; do
+for m in scan edges verbs gen catalog; do
     : >"$stdout_file"
     if ! timeout 60 "$GBASIC" "$SQLD" "$m" >"$stdout_file" 2>&1; then
         cat "$stdout_file"; fail "sql_$m (nonzero exit)"
@@ -944,8 +944,14 @@ sqlprobe="$tmproot/sqlite_probe.bas"
 printf 'load sqlite\nprogram main(args)\n  print "yes"\nend program\n' > "$sqlprobe"
 if GBASIC_PATH="$GBASIC_STDLIB" timeout 60 "$GBASIC" "$sqlprobe" >/dev/null 2>&1; then
     run_ui sqlrun
+    # STU-17: the schema browser, behind the SAME probe. It builds its tables
+    # by RUNNING SQL through Studio and then reads them back through the
+    # catalog, so what it finds is what a run put there -- and the generated
+    # program it asserts is the one on disk, password-free.
+    run_ui schema
 else
     printf 'SKIP ui_sqlrun (this gBASIC has no sqlite module)\n'
+    printf 'SKIP ui_schema (this gBASIC has no sqlite module)\n'
 fi
 
 # STU-15: the snippet builder. Needs no database and no probe -- a builder
@@ -1217,6 +1223,42 @@ if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
         else
             cat "$stdout_file"; fail "ui_gui_ctx (nonzero exit)"
         fi
+    fi
+
+    # STU-17: the schema browser, through real signals. Needs a database, so
+    # it is behind the same sqlite probe as ui_sqlrun -- and the database is
+    # built here rather than by the tier, because what this case is about is
+    # the WINDOW: the drop-down populated from a catalog read, a selection
+    # running a second read, and Insert writing the columns it just showed.
+    if GBASIC_PATH="$GBASIC_STDLIB" timeout 60 "$GBASIC" "$sqlprobe" >/dev/null 2>&1; then
+        sc_home="$tmproot/ui_gui_schema"; sc_proj="$tmproot/ui_gui_schema_proj"
+        rm -rf "$sc_home" "$sc_proj"
+        mkdir -p "$sc_home" "$sc_proj/data"
+        printf '{"schema_version":1,"id":"gsp-1-1","databases":{"app":{"driver":"sqlite","path":"data/app.db"}}}' > "$sc_proj/.gstudio.json"
+        printf -- '-- @database app\n\nselect 1;\n' > "$sc_proj/work.sql"
+        mkdb="$tmproot/mkdb.bas"
+        printf 'load sqlite\nprogram main(args)\n  db = sqlite.connect(args[0])\n  r = sqlite.exec(db, "create table customers (id integer primary key, name text not null, note text)", [])\n  r = sqlite.exec(db, "create table orders (id integer primary key, customer_id integer, total real)", [])\n  r = sqlite.exec(db, "create view big_orders as select * from orders where total > 100", [])\n  sqlite.close(db)\nend program\n' > "$mkdb"
+        if ! GBASIC_PATH="$GBASIC_STDLIB" timeout 60 "$GBASIC" "$mkdb" "$sc_proj/data/app.db" >/dev/null 2>&1; then
+            fail "ui_gui_schema (could not build the fixture database)"
+        fi
+        : >"$stdout_file"
+        if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
+                "$GBASIC" "$APP" stu17_smoke "$sc_home" "$sc_proj" \
+                >"$stdout_file" 2>/dev/null; then
+            if diff -u tests/studio/ui_gui_schema.out "$stdout_file"; then
+                printf 'PASS ui_gui_schema (a catalog read shown, picked and inserted)\n'
+            else
+                fail "ui_gui_schema (output diff)"
+            fi
+        else
+            if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
+                printf 'SKIP ui_gui_schema (GTK 4 typelib not available)\n'
+            else
+                cat "$stdout_file"; fail "ui_gui_schema (nonzero exit)"
+            fi
+        fi
+    else
+        printf 'SKIP ui_gui_schema (this gBASIC has no sqlite module)\n'
     fi
 
     # STU-16: the header menus. What only a window can show -- that a
@@ -1551,6 +1593,7 @@ else
     printf 'SKIP ui_gui_layout (no display)\n'
     printf 'SKIP ui_gui_ctx (no display)\n'
     printf 'SKIP ui_gui_menus (no display)\n'
+    printf 'SKIP ui_gui_schema (no display)\n'
     printf 'SKIP ui_gui_branch (no display)\n'
     printf 'SKIP ui_gui_table (no display)\n'
     printf 'SKIP ui_gui_overlay (no display)\n'

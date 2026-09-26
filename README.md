@@ -139,6 +139,21 @@ session since the first release and never once written back, and the three
 dividers were fixed numbers, so a resized window and a dragged divider were
 forgotten every launch. Both are saved when the window closes.
 
+**Schema…** on the run strip, beside Snippet, for a `.sql` document. It asks
+the database what it contains — the tables and views, and the columns of the
+one you pick, with the primary key marked — and it shows you the exact question
+it asked: `pragma table_info("customers")` for SQLite, `information_schema` for
+PostgreSQL, ODBC's catalog calls for everything reached through a driver. Three
+implementations, because the catalog is a dialect matrix and there is no one
+way to ask. **Insert a select** writes `select` with every column named into
+your document; never `select *`, which is the statement that breaks silently
+when somebody adds a column.
+
+Where a driver is known to answer wrongly, Studio says nothing rather than
+repeating it — SQLite reports a primary key as nullable through ODBC, so a
+connection that has not declared which engine it reaches gets `null?` instead
+of a claim.
+
 **Right-click a row in the browser.** A file offers Open, Rename and Delete; a
 directory offers New File here, New Folder here, Rename and Delete; a project
 offers Add project file and Close project. Every item goes through the same
@@ -579,7 +594,7 @@ workspace instead:
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 197 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 200 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 29 cases, headless AND offline — no network, no key
 ```
 

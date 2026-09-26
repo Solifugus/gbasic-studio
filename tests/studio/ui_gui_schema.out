@@ -1,0 +1,33 @@
+opening the .sql file
+Schema is visible on a .sql document=true
+clicking Schema
+the window is open=true
+found 3 table(s)/view(s)
+  customers
+  orders
+  big_orders  (view)
+-- the first one, which opened with it --
+asked: pragma table_info("customers")
+  id  INTEGER  PK
+  name  TEXT  not null
+  note  TEXT
+picking the third
+now showing big_orders  (view)
+asked: pragma table_info("big_orders")
+  id  INTEGER
+  customer_id  INTEGER
+  total  REAL
+back to the first, and inserting a select
+action=inserted status=inserted customers — read it, edit it, then Run it
+the window closed=true
+-- the document now --
+select "id", "name", "note"
+from "customers";
+
+-- @database app
+
+select 1;
+
+-- and the strip names what was written --
+section: sec-2 select
+app-exited

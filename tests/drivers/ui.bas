@@ -330,6 +330,7 @@ program main(args)
   load studio_projfile
   load studio_secrets
   load studio_templates
+  load studio_schema
   load studio_sql
   load studio_session
 
@@ -2240,6 +2241,40 @@ program main(args)
     c = studio_ui.sync_cursor(app, id, 4, 0)
     app = c.app
     print "  with the caret on line 5: <" + studio_ui.error_body(app) + ">"
+
+    ' STU-17 against a LIVE driver, which is the only way the catalog claims
+    ' can be checked. `odbc.tables` / `odbc.columns` / `odbc.primary_keys` read
+    ' through the driver manager rather than through `information_schema`, and
+    ' every normalisation this asserts -- TABLE_SCHEM with no A, the numeric
+    ' NULLABLE, TYPE_NAME over DATA_TYPE, and a qualifier that is absent rather
+    ' than empty -- is a claim about what a real driver returns.
+    banner("the catalog, through the same connection")
+    app = studio.edit_document(app, id, "-- @database erp\n\nselect 1;\n")
+    st = studio_ui.schema_tables(app)
+    print "  ok=" + string(st.ok) + " why=" + st.why
+    print "  asked: " + st.source
+    for each tb in st.tables
+      print "    " + studio_schema.table_label(tb)
+    end for
+    pick = nothing
+    for each tb in st.tables
+      if tb.name = "widgets" then
+        pick = tb
+      end if
+    end for
+    sc = studio_ui.schema_columns(app, pick)
+    print "  ok=" + string(sc.ok) + " why=" + sc.why
+    for each q in split(sc.source, "\n")
+      print "  asked: " + q
+    end for
+    for each col in sc.columns
+      print "    " + col.position + ". " + studio_schema.column_label(col)
+    end for
+    ' SQLite reports a primary key as NULLABLE through ODBC, which is wrong, so
+    ' Studio declines to state nullability on this engine at all rather than
+    ' repeating it. The `engine` that decides this is DECLARED, which is the
+    ' same field the SQL builders read.
+    print "  nullability is reported: " + string(sc.columns[0].nullable != "")
   end if
 
   ' ---- sqlcred: where a database password comes from -----------------------
@@ -2336,6 +2371,71 @@ program main(args)
   '
   ' A cell runs ALONE. There is no prefix to replay: the database holds the
   ' state, and re-running the inserts above the cursor would duplicate rows.
+  if mode = "schema" then
+    pf{file} = projdir + "/.gstudio.json"
+    write(pf, "{\"schema_version\":1,\"id\":\"gsp-1-1\",\"databases\":{\"app\":{\"driver\":\"sqlite\",\"path\":\"data/app.db\"}}}")
+    persist.ensure_dir(projdir + "/data")
+    sf{file} = projdir + "/work.sql"
+    write(sf, "-- @database app\n\nselect 1;\n")
+
+    ' Build the database the way a user would -- by running SQL through
+    ' Studio -- so what the schema read finds is what a run put there, and
+    ' nothing was placed behind its back.
+    setup{file} = projdir + "/setup.sql"
+    write(setup, "-- @database app\n\ncreate table customers (id integer primary key, name text not null, note text);\n\ncreate table orders (id integer primary key, customer_id integer, total real);\n\ncreate view big_orders as select * from orders where total > 100;\n")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "setup.sql"))
+    app = r.app
+    app.clock_fixed = 1000
+    app = runall(app)
+
+    banner("the tables this connection has")
+    r = studio_ui.activate_row(app, studio_ui.nav_rows(app), row_index(studio_ui.nav_rows(app), "file", "work.sql"))
+    app = r.app
+    t = studio_ui.schema_tables(app)
+    print "ok=" + string(t.ok) + " why=" + t.why
+    print "asked: " + t.source
+    for each tb in t.tables
+      print "  " + studio_schema.table_label(tb)
+    end for
+
+    banner("and the columns of one of them")
+    pick = nothing
+    for each tb in t.tables
+      if tb.name = "customers" then
+        pick = tb
+      end if
+    end for
+    c = studio_ui.schema_columns(app, pick)
+    print "ok=" + string(c.ok) + " why=" + c.why
+    print "asked: " + c.source
+    for each col in c.columns
+      print "  " + col.position + ". " + studio_schema.column_label(col)
+    end for
+
+    banner("the program it ran is on disk, and carries no password")
+    doc = studio_docs.active_doc(app.dm)
+    ptext = read_file_text(app.paths.home + "/scratch/schema-" + doc.id + ".bas")
+    ' The connect line holds the project's absolute path, which is a different
+    ' string on every machine. Reduced to <project> rather than dropped: that
+    ' the SQLite path was resolved against the PROJECT is the thing worth
+    ' asserting about it.
+    for each ln in split(ptext, "\n")
+      if ln != "" then
+        print "  " + replace(ln, projdir, "<project>")
+      end if
+    end for
+
+    banner("a document with no connection refuses by the same names a run does")
+    lf{file} = projdir + "/loose.txt"
+    write(lf, "not sql\n")
+    r = studio_ui.activate_row(app, studio_ui.nav_rows(app), row_index(studio_ui.nav_rows(app), "file", "loose.txt"))
+    app = r.app
+    bad = studio_ui.schema_tables(app)
+    print "  ok=" + string(bad.ok) + " why=" + bad.why
+    print "  shows_schema=" + string(studio_ui.shows_schema(app))
+  end if
+
   if mode = "sqlrun" then
     pf{file} = projdir + "/.gstudio.json"
     write(pf, "{\"schema_version\":1,\"id\":\"gsp-1-1\",\"databases\":{\"app\":{\"driver\":\"sqlite\",\"path\":\"data/app.db\"}}}")

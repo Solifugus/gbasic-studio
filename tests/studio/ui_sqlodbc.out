@@ -46,3 +46,13 @@ stored a password for the connection: ok=true
    exec: run: finished [sec-6] — exit 1
    status: stopped at line 5 — put the caret there to see why
   with the caret on line 5: <target [sec-6] 5:1  odbc prepare failed: [HY000] [SQLite]no such table: nosuchtable (1) -- in "select * from nosuchtable;">
+== the catalog, through the same connection ==
+  ok=true why=
+  asked: odbc.tables(db, { table: "%" })
+    widgets
+  ok=true why=
+  asked: odbc.columns(db, { table: "widgets" })
+  asked: odbc.primary_keys(db, { table: "widgets" })
+    1. id  INTEGER  PK  null?
+    2. label  varchar(20)  null?
+  nullability is reported: false

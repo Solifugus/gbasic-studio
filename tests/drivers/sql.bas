@@ -21,6 +21,18 @@ function show(label, text)
   end if
 end function
 
+function showt(tables)
+  for each t in tables
+    print "   cat=" + pad(t.catalog, 6) + " schema=" + pad(t.schema, 8) + " " + studio_schema.table_label(t)
+  end for
+end function
+
+function showc(cols)
+  for each c in cols
+    print "   " + c.position + ". " + pad(c.name, 8) + pad(c.type, 10) + "nullable=" + pad(c.nullable, 5) + "| " + studio_schema.column_label(c)
+  end for
+end function
+
 function show_prog(pg)
   print pg.text + "  (result bound to `" + pg.names[0] + "`)"
 end function
@@ -46,6 +58,7 @@ end function
 program main(args)
   load studio_sql
   load studio_session
+  load studio_schema
 
   mode = args[0]
 
@@ -220,6 +233,101 @@ program main(args)
     print "  child 7:11 -> " + shown(studio_session.map_line(mp, 7))
     print "  child 3:1  -> " + shown(studio_session.map_line(mp, 3))
     print "  child 99:1 -> " + shown(studio_session.map_line(mp, 99))
+  end if
+
+  if mode = "catalog" then
+    print "== what Studio asks each driver =="
+    for each c in [{ driver: "sqlite", path: "/tmp/app.db" },
+                   { driver: "pg", host: "db", database: "acme", user: "u" },
+                   { driver: "odbc", odbc_driver: "FreeTDS", server: "sql", database: "sales", user: "sa" },
+                   { driver: "mysql", host: "h" }]
+      a = studio_schema.tables_ask(c)
+      print "-- " + c.driver + " tables --"
+      if a.ok then
+        print "   " + a.kind + ": " + a.text
+      else
+        print "   refused: " + a.why
+      end if
+      t = { catalog: "acme", schema: "dbo", name: "orders", kind: "table" }
+      a2 = studio_schema.columns_ask(c, t)
+      print "-- " + c.driver + " columns --"
+      if a2.ok then
+        print "   " + a2.kind + ": " + a2.text
+        print "   params: " + string(count(studio_schema.columns_params(c, t)))
+      else
+        print "   refused: " + a2.why
+      end if
+      ' The SECOND question, and the one that keeps a PostgreSQL table from
+      ' looking as though it has no primary key beside a SQLite one that does.
+      a3 = studio_schema.pk_ask(c, t)
+      print "-- " + c.driver + " primary key --"
+      if a3.ok then
+        print "   " + a3.kind + ": " + a3.text
+        print "   params: " + string(count(studio_schema.pk_params(c, t)))
+      else
+        print "   not asked: " + a3.why
+      end if
+    end for
+
+    print "== the key, whatever the driver calls the column =="
+    print "  pg:   " + join(studio_schema.pk_names([{ column_name: "id" }, { column_name: "tenant" }], "pg"), ", ")
+    print "  odbc: " + join(studio_schema.pk_names([{ COLUMN_NAME: "id", KEY_SEQ: 1 }], "odbc"), ", ")
+    print "  none: [" + join(studio_schema.pk_names(nothing, "pg"), ", ") + "]"
+    marked = studio_schema.mark_pk([{ name: "id", type: "int", nullable: "no", pk: false, position: 1 },
+                                    { name: "note", type: "text", nullable: "yes", pk: false, position: 2 }],
+                                   ["id"])
+    for each c2 in marked
+      print "  marked: " + studio_schema.column_label(c2)
+    end for
+
+    print "== a qualifier that is ABSENT is not a qualifier that is EMPTY =="
+    ' ODBC reads a NULL pattern as "match anything" and "" as "match only
+    ' objects that HAVE no catalog or schema", so a missing field must be left
+    ' OUT of the options record rather than sent as "".
+    oc = { driver: "odbc" }
+    for each t in [{ catalog: "", schema: "", name: "plain", kind: "table" },
+                   { catalog: "acme", schema: "", name: "mariadb_shaped", kind: "table" },
+                   { catalog: "acme", schema: "dbo", name: "mssql_shaped", kind: "table" },
+                   { catalog: "", schema: "public", name: "schema_only", kind: "table" }]
+      print "  " + pad(t.name, 16) + studio_schema.columns_ask(oc, t).text
+      print "  " + pad("", 16) + "in SQL: " + studio_schema.qualified(t)
+    end for
+
+    print "== an identifier with a quote in it =="
+    for each n in ["orders", "we\"ird", "Order Lines"]
+      print "  " + pad(n, 14) + studio_schema._ident(n)
+    end for
+
+    print "== the tables each driver hands back, normalised =="
+    print "-- sqlite (sqlite_master) --"
+    showt(studio_schema.normalise_tables([{ name: "customers", type: "table" },
+                                          { name: "big_orders", type: "view" }], "sqlite"))
+    print "-- pg (information_schema) --"
+    showt(studio_schema.normalise_tables([{ table_schema: "public", table_name: "customers", table_type: "BASE TABLE" },
+                                          { table_schema: "rpt", table_name: "daily", table_type: "VIEW" }], "pg"))
+    print "-- odbc (the driver's own column names) --"
+    showt(studio_schema.normalise_tables([{ TABLE_CAT: nothing, TABLE_SCHEM: nothing, TABLE_NAME: "customers", TABLE_TYPE: "TABLE" },
+                                          { TABLE_CAT: "acme", TABLE_SCHEM: nothing, TABLE_NAME: "orders", TABLE_TYPE: "TABLE" },
+                                          { TABLE_CAT: "acme", TABLE_SCHEM: "dbo", TABLE_NAME: "audit", TABLE_TYPE: "TABLE" }], "odbc"))
+
+    print "== and the columns =="
+    print "-- sqlite: pragma table_info, whose notnull IS trustworthy --"
+    showc(studio_schema.normalise_columns([{ cid: 0, name: "id", type: "INTEGER", notnull: 0, pk: 1 },
+                                           { cid: 1, name: "name", type: "TEXT", notnull: 1, pk: 0 }], "sqlite", "sqlite"))
+    print "-- pg: IS_NULLABLE is a string here and psqlODBC leaves it empty --"
+    showc(studio_schema.normalise_columns([{ column_name: "id", data_type: "integer", is_nullable: "NO", ordinal_position: 1 },
+                                           { column_name: "note", data_type: "text", is_nullable: "YES", ordinal_position: 2 }], "pg", "postgres"))
+    print "-- odbc against SQL Server: the NUMERIC nullable, and TYPE_NAME --"
+    showc(studio_schema.normalise_columns([{ COLUMN_NAME: "id", TYPE_NAME: "int", DATA_TYPE: 4, NULLABLE: 0, IS_NULLABLE: nothing, ORDINAL_POSITION: 1 },
+                                           { COLUMN_NAME: "note", TYPE_NAME: "varchar", DATA_TYPE: 12, NULLABLE: 1, IS_NULLABLE: nothing, ORDINAL_POSITION: 2 }], "odbc", "mssql"))
+    print "-- odbc against SQLITE, which reports a primary key as nullable --"
+    print "   so Studio declines to state it rather than repeating it:"
+    showc(studio_schema.normalise_columns([{ COLUMN_NAME: "id", TYPE_NAME: "integer", NULLABLE: 1, ORDINAL_POSITION: 1 }], "odbc", "sqlite"))
+
+    print "== nothing at all is not a crash =="
+    print "  tables from nothing:  " + count(studio_schema.normalise_tables(nothing, "pg"))
+    print "  columns from nothing: " + count(studio_schema.normalise_columns(nothing, "pg", ""))
+    print "  a row missing every field: " + studio_schema.column_label(studio_schema.normalise_columns([{}], "pg", "")[0]) + "|"
   end if
 
   if mode = "verbs" then

@@ -49,7 +49,7 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 197 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 200 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 29 cases, headless AND offline (scripted transport)
 ```
 
@@ -61,7 +61,7 @@ Display tiers (`sections_gui`, `sessions_gui`, `results_gui`, `ui_gui`,
 `ui_gui_cold`, `ui_gui_new`, `ui_gui_name`, `ui_gui_solo`, `ui_gui_run`,
 `ui_gui_cursor`, `ui_gui_open`, `ui_gui_newproj`, `ui_gui_layout`,
 `ui_gui_ctx`, `ui_gui_branch`, `ui_gui_table`, `ui_gui_overlay`, `ui_gui_teach`,
-`ui_gui_git`, `ui_gui_snippet`, `ui_gui_menus`) SKIP cleanly
+`ui_gui_git`, `ui_gui_snippet`, `ui_gui_menus`, `ui_gui_schema`) SKIP cleanly
 without GTK 4 or a display.
 `ui_gui_new` is the only case that spans two processes: the GUI builds a project
 from nothing and closes, and a second interpreter run reopens the same home —
@@ -107,6 +107,11 @@ lib/studio_branches.bas STU-7 state-only branches: a tree of alternate
                         identical source; anchored to its shared ancestry
 lib/studio_viewers.bas  STU-8 library-registered rich viewers: declarative
                         `.viewers` sidecars, read and never evaluated
+lib/studio_schema.bas   STU-17 what the database says about itself: the
+                        question Studio asks each driver, and the answer in one
+                        shape. Three implementations because the catalog is a
+                        dialect matrix — and a BLOCKING child with a timeout,
+                        not a run, because there is no cell to file it against
 lib/studio_templates.bas STU-15 declared text with `{{holes}}` in it, off a
                         four-layer search path — the same shape as the viewer
                         registry, read and never evaluated, substituted in ONE
@@ -800,6 +805,115 @@ Two consequences worth knowing before you touch the shell:
   `e.entry.text = x` inside a `for each`, where `e.entry` is a gobject HANDLE
   and the write really does reach the widget. Bind it out first
   (`ent = e.entry`); several golden tiers capture stderr. Also in DOGFOOD.
+
+### The schema browser (STU-17)
+
+- **A schema read is a BLOCKING CHILD, not a run.** Everything else that
+  touches a database goes through `studio_session` — a child, a poll loop, a
+  durable result filed against a cell. A schema read has no cell to file
+  against and nothing to keep, so it is `process.run` with a TIMEOUT, the shape
+  `studio_git` already uses for the same reason: a bounded, user-initiated
+  question whose answer is wanted now. That makes the whole path synchronous
+  and testable headlessly against a real SQLite file, with no window and no
+  timer. The cost is stated rather than hidden: a database that does not answer
+  blocks the window until `studio_schema.timeout_s()`, which is why there is a
+  timeout and why `schema-timeout` names the connection.
+- `process.run` RAISES on a missing executable, so the interpreter is LOOKED
+  FOR first (`studio_ui._interpreter_path`) — `process.which` for a bare name,
+  `exists` for a path. A pinned interpreter that is not there would otherwise
+  take the window down, which is the same argument that makes git optional.
+  `exists` takes a file REFERENCE (`ip{file} = interp`), not a path string.
+- **Nothing here runs a statement the user cannot see.** `tables_ask`,
+  `columns_ask` and `pk_ask` return the exact text about to be executed — the
+  SQL for sqlite and pg, the catalog CALL for odbc — and the window shows it
+  under "Studio asked". Same rule the SQL builders follow, and the questions
+  are worth reading anyway: `pragma table_info` and
+  `information_schema.columns` are both things worth learning from the tool
+  that used them.
+- **Three implementations, and that is not an accident of scheduling.**
+  `information_schema` is a dialect matrix that PostgreSQL and SQL Server spell
+  differently and SQLite does not have at all. ODBC's four catalog calls
+  normalise across every database with a driver, and gBASIC's module says
+  outright that "friendly names belong to the library above this" — so
+  `studio_schema` is that library, and `odbc` is ONE entry in `drivers()`
+  however many engines sit behind it.
+- **The columns are read ON DEMAND, one table at a time.** A browser that
+  pre-fetches every column of every table does work nobody asked for and
+  returns a payload nobody bounded — but the deciding reason is that the window
+  can only show the exact question it asked ABOUT THE TABLE ON SCREEN if it
+  asks one per table. A bulk fetch would have to display a query that is not
+  about what you are looking at.
+- **The primary key is a SECOND read for two of the three, and that is the
+  point.** SQLite's `pragma table_info` reports `pk` for free; without asking,
+  a PostgreSQL or ODBC table showed no key beside a SQLite one that did — which
+  does not read as "Studio did not ask", it reads as "this table has no primary
+  key". A failure of the second read leaves the columns unmarked rather than
+  throwing them away, and `source` carries BOTH questions because the window's
+  promise is that it shows what it asked.
+- **An undeclared odbc `engine` gets no nullability claim, and that was found
+  by running it.** SQLite reports a primary key as `NULLABLE = 1` through ODBC,
+  which is wrong, so the guard was written against `engine = "sqlite"` — and
+  `ui_sqlodbc` reaches SQLite through the SQLite3 driver and declares no
+  `engine`, so it never fired and a primary key came back "nullable" from the
+  exact connection the guard was written for. `odbc_driver` says "SQLite3"
+  right there, but guessing the engine from the driver NAME is what
+  `sql_engine` already refuses to do for the SQL builders. So an odbc
+  connection that has not said which engine it reaches gets no claim Studio
+  cannot vouch for — the rule already in force, applied here.
+- `column_label` prints **`null?`** for an unreported nullability. Rendering it
+  as nothing is indistinguishable from "nullable", which is the claim Studio
+  has just declined to make.
+- **A qualifier that is ABSENT is not a qualifier that is EMPTY.** ODBC reads a
+  NULL pattern as "match anything" and `""` as "match only objects that HAVE no
+  catalog or schema", and gBASIC passes an absent field as NULL and an empty
+  string through as written — so `_odbc_opts` leaves a missing qualifier OUT
+  rather than sending `""`, which would ask the opposite question and return
+  nothing at all on any database that qualifies its objects. Which of
+  `TABLE_CAT` and `TABLE_SCHEM` carries it differs by database (SQLite neither,
+  MariaDB the catalog, PostgreSQL and SQL Server both), so whatever came back
+  from `odbc.tables` is what goes back in. Note `TABLE_SCHEM`, no A — ODBC's
+  spelling.
+- `qualified()` leaves the qualifier off when there is none: `schema.table`
+  built unconditionally produces `.orders` against SQLite and `nothing.orders`
+  against MariaDB, which is the failure upstream measured and named.
+- **Insert writes `select <every column>`, never `select *`.** That is the
+  whole reason the button is worth having over typing the table name: `select *`
+  is the statement that breaks silently when somebody adds a column, and a
+  browser that has just read the column list has no excuse for emitting it. An
+  empty column list REFUSES (`no-columns`) rather than falling back to the thing
+  this function exists not to write. Identifiers go through `_ident`, because a
+  column called `order` is a reserved word everywhere and one with a space in
+  it is legal.
+- `_ident` is ONE `replace` and not a character walk: `split(text, "")` is
+  refused by gBASIC ("split separator cannot be empty"), and one pass is also
+  the correct semantics — a second would reach into the first pass's output and
+  double the quotes it had just written.
+- `no-table-picked` is deliberately NOT the `no-table` STU-8's table offers
+  already answer with. That one means "this run left nothing tabular behind";
+  this one means "the drop-down has no selection", and one word for both would
+  send the user to the wrong half of the window.
+- **`program` is a reserved word**, so the generator is `ask_program`. CLAUDE.md
+  already recorded that (it is why `studio_sql`'s is `cell_program`) and I
+  walked into it anyway; the failure is a parse error in a library, so nothing
+  that loads it can run.
+- `app/studio.bas` LOADS `studio_schema` itself. A namespace another library
+  happens to load is not one this file may reach, and `stu17_step` calls it by
+  name.
+- **`_fill` ON TOP of `_mono`, inside a `_vscroll`.** Looked at without it:
+  `_mono` composes `_wrapped`, which wraps at the label's NATURAL width, and
+  inside a scroller whose horizontal policy is NEVER the label is handed its
+  minimum — so the column list rendered ONE CHARACTER WIDE and hyphenated,
+  `id / IN- / TE- / GER / PK`. The identical string passes the golden either
+  way. Same trap the run strip and the output panes each met once.
+- And `valign = START` on it, because a label given more height than it needs
+  CENTRES in it — the three-column table floated in the middle of the pane with
+  a gap above and below and nothing saying why.
+- **The PostgreSQL introspection is the one part with no test against a live
+  server.** `ui_schema` covers sqlite natively and `ui_sqlodbc` covers the whole
+  catalog path against a real driver — including `odbc.primary_keys` — but the
+  three pg queries are asserted only as TEXT, by `sql_catalog`, because
+  `ui_sqlpg` is opt-in and Studio does not connect to somebody's server because
+  it found a socket open. They are short and standard; they are not measured.
 
 ### SQL as a document type (STU-14, in progress)
 
