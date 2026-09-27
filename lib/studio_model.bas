@@ -73,6 +73,12 @@ library studio_model
             schema_version: 1,
             theme: "system",
             restore_last_session: true,
+            ' STU-20: a MULTIPLIER on the editor's text, not a point size.
+            ' Studio's whole stylesheet is relative so the window follows the
+            ' desktop's interface font; an absolute size here would opt the
+            ' editor out of that, which is the opposite of what someone who
+            ' enlarged their system font wants.
+            editor_zoom: 1,
             recent_limit: 10
         }
     end function

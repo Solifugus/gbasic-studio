@@ -2,6 +2,10 @@
   theme-system    ● Follow the desktop
   theme-dark      ○ Dark
   --
+  text-bigger     Bigger editor text
+  text-smaller    Smaller editor text
+  text-reset      Reset editor text size
+  --
   restore-session ● Reopen last session on start
   recent_limit is offered: false
 == choosing a theme ==
@@ -22,6 +26,24 @@
 == and what the editor and the tint do with each of the two ==
   system  dark=false scheme=classic
   dark    dark=true  scheme=classic-dark
+== the editor's text size ==
+  starts at 100%   css: textview { font-size: 1em; }
+  bigger -> zoom-set   editor text: 115%
+  bigger -> zoom-set   editor text: 130%
+  bigger -> zoom-set   editor text: 150%
+  smaller -> zoom-set  editor text: 130%
+  smaller -> zoom-set  editor text: 115%
+  reset   -> zoom-set   editor text: 100%
+  again   -> zoom-same  the editor text is already 100%
+== and it stops at both ends rather than running off ==
+  top:    200%  the editor text is as far as it goes — 200%
+  bottom: 80%  the editor text is as far as it goes — 80%
+== a hand-edited size is SNAPPED to the ladder, never used raw ==
+  1.07   reads as 100%
+  47     reads as 200%
+  -3     reads as 80%
+  0.5    reads as 80%
+  "big"  reads as 100%
 == reopening the last session ==
   starts as: true   menu: ● Reopen last session on start
   toggled -> restore-off   Studio will start with nothing open — this takes effect on the next launch
@@ -32,3 +54,4 @@
   written: settings, session
   theme after reload:   dark
   restore after reload: false
+  zoom after reload:    115%

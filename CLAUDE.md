@@ -15,7 +15,7 @@ STU-8 rich viewers and the tabular tier, STU-10 the assistant acting under a
 permission model, STU-11 optional git, STU-13 the browser pane and its
 right-click menu, STU-14 `.sql` as a document type, STU-15 declarative
 templates and the SQL builders, STU-16 the header menus, STU-17 the schema
-browser, STU-18 the settings menu, STU-19 Studio's own dark sheet. The 2x series wired the shell onto the model (2B interactions, 2C a
+browser, STU-18 the settings menu, STU-19 Studio's own dark sheet, STU-20 the editor's text size. The 2x series wired the shell onto the model (2B interactions, 2C a
 cold start that reaches a file you can type in, 2D the name field and the
 two-click Delete/Close, 2E the run strip and results), and STU-5A' pointed the
 panes at the CARET rather than at the last run.
@@ -829,6 +829,57 @@ Two consequences worth knowing before you touch the shell:
   `e.entry.text = x` inside a `for each`, where `e.entry` is a gobject HANDLE
   and the write really does reach the widget. Bind it out first
   (`ent = e.entry`); several golden tiers capture stderr. Also in DOGFOOD.
+
+### The editor's text size (STU-20)
+
+- **A MULTIPLIER, not a point size** — `textview { font-size: <n>em; }`. Every
+  size in `css()` is relative so the window follows the desktop's interface
+  font; an absolute size here would opt the editor out of exactly that, which
+  is the opposite of what somebody who enlarged their system font wants. The
+  zoom says how much FURTHER the code goes.
+- **Studio does not offer a UI font size, deliberately.** There is nothing to
+  build: no absolute size exists anywhere in `css()`, so the desktop's own font
+  setting already scales the toolbar, panes, labels and status bar — one place,
+  obeyed by every application. A Studio-specific control would duplicate a
+  system setting and could fight it. The EDITOR is the exception because code
+  size is conventionally independent of chrome size, which is what every editor
+  does.
+- A closed LADDER (`zoom_steps`), not a free number: "one step bigger" then has
+  an obvious meaning, and a stored value is SNAPPED onto it. `editor_zoom`
+  guards like `theme_of` does — a hand-edited `47`, `-3` or `"big"` reads as
+  the nearest step or the default rather than making the editor unusable.
+- Its own provider at 810, separate from the dark sheet at 800: the two are
+  independent (size applies in either theme) and one provider would mean
+  rebuilding the whole dark sheet to change a font.
+- **`apply_zoom` REMOVES before it adds.** A provider does not supersede an
+  earlier one, it joins it, so eight presses of Bigger would leave eight sheets
+  arguing over one property.
+- **Ctrl+wheel and Ctrl+=/-/0 are the FIRST controls here with no display-tier
+  test, and that is a sanctioned exception.** There is no way to synthesise a
+  scroll or a key press: `Gtk.EventControllerScroll` has no emit, and there is
+  no setter equivalent to the `set_cursor` trick `ui_gui_cursor` uses to fake a
+  caret move. What keeps it honest is that they are adapters over the SAME
+  functions the menu items call, and the menu items are tested — so the logic
+  has coverage and only the wiring does not.
+- **These handlers take ARGUMENTS, which is also a first.** Every other handler
+  is zero-arg because none needed a signal parameter, not because they are
+  unavailable: `gi.connect` passes the emitter then the signal's own
+  parameters, which the reference states and a probe confirmed
+  (`inserted-text` delivered `pos=0 chars=hello n=5`).
+- **A CONTROLLER MUST BE HELD, or the window segfaults.** `G.ed_controllers`
+  keeps every editor's scroll and key controller alive — the rule
+  `G.ctx_gesture` already follows, walked past anyway. Measured: exit 139, and
+  because the crash takes the process down before stdout flushes, the display
+  tier produced NO OUTPUT AT ALL and read as a failure at line 1. Third time
+  that signature has appeared in this file.
+- **`step` is a reserved word** (it belongs to `for`), so `zoom_by` takes
+  `delta`. Third this phase after `program` and `on`, and all three were
+  already recorded here before being walked into.
+- **Generating a golden needs a PRISTINE fixture.** The runner does
+  `rm -rf` + `mkproj_ui` for every tier; a fixture reused across two
+  generations carries the first tier's saved file into the second, and the
+  diff that follows looks like a real behavioural change. Cost two rebaseline
+  rounds.
 
 ### Studio's own dark sheet (STU-19)
 

@@ -2443,6 +2443,100 @@ library studio_ui
         return t
     end function
 
+    ' ---- the editor's text size (STU-20) -----------------------------------
+    '
+    ' A MULTIPLIER, applied as `font-size: <n>em` on the editor. That keeps the
+    ' property the rest of the window already has -- every size in `css()` is
+    ' relative, so Studio follows whatever interface font the desktop is set to
+    ' -- while letting the CODE be bigger than the chrome, which is what every
+    ' editor does and what was actually asked for.
+    '
+    ' A closed LADDER rather than a free number: the steps are ones somebody
+    ' chose, a stored value is snapped onto it, and "one step bigger" has an
+    ' obvious meaning. A free number would need a range check, a rounding rule
+    ' and a decision about 1.0001.
+    function zoom_steps()
+        return [0.8, 0.9, 1, 1.15, 1.3, 1.5, 1.75, 2]
+    end function
+
+    function default_zoom()
+        return 1
+    end function
+
+    ' The zoom in force, snapped to the ladder. Guarded like `theme_of`: this
+    ' is a hand-editable file, and a `"big"` or a 47 must read as something
+    ' sane rather than making the editor unusable.
+    function editor_zoom(app)
+        v = app.model.settings["editor_zoom"]
+        if not is_number(v) then
+            return studio_ui.default_zoom()
+        end if
+        best = studio_ui.default_zoom()
+        gap = 1000
+        for each st in studio_ui.zoom_steps()
+            d = st - v
+            if d < 0 then
+                d = 0 - d
+            end if
+            if d < gap then
+                gap = d
+                best = st
+            end if
+        end for
+        return best
+    end function
+
+    ' As a percentage, for anything a person reads.
+    function zoom_label(z)
+        return string(round(z * 100)) + "%"
+    end function
+
+    function _set_zoom(app, value)
+        st = app.model.settings
+        st.editor_zoom = value
+        app.model.settings = st
+        return app
+    end function
+
+    ' One step along the ladder. `delta` is +1 or -1. At either end it says so
+    ' rather than reporting a change that did not happen -- the same reason
+    ' pressing the theme already in force answers `theme-same`.
+    '
+    ' `delta` and not `step`: `step` is a RESERVED WORD (it belongs to `for`),
+    ' and a parameter named one is a parse error in a library, so nothing that
+    ' loads it can run. Third this phase after `program` and `on`.
+    function zoom_by(app, delta)
+        now = studio_ui.editor_zoom(app)
+        steps = studio_ui.zoom_steps()
+        at = 0 - 1
+        i = 0
+        for each s in steps
+            if s = now then
+                at = i
+            end if
+            i = i + 1
+        end for
+        want = at + delta
+        if want < 0 then
+            return { app: app, action: "zoom-end", detail: studio_ui.zoom_label(now) }
+        end if
+        if want >= count(steps) then
+            return { app: app, action: "zoom-end", detail: studio_ui.zoom_label(now) }
+        end if
+        app = studio_ui._set_zoom(app, steps[want])
+        return { app: app, action: "zoom-set", detail: studio_ui.zoom_label(steps[want]) }
+    end function
+
+    function zoom_reset(app)
+        if studio_ui.editor_zoom(app) = studio_ui.default_zoom() then
+            return { app: app, action: "zoom-same",
+                     detail: studio_ui.zoom_label(studio_ui.default_zoom()) }
+        end if
+        app = studio_ui._set_zoom(app, studio_ui.default_zoom())
+        return { app: app, action: "zoom-set",
+                 detail: studio_ui.zoom_label(studio_ui.default_zoom()) }
+    end function
+
     function restores_session(app)
         v = app.model.settings["restore_last_session"]
         if v = unknown then
@@ -2554,6 +2648,7 @@ library studio_ui
         ' number in it, which is worse than no control.
         out = append(out, { id: "settings", label: "Settings",
                             items: ["theme-system", "theme-dark", "-",
+                                    "text-bigger", "text-smaller", "text-reset", "-",
                                     "restore-session"] })
         return out
     end function
@@ -2622,6 +2717,15 @@ library studio_ui
         end if
         if action = "restore-session" then
             return "Reopen last session on start"
+        end if
+        if action = "text-bigger" then
+            return "Bigger editor text"
+        end if
+        if action = "text-smaller" then
+            return "Smaller editor text"
+        end if
+        if action = "text-reset" then
+            return "Reset editor text size"
         end if
         return action
     end function
@@ -2721,6 +2825,18 @@ library studio_ui
         end if
         if action = "restore-session" then
             return "Whether Studio reopens the projects and files you had open. Read when Studio starts, so it takes effect on the next launch."
+        end if
+        ' All three say EDITOR, because the rest of the window follows your
+        ' desktop's interface font and is not Studio's to resize -- setting it
+        ' there is one change that every application obeys.
+        if action = "text-bigger" then
+            return "Enlarge the code, and only the code. Ctrl and the mouse wheel do the same. The rest of the window follows your desktop's font setting."
+        end if
+        if action = "text-smaller" then
+            return "Shrink the code, and only the code. Ctrl and the mouse wheel do the same."
+        end if
+        if action = "text-reset" then
+            return "Back to the size your desktop's font setting gives."
         end if
         return ""
     end function
@@ -2970,6 +3086,16 @@ library studio_ui
         end if
         if action = "restore-off" then
             return "Studio will start with nothing open — this takes effect on the next launch"
+        end if
+        ' ---- STU-20, the editor's text size.
+        if action = "zoom-set" then
+            return "editor text: " + detail
+        end if
+        if action = "zoom-same" then
+            return "the editor text is already " + detail
+        end if
+        if action = "zoom-end" then
+            return "the editor text is as far as it goes — " + detail
         end if
         if action = "no-table-picked" then
             return "pick a table first"

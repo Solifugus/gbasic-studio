@@ -2,7 +2,7 @@ the header holds 3 menu(s) and one button
 Save is the button=true
   Project ▾: New Project…, Open Folder, Add Project File, Close Project
   File ▾: New File, New Folder, Rename Selected, Delete Selected, Reload Changed Files, Close Tab
-  Settings ▾: Follow the desktop, Dark, Reopen last session on start
+  Settings ▾: Follow the desktop, Dark, Bigger editor text, Smaller editor text, Reset editor text size, Reopen last session on start
 the File menu is open=true
 and shuts again=false
 -- New File, from the menu --

@@ -175,6 +175,19 @@ for it, because asking GTK for its dark variant does nothing on a good many
 themes. It takes effect at once, including in editors already open, and is
 written when Studio exits.
 
+**Bigger editor text / Smaller / Reset** are in the same menu, and so is
+**Ctrl + mouse wheel** over the editor (plus Ctrl+= , Ctrl+− and Ctrl+0). They
+size **the code and only the code** — a multiplier on whatever your desktop's
+font setting already gives, so enlarging the system font still enlarges Studio
+and this says how much further the code goes.
+
+There is deliberately no setting for the rest of the window, because there is
+nothing to build: every size in Studio's stylesheet is relative, so your
+desktop's interface font already scales the toolbar, panes and status bar. That
+is one setting, in one place, that every application on your machine obeys — a
+better answer than a per-app control, particularly if small text is a problem
+generally rather than in Studio specifically.
+
 There is no "Light", deliberately. On a light desktop it would be what *Follow
 the desktop* already does; on a dark desktop it would mean a light editor
 inside a dark window, which is the one thing this is here to stop. Everything

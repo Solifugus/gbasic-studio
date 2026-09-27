@@ -1811,6 +1811,47 @@ program main(args)
       print "  " + padto(t, 8) + "dark=" + padto(string(d), 6) + "scheme=" + studio_style.scheme_for(studio_ui.theme_of(app), "Adwaita", false, "unknown")
     end for
 
+    banner("the editor's text size")
+    print "  starts at " + studio_ui.zoom_label(studio_ui.editor_zoom(app)) + "   css: " + studio_style.zoom_css(studio_ui.editor_zoom(app))
+    for each d in [1, 1, 1]
+      r = studio_ui.zoom_by(app, d)
+      app = r.app
+      print "  bigger -> " + padto(r.action, 11) + studio_ui.action_notice(r.action, r.detail)
+    end for
+    for each d in [0 - 1, 0 - 1]
+      r = studio_ui.zoom_by(app, d)
+      app = r.app
+      print "  smaller -> " + padto(r.action, 10) + studio_ui.action_notice(r.action, r.detail)
+    end for
+    r = studio_ui.zoom_reset(app)
+    app = r.app
+    print "  reset   -> " + padto(r.action, 11) + studio_ui.action_notice(r.action, r.detail)
+    r = studio_ui.zoom_reset(app)
+    app = r.app
+    print "  again   -> " + padto(r.action, 11) + studio_ui.action_notice(r.action, r.detail)
+
+    banner("and it stops at both ends rather than running off")
+    for each d in [1, 1, 1, 1, 1, 1, 1, 1]
+      r = studio_ui.zoom_by(app, 1)
+      app = r.app
+    end for
+    print "  top:    " + studio_ui.zoom_label(studio_ui.editor_zoom(app)) + "  " + studio_ui.action_notice(r.action, r.detail)
+    for each d in [1, 1, 1, 1, 1, 1, 1, 1]
+      r = studio_ui.zoom_by(app, 0 - 1)
+      app = r.app
+    end for
+    print "  bottom: " + studio_ui.zoom_label(studio_ui.editor_zoom(app)) + "  " + studio_ui.action_notice(r.action, r.detail)
+
+    banner("a hand-edited size is SNAPPED to the ladder, never used raw")
+    for each bad in [1.07, 47, 0 - 3, 0.5]
+      app.model.settings.editor_zoom = bad
+      print "  " + padto(string(bad), 7) + "reads as " + studio_ui.zoom_label(studio_ui.editor_zoom(app))
+    end for
+    app.model.settings.editor_zoom = "big"
+    print "  \"big\"  reads as " + studio_ui.zoom_label(studio_ui.editor_zoom(app))
+    r = studio_ui.zoom_reset(app)
+    app = r.app
+
     banner("reopening the last session")
     print "  starts as: " + string(studio_ui.restores_session(app)) + "   menu: " + studio_ui.menu_text(app, "restore-session")
     for each i in [1, 2]
@@ -1825,11 +1866,14 @@ program main(args)
     app = r.app
     r = studio_ui.toggle_restore(app)
     app = r.app
+    r = studio_ui.zoom_by(app, 1)
+    app = r.app
     saved = studio.shutdown(app)
     print "  written: " + join(saved, ", ")
     fresh = studio.startup(home)
     print "  theme after reload:   " + studio_ui.theme_of(fresh)
     print "  restore after reload: " + string(studio_ui.restores_session(fresh))
+    print "  zoom after reload:    " + studio_ui.zoom_label(studio_ui.editor_zoom(fresh))
   end if
 
   if mode = "menus" then

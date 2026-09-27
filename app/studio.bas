@@ -122,6 +122,25 @@ function redraw()
         ' "notify::cursor-position" fires ONCE per caret move; "mark-set" fires
         ' twice (insert and selection_bound), which would double every refresh.
         gi.connect(ed.buffer, "notify::cursor-position", on_cursor_moved)
+        ' STU-20: Ctrl+wheel and Ctrl+=/-/0, per editor, on the VIEW rather
+        ' than the buffer -- input controllers attach to widgets.
+        '
+        ' HELD ON `G` as well as handed to `add_controller`, which is the rule
+        ' `G.ctx_gesture` already follows and which I walked past: a controller
+        ' nothing else holds goes away under a live window, and the window then
+        ' SEGFAULTS. Measured the hard way -- exit 139, and because the crash
+        ' takes the process down before stdout flushes, the tier produced no
+        ' output at all and read as a failure at line 1.
+        vw = ed.view()
+        sc = gi.new("Gtk.EventControllerScroll",
+                    "flags", gi.enum("Gtk.EventControllerScrollFlags.BOTH_AXES"))
+        gi.connect(sc, "scroll", on_editor_scroll)
+        vw.add_controller(sc)
+        G.ed_controllers = append(G.ed_controllers, sc)
+        kc = gi.new("Gtk.EventControllerKey")
+        gi.connect(kc, "key-pressed", on_editor_key)
+        vw.add_controller(kc)
+        G.ed_controllers = append(G.ed_controllers, kc)
     end for
     G.redrawing = false
     ' STU-10: a teaching cue is drawn AFTER the redraw, and outside the
@@ -364,6 +383,100 @@ function set_theme_to(value)
     ' in the highlight pass. Both are inside `refresh`.
     redraw()
     return nothing
+end function
+
+function on_text_bigger()
+    return zoom_step(1)
+end function
+
+function on_text_smaller()
+    return zoom_step(0 - 1)
+end function
+
+function zoom_step(delta)
+    r = studio_ui.zoom_by(G.app, delta)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    ' Full redraw: `apply_zoom` installs the new sheet from `refresh`.
+    redraw()
+    return nothing
+end function
+
+function on_text_reset()
+    r = studio_ui.zoom_reset(G.app)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    redraw()
+    return nothing
+end function
+
+' ---- the two GESTURES, and the exception they represent --------------------
+'
+' Ctrl + wheel, and Ctrl + = / - / 0, on the editor. These are the FIRST
+' controls in Studio with no display-tier test, and that is a deliberate,
+' sanctioned exception rather than an oversight: there is no way to synthesise
+' a scroll or a key press: `Gtk.EventControllerScroll` has no emit, and there
+' is no setter equivalent to the `set_cursor` trick `ui_gui_cursor` uses to
+' fake a caret move.
+'
+' What keeps it honest is that they are ADAPTERS over the same functions the
+' menu items call, and the menu items ARE tested (`ui_gui_settings`). So the
+' logic has coverage and only the wiring does not -- read one value off the
+' event, call one `studio_ui` function, redraw.
+'
+' These handlers take ARGUMENTS, which is a first here too. Studio's handlers
+' have all been zero-arg because none of them needed a signal parameter; gi
+' passes them (the emitter, then the signal's own), which the reference states
+' and a probe confirmed.
+
+function on_editor_scroll(ctrl, dx, dy)
+    ' Only with Ctrl held. Without the modifier this must do NOTHING and return
+    ' false, or the editor stops scrolling.
+    if not ctrl_held(ctrl) then
+        return false
+    end if
+    if dy < 0 then
+        zoom_step(1)
+    end if
+    if dy > 0 then
+        zoom_step(0 - 1)
+    end if
+    ' TRUE means handled, which is what stops the view also scrolling.
+    return true
+end function
+
+function ctrl_held(ctrl)
+    st = ctrl.get_current_event_state()
+    mask = gi.enum("Gdk.ModifierType.CONTROL_MASK")
+    return band(st, mask) != 0
+end function
+
+function on_editor_key(ctrl, keyval, keycode, state)
+    mask = gi.enum("Gdk.ModifierType.CONTROL_MASK")
+    if band(state, mask) = 0 then
+        return false
+    end if
+    ' `=` and `+` both, because Bigger on an unshifted keyboard is `=` and
+    ' users type Ctrl+Shift+= expecting `+`.
+    if keyval = 61 then
+        zoom_step(1)
+        return true
+    end if
+    if keyval = 43 then
+        zoom_step(1)
+        return true
+    end if
+    if keyval = 45 then
+        zoom_step(0 - 1)
+        return true
+    end if
+    if keyval = 48 then
+        on_text_reset()
+        return true
+    end if
+    return false
 end function
 
 function on_restore_session()
@@ -1271,6 +1384,9 @@ function wire_shell()
     mi = sh.menubar.items
     gi.connect(mi["theme-system"], "clicked", on_theme_system)
     gi.connect(mi["theme-dark"], "clicked", on_theme_dark)
+    gi.connect(mi["text-bigger"], "clicked", on_text_bigger)
+    gi.connect(mi["text-smaller"], "clicked", on_text_smaller)
+    gi.connect(mi["text-reset"], "clicked", on_text_reset)
     gi.connect(mi["restore-session"], "clicked", on_restore_session)
     gi.connect(sh.bar.run, "clicked", on_run)
     gi.connect(sh.bar.runall, "clicked", on_run_all)
@@ -2046,11 +2162,29 @@ function stu18_step()
     end if
     if G.phase = 8 then
         print "the new editor is on: " + scheme_of("doc-3")
+        print "-- the editor text size, from the menu --"
+        print "starts at " + studio_ui.zoom_label(studio_ui.editor_zoom(G.app))
+        menu_click("text-bigger")
+        return true
+    end if
+    if G.phase = 9 then
+        print "action=" + G.last_action + " status=" + G.shell.status.label
+        menu_click("text-bigger")
+        return true
+    end if
+    if G.phase = 10 then
+        print "action=" + G.last_action + " status=" + G.shell.status.label
+        print "resetting"
+        menu_click("text-reset")
+        return true
+    end if
+    if G.phase = 11 then
+        print "action=" + G.last_action + " status=" + G.shell.status.label
         print "toggling the session setting"
         menu_click("restore-session")
         return true
     end if
-    if G.phase = 9 then
+    if G.phase = 12 then
         print "action=" + G.last_action + " status=" + G.shell.status.label
         print "  " + G.shell.menubar.items["restore-session"].label
         G.shell.window.close()
@@ -3413,6 +3547,9 @@ program main(args)
     G.ctx_index = -1
     G.ctx_parented = false
     G.ctx_gesture = nothing
+    ' STU-20: every editor's scroll and key controller, kept alive for the life
+    ' of the process. See the connect site.
+    G.ed_controllers = []
     G.open_target = ""
     G.save_on_exit = false
     ' STU-6: the semantic action history. Loaded here, appended by the handlers,

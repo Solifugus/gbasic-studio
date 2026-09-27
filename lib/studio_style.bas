@@ -500,6 +500,27 @@ library studio_style
         return 800
     end function
 
+    ' ---- the editor's text size (STU-20) ------------------------------------
+
+    ' `em`, not `pt`. The multiplier is applied to whatever the desktop's font
+    ' setting already gives, so enlarging the system font still enlarges the
+    ' editor and this only says how much FURTHER the code goes. An absolute
+    ' size would opt the editor out of that.
+    '
+    ' `textview` is the node a GtkSourceView draws under, so this reaches the
+    ' source editors and the overlay editor and nothing else -- Studio's other
+    ' text is labels.
+    function zoom_css(scale)
+        return "textview { font-size: " + string(scale) + "em; }"
+    end function
+
+    ' Its own provider and its own priority, separate from the dark sheet:
+    ' the two are independent (text size applies in either theme) and a single
+    ' provider would mean rebuilding the whole dark sheet to change a font.
+    function zoom_priority()
+        return 810
+    end function
+
     function dark_css()
         l = []
 

@@ -18,6 +18,12 @@ action=theme-set
 editors are on: classic, classic
 opening a third file now the theme has changed
 the new editor is on: classic
+-- the editor text size, from the menu --
+starts at 100%
+action=zoom-set status=editor text: 115%
+action=zoom-set status=editor text: 130%
+resetting
+action=zoom-set status=editor text: 100%
 toggling the session setting
 action=restore-off status=Studio will start with nothing open — this takes effect on the next launch
   ○ Reopen last session on start

@@ -622,6 +622,7 @@ library studio_shell
         ' changes while a program is running.
         studio_shell.refresh_menu_marks(shell, app)
         studio_shell.apply_dark(shell, app)
+        studio_shell.apply_zoom(shell, app)
         line = studio_shell.status_text(app)
         if notice != "" then
             line = notice
@@ -669,6 +670,30 @@ library studio_shell
             end if
         end if
         shell.dark_on = want
+        return nothing
+    end function
+
+    ' Apply the editor's text size (STU-20).
+    '
+    ' Display-wide and REPLACED on change, never stacked: adding a provider
+    ' does not supersede an earlier one, it joins it, so eight presses of
+    ' Bigger would leave eight sheets fighting over one property. Remove then
+    ' add, gated on the value actually changing.
+    function apply_zoom(shell, app)
+        want = studio_ui.editor_zoom(app)
+        if want = shell.zoom_at then
+            return nothing
+        end if
+        disp = shell.window.get_display()
+        if shell.zoom_css != nothing then
+            gi.invoke("Gtk.StyleContext.remove_provider_for_display", disp, shell.zoom_css)
+        end if
+        prov = gi.new("Gtk.CssProvider")
+        prov.load_from_string(studio_style.zoom_css(want))
+        gi.invoke("Gtk.StyleContext.add_provider_for_display", disp, prov,
+                  studio_style.zoom_priority())
+        shell.zoom_css = prov
+        shell.zoom_at = want
         return nothing
     end function
 
@@ -1437,6 +1462,10 @@ library studio_shell
                  ' sheet starts unapplied, which is true of a fresh window
                  ' whatever the setting says -- the first redraw applies it.
                  dark_css: nothing, dark_on: false,
+                 ' STU-20: the editor text size, and what is currently applied.
+                 ' Primed to -1, which is not on the ladder, so the first
+                 ' redraw always installs a sheet.
+                 zoom_css: nothing, zoom_at: 0 - 1,
                  rows: [], pages: [], welcome: false }
         ' STU-10: the teaching stylesheet, installed once on each widget an agent
         ' may point at. After the record exists, because it is what names them.
