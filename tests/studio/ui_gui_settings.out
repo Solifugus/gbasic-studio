@@ -2,7 +2,6 @@ opening two files, so the change has to reach both
 tabs open=2
 the menu, as it stands:
   ● Follow the desktop
-  ○ Light
   ○ Dark
   ● Reopen last session on start
 editors are on: classic, classic
@@ -10,12 +9,11 @@ picking Dark
 action=theme-set status=theme: dark
 the menu now:
   ○ Follow the desktop
-  ○ Light
   ● Dark
 editors are on: classic-dark, classic-dark
 pressing Dark again
 action=theme-same status=the theme is already dark
-back to Light
+back to following the desktop
 action=theme-set
 editors are on: classic, classic
 opening a third file now the theme has changed

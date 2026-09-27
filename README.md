@@ -164,16 +164,22 @@ connection that has not declared which engine it reaches gets `null?` instead
 of a claim.
 
 **Settings ▾** is the third header menu. Two things live there, because two
-things are what Studio actually reads: the **theme** — Follow the desktop,
-Light or Dark — and whether the **last session reopens** on start. The one in
-force is marked `●`, the alternatives `○`, the same shapes the browser uses for
-the active project.
+things are what Studio actually reads: the **theme** — Follow the desktop, or
+Dark — and whether the **last session reopens** on start. The one in force is
+marked `●`, the alternative `○`, the same shapes the browser uses for the
+active project.
 
-Picking a theme takes effect at once, including in editors that are already
-open. It governs **the editor and the section highlight** — Studio's own
-toolbar, panes and menus are drawn in GTK's named colours and follow your
-desktop theme, which is deliberate and is what keeps Studio looking like the
-rest of your system. Both settings are written when Studio exits. (`recent_limit` is in the
+**Dark is Studio's own**, and it is the whole window — toolbar, browser, tabs,
+panes, menus and editor — not just the editor. Studio ships a small stylesheet
+for it, because asking GTK for its dark variant does nothing on a good many
+themes. It takes effect at once, including in editors already open, and is
+written when Studio exits.
+
+There is no "Light", deliberately. On a light desktop it would be what *Follow
+the desktop* already does; on a dark desktop it would mean a light editor
+inside a dark window, which is the one thing this is here to stop. Everything
+that is not Dark follows your system, in GTK's own named colours, which is what
+keeps Studio looking like the rest of your desktop. (`recent_limit` is in the
 settings file and is deliberately *not* offered — nothing in the running
 application reads it, and a control that changes nothing is a dead button.)
 

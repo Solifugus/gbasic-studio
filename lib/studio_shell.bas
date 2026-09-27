@@ -621,6 +621,7 @@ library studio_shell
         ' that is the run poller at sixteen ticks a second and none of this
         ' changes while a program is running.
         studio_shell.refresh_menu_marks(shell, app)
+        studio_shell.apply_dark(shell, app)
         line = studio_shell.status_text(app)
         if notice != "" then
             line = notice
@@ -630,6 +631,45 @@ library studio_shell
             shell.name_entry.text = ""
         end if
         return { shell: shell, app: app, new_editors: rec.new_editors }
+    end function
+
+    ' Apply or remove Studio's own dark sheet (STU-19).
+    '
+    ' DISPLAY-WIDE, which is the one thing here that is not per-widget -- and
+    ' has to be, because it restyles nodes Studio never touches directly:
+    ' scrollbars, paned handles, notebook tabs, popover contents. The call was
+    ' believed unreachable for three phases; measured, `gi.invoke` resolves it
+    ' and `widget.get_display()` supplies the display.
+    '
+    ' Cached on `shell.dark_on` and compared, because this runs on every full
+    ' redraw and re-adding a provider stacks another one for the life of the
+    ' process -- the same mistake `install_teaching_css` avoids by installing
+    ' once at build time.
+    function apply_dark(shell, app)
+        want = studio_ui.theme_of(app) = "dark"
+        if want = shell.dark_on then
+            return nothing
+        end if
+        disp = shell.window.get_display()
+        if want then
+            if shell.dark_css = nothing then
+                ' Built once and kept: parsing the sheet on every toggle is
+                ' work for nothing, and a provider that is added and removed is
+                ' the same object either way.
+                prov = gi.new("Gtk.CssProvider")
+                prov.load_from_string(studio_style.dark_css())
+                shell.dark_css = prov
+            end if
+            gi.invoke("Gtk.StyleContext.add_provider_for_display", disp,
+                      shell.dark_css, studio_style.dark_priority())
+        else
+            if shell.dark_css != nothing then
+                gi.invoke("Gtk.StyleContext.remove_provider_for_display", disp,
+                          shell.dark_css)
+            end if
+        end if
+        shell.dark_on = want
+        return nothing
     end function
 
     ' Put each settings item's own state into its label (STU-18).
@@ -1392,6 +1432,11 @@ library studio_shell
                  ' page. Primed to "-", which is not reachable as a real
                  ' scheme id, so the first redraw always applies one.
                  scheme_id: "-",
+                 ' STU-19: Studio's own dark sheet, built on first use and
+                 ' added to the DISPLAY. `dark_on` is primed false because the
+                 ' sheet starts unapplied, which is true of a fresh window
+                 ' whatever the setting says -- the first redraw applies it.
+                 dark_css: nothing, dark_on: false,
                  rows: [], pages: [], welcome: false }
         ' STU-10: the teaching stylesheet, installed once on each widget an agent
         ' may point at. After the record exists, because it is what names them.

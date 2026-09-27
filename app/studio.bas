@@ -350,10 +350,6 @@ function on_theme_system()
     return set_theme_to("system")
 end function
 
-function on_theme_light()
-    return set_theme_to("light")
-end function
-
 function on_theme_dark()
     return set_theme_to("dark")
 end function
@@ -1274,7 +1270,6 @@ function wire_shell()
     ' the menus.
     mi = sh.menubar.items
     gi.connect(mi["theme-system"], "clicked", on_theme_system)
-    gi.connect(mi["theme-light"], "clicked", on_theme_light)
     gi.connect(mi["theme-dark"], "clicked", on_theme_dark)
     gi.connect(mi["restore-session"], "clicked", on_restore_session)
     gi.connect(sh.bar.run, "clicked", on_run)
@@ -2010,7 +2005,7 @@ function stu18_step()
     if G.phase = 3 then
         print "tabs open=" + count(G.app.dm.docs)
         print "the menu, as it stands:"
-        for each a in ["theme-system", "theme-light", "theme-dark", "restore-session"]
+        for each a in ["theme-system", "theme-dark", "restore-session"]
             print "  " + G.shell.menubar.items[a].label
         end for
         print "editors are on: " + scheme_of("doc-1") + ", " + scheme_of("doc-2")
@@ -2021,7 +2016,7 @@ function stu18_step()
     if G.phase = 4 then
         print "action=" + G.last_action + " status=" + G.shell.status.label
         print "the menu now:"
-        for each a in ["theme-system", "theme-light", "theme-dark"]
+        for each a in ["theme-system", "theme-dark"]
             print "  " + G.shell.menubar.items[a].label
         end for
         ' BOTH of them, including the one that was open before the change.
@@ -2032,8 +2027,8 @@ function stu18_step()
     end if
     if G.phase = 5 then
         print "action=" + G.last_action + " status=" + G.shell.status.label
-        print "back to Light"
-        menu_click("theme-light")
+        print "back to following the desktop"
+        menu_click("theme-system")
         return true
     end if
     if G.phase = 6 then

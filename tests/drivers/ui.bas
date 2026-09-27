@@ -1781,11 +1781,11 @@ program main(args)
     print "  recent_limit is offered: " + string(contains(studio_ui.menu_all(), "recent-limit"))
 
     banner("choosing a theme")
-    for each t in ["dark", "dark", "light", "system"]
+    for each t in ["dark", "dark", "system"]
       r = studio_ui.set_theme(app, t)
       app = r.app
       print "  set " + padto(t, 8) + "-> " + padto(r.action, 12) + studio_ui.action_notice(r.action, r.detail)
-      print "      in force: " + studio_ui.theme_of(app) + "   menu: " + studio_ui.menu_text(app, "theme-" + t)
+      print "      in force: " + studio_ui.theme_of(app) + "   menu: " + studio_ui.menu_text(app, "theme-" + studio_ui.theme_of(app))
     end for
 
     banner("a theme nobody defined is refused, and changes nothing")
@@ -1795,14 +1795,14 @@ program main(args)
     print "  still in force: " + studio_ui.theme_of(app)
 
     banner("a hand-edited file with rubbish in it READS as system")
-    for each bad in ["", "DARK", "nonsense"]
+    for each bad in ["", "DARK", "nonsense", "light"]
       app.model.settings.theme = bad
       print "  <" + bad + "> reads as " + studio_ui.theme_of(app)
     end for
     app.model.settings.theme = "dark"
 
-    banner("and what the editor and the tint do with each of the three")
-    for each t in ["system", "light", "dark"]
+    banner("and what the editor and the tint do with each of the two")
+    for each t in ["system", "dark"]
       r = studio_ui.set_theme(app, t)
       app = r.app
       ' The toolkit says light here (no GTK_THEME, no prefer-dark), so

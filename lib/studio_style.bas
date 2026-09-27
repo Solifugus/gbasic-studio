@@ -452,4 +452,161 @@ library studio_style
         return nothing
     end function
 
+    ' ---- the dark sheet (STU-19) --------------------------------------------
+    '
+    ' WHY THIS EXISTS AT ALL, when every other colour here is a GTK named
+    ' colour so the window follows the desktop. Because that rule gave Studio no
+    ' way to BE dark: the editor's style scheme is Studio's to choose, but the
+    ' chrome around it is the theme's, so choosing Dark produced a black editor
+    ' inside a light window -- the "two applications sharing a frame" complaint
+    ' that started the style work, arriving from the other direction.
+    '
+    ' The conventional fix is `gtk-application-prefer-dark-theme`. Measured: it
+    ' does nothing under Breeze, which is what `toolkit_is_dark` already records
+    ' about that property. GTK 4 moved the concern into libadwaita, which the
+    ' bridge cannot reach.
+    '
+    ' So Studio ships its own. This is a small, app-scoped GTK theme, and the
+    ' honest description is that Studio OWNS one look (dark) and otherwise
+    ' defers entirely.
+    '
+    ' ---------------------------------------------------------------------------
+    ' TWO THINGS MEASURED BEFORE IT WAS WRITTEN, both of which shape it.
+    '
+    ' 1. `@define-color` of the conventional tokens changes NOTHING on its own.
+    '    Breeze-gtk does not draw with `@theme_bg_color`; it has its own values
+    '    baked in. Redefining them at priority 800 left the window untouched.
+    '    Only direct RULES override what the theme drew.
+    '
+    ' 2. But the tokens ARE worth defining, because they cross providers. A
+    '    `@define-color` in THIS sheet (display-wide, 800) is visible to the
+    '    rules in `css()` (per widget, 500) -- proven with a label that went
+    '    red. That is why `css()` needed no changes: every `.studio-*` rule
+    '    follows these definitions automatically.
+    '
+    ' So the sheet has two halves: tokens for Studio's own rules, and node rules
+    ' for what the theme draws.
+    '
+    ' ---------------------------------------------------------------------------
+    ' A WRONG NODE NAME FAILS SILENTLY, which is the whole risk here. `listbox`
+    ' is not the node -- it is `list` -- and a row's background is on `row`, not
+    ' on the list. Two silent misses in a five-minute probe. Nothing errors; the
+    ' widget just stays light. No golden can see it either, because the asserted
+    ' text is identical. The only check is to LOOK.
+
+    ' Where this provider sits. Above the theme (200) and above Studio's own
+    ' per-widget sheet (500), because it has to beat what Breeze drew.
+    function dark_priority()
+        return 800
+    end function
+
+    function dark_css()
+        l = []
+
+        ' ---- tokens -----------------------------------------------------------
+        ' Read by `css()`, one provider down. These are the only reason the
+        ' existing stylesheet did not have to change.
+        l = append(l, "@define-color theme_bg_color " + studio_style.dark_bg() + ";")
+        l = append(l, "@define-color theme_base_color " + studio_style.dark_base() + ";")
+        l = append(l, "@define-color theme_fg_color " + studio_style.dark_fg() + ";")
+        l = append(l, "@define-color theme_text_color " + studio_style.dark_fg() + ";")
+        l = append(l, "@define-color theme_selected_bg_color " + studio_style.dark_sel() + ";")
+        l = append(l, "@define-color theme_selected_fg_color #ffffff;")
+        l = append(l, "@define-color insensitive_bg_color " + studio_style.dark_bg() + ";")
+        l = append(l, "@define-color insensitive_fg_color " + studio_style.dark_dim() + ";")
+        l = append(l, "@define-color borders " + studio_style.dark_line() + ";")
+        ' The three GTK defines as TEXT colours, brightened for a dark ground --
+        ' the light-theme reds and greens are unreadable on #1f2022.
+        l = append(l, "@define-color error_color #ff6b63;")
+        l = append(l, "@define-color warning_color #e0b341;")
+        l = append(l, "@define-color success_color #63c073;")
+        l = append(l, "@define-color accent_color #4a9eff;")
+
+        ' ---- the surface ------------------------------------------------------
+        l = append(l, "window, .background { background-color: " + studio_style.dark_bg() + "; color: " + studio_style.dark_fg() + "; }")
+        ' Bare labels need saying explicitly: a label with no class keeps the
+        ' theme's own foreground, which on a dark ground is nearly invisible.
+        ' Looked at -- "plain label, no class" rendered dark grey on dark grey.
+        l = append(l, "label { color: " + studio_style.dark_fg() + "; }")
+        l = append(l, "box, grid, paned, stack { background-color: transparent; }")
+
+        ' ---- controls ---------------------------------------------------------
+        ' `background-image: none` as well as a colour: GTK themes paint buttons
+        ' with a gradient, and setting only the colour leaves the gradient on
+        ' top of it.
+        l = append(l, "button { background-image: none; background-color: " + studio_style.dark_ctl() + "; color: " + studio_style.dark_fg() + "; border: 1px solid " + studio_style.dark_line() + "; }")
+        l = append(l, "button:hover { background-color: " + studio_style.dark_ctl_hi() + "; }")
+        l = append(l, "button:active, button:checked { background-color: " + studio_style.dark_sel() + "; color: #ffffff; }")
+        l = append(l, "button:disabled { color: " + studio_style.dark_dim() + "; }")
+        l = append(l, "entry, spinbutton { background-image: none; background-color: " + studio_style.dark_base() + "; color: " + studio_style.dark_fg() + "; border: 1px solid " + studio_style.dark_line() + "; }")
+        l = append(l, "entry:focus { border-color: " + studio_style.dark_sel() + "; }")
+        l = append(l, "checkbutton, radiobutton { color: " + studio_style.dark_fg() + "; }")
+        l = append(l, "dropdown, dropdown > button { background-color: " + studio_style.dark_ctl() + "; color: " + studio_style.dark_fg() + "; }")
+
+        ' ---- lists ------------------------------------------------------------
+        ' `list`, not `listbox` -- and the row carries its own background, which
+        ' is the same fact `_fill_nav` already works around for the empty
+        ' browser. Both were silent misses when first written.
+        l = append(l, "list, listview, columnview { background-color: " + studio_style.dark_base() + "; color: " + studio_style.dark_fg() + "; }")
+        l = append(l, "row { background-color: " + studio_style.dark_base() + "; color: " + studio_style.dark_fg() + "; }")
+        l = append(l, "row:hover { background-color: " + studio_style.dark_ctl() + "; }")
+        l = append(l, "row:selected { background-color: " + studio_style.dark_sel() + "; color: #ffffff; }")
+
+        ' ---- structure --------------------------------------------------------
+        l = append(l, "notebook > header { background-color: " + studio_style.dark_bg() + "; }")
+        l = append(l, "notebook > header > tabs > tab { background-color: " + studio_style.dark_ctl() + "; color: " + studio_style.dark_fg() + "; }")
+        l = append(l, "notebook > header > tabs > tab:checked { background-color: " + studio_style.dark_base() + "; }")
+        l = append(l, "notebook > stack { background-color: " + studio_style.dark_base() + "; }")
+        l = append(l, "paned > separator { background-color: " + studio_style.dark_line() + "; }")
+        l = append(l, "separator { background-color: " + studio_style.dark_line() + "; }")
+        l = append(l, "scrolledwindow, viewport { background-color: " + studio_style.dark_base() + "; }")
+        l = append(l, "scrollbar { background-color: " + studio_style.dark_bg() + "; }")
+        l = append(l, "scrollbar slider { background-color: " + studio_style.dark_ctl_hi() + "; }")
+        ' The menus and the browser's right-click menu.
+        l = append(l, "popover > contents, popover > arrow { background-color: " + studio_style.dark_ctl() + "; color: " + studio_style.dark_fg() + "; border: 1px solid " + studio_style.dark_line() + "; }")
+        ' The gutter beside the editor. The editor's own colours are the STYLE
+        ' SCHEME's, not CSS, and are chosen by `scheme_for` -- this is only the
+        ' margin around it.
+        l = append(l, "textview { background-color: " + studio_style.dark_base() + "; color: " + studio_style.dark_fg() + "; }")
+        l = append(l, "tooltip, tooltip.background { background-color: " + studio_style.dark_ctl() + "; color: " + studio_style.dark_fg() + "; }")
+
+        return join(l, "\n")
+    end function
+
+    ' The palette, named once each. Literals, unavoidably -- a dark sheet IS a
+    ' set of colours, and there is no token to defer to when the whole point is
+    ' that the theme has none that suit. `section_tint` already made this trade
+    ' for the same reason.
+    function dark_bg()
+        return "#1f2022"
+    end function
+
+    function dark_base()
+        return "#141516"
+    end function
+
+    function dark_ctl()
+        return "#2b2d31"
+    end function
+
+    function dark_ctl_hi()
+        return "#363940"
+    end function
+
+    function dark_fg()
+        return "#d6d6d6"
+    end function
+
+    function dark_dim()
+        return "#6f7175"
+    end function
+
+    function dark_line()
+        return "#3a3c3f"
+    end function
+
+    function dark_sel()
+        return "#2f6fb5"
+    end function
+
 end library

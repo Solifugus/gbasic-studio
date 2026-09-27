@@ -15,7 +15,7 @@ STU-8 rich viewers and the tabular tier, STU-10 the assistant acting under a
 permission model, STU-11 optional git, STU-13 the browser pane and its
 right-click menu, STU-14 `.sql` as a document type, STU-15 declarative
 templates and the SQL builders, STU-16 the header menus, STU-17 the schema
-browser, STU-18 the settings menu. The 2x series wired the shell onto the model (2B interactions, 2C a
+browser, STU-18 the settings menu, STU-19 Studio's own dark sheet. The 2x series wired the shell onto the model (2B interactions, 2C a
 cold start that reaches a file you can type in, 2D the name field and the
 two-click Delete/Close, 2E the run strip and results), and STU-5A' pointed the
 panes at the CARET rather than at the last run.
@@ -829,6 +829,55 @@ Two consequences worth knowing before you touch the shell:
   `e.entry.text = x` inside a `for each`, where `e.entry` is a gobject HANDLE
   and the write really does reach the widget. Bind it out first
   (`ent = e.entry`); several golden tiers capture stderr. Also in DOGFOOD.
+
+### Studio's own dark sheet (STU-19)
+
+- **Studio owns ONE look — dark — and otherwise defers entirely.** Every colour
+  in `css()` is a GTK named colour so the window follows the desktop, and that
+  rule left Studio no way to BE dark: the editor's scheme is Studio's to choose,
+  the chrome around it is the theme's, so Dark produced a black editor inside a
+  light window. `studio_style.dark_css()` is the answer, and it is honestly a
+  small app-scoped GTK theme.
+- **There is no "light" any more, and its absence is the design.** On a light
+  desktop it was what "follow the desktop" already does; on a dark desktop it
+  meant a light editor inside a dark window, which is the defect this phase
+  removes. A setting whose only distinct behaviour is a known defect is not a
+  setting. A stored `theme: "light"` reads as `system` through the same guard
+  that catches a hand-edited `"nonsense"`.
+- **The sheet is DISPLAY-WIDE, which is the one thing in this codebase that is
+  not per-widget** — it has to be, because it restyles nodes Studio never
+  touches: scrollbars, paned handles, notebook tabs, popover contents. The call
+  was believed unreachable for three phases; measured, `gi.invoke` resolves
+  `Gtk.StyleContext.add_provider_for_display` and `widget.get_display()`
+  supplies the display.
+- **Two measurements shaped it, and the second is why `css()` did not change.**
+  (1) `@define-color` of the conventional tokens does NOTHING on its own —
+  Breeze-gtk does not draw with `@theme_bg_color`, so redefining it at priority
+  800 left the window untouched; only direct RULES override the theme. (2) But
+  the tokens DO cross providers: a `@define-color` in the display-wide sheet
+  (800) is visible to the rules in `css()` (per widget, 500), proven with a
+  label that went red. So the sheet has two halves — tokens for Studio's own
+  rules, node rules for what the theme drew — and every existing `.studio-*`
+  rule followed for free.
+- `@error_color`, `@warning_color` and `@success_color` are REDEFINED brighter.
+  The light-theme red is unreadable on `#1f2022`, and those three are the ones
+  GTK defines as text colours, which `.studio-state-error` already relies on.
+- **A WRONG NODE NAME FAILS SILENTLY, and that is the whole risk.** `listbox`
+  is not the node — it is `list` — and a row's background is on `row`, not on
+  the list, which is the same fact `_fill_nav` already works around. Two silent
+  misses in a five-minute probe. A bare `label` needs saying too: with no rule
+  it keeps the theme's foreground and renders nearly invisible. Nothing errors,
+  no golden can see it, and the only check is to LOOK.
+- `apply_dark` is cached on `shell.dark_on` and runs on the FULL redraw only.
+  Re-adding a provider STACKS another for the life of the process — the same
+  mistake `install_teaching_css` avoids by installing once at build time — and
+  `remove_provider_for_display` (also reachable) is what makes the toggle work
+  both ways.
+- The provider is built ONCE on first use and kept. Parsing the sheet on every
+  toggle is work for nothing, and add/remove take the same object either way.
+- The editor's own colours are still the STYLE SCHEME's, not CSS. The dark sheet
+  only reaches the margin around it; `scheme_for` picks `classic-dark`, and the
+  two are decided from the same `theme_of` so they cannot disagree.
 
 ### The settings menu (STU-18)
 

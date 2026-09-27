@@ -2415,8 +2415,20 @@ library studio_ui
     ' The three values `theme` may take. A closed set, checked rather than
     ' trusted: this is a field a user can hand-edit, and an unrecognised value
     ' must READ as "system" rather than making the editor's scheme undefined.
+    ' TWO, not three, and the absence of "light" is deliberate (STU-19).
+    '
+    ' Studio owns exactly ONE look -- the dark sheet it ships -- and otherwise
+    ' defers completely to the desktop. So "light" would have had no meaning of
+    ' its own: on a light desktop it is what "follow the desktop" already does,
+    ' and on a DARK desktop it would mean a light editor inside a dark window,
+    ' which is the "two applications sharing a frame" complaint this whole
+    ' phase exists to remove. A setting whose only distinct behaviour is a
+    ' known defect is not a setting.
+    '
+    ' A stored `theme: "light"` therefore reads as "system", by the same guard
+    ' that catches a hand-edited `"nonsense"`.
     function themes()
-        return ["system", "light", "dark"]
+        return ["system", "dark"]
     end function
 
     ' The theme in force, as the rest of Studio should see it.
@@ -2541,7 +2553,7 @@ library studio_ui
         ' setting gates nothing. A control for it would be a dead button with a
         ' number in it, which is worse than no control.
         out = append(out, { id: "settings", label: "Settings",
-                            items: ["theme-system", "theme-light", "theme-dark", "-",
+                            items: ["theme-system", "theme-dark", "-",
                                     "restore-session"] })
         return out
     end function
@@ -2605,9 +2617,6 @@ library studio_ui
         if action = "theme-system" then
             return "Follow the desktop"
         end if
-        if action = "theme-light" then
-            return "Light"
-        end if
         if action = "theme-dark" then
             return "Dark"
         end if
@@ -2631,9 +2640,6 @@ library studio_ui
         th = studio_ui.theme_of(app)
         if action = "theme-system" then
             return studio_ui._mark(th = "system")
-        end if
-        if action = "theme-light" then
-            return studio_ui._mark(th = "light")
         end if
         if action = "theme-dark" then
             return studio_ui._mark(th = "dark")
@@ -2708,13 +2714,10 @@ library studio_ui
         ' colours and follows your desktop, and asking GTK for its dark variant
         ' does not work on every theme (measured — see studio_shell).
         if action = "theme-system" then
-            return "Use whatever your desktop is set to. Affects the editor's colours and the section highlight; the rest of the window follows your desktop either way."
-        end if
-        if action = "theme-light" then
-            return "A light editor, whatever your desktop is set to. Takes effect at once, in tabs that are already open."
+            return "Follow your desktop: Studio adds nothing and looks like the rest of your system."
         end if
         if action = "theme-dark" then
-            return "A dark editor, whatever your desktop is set to. Takes effect at once, in tabs that are already open."
+            return "Studio's own dark look — the whole window, not just the editor — whatever your desktop is set to. Takes effect at once."
         end if
         if action = "restore-session" then
             return "Whether Studio reopens the projects and files you had open. Read when Studio starts, so it takes effect on the next launch."
