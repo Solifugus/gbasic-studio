@@ -425,9 +425,10 @@ Two consequences worth knowing before you touch the shell:
 ### The browser's right-click menu (STU-13)
 
 - A `Gtk.Popover` holding a box of ordinary `Gtk.Button`s, **not** a
-  `Gtk.PopoverMenu`. A PopoverMenu is driven by a `GMenuModel` built through
-  class statics the bridge cannot reach, and plain buttons are also what makes
-  the menu testable — `ui_gui_ctx` presses one. `gi.new("Gdk.Rectangle")` fails
+  `Gtk.PopoverMenu`. ONE reason, and it is testability: plain buttons are what
+  `ui_gui_ctx` can press. (This entry used to give a second reason — that a
+  `GMenuModel` needs class statics the bridge cannot reach — and that is
+  FALSE; see the menus section below for the measurement.) `gi.new("Gdk.Rectangle")` fails
   like `Gdk.RGBA`, so `set_pointing_to` is out and the popover parents to the
   ROW, which points at the thing it is about anyway.
 - Built ONCE holding every item there is; `studio_shell.context_for` shows the
@@ -671,12 +672,31 @@ Two consequences worth knowing before you touch the shell:
   context menu's item still names the row it came from, because a right-click
   must not change which project you are in.
 - A `Gtk.MenuButton` with a `Gtk.Popover` of ordinary `Gtk.Button`s — the SAME
-  construction as the browser's right-click menu and for the same two reasons:
-  a `Gtk.PopoverMenu` needs a `GMenuModel` built through class statics the
-  bridge cannot reach, and plain buttons are what a test can press. Measured
-  before it was written: `set_popover`, `get_popover`, `set_always_show_arrow`,
-  `popup` and `popdown` are all ordinary instance methods that work through
-  `gi`.
+  construction as the browser's right-click menu, and for ONE reason: **a test
+  can press a button and cannot press a menu item.** Measured before it was
+  written: `set_popover`, `get_popover`, `set_always_show_arrow`, `popup` and
+  `popdown` are all ordinary instance methods that work through `gi`.
+- **GTK 4's REAL MENUS ARE REACHABLE, and this file said otherwise for two
+  phases.** It claimed a `GMenuModel` is built through class statics the bridge
+  cannot reach. Measured, every step works: `gi.new("Gio.Menu")` constructs,
+  `menu.append(label, action)` works, `MenuButton.set_menu_model` works,
+  `gi.new("Gio.SimpleAction", "name", …)` constructs, `window.add_action`
+  registers it, connecting `activate` works, and firing the action reaches the
+  handler. The claim originated in STU-13 and was REPEATED in STU-16 without
+  being re-tested — a "cannot" that was designed around rather than checked.
+- **What actually rules a `GMenuModel` out is that no test can press an item.**
+  The model is `{label, action-name}` DATA, not widgets; `GtkPopoverMenu`
+  builds its own internal widget tree from it and does not expose it. A test
+  could fire the `GAction` directly — that works — but it would then pass with
+  the menu unwired, mislabelled, or never displayed at all, which is precisely
+  the "reports success and draws nothing" failure `agent_widgets` exists to
+  stop. That reason was always sufficient on its own.
+- **The cost is real and is the radio mark.** `GMenuModel` gives proper radio
+  and check items, which is exactly what the Settings menu wanted and faked
+  with `●`/`○`. Whether a STATEFUL action is reachable is UNMEASURED: the
+  probe needed a `GVariant` for the state and hung rather than answering, and
+  one inconclusive run is not a finding. Anyone reconsidering this should start
+  there.
 - **THE ARROW IS A CHARACTER IN THE LABEL, not `always-show-arrow`.** Looked
   at: with the property set, the two menus rendered as plain rectangles reading
   "Project" and "File", indistinguishable from the Save button beside them —
@@ -846,9 +866,10 @@ Two consequences worth knowing before you touch the shell:
   in GTK's named colours and follows the desktop, which is the behaviour
   `studio_style`'s header already describes.
 - **The state is a CHARACTER in the label, not a radio button.** A menu of
-  plain `Gtk.Button`s cannot draw one — that needs a `Gtk.PopoverMenu` over a
-  `GMenuModel`, which is built from class statics the bridge cannot reach and
-  which no test could press either. `●` and `○` are the same two shapes the
+  plain `Gtk.Button`s cannot draw one; a `GMenuModel` can, and IS reachable
+  (see above — the old claim that it was not is false). What rules it out is
+  that no test could press an item. So the glyphs are the price of a pressable
+  menu, which is a trade rather than a limitation. `●` and `○` are the same two shapes the
   browser uses for the active project, so the window is not learning a second
   vocabulary for "this is the one".
 - `studio_ui.menu_text` is the ONE place mark and label are joined, because the
