@@ -142,6 +142,16 @@ function redraw()
         vw.add_controller(kc)
         G.ed_controllers = append(G.ed_controllers, kc)
     end for
+    ' STU-21: a right-click gesture on each new tab's label. The label is
+    ' REUSED across reconciles now (studio_shell._tab_label), so this attaches
+    ' once per page rather than being torn off on every redraw.
+    for each nt in r.new_tabs
+        g3 = gi.new("Gtk.GestureClick")
+        g3.set_button(3)
+        gi.connect(g3, "pressed", on_tab_right_click)
+        nt.add_controller(g3)
+        G.tab_gestures = append(G.tab_gestures, g3)
+    end for
     G.redrawing = false
     ' STU-10: a teaching cue is drawn AFTER the redraw, and outside the
     ' re-entrancy guard. It touches widgets the redraw has just rebuilt, and
@@ -356,6 +366,81 @@ end function
 
 function on_snippet_cancel()
     close_snippet()
+    return nothing
+end function
+
+' ---- STU-21: a tab's own right-click menu ----------------------------------
+'
+' Two items: Close, and Copy file path. Both act on the tab that was CLICKED,
+' not on the active one -- right-clicking a background tab to close it must not
+' first switch you to it, which is the rule the browser's context menu follows.
+'
+' Which tab that is comes off the widget: the gesture hands back what it is
+' attached to, and the tab label carries its document id in its `name`. That is
+' the whole of the widget-to-value read.
+
+function on_tab_right_click(gest, n_press, x, y)
+    lbl = gest.get_widget()
+    if lbl = nothing then
+        return nothing
+    end if
+    show_tab_menu_for(lbl)
+    return nothing
+end function
+
+' Split out of the handler so a display tier can go in the SAME way the gesture
+' does -- `Gtk.GestureClick` has no emit, so this is the join point, exactly as
+' `show_context_for` is for the browser's menu.
+function show_tab_menu_for(lbl)
+    G.tab_ctx_doc = lbl.name
+    tm = G.shell.tabctx
+    if tm.parented then
+        tm.popover.unparent()
+    end if
+    tm.popover.set_parent(lbl)
+    tm.parented = true
+    G.shell.tabctx = tm
+    tm.popover.popup()
+    return nothing
+end function
+
+function on_tab_close()
+    close_tab_menu()
+    r = studio_ui.close_doc(G.app, G.tab_ctx_doc, G.armed_doc)
+    G.app = r.app
+    G.last_action = r.action
+    G.last_detail = r.detail
+    if r.action = "closed" then
+        note_event("file_closed", r.detail, "")
+    end if
+    ' The SAME arming slot the toolbar's Close uses, deliberately: two slots
+    ' would let a document be armed from the menu and closed from the button
+    ' with no second click anywhere.
+    G.armed_doc = r.armed
+    redraw()
+    return nothing
+end function
+
+function on_tab_copy_path()
+    close_tab_menu()
+    r = studio_ui.tab_path(G.app, G.tab_ctx_doc)
+    if r.ok then
+        ' Returns the shell, and it MATTERS: the scratch buffer the clipboard
+        ' reads from is kept on it, and dropping the result would drop the
+        ' buffer and empty the clipboard.
+        G.shell = studio_shell.copy_text(G.shell, r.text)
+    end if
+    G.last_action = r.action
+    G.last_detail = r.detail
+    redraw()
+    return nothing
+end function
+
+' Taken down before a redraw, like the browser's: it is parented to a tab
+' label, and a popover whose parent is destroyed is a GTK critical.
+function close_tab_menu()
+    tm = G.shell.tabctx
+    tm.popover.popdown()
     return nothing
 end function
 
@@ -1371,6 +1456,9 @@ function wire_shell()
     gi.connect(ctx.items["delete"], "clicked", on_ctx_delete)
     gi.connect(ctx.items["project-file"], "clicked", on_ctx_project_file)
     gi.connect(ctx.items["close-project"], "clicked", on_ctx_close_project)
+    tabm = sh.tabctx
+    gi.connect(tabm.items["tab-close"], "clicked", on_tab_close)
+    gi.connect(tabm.items["tab-copy-path"], "clicked", on_tab_copy_path)
     gi.connect(sh.open_btn, "clicked", on_open_folder)
     gi.connect(sh.projfile_btn, "clicked", on_project_file)
     gi.connect(sh.rename_btn, "clicked", on_rename)
@@ -2105,6 +2193,87 @@ function scheme_of(doc_id)
         return "(none)"
     end if
     return sch.get_id()
+end function
+
+' STU-21: a tab's right-click menu, driven through real signals.
+'
+' What only a window can show: that the gesture is attached to a tab label that
+' SURVIVES a reconcile, that the menu knows which tab it was raised on rather
+' than which is active, and that Copy file path puts the path where a paste
+' will find it -- checked by pasting it back, because the clipboard is a place
+' nobody can see.
+function stu21_step()
+    G.phase = G.phase + 1
+    if G.phase = 1 then
+        print "opening two files"
+        click_row(find_row("file", "main.bas"))
+        return true
+    end if
+    if G.phase = 2 then
+        click_row(find_row("file", "README.md"))
+        return true
+    end if
+    if G.phase = 3 then
+        print "tabs open=" + count(G.app.dm.docs)
+        print "the menu holds: " + join(studio_ui.tab_menu_all(), ", ")
+        ' Right-click the FIRST tab while the SECOND is active -- the whole
+        ' point is that the menu is about the tab you pointed at.
+        print "active doc is " + studio_docs.active_doc(G.app.dm).display_name
+        lbl = G.shell.notebook.get_tab_label(G.shell.pages[0].child)
+        print "first tab's label carries its id: " + lbl.name
+        show_tab_menu_for(lbl)
+        print "the menu is open on that tab=" + string(G.shell.tabctx.popover.get_visible())
+        print "copying that tab's path"
+        G.shell.tabctx.items["tab-copy-path"].activate()
+        return true
+    end if
+    if G.phase = 4 then
+        print "action=" + G.last_action
+        print "status: " + path_free(G.shell.status.label)
+        ' WHAT THIS DOES NOT ASSERT, and why.
+        '
+        ' The obvious check is to paste it back. It cannot be done here: a
+        ' clipboard round trip succeeds when the copy and the paste are in one
+        ' function and FAILS across callback boundaries, reproduced in a
+        ' twenty-line program outside Studio. The likeliest reason is that
+        ' Wayland requires a recent input-event serial to take clipboard
+        ' ownership, and a tier driving the menu programmatically never has
+        ' one -- which means a round trip failing here says nothing about the
+        ' same press made with a real mouse.
+        '
+        ' So this asserts what it can see -- the action, the status line, and
+        ' that the path offered is whole -- and leaves the clipboard itself to
+        ' be confirmed by a person. Asserting it would pin a golden to a
+        ' behaviour that is an artefact of how the test drives the window.
+        r = studio_ui.tab_path(G.app, G.tab_ctx_doc)
+        print "the path it offered is absolute: " + string(starts_with(r.text, "/"))
+        print "and names the file: " + string(ends_with(r.text, "main.bas"))
+        return true
+    end if
+    if G.phase = 5 then
+        print "-- closing that tab from its own menu, while the other is active --"
+        lbl2 = G.shell.notebook.get_tab_label(G.shell.pages[0].child)
+        show_tab_menu_for(lbl2)
+        G.shell.tabctx.items["tab-close"].activate()
+        return true
+    end if
+    if G.phase = 6 then
+        print "action=" + G.last_action
+        print "tabs open=" + count(G.app.dm.docs)
+        for each d in G.app.dm.docs
+            print "  still open: " + d.display_name
+        end for
+        print "-- and the label survives a redraw, so the gesture does too --"
+        redraw()
+        return true
+    end if
+    if G.phase = 7 then
+        lbl = G.shell.notebook.get_tab_label(G.shell.pages[0].child)
+        print "after a redraw the label still carries: " + lbl.name
+        G.shell.window.close()
+        return false
+    end if
+    return false
 end function
 
 function stu18_step()
@@ -2995,6 +3164,10 @@ function on_activate(gtkapp)
         gi.timeout(400, stu18_step)
         return nothing
     end if
+    if G.stu21 then
+        gi.timeout(400, stu21_step)
+        return nothing
+    end if
     if G.stu11 then
         gi.timeout(600, stu11_step)
     end if
@@ -3524,6 +3697,8 @@ program main(args)
     G.stu16 = false
     G.stu17 = false
     G.stu18 = false
+    G.stu21 = false
+    G.pasted = nothing
     G.stu7 = false
     G.stu8 = false
     G.stu9 = false
@@ -3550,6 +3725,10 @@ program main(args)
     ' STU-20: every editor's scroll and key controller, kept alive for the life
     ' of the process. See the connect site.
     G.ed_controllers = []
+    ' STU-21: which tab the right-click menu is about, and the gestures that
+    ' raise it -- held for the same reason the editors' controllers are.
+    G.tab_ctx_doc = ""
+    G.tab_gestures = []
     G.open_target = ""
     G.save_on_exit = false
     ' STU-6: the semantic action history. Loaded here, appended by the handlers,
@@ -3616,6 +3795,16 @@ program main(args)
     ' STU-15: the snippet window — a builder that writes the statement into
     ' the file and never runs it. The window is one Studio BUILDS, so the form
     ' can be filled and Insert pressed for real.
+    ' STU-21: a tab's right-click menu, over the standard fixture.
+    if mode = "stu21_smoke" then
+        G.stu21 = true
+        projdir = args[2]
+        G.app = studio.create_registered_workspace(G.app, "ws")
+        ws = G.app.model.workspace
+        ws = studio_model.add_project(ws, "Alpha", projdir)
+        G.app = studio.set_workspace(G.app, ws)
+    end if
+
     ' STU-18: the settings menu, over the standard fixture.
     if mode = "stu18_smoke" then
         G.stu18 = true

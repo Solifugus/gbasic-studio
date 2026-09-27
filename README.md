@@ -196,6 +196,11 @@ keeps Studio looking like the rest of your desktop. (`recent_limit` is in the
 settings file and is deliberately *not* offered — nothing in the running
 application reads it, and a control that changes nothing is a dead button.)
 
+**Right-click a tab** for two items: **Close**, and **Copy file path**. Both
+act on the tab you pointed at, not on the one you are looking at — so you can
+close a background tab without being switched to it first. Close still arms on
+the first click, from the menu exactly as from the button.
+
 **Right-click a row in the browser.** A file offers Open, Rename and Delete; a
 directory offers New File here, New Folder here, Rename and Delete; a project
 offers Add project file and Close project. Every item goes through the same
@@ -636,7 +641,7 @@ workspace instead:
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 202 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 203 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 29 cases, headless AND offline — no network, no key
 ```
 

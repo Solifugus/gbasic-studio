@@ -465,6 +465,81 @@ library studio_shell
         return { menus: menus, items: items }
     end function
 
+    ' A tab's right-click menu (STU-21).
+    '
+    ' The SAME construction as the browser's context menu and the header menus:
+    ' a `Gtk.Popover` of ordinary `Gtk.Button`s, built ONCE and reparented to
+    ' whichever tab was clicked. Plain buttons because a test can press one.
+    function tab_menu()
+        pop = gi.new("Gtk.Popover")
+        pop.set_has_arrow(true)
+        box = gtk.box("v", 0)
+        box = studio_style.apply(box, "panel")
+        items = {}
+        for each a in studio_ui.tab_menu_all()
+            b = gtk.button(studio_ui.tab_menu_label(a))
+            b.set_has_frame(false)
+            b.halign = gi.enum("Gtk.Align.FILL")
+            inner = b.get_child()
+            if inner != nothing then
+                inner.xalign = 0
+            end if
+            box.append(b)
+            items[a] = b
+        end for
+        pop.set_child(box)
+        return { popover: pop, items: items, parented: false }
+    end function
+
+    ' Put text on the system clipboard.
+    '
+    ' NOT `clipboard.set_text`, which HANGS -- measured, the call never
+    ' returns and the process has to be killed. The working route is a scratch
+    ' `Gtk.TextBuffer`: set the text, select it, and `copy_clipboard`. Only
+    ' instance methods, on a type Studio already builds, and proven by a round
+    ' trip (copy, then paste into a second buffer and read it back).
+    '
+    ' The clipboard is a place the user CANNOT SEE, so a failure here is
+    ' invisible by construction -- which is why the route was round-tripped
+    ' rather than assumed from the call returning.
+    function copy_text(shell, text)
+        cb = shell.window.get_clipboard()
+        buf = gi.new("Gtk.TextBuffer")
+        buf.set_text(text, 0 - 1)
+        buf.select_range(buf.get_start_iter(), buf.get_end_iter())
+        buf.copy_clipboard(cb)
+        ' THE BUFFER IS KEPT. `copy_clipboard` does not hand the clipboard a
+        ' copy of the string -- it installs a content provider that reads from
+        ' this buffer when somebody pastes. A local buffer is gone by then, and
+        ' the paste returns NOTHING with no error anywhere: measured, the copy
+        ' reported success, the status line named the path, and pasting it back
+        ' produced an empty string.
+        '
+        ' Fourth time in this codebase that a gobject had to be held to stay
+        ' alive, after `_STUDIO_STYLE`, `G.ctx_gesture` and the editors'
+        ' controllers. This one is the worst of them, because the clipboard is
+        ' a place the user cannot see: the failure is silent at every layer.
+        shell.clip_buf = buf
+        return shell
+    end function
+
+    ' A notebook tab's label (STU-21).
+    '
+    ' It carries the DOCUMENT ID in its widget name. That is how the
+    ' right-click handler knows which tab it is on: the gesture hands back the
+    ' widget it is attached to, and reading a string property off that widget
+    ' is the whole of the widget-to-value read. Comparing gobject handles for
+    ' identity would be the alternative and is a thing this codebase has never
+    ' needed to do.
+    '
+    ' `name` is the CSS node name, and nothing in Studio's stylesheet targets a
+    ' document id, so this is inert as styling.
+    function _tab_label(t)
+        lbl = gtk.label(t.label)
+        lbl.name = t.doc_id
+        return lbl
+    end function
+
     ' A LEFT-ALIGNED label. `gtk.label` centres, which is right for a title and
     ' wrong for everything this shell shows: a browser row whose indentation
     ' encodes tree depth, a line of program output, an error, a table of
@@ -631,7 +706,7 @@ library studio_shell
         if clear_name then
             shell.name_entry.text = ""
         end if
-        return { shell: shell, app: app, new_editors: rec.new_editors }
+        return { shell: shell, app: app, new_editors: rec.new_editors, new_tabs: rec.new_tabs }
     end function
 
     ' Apply or remove Studio's own dark sheet (STU-19).
@@ -916,6 +991,7 @@ library studio_shell
         book = shell.notebook
         want = studio_ui.tab_rows(app)
         new_editors = []
+        new_tabs = []
 
         ' Drop the welcome placeholder as soon as there is a real document, and
         ' put it back when the last one closes, so the notebook is never empty.
@@ -931,7 +1007,7 @@ library studio_shell
                 book.append_page(studio_shell._empty(gtk.label("(no document open)")), gtk.label("Welcome"))
                 shell.welcome = true
             end if
-            return { shell: shell, new_editors: new_editors }
+            return { shell: shell, new_editors: new_editors, new_tabs: new_tabs }
         end if
         if shell.welcome then
             studio_shell._clear_pages(shell)
@@ -1042,7 +1118,12 @@ library studio_shell
                 sc = gtk.scrolled(ed.view())
                 sc.vexpand = true
                 sc.hexpand = true
-                book.append_page(sc, gtk.label(t.label))
+                tab_lbl = studio_shell._tab_label(t)
+                book.append_page(sc, tab_lbl)
+                ' STU-21: handed back so the entry program can put a
+                ' right-click gesture on it. Returned rather than connected
+                ' here, because `gi.connect` lives only in app/studio.bas.
+                new_tabs = append(new_tabs, tab_lbl)
                 ' A NEW BUFFER HAS NO MARKS, and both caches are keyed by
                 ' document id, which a closed-and-reopened file keeps. Left
                 ' alone, the cache would say "already drawn at this revision /
@@ -1076,7 +1157,20 @@ library studio_shell
             ' say you were editing one file while showing you another.
             t = studio_shell._want_for(want, pg.doc_id)
             if t != nothing then
-                book.set_tab_label(pg.child, gtk.label(t.label))
+                ' REUSED, not rebuilt (STU-21). This used to hand the notebook
+                ' a fresh `gtk.label` on every reconcile, which was invisible
+                ' while nothing was attached to it -- and a right-click gesture
+                ' is attached to it now. A label replaced on every redraw takes
+                ' its controller with it, and the menu would work until the
+                ' first time anything else moved.
+                lbl = book.get_tab_label(pg.child)
+                if lbl = nothing then
+                    book.set_tab_label(pg.child, studio_shell._tab_label(t))
+                else
+                    if lbl.label != t.label then
+                        lbl.label = t.label
+                    end if
+                end if
             end if
             doc = studio_docs.doc_by_id(app.dm, pg.doc_id)
             ed = pg.editor
@@ -1091,7 +1185,7 @@ library studio_shell
         end while
         book.set_current_page(active_page)
 
-        return { shell: shell, new_editors: new_editors }
+        return { shell: shell, new_editors: new_editors, new_tabs: new_tabs }
     end function
 
     ' The wanted-tab row for a document id, or nothing.
@@ -1442,6 +1536,11 @@ library studio_shell
                  ' raises it is made in app/studio.bas, which is the only place
                  ' allowed to call gi.connect.
                  ctx: ctx,
+                 ' STU-21: a tab's own right-click menu, built once.
+                 tabctx: studio_shell.tab_menu(),
+                 ' STU-21: the scratch buffer behind the last clipboard copy,
+                 ' kept alive because the clipboard reads from it lazily.
+                 clip_buf: nothing,
                  bar: bar, pane: pane, rpane: rpane, apane: apane, bpane: bpane,
                  tpane: tpane, gpane: gpane,
                  ' STU-5 decoration state: which outline revision each document's

@@ -1,0 +1,18 @@
+opening two files
+tabs open=2
+the menu holds: tab-close, tab-copy-path
+active doc is README.md
+first tab's label carries its id: doc-1
+the menu is open on that tab=true
+copying that tab's path
+action=copied-path
+status: copied .../main.bas
+the path it offered is absolute: true
+and names the file: true
+-- closing that tab from its own menu, while the other is active --
+action=closed
+tabs open=1
+  still open: README.md
+-- and the label survives a redraw, so the gesture does too --
+after a redraw the label still carries: doc-2
+app-exited

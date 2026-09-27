@@ -15,7 +15,7 @@ STU-8 rich viewers and the tabular tier, STU-10 the assistant acting under a
 permission model, STU-11 optional git, STU-13 the browser pane and its
 right-click menu, STU-14 `.sql` as a document type, STU-15 declarative
 templates and the SQL builders, STU-16 the header menus, STU-17 the schema
-browser, STU-18 the settings menu, STU-19 Studio's own dark sheet, STU-20 the editor's text size. The 2x series wired the shell onto the model (2B interactions, 2C a
+browser, STU-18 the settings menu, STU-19 Studio's own dark sheet, STU-20 the editor's text size, STU-21 a tab's own menu. The 2x series wired the shell onto the model (2B interactions, 2C a
 cold start that reaches a file you can type in, 2D the name field and the
 two-click Delete/Close, 2E the run strip and results), and STU-5A' pointed the
 panes at the CARET rather than at the last run.
@@ -52,7 +52,7 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 202 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 203 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 29 cases, headless AND offline (scripted transport)
 ```
 
@@ -829,6 +829,45 @@ Two consequences worth knowing before you touch the shell:
   `e.entry.text = x` inside a `for each`, where `e.entry` is a gobject HANDLE
   and the write really does reach the widget. Bind it out first
   (`ent = e.entry`); several golden tiers capture stderr. Also in DOGFOOD.
+
+### A tab's own right-click menu (STU-21)
+
+- Two items, `Close` and `Copy file path`, and both act on the tab that was
+  CLICKED rather than the active one — right-clicking a background tab to close
+  it must not first switch you to it, which is the rule the browser's context
+  menu already follows.
+- `close_active` now DELEGATES to `close_doc(app, doc_id, armed)`, rather than
+  the other way round, so the two-click arming has one implementation. Both
+  routes share `G.armed_doc`: two arming slots would let a document be armed
+  from the menu and closed from the button with no second click anywhere.
+- **The tab label carries its document id in its widget `name`.** That is how
+  the handler knows which tab it is on: the gesture hands back the widget it is
+  attached to, and reading a string property off it is the whole of the
+  widget-to-value read. Comparing gobject handles for identity is the
+  alternative, and nothing in this codebase has ever needed to.
+- **The tab label is REUSED across reconciles now.** `_reconcile_tabs` used to
+  hand the notebook a fresh `gtk.label` every redraw, which was invisible while
+  nothing was attached to one — a gesture is attached now, and a label replaced
+  on every redraw takes its controller with it. The menu would have worked
+  until the first time anything else moved.
+- `show_tab_menu_for` is split out of the handler so a display tier can go in
+  the same way the gesture does. `Gtk.GestureClick` has no emit, so this is the
+  join point — exactly as `show_context_for` is for the browser's menu.
+- **`clipboard.set_text` HANGS**, and never returns. The working route is a
+  scratch `Gtk.TextBuffer`: set the text, select it, `copy_clipboard`. Logged
+  in gBASIC's DOGFOOD.
+- **THE CLIPBOARD IS NOT ASSERTED, and the reason is not laziness.** A round
+  trip (copy, then paste into a second buffer and read it back) succeeds when
+  both happen in ONE function and fails across callback boundaries —
+  reproduced in a twenty-line program outside Studio, with the buffer held on a
+  global so it is not a lifetime problem. The likeliest cause is that Wayland
+  requires a recent input-event serial to take clipboard ownership, which a
+  tier driving the menu from timers never has. So a failing round trip here
+  says nothing about the same press made with a real mouse, and asserting it
+  would pin a golden to an artefact of how the test drives the window.
+  `ui_gui_tabmenu` asserts the action, the status line and that the path
+  offered is absolute and names the file; **the clipboard itself is confirmed
+  by a person, or not at all.**
 
 ### The editor's text size (STU-20)
 

@@ -1521,6 +1521,21 @@ library studio_ui
         if doc = nothing then
             return { app: app, action: "none", detail: "", armed: "" }
         end if
+        return studio_ui.close_doc(app, doc.id, armed)
+    end function
+
+    ' Close a NAMED document (STU-21), which is what a tab's own right-click
+    ' menu needs: closing a background tab must not first switch you to it.
+    '
+    ' `close_active` delegates here rather than the other way round, so the
+    ' arming rule has ONE implementation. A second copy is how a menu quietly
+    ' loses a two-click confirmation that the button obeys -- which is exactly
+    ' what the browser's context menu is written to avoid.
+    function close_doc(app, doc_id, armed)
+        doc = studio_docs.doc_by_id(app.dm, doc_id)
+        if doc = nothing then
+            return { app: app, action: "none", detail: "", armed: "" }
+        end if
         dirty = studio_docs.is_dirty(doc)
         if dirty then
             if armed != doc.id then
@@ -1560,6 +1575,42 @@ library studio_ui
         ws = studio_model.set_selected_path(ws, row.path)
         app = studio.set_workspace(app, ws)
         return { app: app, action: "selected", detail: row.path }
+    end function
+
+    ' ---- a tab's own menu (STU-21) ------------------------------------------
+
+    ' Every item a tab's right-click menu holds, in the order it is built.
+    ' A closed vocabulary, like `context_all` and `menu_all`.
+    function tab_menu_all()
+        return ["tab-close", "tab-copy-path"]
+    end function
+
+    function tab_menu_label(action)
+        if action = "tab-close" then
+            return "Close"
+        end if
+        if action = "tab-copy-path" then
+            return "Copy file path"
+        end if
+        return action
+    end function
+
+    ' The text a Copy file path puts on the clipboard: the WHOLE path, which is
+    ' what makes it useful in a terminal or another editor. `doc.path` is
+    ' already canonical -- `studio_docs.open` canonicalises what it stores --
+    ' so this cannot hand out a path with a `..` in it.
+    function tab_path(app, doc_id)
+        doc = studio_docs.doc_by_id(app.dm, doc_id)
+        if doc = nothing then
+            return { ok: false, action: "none", detail: "", text: "" }
+        end if
+        if doc.path = "" then
+            ' A document with no file behind it. Named rather than copying an
+            ' empty string, which would look like the clipboard silently
+            ' failing -- and the clipboard is a place you cannot see.
+            return { ok: false, action: "no-path-yet", detail: doc.display_name, text: "" }
+        end if
+        return { ok: true, action: "copied-path", detail: doc.path, text: doc.path }
     end function
 
     ' ---- SQL: which database a cell runs against (STU-14) -------------------
@@ -3096,6 +3147,13 @@ library studio_ui
         end if
         if action = "zoom-end" then
             return "the editor text is as far as it goes — " + detail
+        end if
+        ' ---- STU-21, a tab's own menu.
+        if action = "copied-path" then
+            return "copied " + detail
+        end if
+        if action = "no-path-yet" then
+            return detail + " has not been saved anywhere yet, so there is no path to copy"
         end if
         if action = "no-table-picked" then
             return "pick a table first"

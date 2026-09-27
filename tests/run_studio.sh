@@ -1261,6 +1261,30 @@ if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
         printf 'SKIP ui_gui_schema (this gBASIC has no sqlite module)\n'
     fi
 
+    # STU-21: a tab's own right-click menu. What only a window can show is that
+    # the gesture sits on a tab label that SURVIVES a reconcile, and that the
+    # menu acts on the tab it was raised on rather than the active one. It does
+    # NOT assert the clipboard -- see the tier for why.
+    tb_home="$tmproot/ui_gui_tabmenu"; tb_proj="$tmproot/ui_gui_tabmenu_proj"
+    rm -rf "$tb_home" "$tb_proj"
+    mkdir -p "$tb_home"; mkproj_ui "$tb_proj"
+    : >"$stdout_file"
+    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
+            "$GBASIC" "$APP" stu21_smoke "$tb_home" "$tb_proj" \
+            >"$stdout_file" 2>/dev/null; then
+        if diff -u tests/studio/ui_gui_tabmenu.out "$stdout_file"; then
+            printf 'PASS ui_gui_tabmenu (a tab right-clicked, copied and closed)\n'
+        else
+            fail "ui_gui_tabmenu (output diff)"
+        fi
+    else
+        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
+            printf 'SKIP ui_gui_tabmenu (GTK 4 typelib not available)\n'
+        else
+            cat "$stdout_file"; fail "ui_gui_tabmenu (nonzero exit)"
+        fi
+    fi
+
     # STU-18: the settings menu. What only a window can show is that picking a
     # theme reaches an editor that is ALREADY OPEN -- the scheme was applied
     # only to pages being created, which was invisible while nothing could
@@ -1619,6 +1643,7 @@ else
     printf 'SKIP ui_gui_menus (no display)\n'
     printf 'SKIP ui_gui_schema (no display)\n'
     printf 'SKIP ui_gui_settings (no display)\n'
+    printf 'SKIP ui_gui_tabmenu (no display)\n'
     printf 'SKIP ui_gui_branch (no display)\n'
     printf 'SKIP ui_gui_table (no display)\n'
     printf 'SKIP ui_gui_overlay (no display)\n'

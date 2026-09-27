@@ -321,9 +321,17 @@ library studio_style
     ' smaller print: a hardcoded pale blue is a highlight on a light editor and
     ' a smear over unreadable text on a dark one. Not CSS either — it is a
     ' GtkTextTag background, so it cannot be an `@theme` reference.
+    ' The band behind the section the caret is in.
+    '
+    ' The dark value was lowered once it actually filled the line. `#2f3b4d`
+    ' was chosen against a tint that hugged the characters -- a ragged outline
+    ' needs contrast to read as anything at all. As a full-width band across
+    ' `#141516` the same colour was louder than the code it was marking, which
+    ' is backwards: this says WHERE you are, and the text is what you are
+    ' reading. Reported as too strong, and lowered by roughly a third.
     function section_tint(dark)
         if dark then
-            return "#2f3b4d"
+            return "#212934"
         end if
         return "#eaf1fb"
     end function
