@@ -8,11 +8,16 @@
 ' an undifferentiated list of sentences. This library is where the window's
 ' appearance is decided, so a pane does not get to invent its own.
 '
-' WHY A LIBRARY AND NOT A DISPLAY-WIDE PROVIDER. The conventional answer is
-' `Gtk.StyleContext.add_provider_for_display`, and the `gi` bridge cannot reach
-' it: it is a class static, and so is `Gdk.Display.get_default`, so there is no
-' display to hand it even if it resolved. Providers therefore go on ONE WIDGET AT
-' A TIME — which is what studio_teaching already discovered for its two outline
+' WHY A LIBRARY AND NOT A DISPLAY-WIDE PROVIDER. This header used to say the
+' conventional answer -- `Gtk.StyleContext.add_provider_for_display` -- was out
+' of reach because it is a class static. MEASURED, it is NOT: `gi.invoke` calls
+' it, and `widget.get_display()` supplies the display an instance method at a
+' time, exactly as `get_settings()` does for `Gtk.Settings.get_default`. So the
+' per-widget provider is a CHOICE, not a constraint. It still earns its keep --
+' a provider scoped to the widgets that need it cannot leak into another window
+' -- but a whole-window theme would use the display-wide call, and that is now
+' a measured option rather than a closed door. Providers here go on ONE WIDGET
+' AT A TIME — which is what studio_teaching already discovered for its two outline
 ' classes. The cost of that is a rule every call site would otherwise have to
 ' remember ("add the class AND attach the provider, or the class is a name
 ' nothing renders"), so `apply` does both and nothing calls `add_css_class`

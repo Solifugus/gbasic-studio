@@ -1844,13 +1844,13 @@ library studio_shell
 
     ' Install the teaching stylesheet, once, at build time.
     '
-    ' PER WIDGET, not display-wide. The usual way to do this is
-    ' `Gtk.StyleContext.add_provider_for_display`, and the `gi` bridge cannot
-    ' reach it — it is a static class function, and gi.invoke does not resolve
-    ' those. A widget's own style context takes a provider, so the stylesheet goes
-    ' on each teachable widget instead. That is better scoping than the
-    ' conventional answer would have given: no display-wide state, nothing to
-    ' leak into another window, and the styles exist exactly where they are used.
+    ' PER WIDGET, not display-wide — and by CHOICE, not necessity. This comment
+    ' used to say `Gtk.StyleContext.add_provider_for_display` was unreachable
+    ' because gi.invoke does not resolve class statics. MEASURED, gi.invoke
+    ' DOES resolve that one, with `widget.get_display()` supplying the display.
+    ' Per-widget is still the better answer for TEACHING specifically: these are
+    ' cues on named widgets, so no display-wide state and nothing to leak into
+    ' another window, and the styles exist exactly where they are used.
     '
     ' Once, at build time, and not per gesture: a provider added on each teaching
     ' request would stack one per request for the life of the process.

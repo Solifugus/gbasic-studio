@@ -1873,10 +1873,30 @@ Two consequences worth knowing before you touch the shell:
   `_names_dark` guards with `is_string` before touching it. A theme probe that
   crashed the window of everyone who has not set GTK_THEME would be a poor trade
   for a colour.
-- **A CSS class without its provider renders nothing.** `gi` cannot call class
-  statics, so `Gdk.Display.get_default` and
-  `Gtk.StyleContext.add_provider_for_display` are both out of reach and there is
-  no display-wide stylesheet. Providers go on ONE WIDGET AT A TIME. That is why
+- **A CSS class without its provider renders nothing**, and Studio attaches
+  providers ONE WIDGET AT A TIME.
+- **That is not because a display-wide provider is impossible — MEASURED, it
+  works.** This file said `Gtk.StyleContext.add_provider_for_display` was out of
+  reach because `gi` cannot call class statics. It is reachable:
+  `gi.invoke("Gtk.StyleContext.add_provider_for_display", w.get_display(), prov,
+  800)` returns cleanly and the provider takes effect. `Gdk.Display.get_default`
+  is indeed a static, but `widget.get_display()` is an ordinary instance method
+  and answers the same object — the same workaround `get_settings()` already is
+  for `Gtk.Settings.get_default`. This was the SECOND inherited "the bridge
+  cannot reach it" claim found false in one sitting, after `GMenuModel`.
+- The per-widget architecture is therefore a CHOICE that could be revisited,
+  not a constraint. It still earns its keep — a provider scoped to the widgets
+  that need it cannot leak into another window — but nothing forces it.
+- **A display-wide provider is what a whole-window dark theme would need, and
+  it is proven to work.** Measured, in order: redefining the conventional tokens
+  (`@define-color theme_bg_color …`) changes NOTHING under Breeze-gtk, because
+  that theme does not draw with them. Direct RULES at priority 800 override the
+  theme completely — window, buttons, entry, notebook, paned all went dark.
+  The cost is that it is a real stylesheet, one rule per CSS node, and **a wrong
+  node name fails silently**: `listbox` is not the node (it is `list`), and the
+  row background is on `row` rather than on the list, which is the same gotcha
+  `_fill_nav` already works around. Two silent misses in a five-minute probe is
+  the honest measure of what shipping this would cost. That is why
   `studio_style.apply(widget, class)` does both halves and why nothing calls
   `add_css_class` directly for a Studio class — a call site that remembers only
   the class writes a name nothing renders. The provider is the program global
