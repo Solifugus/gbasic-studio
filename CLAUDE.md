@@ -868,6 +868,14 @@ Two consequences worth knowing before you touch the shell:
   `ui_gui_tabmenu` asserts the action, the status line and that the path
   offered is absolute and names the file; **the clipboard itself is confirmed
   by a person, or not at all.**
+- **CONFIRMED by the user, 2026-09-27: a real right-click copies the path and
+  it pastes.** So the theory holds — the write needs a genuine input-event
+  serial, and the failing round trip was an artefact of driving the menu from
+  timers. Recorded because the alternative reading was that Studio shipped a
+  silently broken feature, and the difference between those two is not
+  something the suite can ever tell you. It also means the rule generalises:
+  **anything that takes clipboard ownership cannot be tested from a tier**,
+  and should be asserted up to the point of the call and no further.
 
 ### The editor's text size (STU-20)
 
