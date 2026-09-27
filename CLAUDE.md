@@ -881,6 +881,24 @@ Two consequences worth knowing before you touch the shell:
   diff that follows looks like a real behavioural change. Cost two rebaseline
   rounds.
 
+- **The section tint hugged the text instead of filling the line, and a dark
+  editor is what made it visible.** `sourceeditor.highlight` documents itself
+  as applying a highlight "over whole lines" and set `Gtk.TextTag`'s
+  `background`, which paints behind the CHARACTERS only — so the tint drew a
+  ragged staircase around the code rather than a band. Invisible for two years
+  on a light editor, where `#eaf1fb` against white is a few percent; obvious
+  the moment `#2f3b4d` sat on `#141516`. Fixed UPSTREAM in
+  `stdlib/sourceeditor.bas` (`paragraph-background`), not worked around here —
+  the function was not doing what its own first sentence promised, and the
+  platform rule says a thing that is not about Studio belongs in the stdlib.
+  **Reported by the user from a screenshot**; no golden can see it, because
+  the asserted text is identical either way.
+- `ui_gui_overlay` flaked once during this work — `(this section has not run)`
+  where the output belonged, i.e. the tier printed before the run finished.
+  Three direct re-runs were clean. Intermittent under suite load, unrelated to
+  the tag change, and noted here so the next person to see it knows it has
+  happened before.
+
 ### Studio's own dark sheet (STU-19)
 
 - **Studio owns ONE look — dark — and otherwise defers entirely.** Every colour
