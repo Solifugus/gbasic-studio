@@ -1,0 +1,30 @@
+-- the name field is where every naming action reads from --
+  typed: from_the_menu.bas
+-- a browser row SELECTED, which does not activate --
+  action: selected | ready — workspace — 1 project(s) — 0 open
+-- New File, from the menu --
+  action: created | created from_the_menu.bas
+  the field was consumed: []
+-- Delete Selected still arms, and the arm is keyed to the file --
+  first:  armed | delete from_the_menu.bas? — click Delete again to confirm
+  second: deleted | deleted from_the_menu.bas
+-- the theme, which is a CHECKABLE action and not a glyph --
+  action: theme-set
+  dark checked:   true
+  system checked: false
+  pressing it again is not a change:
+    theme-same
+-- the editor's text size, on the ladder --
+  text-bigger   zoom-set 115%
+  text-bigger   zoom-set 130%
+  text-smaller  zoom-set 115%
+  text-reset    zoom-set 100%
+-- Reload, which is about the FILES and not the window --
+  action: refreshed
+-- Save with nothing open refuses by name --
+  action: none | nothing selected
+-- Run says why it cannot, rather than running the wrong cell --
+  Run needs the caret, which this toolkit cannot yet report — use ./studio for now
+-- Close Project, which had no toolbar button at all --
+  action: project-closed | closed (project) — the folder is untouched
+  projects: 0

@@ -1105,7 +1105,42 @@ if GBASIC_PATH="$GBASIC_STDLIB" timeout 60 "$GBASIC" "$qtprobe2" >/dev/null 2>&1
     fi
 else
     printf 'SKIP qtview_probe (this gBASIC has no qt module)\n'
+    printf 'SKIP qtview_press (this gBASIC has no qt module)\n'
 fi
+
+    # EVERY CONTROL PRESSED, FOR REAL, WITH NO DISPLAY.
+    #
+    # This is what retires `ui_gui_menus` and `ui_gui_name`, and it is better
+    # than what it replaces in one specific way: `qt.invoke(win, item,
+    # "trigger")` fires a QAction the way a person does, where a `Gtk.Button`
+    # inside a popover that has never been shown silently ignores `activate()`
+    # -- which cost STU-16 two rounds and is why the GTK tier has to pop each
+    # menu up first.
+    #
+    # It presses sixteen menu items, the Save button and the run strip, selects
+    # browser rows, arms and confirms a Delete, walks the zoom ladder, and
+    # checks that a repeat press of the current theme answers `theme-same`
+    # rather than reporting work that did not happen.
+    qh="$tmproot/qtview_press"; qp="$tmproot/qtview_press_proj"
+    rm -rf "$qh" "$qp"; mkdir -p "$qh"
+    mkproj_ui "$qp"
+    : >"$stdout_file"
+    if QT_QPA_PLATFORM=offscreen \
+            GBASIC_SYNTAX_PATH="${GBASIC_SYNTAX_PATH:-$(dirname "$GBASIC_STDLIB")/editors/kate}" \
+            timeout 120 "$GBASIC" app/studio_qt.bas press "$qh" "$qp" \
+            >"$stdout_file" 2>/dev/null; then
+        if diff -u tests/studio/qtview_press.out "$stdout_file"; then
+            printf 'PASS qtview_press (every control pressed for real, with no display)\n'
+        else
+            fail "qtview_press (output diff)"
+        fi
+    else
+        if grep -q 'qt\.' "$stdout_file"; then
+            cat "$stdout_file"; fail "qtview_press (nonzero exit)"
+        else
+            printf 'SKIP qtview_press (this gBASIC has no Qt backend)\n'
+        fi
+    fi
 
 # NO GTK ANYWHERE ON THE QT PATH.
 #

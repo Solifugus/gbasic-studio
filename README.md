@@ -39,8 +39,11 @@ files and about 1.3% of the source. Two pieces have landed:
 `lib/studio_shell_qt.bas` describes the same window as *data*, which means the
 window's shape is now in the headless test suite for the first time; and
 `./studio qt` opens that window for real, renders your workspace into it, and
-reacts to a browser row — all of it testable with **no display at all**. It is
-not the default yet: a few panes are still read-only there. Everything
+responds to its menus, its browser, Save and the tab row — all of it testable
+with **no display at all**, which the GTK window never was. It is not the
+default yet: Run still needs something the new toolkit cannot report (where the
+text cursor is), the New Project window is not built, and two side panes are
+text where they should be lists. Everything
 Studio needs from the new system now exists: the one gap — a notebook whose set
 of tabs can change while the window is open — was written up for the language
 side rather than worked around here, and gBASIC built it the same day.
@@ -659,7 +662,7 @@ workspace instead:
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 211 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 212 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 29 cases, headless AND offline — no network, no key
 ```
 

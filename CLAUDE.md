@@ -52,7 +52,7 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 211 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 212 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 29 cases, headless AND offline (scripted transport)
 ```
 
@@ -72,7 +72,13 @@ application through its own entry point: startup over a real home, the window
 opened, one render filling it from the model, a browser row activated through
 the same `studio_ui.activate_row` a click calls, then an edit — so it asserts
 the RENDERER and the row model reaching the window, which is what the `ui_gui*`
-tiers need a display for. `qt_shell_pure` and `qt_no_gtk` are the tripwires.
+tiers need a display for. `qtview_press` then **presses every control for
+real** — sixteen menu items, Save, the run strip, a browser selection, Delete
+armed and confirmed, the zoom ladder — which is what retires `ui_gui_menus` and
+`ui_gui_name`, and is better than them in one way: `qt.invoke(win, item,
+"trigger")` fires a QAction the way a person does, where an unmapped
+`Gtk.Button` in a popover silently ignores `activate()`. `qt_shell_pure` and
+`qt_no_gtk` are the tripwires.
 
 Golden-file based: a driver plus a `.out` of expected stdout, compared
 byte-for-byte, so update the `.out` when output changes *intentionally* and say
@@ -522,6 +528,64 @@ toolkit-free. A rule written for testability bought a port.
   and only the FINAL tick of a run does a full redraw. It is guarded by
   `qt.is_open`, because a window can close without the program asking and every
   other verb then refuses for a reason that is nobody's mistake.
+- **A HANDLER IS A RECORD, NOT A CALL.** `{ kind: "handler", target, signal,
+  handler }` in the window's own `items`, carrying a FUNCTION VALUE — so
+  `app/studio_qt.bas` wires and `studio_shell_qt` does not, which is what keeps
+  the shell callable from a machine with no Qt. The wiring is one readable list
+  (`qt_wire`), the same arrangement `connect_signals` has.
+- **THE RE-ENTRANCY GUARD IS NOT OPTIONAL, and leaving it out SEGFAULTED.** Our
+  own writes echo back as signals: a redraw rewrites the tree, which changes its
+  selection, which fires `itemSelectionChanged`, whose handler redraws —
+  unbounded, inside Qt's dispatch, exit 139 with **no output at all** because
+  stdout is block buffered. Fourth time that signature has appeared here, and
+  the rule was already written down for `G.redrawing`. Located with `print to
+  error`, which is unbuffered and survives the crash.
+- **A SELECTION DOES NOT REFRESH THE BROWSER** (`qt_redraw_selection`). It
+  cannot change the row set, so rebuilding the tree is work for nothing — and
+  it is also a live gBASIC crash: refreshing a tree from inside its own
+  selection handler frees every item while the provoking `qt.select` is still
+  finishing, and `gb_qt_table_select` then calls `setSelected` on freed memory.
+  Three runs in five segfault; the rest answer `unknown` for a row just
+  selected. Valgrind named both ends; reported upstream with a 30-line
+  reproduction and the four narrower shapes that are clean.
+- **Selection and activation are SEPARATE.** `itemSelectionChanged` fires for a
+  click and an arrow key alike, so activating on it would open every file you
+  passed on the way down the tree — it goes to `select_row`. `itemClicked` is
+  single-click activation, matching GTK, and goes to `activate_row`.
+- **`itemClicked` has no tier, and that is a stated exception.** Measured: all
+  three tree signals connect and only `itemSelectionChanged` is drivable —
+  `qt.select` fires it and nothing can synthesise a click. gBASIC added
+  `qt.right_click` for exactly this argument, so a left-click helper is asked
+  for upstream. What keeps it honest meanwhile is that it is an adapter over
+  `activate_row`, which four tiers cover: the logic is tested and only the
+  wiring is not, which is the Ctrl+wheel exception again.
+- **THE BUFFER SYNC IS A POLL**, because a per-editor `textChanged` cannot be
+  connected — gBASIC's reconcile builds a new child's widget through the same
+  door `qt.open` uses and does NOT connect its handler records (measured,
+  reported). So the ACTIVE editor's text is read on the tick and folded back
+  through `studio_ui.sync_buffers`, the same function the GTK buffer handler
+  calls. Only the active one: reading every open document sixteen times a
+  second is a string copy per document per tick for nothing. A full redraw
+  follows only when `moved` is true — the dirty state is the one thing typing
+  changes that the tab caption shows.
+- **There is no `studio_ui.is_running`, and I wrote one into the poller before
+  checking.** It would have raised the first time a run started. The GTK shell
+  has no such function either — its timer returns `active` and removes itself —
+  so the Qt poller carries a `G.polling` flag, a `timer.every` having nothing
+  to remove.
+- **RUN REFUSES BY NAME until a `source`'s caret can be read**, and that is the
+  one sentence in the Qt shell `studio_ui` does not compose. The panes are
+  caret-keyed (STU-5A′): the strip answers which section the caret is in and
+  Run runs that one. `run_section(app, 0, 0)` resolves through `section_for`'s
+  fall-through to the FIRST section — a plausible wrong answer, far worse than
+  a refusal. Measured: none of `cursorPosition`, `textCursor`, `currentLine` or
+  `caretPosition` is a `Q_PROPERTY` of a `QPlainTextEdit`, which is right — a
+  `QTextCursor` is an object, the same shape as the highlighter. Asked upstream
+  as request 1. "No caret under Qt" is a fact about a toolkit mid-migration and
+  not a thing Studio's model knows, which is why it does not earn a place in
+  that vocabulary.
+- **New Project says it has no window yet** rather than doing nothing, for the
+  reason every other refusal here is named.
 
 ### The New Project window
 
