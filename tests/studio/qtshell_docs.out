@@ -5,7 +5,7 @@
   editor: ed_doc_1
   title:  main.bas — gBASIC Studio — ws
 == and the same document with unsaved text ==
-  tabs:   main.bas
+  tabs:   * main.bas
   title:  * main.bas — gBASIC Studio — ws
-  (the caption is unchanged, which is the point: a Qt tab caption is
-   fixed at construction, so the marker lives in the title)
+  (the marker is in the CAPTION, which `qt.refresh` re-reads --
+   so the tab is keyed on the document id, not on what it says)

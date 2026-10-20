@@ -72,51 +72,51 @@ window studio
             stretch
     text status
 == and every option in it ==
-  /studio                                     height=800 title=gBASIC Studio — ws width=1200
-  /studio/mi_new_project                      label=New Project… toolTip=Open the New Project window: name it, choose where it goes, and pick what to create.
-  /studio/mi_open_folder                      label=Open Folder toolTip=Open a folder you already have as a project. Type its path in the name field first; ~/ and relative paths work.
-  /studio/mi_project_file                     label=Add Project File toolTip=Write a .gstudio.json in this project: a stable id so its saved state survives the folder moving, plus a place to list what the browser should hide and pin which gBASIC it runs under. Studio never creates this on its own.
-  /studio/mi_close_project                    label=Close Project toolTip=Take this project out of the workspace and close its tabs. The folder is untouched and Open Folder puts it back.
-  /studio/mi_new_file                         label=New File shortcut=Ctrl+N toolTip=Create a file named by the header field — in the selected folder, the folder holding the selected file, or the project root.
-  /studio/mi_new_folder                       label=New Folder toolTip=Create a folder named by the header field — in the selected folder, the folder holding the selected file, or the project root.
-  /studio/mi_rename                           label=Rename Selected toolTip=Rename the selected file or folder to what the header field says.
-  /studio/mi_delete                           label=Delete Selected toolTip=Delete the selected file or folder from disk. Press it twice: the first press arms it.
-  /studio/mi_reload                           label=Reload Changed Files toolTip=Check every open document against the file on disk: re-read the ones you have not edited, and flag the ones you have as conflicts. Nothing you typed is discarded.
-  /studio/mi_close_tab                        label=Close Tab shortcut=Ctrl+W toolTip=Close the active document's tab. Unsaved text is discarded, so press it twice — the first press arms it.
-  /studio/mi_theme_system                     checkable=true checked=true label=Follow the desktop toolTip=Follow your desktop: Studio adds nothing and looks like the rest of your system.
-  /studio/mi_theme_dark                       checkable=true checked=false label=Dark toolTip=Studio's own dark look — the whole window, not just the editor — whatever your desktop is set to. Takes effect at once.
-  /studio/mi_text_bigger                      label=Bigger editor text shortcut=Ctrl++ toolTip=Enlarge the code, and only the code. Ctrl and the mouse wheel do the same. The rest of the window follows your desktop's font setting.
-  /studio/mi_text_smaller                     label=Smaller editor text shortcut=Ctrl+- toolTip=Shrink the code, and only the code. Ctrl and the mouse wheel do the same.
-  /studio/mi_text_reset                       label=Reset editor text size shortcut=Ctrl+0 toolTip=Back to the size your desktop's font setting gives.
-  /studio/mi_restore_session                  checkable=true checked=true label=Reopen last session on start toolTip=Whether Studio reopens the projects and files you had open. Read when Studio starts, so it takes effect on the next launch.
-  /studio                                     margin=0 spacing=0
-  /studio                                     margin=6 spacing=6
-  /studio/wordmark                            label=gBASIC Studio
-  /studio/name_field                          placeholderText=name or path toolTip=A name for New File / New Folder / Rename, or a folder path for Open Folder (~ works). New Project asks for its own.
-  /studio/save                                label=Save toolTip=Write the active document to disk. Over a file that changed underneath, press twice — the first press arms it.
-  /studio/across/files_scroll/files/label     label=Files
-  /studio/across/across/down/book             margin=12 spacing=6
-  /studio/across/across/down/book/welcome     label=Open a file from the browser, or File ▸ New File.
-  /studio/across/across/down/console          margin=6 spacing=6
-  /studio/across/across/down/console          margin=0 spacing=6
-  /studio/across/across/down/console/run_btn  label=Run Section
-  /studio/across/across/down/console/run_all_btnlabel=Run All
-  /studio/across/across/down/console/stop_btn label=Stop
-  /studio/across/across/down/console/run_sectionlabel=section: (none)
-  /studio/across/across/down/console/run_standinglabel=
-  /studio/across/across/down/console/run_statelabel=
-  /studio/across/across/down/console/out_head label=Output
-  /studio/across/across/down/console/err_head label=Errors
-  /studio/across/across/beside                margin=6 spacing=6
-  /studio/across/across/beside/branch_head    label=Branches
-  /studio/across/across/beside/results_head   label=Results
-  /studio/across/across/beside/tables_head    label=Tables
-  /studio/across/across/beside/git_head       label=Git
-  /studio/across/across/beside/agent_head     label=Assistant
-  /studio/status                              label=ready — ws — 1 project(s) — 0 open
+  /studio                                             height=800 title=gBASIC Studio — ws width=1200
+  /studio/mi_new_project                              label=New Project… toolTip=Open the New Project window: name it, choose where it goes, and pick what to create.
+  /studio/mi_open_folder                              label=Open Folder toolTip=Open a folder you already have as a project. Type its path in the name field first; ~/ and relative paths work.
+  /studio/mi_project_file                             label=Add Project File toolTip=Write a .gstudio.json in this project: a stable id so its saved state survives the folder moving, plus a place to list what the browser should hide and pin which gBASIC it runs under. Studio never creates this on its own.
+  /studio/mi_close_project                            label=Close Project toolTip=Take this project out of the workspace and close its tabs. The folder is untouched and Open Folder puts it back.
+  /studio/mi_new_file                                 label=New File shortcut=Ctrl+N toolTip=Create a file named by the header field — in the selected folder, the folder holding the selected file, or the project root.
+  /studio/mi_new_folder                               label=New Folder toolTip=Create a folder named by the header field — in the selected folder, the folder holding the selected file, or the project root.
+  /studio/mi_rename                                   label=Rename Selected toolTip=Rename the selected file or folder to what the header field says.
+  /studio/mi_delete                                   label=Delete Selected toolTip=Delete the selected file or folder from disk. Press it twice: the first press arms it.
+  /studio/mi_reload                                   label=Reload Changed Files toolTip=Check every open document against the file on disk: re-read the ones you have not edited, and flag the ones you have as conflicts. Nothing you typed is discarded.
+  /studio/mi_close_tab                                label=Close Tab shortcut=Ctrl+W toolTip=Close the active document's tab. Unsaved text is discarded, so press it twice — the first press arms it.
+  /studio/mi_theme_system                             checkable=true checked=true label=Follow the desktop toolTip=Follow your desktop: Studio adds nothing and looks like the rest of your system.
+  /studio/mi_theme_dark                               checkable=true checked=false label=Dark toolTip=Studio's own dark look — the whole window, not just the editor — whatever your desktop is set to. Takes effect at once.
+  /studio/mi_text_bigger                              label=Bigger editor text shortcut=Ctrl++ toolTip=Enlarge the code, and only the code. Ctrl and the mouse wheel do the same. The rest of the window follows your desktop's font setting.
+  /studio/mi_text_smaller                             label=Smaller editor text shortcut=Ctrl+- toolTip=Shrink the code, and only the code. Ctrl and the mouse wheel do the same.
+  /studio/mi_text_reset                               label=Reset editor text size shortcut=Ctrl+0 toolTip=Back to the size your desktop's font setting gives.
+  /studio/mi_restore_session                          checkable=true checked=true label=Reopen last session on start toolTip=Whether Studio reopens the projects and files you had open. Read when Studio starts, so it takes effect on the next launch.
+  /studio                                             margin=0 spacing=0
+  /studio                                             margin=6 spacing=6
+  /studio/wordmark                                    label=gBASIC Studio
+  /studio/name_field                                  placeholderText=name or path toolTip=A name for New File / New Folder / Rename, or a folder path for Open Folder (~ works). New Project asks for its own.
+  /studio/save                                        label=Save toolTip=Write the active document to disk. Over a file that changed underneath, press twice — the first press arms it.
+  /studio/across/files_scroll/files/label             label=Files
+  /studio/across/across/down/book/page_welcome        margin=12 spacing=6
+  /studio/across/across/down/book/page_welcome/welcomelabel=Open a file from the browser, or File ▸ New File.
+  /studio/across/across/down/console                  margin=6 spacing=6
+  /studio/across/across/down/console                  margin=0 spacing=6
+  /studio/across/across/down/console/run_btn          label=Run Section
+  /studio/across/across/down/console/run_all_btn      label=Run All
+  /studio/across/across/down/console/stop_btn         label=Stop
+  /studio/across/across/down/console/run_section      label=section: (none)
+  /studio/across/across/down/console/run_standing     label=
+  /studio/across/across/down/console/run_state        label=
+  /studio/across/across/down/console/out_head         label=Output
+  /studio/across/across/down/console/err_head         label=Errors
+  /studio/across/across/beside                        margin=6 spacing=6
+  /studio/across/across/beside/branch_head            label=Branches
+  /studio/across/across/beside/results_head           label=Results
+  /studio/across/across/beside/tables_head            label=Tables
+  /studio/across/across/beside/git_head               label=Git
+  /studio/across/across/beside/agent_head             label=Assistant
+  /studio/status                                      label=ready — ws — 1 project(s) — 0 open
 == every name it declares ==
-  mi_new_project mi_open_folder mi_project_file mi_close_project mi_new_file mi_new_folder mi_rename mi_delete mi_reload mi_close_tab mi_theme_system mi_theme_dark mi_text_bigger mi_text_smaller mi_text_reset mi_restore_session wordmark name_field save files_scroll files book welcome console run_btn run_all_btn stop_btn run_section run_standing run_state out_head out_body err_head err_body beside branch_head branch_body results_head results_body tables_head tables_body git_head git_body agent_head agent_body status
-== the title carries the marker, because a tab caption cannot ==
+  mi_new_project mi_open_folder mi_project_file mi_close_project mi_new_file mi_new_folder mi_rename mi_delete mi_reload mi_close_tab mi_theme_system mi_theme_dark mi_text_bigger mi_text_smaller mi_text_reset mi_restore_session wordmark name_field save files_scroll files book page_welcome welcome console run_btn run_all_btn stop_btn run_section run_standing run_state out_head out_body err_head err_body beside branch_head branch_body results_head results_body tables_head tables_body git_head git_body agent_head agent_body status
+== the title carries the marker too, which is conventional ==
   cold: gBASIC Studio — ws
 == pane sizes, one list per split, addressed by a part inside it ==
   at files_scroll  [260,940]

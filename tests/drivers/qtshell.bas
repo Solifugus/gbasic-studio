@@ -84,7 +84,7 @@ function show_options(node, path)
         v = node.options[k]
         shown = append(shown, k + "=" + string(v))
       end for
-      print "  " + pad(here, 44) + join(shown, " ")
+      print "  " + pad(here, 52) + join(shown, " ")
     end if
   end if
   if has(node, "items") then
@@ -147,6 +147,26 @@ end function
 ' is byte-stable; the pixels are not -- Qt re-proportions a splitter against
 ' its allocation, and upstream measured 260/540 of an 800-wide splitter coming
 ' back 252/522. §0.22's own rule: every check is a proportion or a difference.
+' The `tabs` container's items, out of a built window -- which is exactly what
+' `qt.refresh(win, name, items)` takes, so a redraw is "build the record again
+' and hand over the part that changed".
+function tabs_items(node)
+  if has(node, "word") then
+    if node.word = "tabs" then
+      return node.items
+    end if
+  end if
+  if has(node, "items") then
+    for each c in node.items
+      found = tabs_items(c)
+      if count(found) > 0 then
+        return found
+      end if
+    end for
+  end if
+  return []
+end function
+
 function nesting(p)
   return p.kind + " " + p.direction + " pane " + string(p.index) + " of " + string(p.panes)
 end function
@@ -186,7 +206,7 @@ program main(args)
     print "== every name it declares =="
     print "  " + join(names_of(win, []), " ")
 
-    print "== the title carries the marker, because a tab caption cannot =="
+    print "== the title carries the marker too, which is conventional =="
     print "  cold: " + studio_shell_qt.title_for(app)
 
     print "== pane sizes, one list per split, addressed by a part inside it =="
@@ -226,8 +246,8 @@ program main(args)
     win = studio_shell_qt.window_for(app)
     print "  tabs:   " + join(tab_captions(win), " | ")
     print "  title:  " + studio_shell_qt.title_for(app)
-    print "  (the caption is unchanged, which is the point: a Qt tab caption is"
-    print "   fixed at construction, so the marker lives in the title)"
+    print "  (the marker is in the CAPTION, which `qt.refresh` re-reads --"
+    print "   so the tab is keyed on the document id, not on what it says)"
   end if
 
   ' ---- open: THE WINDOW, OPENED, with no display at all -------------------
@@ -328,6 +348,65 @@ program main(args)
     z = qt.close(win)
     print "== closed, and every verb then refuses by name =="
     print "  is_open: " + string(qt.is_open(win))
+  end if
+
+  ' ---- reconcile: THE NOTEBOOK, which was the one blocking gap ------------
+  '
+  ' A container's set of children used to be fixed when the window opened, so a
+  ' document opening meant a NEW WINDOW -- which cost per-document undo history
+  ' and the window's position on screen. gBASIC built `qt.refresh(win, name,
+  ' items)` for this (§0.27, from Studio's own measurements), and this tier is
+  ' the consumer's half of it.
+  '
+  ' THE LOAD-BEARING CHECK IS THAT A KEPT EDITOR STILL HOLDS WHAT WAS TYPED
+  ' INTO IT. Everything else here passes on a reconcile that is a rebuild
+  ' dressed up: the captions would be right, the count would be right, and
+  ' every unsaved buffer in the window would have been thrown away.
+  if mode = "reconcile" then
+    o = studio.open_from_browser(app, "proj-1", projdir + "/main.bas")
+    app = o.app
+    win = studio_shell_qt.window_for(app)
+    nav = studio_ui.nav_rows(app)
+    print "== one document, and something typed into it =="
+    print "  open:  " + string(qt.open(win))
+    print "  tabs:  " + string(qt.tabs(win, studio_shell_qt.part_tabs()))
+    d1 = studio_docs.active_doc(app.dm)
+    ed1 = studio_shell_qt.part_editor(d1.id)
+    z = qt.write(win, ed1, "typed by hand, never saved")
+    print "  typed: [" + qt.read(win, ed1, "plainText") + "]"
+
+    print "== a second document opens: the tab set GROWS =="
+    o2 = studio.open_from_browser(app, "proj-1", projdir + "/README.md")
+    app = o2.app
+    print "  reconciled: " + string(qt.refresh(win, studio_shell_qt.part_tabs(), tabs_items(studio_shell_qt.window_for(app))))
+    print "  tabs:  " + string(qt.tabs(win, studio_shell_qt.part_tabs()))
+    print "  KEPT:  [" + qt.read(win, ed1, "plainText") + "]"
+
+    print "== the first is edited: the CAPTION moves, the editor does not =="
+    app.dm = studio_docs.edit(app.dm, d1.id, "edited in the model")
+    z = qt.refresh(win, studio_shell_qt.part_tabs(), tabs_items(studio_shell_qt.window_for(app)))
+    print "  tabs:  " + string(qt.tabs(win, studio_shell_qt.part_tabs()))
+    print "  KEPT:  [" + qt.read(win, ed1, "plainText") + "]"
+    print "  (the marker is in the caption, where the GTK notebook puts it --"
+    print "   a reconcile re-reads it, and the tab is keyed on the document id)"
+
+    print "== and the first closes: the tab set SHRINKS =="
+    cl = studio_docs.close(app.dm, d1.id, "discard")
+    app.dm = cl.dm
+    z = qt.refresh(win, studio_shell_qt.part_tabs(), tabs_items(studio_shell_qt.window_for(app)))
+    print "  tabs:  " + string(qt.tabs(win, studio_shell_qt.part_tabs()))
+
+    print "== and reopening it mints a NEW document, so a new editor =="
+    print "   (that a dropped widget is DELETED rather than hidden is gBASIC's"
+    print "    own claim, held there by a source tripwire -- a widget nobody can"
+    print "    name is unobservable from this side, which is why it has to be)"
+    o3 = studio.open_from_browser(app, "proj-1", projdir + "/main.bas")
+    app = o3.app
+    z = qt.refresh(win, studio_shell_qt.part_tabs(), tabs_items(studio_shell_qt.window_for(app)))
+    print "  tabs:  " + string(qt.tabs(win, studio_shell_qt.part_tabs()))
+    back = studio_docs.active_doc(app.dm)
+    print "  " + studio_shell_qt.part_editor(back.id) + ": [" + qt.read(win, studio_shell_qt.part_editor(back.id), "plainText") + "]"
+    z = qt.close(win)
   end if
 
   ' ---- check: gBASIC's own validator, which needs no Qt and no display -----

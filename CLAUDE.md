@@ -52,7 +52,7 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 208 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 209 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 29 cases, headless AND offline (scripted transport)
 ```
 
@@ -64,7 +64,10 @@ record, so its shape is a string. `qtshell_check` runs gBASIC's own validator
 this) behind a probe for the `qt` module, the same shape as the sqlite probe.
 `qtshell_open` BUILDS the window for real under `QT_QPA_PLATFORM=offscreen`
 and reads it back — **no display and no compositor**, which is strictly better
-than the `ui_gui*` tiers it will retire. `qt_shell_pure` is the tripwire.
+than the `ui_gui*` tiers it will retire. `qtshell_reconcile` grows the tab set,
+moves a caption and closes a tab, and its load-bearing check is that **a kept
+editor still holds what was typed into it** — everything else in it passes on a
+reconcile that is a rebuild dressed up. `qt_shell_pure` is the tripwire.
 
 Golden-file based: a driver plus a `.out` of expected stdout, compared
 byte-for-byte, so update the `.out` when output changes *intentionally* and say
@@ -343,25 +346,37 @@ toolkit-free. A rule written for testability bought a port.
 - **No pixel is asserted.** Measured upstream: 260/540 of an 800-wide splitter
   comes back 252/522, and a resize re-proportions. What a session stores is a
   ratio in effect.
-- **THE ONE THING THE VOCABULARY CANNOT DO IS A CONTAINER WHOSE CHILDREN
-  CHANGE.** `qt.refresh` covers a `table`'s rows and a form's subject and
-  nothing else, and `qt.invoke` passes **no arguments**, so `removeTab(int)`
-  and `setTabText(int, QString)` are unreachable by construction. Studio's
-  notebook is one tab per open document, so a document opening is a NEW
-  WINDOW. The generation loop works — measured, two generations in one
-  process, with the buffers, the active tab, the geometry and the pane sizes
-  all carried — but it loses per-document undo history and **the window's
-  position on screen** (`x`/`y` are read-only and the record takes
-  `width`/`height` only). A window that jumps when you open a file is worse
-  than what it buys. `docs/qt_dynamic_children_proposal.md` in the gBASIC tree
-  is the write-up and the proposed verb; the fallback is one editor plus an
-  open-documents `table` as the tab strip, which costs the undo stack.
-- **Which is why a tab caption here is the plain file name.**
-  `studio_ui.tab_label` prefixes `* ` / `~ ` / `! `, and a Qt caption is fixed
-  at construction — so using it would rebuild the window on the FIRST
-  KEYSTROKE in any document. The marker went to the window title (where every
-  other editor puts it) and the status line, both settable at run time.
-  `tab_label` is untouched and is still what the GTK shell renders.
+- **A CONTAINER'S SET OF CHILDREN WAS FIXED AT OPEN, AND THAT WAS THE ONE
+  BLOCKING GAP.** `qt.refresh` covered a `table`'s rows and a form's subject
+  and nothing else, and `qt.invoke` passes **no arguments**, so
+  `removeTab(int)` and `setTabText(int, QString)` are unreachable by
+  construction. Studio's notebook is one tab per open document, so a document
+  opening meant a NEW WINDOW — measured to work (three generations in one
+  process, carrying the buffers, the active tab, the geometry and the pane
+  sizes) and to cost per-document undo history and **the window's position on
+  screen** (`x`/`y` are read-only and the record takes `width`/`height` only).
+  **gBASIC then built the verb** (its §0.27, from
+  `docs/qt_dynamic_children_proposal.md`, which Studio wrote). The generation
+  loop is history; keep the measurement, because it is what priced the ask.
+- **`qt.refresh(win, name, items)` reconciles by NAME AND WORD**, and `items`
+  is exactly what `items:` holds in the record. A child whose name is unchanged
+  is KEPT with its widget, its text, its caret and its undo stack; a new one is
+  built through the door `qt.open` uses; an absent one is deleted and its name
+  purged. It admits `tabs`, `column`, `row` and `group` only — a `split` cannot
+  be named and a `cells` grid has declared positions — and **it does not
+  recurse into a kept child**, which is what makes it cheap.
+- **A BUILT `tab` MUST CARRY A NAME, and getting this wrong is silent.**
+  §0.8's one-slot rule means a DECLARED `tab` spends its slot on the caption,
+  but that is a fact about the grammar and not about the record, so gBASIC
+  admits `name` on a built one. Measured without it: the reconcile fell back to
+  the caption, every page was rebuilt, and **the editor came back empty** — the
+  exact defect the verb exists to prevent, and it reports success. So a page is
+  `page_<doc id>` and an editor is `ed_<doc id>`.
+- **Which is why the unsaved marker stays in the CAPTION**, where the GTK
+  notebook has always put it. A reconcile re-reads a caption because it is data
+  in the record, so `studio_ui.tab_label` is reached here exactly as it is
+  there and nothing about what `* ` / `~ ` / `! ` MEANS moved toolkits. The
+  window title carries it too, which is conventional and costs nothing.
 - **The browser is a `table`, not a column of labels.** A table is the only
   widget here whose row COUNT can change without rebuilding (`qt.refresh`,
   §0.11 — written for this shape, upstream says so by name), and expanding a

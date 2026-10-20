@@ -39,9 +39,9 @@ files and about 1.3% of the source. The first piece has landed:
 `lib/studio_shell_qt.bas` describes the same window as *data*, which means the
 window's shape is now in the headless test suite for the first time, and the
 whole window can be built and read back with **no display at all**. Everything
-Studio needs from the new system exists except one thing — a notebook whose
-set of tabs can change while the window is open — and that is written up for
-the language side rather than worked around here.
+Studio needs from the new system now exists: the one gap — a notebook whose set
+of tabs can change while the window is open — was written up for the language
+side rather than worked around here, and gBASIC built it the same day.
 
 What works when you click it: a browser row (a file opens into a tab, a
 directory expands, a project becomes active), a notebook tab, typing in the
@@ -657,7 +657,7 @@ workspace instead:
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 208 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 209 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 29 cases, headless AND offline — no network, no key
 ```
 

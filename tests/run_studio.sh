@@ -1029,9 +1029,42 @@ if GBASIC_PATH="$GBASIC_STDLIB" timeout 60 "$GBASIC" "$qtprobe" >/dev/null 2>&1;
             printf 'SKIP qtshell_open (this gBASIC has no Qt backend)\n'
         fi
     fi
+
+    # THE NOTEBOOK, which was the one thing the Qt vocabulary could not express
+    # until gBASIC built `qt.refresh(win, name, items)` for it (its §0.27, from
+    # Studio's own measurements).
+    #
+    # THE LOAD-BEARING CHECK IS THAT A KEPT EDITOR STILL HOLDS WHAT WAS TYPED
+    # INTO IT. Everything else in this tier passes on a reconcile that is a
+    # rebuild dressed up -- the captions right, the count right, and every
+    # unsaved buffer in the window thrown away. It also pins the thing that
+    # made the first attempt fail: a built `tab` must carry a NAME, because
+    # Studio's captions are what moves and a tab keyed on its caption is
+    # rebuilt the moment the unsaved marker appears.
+    qh="$tmproot/qtshell_reconcile"; qp="$tmproot/qtshell_reconcile_proj"
+    rm -rf "$qh" "$qp"; mkdir -p "$qh"
+    mkproj_ui "$qp"
+    : >"$stdout_file"
+    if QT_QPA_PLATFORM=offscreen \
+            GBASIC_SYNTAX_PATH="${GBASIC_SYNTAX_PATH:-$(dirname "$GBASIC_STDLIB")/editors/kate}" \
+            timeout 120 "$GBASIC" "$QTSH" reconcile "$qh" "$qp" \
+            >"$stdout_file" 2>/dev/null; then
+        if diff -u tests/studio/qtshell_reconcile.out "$stdout_file"; then
+            printf 'PASS qtshell_reconcile (a tab set grew, a caption moved, and the editor kept its text)\n'
+        else
+            fail "qtshell_reconcile (output diff)"
+        fi
+    else
+        if grep -q 'qt.refresh\|qt.open' "$stdout_file"; then
+            cat "$stdout_file"; fail "qtshell_reconcile (nonzero exit)"
+        else
+            printf 'SKIP qtshell_reconcile (this gBASIC has no Qt backend)\n'
+        fi
+    fi
 else
     printf 'SKIP qtshell_check (this gBASIC has no qt module)\n'
     printf 'SKIP qtshell_open (this gBASIC has no qt module)\n'
+    printf 'SKIP qtshell_reconcile (this gBASIC has no qt module)\n'
 fi
 
 # NOTHING IN THE QT SHELL TOUCHES A TOOLKIT, and that is a tripwire rather than

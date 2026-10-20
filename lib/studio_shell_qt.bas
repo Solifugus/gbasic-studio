@@ -46,17 +46,31 @@
 ' closing the last window returns from the loop, and that reopening is bounded
 ' at a 1.01 memory ratio over 2000 cycles).
 '
-' WHICH IS WHY A TAB CAPTION HERE IS THE PLAIN FILE NAME.
+' AND THEN gBASIC BUILT THE VERB (§0.27, 2026-10-19), so the paragraph that
+' used to be here is history worth keeping: the tab set is NOT frozen any more.
 '
-' `studio_ui.tab_label` prefixes a marker -- `* ` unsaved, `~ ` changed
-' underneath, `! ` gone -- and under GTK that is a label whose text is set on
-' every redraw. Under Qt a caption is fixed at construction, so using it would
-' rebuild the whole window on the FIRST KEYSTROKE in any document. A window
-' that blinks when you start typing is worse than a marker somewhere else, so
-' the marker moves to two places that ARE settable at run time: the window
-' title (the standard place for it) and the status line, which already counts
-' what is hidden. `studio_ui.tab_label` is untouched and still what the GTK
-' shell renders.
+' `qt.refresh(win, name, items)` reconciles a named container's children by
+' NAME AND WORD -- a child whose name is unchanged is KEPT with its widget, its
+' text, its caret and its undo stack; a new one is built through the same door
+' `qt.open` uses; an absent one is deleted and its name purged. So opening a
+' document is `qt.refresh(win, part_tabs(), <the new items>)` and nothing is
+' rebuilt but the tab that arrived.
+'
+' TWO THINGS FOLLOW, and both were measured rather than read:
+'
+'   * A TAB MUST CARRY A NAME. §0.8's one-slot rule means a DECLARED `tab`
+'     spends its slot on the caption, but that is a fact about the grammar and
+'     not about the record -- gBASIC added `name` on a built `tab` for exactly
+'     this consumer. Without one the reconcile falls back to the caption, and
+'     measured, the editor came back EMPTY: Studio's captions are the thing that
+'     moves, so a tab keyed on its caption is rebuilt the moment the marker
+'     appears. Keyed on the document id it is kept.
+'   * SO THE MARKER STAYS IN THE CAPTION, where the GTK notebook has always put
+'     it. A reconcile re-reads a tab's caption because it is data in the record,
+'     so `studio_ui.tab_label` is reached here exactly as it is there and
+'     nothing about what a marker MEANS moved toolkits.
+'
+' The window title carries it too, which is conventional and costs nothing.
 '
 ' --- NAMES ------------------------------------------------------------------
 '
@@ -112,6 +126,22 @@ end function
 ' `label:` lives in `options` and a labelled container's does not.
 function captioned(word, caption, items)
     return { kind: "container", word: word, label: caption, items: items }
+end function
+
+' A caption AND a name, which only the RECORD can carry: §0.8's one-slot rule
+' is a fact about the grammar, so a DECLARED `tab` spends its slot on the
+' caption and cannot be named, while a built one may be both (gBASIC §0.27,
+' added for exactly this consumer).
+'
+' THE NAME IS WHAT MAKES A RECONCILE WORK, and measured without it the editor
+' came back EMPTY: `qt.refresh` keys on name and word, falling back to the
+' caption where there is no name -- and Studio's captions are the thing that
+' moves, so a tab keyed on its caption is rebuilt whenever the file is renamed.
+' Keyed on the document id it is kept, with its text, its caret and its undo
+' stack.
+function captioned_named(word, caption, name, items)
+    return { kind: "container", word: word, label: caption, name: name,
+             items: items }
 end function
 
 ' A split's slot is its DIRECTION, so a split cannot be named -- which is why
@@ -192,6 +222,13 @@ end function
 ' goes into `on <name>.<signal>` and a hyphen does not read as one identifier.
 function part_editor(doc_id)
     return "ed_" + studio_shell_qt._ident(doc_id)
+end function
+
+' A document's TAB, named for the same reason its editor is: `qt.refresh` keys
+' on the name, so the page that holds a document's editor has to be identified
+' by the document rather than by the caption the marker moves.
+function part_page(doc_id)
+    return "page_" + studio_shell_qt._ident(doc_id)
 end function
 
 ' A menu item, named after the action it performs -- so the action vocabulary
@@ -425,18 +462,20 @@ function _editors(app)
     rows = studio_ui.tab_rows(app)
     pages = []
     for each r in rows
-        doc = studio_docs.doc_by_id(app.dm, r.doc_id)
-        caption = r.label
-        if doc != nothing then
-            caption = doc.display_name
-        end if
-        pages = append(pages, captioned("tab", caption, [
+        ' `r.label` is `studio_ui.tab_label` -- the name with its marker, `* `
+        ' unsaved / `~ ` changed underneath / `! ` gone. IT GOES IN THE CAPTION,
+        ' the same place the GTK notebook puts it, because `qt.refresh` RE-READS
+        ' a tab's caption and the tab is keyed on the document id rather than on
+        ' what it says. Measured: the caption moves and the editor keeps its
+        ' text, its caret and its undo stack.
+        pages = append(pages, captioned_named("tab", r.label,
+            studio_shell_qt.part_page(r.doc_id), [
             box("column", { margin: 0, spacing: 0 }, [
                 part("source", studio_shell_qt.part_editor(r.doc_id),
                      { language: "gBASIC" }) ]) ]))
     end for
     if count(pages) = 0 then
-        pages = append(pages, captioned("tab", "(no document)", [
+        pages = append(pages, captioned_named("tab", "(no document)", "page_welcome", [
             box("column", { margin: 12, spacing: 6 }, [
                 part("text", "welcome",
                      { label: "Open a file from the browser, or File ▸ New File." }),

@@ -1,0 +1,21 @@
+== one document, and something typed into it ==
+  open:  true
+  tabs:  ["main.bas"]
+  typed: [typed by hand, never saved]
+== a second document opens: the tab set GROWS ==
+  reconciled: 2
+  tabs:  ["main.bas","README.md"]
+  KEPT:  [typed by hand, never saved]
+== the first is edited: the CAPTION moves, the editor does not ==
+  tabs:  ["* main.bas","README.md"]
+  KEPT:  [typed by hand, never saved]
+  (the marker is in the caption, where the GTK notebook puts it --
+   a reconcile re-reads it, and the tab is keyed on the document id)
+== and the first closes: the tab set SHRINKS ==
+  tabs:  ["README.md"]
+== and reopening it mints a NEW document, so a new editor ==
+   (that a dropped widget is DELETED rather than hidden is gBASIC's
+    own claim, held there by a source tripwire -- a widget nobody can
+    name is unobservable from this side, which is why it has to be)
+  tabs:  ["README.md","main.bas"]
+  ed_doc_3: []
