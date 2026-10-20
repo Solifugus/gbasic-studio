@@ -2605,22 +2605,13 @@ library studio_shell
         return studio_results.view_text(home, store, sections, section_id)
     end function
 
+    ' A DELEGATE. The decision moved to `studio_ui.status_text`, where it
+    ' belongs -- it holds no widget and makes no toolkit call, and the Qt shell
+    ' cannot reach it from a library that loads GTK. The name stays because the
+    ' display goldens print through it, exactly as `run_line` and its two
+    ' neighbours do.
     function status_text(app)
-        ws = app.model.workspace
-        base = "ready"
-        if ws != nothing then
-            base = "ready — " + ws.name + " — " + count(ws.projects) + " project(s)"
-        end if
-        n = count(studio_ui.tab_rows(app))
-        line = base + " — " + n + " open"
-        ' Work that is open and NOT on screen has to be counted somewhere, or
-        ' the unsaved-changes warning on exit is about documents the user has
-        ' no memory of leaving open.
-        hidden = studio_ui.hidden_docs(app)
-        if hidden > 0 then
-            line = line + " (" + hidden + " in other projects)"
-        end if
-        return line
+        return studio_ui.status_text(app)
     end function
 
 end library

@@ -935,6 +935,122 @@ for m in sqlconn rows open expand project bounds tabs edit save newproj refresh 
     run_ui "$m"
 done
 
+# THE QT SHELL, AS DATA -- and the first tier in this suite that asserts the
+# window's STRUCTURE rather than its text.
+#
+# Under GTK that was impossible: `studio_shell.build` decides what the window is
+# while it makes a hundred widgets, so the layout could only be asserted by
+# opening one -- which is why every `ui_gui*` tier skips without a display, and
+# why not one of them can see a pane in the wrong place. `studio_shell_qt`
+# returns a record instead, so the whole shape is a string and these two tiers
+# need no display, no Qt and no toolkit of any kind.
+QTSH=tests/drivers/qtshell.bas
+for m in shape docs; do
+    qh="$tmproot/qtshell_$m"; qp="$tmproot/qtshell_${m}_proj"
+    rm -rf "$qh" "$qp"; mkdir -p "$qh"
+    mkproj_ui "$qp"
+    : >"$stdout_file"
+    if ! timeout 60 "$GBASIC" "$QTSH" "$m" "$qh" "$qp" >"$stdout_file" 2>&1; then
+        cat "$stdout_file"; fail "qtshell_$m (nonzero exit)"
+    fi
+    if diff -u "tests/studio/qtshell_$m.out" "$stdout_file"; then
+        printf 'PASS qtshell_%s\n' "$m"
+    else
+        fail "qtshell_$m (output diff)"
+    fi
+done
+
+# gBASIC'S OWN VALIDATOR, over the record this shell builds.
+#
+# `qt.check` needs no Qt and no display -- it is a check on a DECLARATION, and
+# upstream deliberately put it outside the `#if HAVE_QT` guard for that reason.
+# But the `qt` MODULE still has to be in the build, which is a build option like
+# sqlite, so it is probed rather than assumed: a missing module would fail as
+# "the window is malformed" and send someone looking in Studio.
+#
+# This is the tier that catches what a shape golden cannot -- a part with no
+# name, two parts sharing one, a word that is not a widget, a split with no
+# direction, an `item` somewhere things are laid out. It RAISES rather than
+# answering false, so a malformed window is a nonzero exit here.
+qtprobe="$tmproot/qt_probe.bas"
+printf 'program main(args)\n  print qt.check({ kind: "window", name: "w", options: {}, items: [] })\nend program\n' > "$qtprobe"
+if GBASIC_PATH="$GBASIC_STDLIB" timeout 60 "$GBASIC" "$qtprobe" >/dev/null 2>&1; then
+    qh="$tmproot/qtshell_check"; qp="$tmproot/qtshell_check_proj"
+    rm -rf "$qh" "$qp"; mkdir -p "$qh"
+    mkproj_ui "$qp"
+    : >"$stdout_file"
+    if ! timeout 60 "$GBASIC" "$QTSH" check "$qh" "$qp" >"$stdout_file" 2>&1; then
+        cat "$stdout_file"; fail "qtshell_check (nonzero exit)"
+    fi
+    if diff -u tests/studio/qtshell_check.out "$stdout_file"; then
+        printf 'PASS qtshell_check (gBASIC validates the window with no display)\n'
+    else
+        fail "qtshell_check (output diff)"
+    fi
+
+    # AND THE WINDOW REALLY OPENS, with nothing on the screen.
+    #
+    # This is what retires the `ui_gui*` tiers, and it is strictly better than
+    # what it replaces. Those need GTK 4 AND a display, and they assert TEXT --
+    # they cannot see a pane in the wrong place, which is why every defect in
+    # CLAUDE.md's browser and run-strip sections was found by taking a
+    # screenshot. `QT_QPA_PLATFORM=offscreen` needs no display and no
+    # compositor, so the window is built for real and asked about its own
+    # LAYOUT: the three splits report their nesting from the widget tree,
+    # walking up from a part, which is the one check a remembered position
+    # would agree with while being wrong.
+    #
+    # No pixel is asserted. Qt re-proportions a splitter against its
+    # allocation (upstream measured 260/540 of an 800-wide splitter coming
+    # back 252/522), so the sizes are asserted as "it took them" and the
+    # nesting carries the structure.
+    #
+    # GBASIC_SYNTAX_PATH points at the repository's Kate definition. A
+    # definition the user installed in their own home SHADOWS it and reports
+    # the identical language name, which is why the golden holds the language
+    # and never the file.
+    qh="$tmproot/qtshell_open"; qp="$tmproot/qtshell_open_proj"
+    rm -rf "$qh" "$qp"; mkdir -p "$qh"
+    mkproj_ui "$qp"
+    : >"$stdout_file"
+    if QT_QPA_PLATFORM=offscreen \
+            GBASIC_SYNTAX_PATH="${GBASIC_SYNTAX_PATH:-$(dirname "$GBASIC_STDLIB")/editors/kate}" \
+            timeout 120 "$GBASIC" "$QTSH" open "$qh" "$qp" \
+            >"$stdout_file" 2>/dev/null; then
+        if diff -u tests/studio/qtshell_open.out "$stdout_file"; then
+            printf 'PASS qtshell_open (the whole window built and read back, with no display)\n'
+        else
+            fail "qtshell_open (output diff)"
+        fi
+    else
+        if grep -q 'qt.open\|could not' "$stdout_file"; then
+            cat "$stdout_file"; fail "qtshell_open (nonzero exit)"
+        else
+            printf 'SKIP qtshell_open (this gBASIC has no Qt backend)\n'
+        fi
+    fi
+else
+    printf 'SKIP qtshell_check (this gBASIC has no qt module)\n'
+    printf 'SKIP qtshell_open (this gBASIC has no qt module)\n'
+fi
+
+# NOTHING IN THE QT SHELL TOUCHES A TOOLKIT, and that is a tripwire rather than
+# an intention. One `qt.read` in there would take the two tiers above down on a
+# machine with no Qt -- and the whole value of the record is that the shape is
+# decidable without one. Comments are stripped first, because this file's own
+# header explains the rule by quoting it, which is the trap
+# `run_libcurl_floor.sh` records for `smtp.c`.
+qtpure="$tmproot/qt_shell_pure.txt"
+sed -e "s/'.*//" lib/studio_shell_qt.bas > "$qtpure"
+if grep -nE '(^|[^a-z_])(qt|gi|gtk|sourceeditor|datagrid)\.' "$qtpure"; then
+    fail "qt_shell_pure (studio_shell_qt reaches a toolkit)"
+fi
+# ... and the control, because a scanner that reads nothing passes everything.
+if ! grep -q 'window_for' "$qtpure"; then
+    fail "qt_shell_pure (the scanner read nothing)"
+fi
+printf 'PASS qt_shell_pure (the Qt shell is a pure function over the model)\n'
+
 # STU-14: a .sql cell run end to end, against a REAL SQLite file. Its own tier
 # because it needs something the others do not -- an interpreter with the sqlite
 # module compiled in, which is a build option and not a given. Probed rather

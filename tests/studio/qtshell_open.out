@@ -1,0 +1,44 @@
+== it checks, and it opens ==
+  check: true
+  open:  true
+== what the window says about itself ==
+  title:   main.bas — gBASIC Studio — ws
+  tabs:    1
+  status:  ready — ws — 1 project(s) — 1 open
+== the browser, which is a table so its row count is free ==
+  heading: Files
+  rows:    6
+    [Workspace: ws]
+    [● Alpha]
+    [  ▸ docs]
+    [  ▸ src]
+    [    README.md]
+    [    main.bas]
+== the menus are the toolkit's own now ==
+  bar:     ["Project","File","Settings"]
+  Project: ["New Project…","Open Folder",unknown,"Add Project File","Close Project"]
+  File: ["New File","New Folder",unknown,"Rename Selected","Delete Selected",unknown,"Reload Changed Files","Close Tab"]
+  Settings: ["Follow the desktop","Dark",unknown,"Bigger editor text","Smaller editor text","Reset editor text size",unknown,"Reopen last session on start"]
+  a separator has no caption, where an empty label would have one
+== and a state item is CHECKABLE, not a glyph in its label ==
+  mi_theme_system: checkable=true checked=true
+  mi_theme_dark: checkable=true checked=false
+  mi_restore_session: checkable=true checked=true
+== the accelerators are the actions' own, not an event controller ==
+  mi_text_bigger: Ctrl++
+  mi_text_smaller: Ctrl+-
+  mi_text_reset: Ctrl+0
+== the nesting, asked of the LAYOUT rather than of the record ==
+  browser: split across pane 0 of 2
+  editors: split down pane 0 of 2
+  console: split down pane 1 of 2
+  beside:  split across pane 1 of 2
+== the editor round-trips the document ==
+  ed_doc_1: [print "main" / ]
+  highlighted as: gBASIC
+== and every split takes the sizes the session asked for ==
+  files_scroll  true
+  beside        true
+  book          true
+== closed, and every verb then refuses by name ==
+  is_open: false

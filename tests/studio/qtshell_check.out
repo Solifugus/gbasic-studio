@@ -1,0 +1,4 @@
+== qt.check on the cold window ==
+  true
+== and with a document open ==
+  true

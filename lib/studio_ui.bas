@@ -2792,17 +2792,45 @@ library studio_ui
     ' state goes in the label, and a vocabulary the window already uses for
     ' "this is the one" beats inventing a second.
     function menu_mark(app, action)
-        th = studio_ui.theme_of(app)
+        ok = studio_ui.menu_checkable(action)
+        if not ok then
+            return ""
+        end if
+        return studio_ui._mark(studio_ui.menu_checked(app, action))
+    end function
+
+    ' WHICH ITEMS HAVE A STATE, and WHAT that state is -- two questions, two
+    ' functions, one decision each. `menu_mark` is now derived from them rather
+    ' than deciding both itself, because the Qt shell needs the BOOLEAN: a
+    ' QAction is `checkable:` and the toolkit draws its own radio mark, so the
+    ' ●/○ glyphs are a GTK rendering of this answer and not the answer. Keeping
+    ' one source is the `row_label` rule -- two renderings of one fact is how
+    ' they drift.
+    function menu_checkable(action)
         if action = "theme-system" then
-            return studio_ui._mark(th = "system")
+            return true
         end if
         if action = "theme-dark" then
-            return studio_ui._mark(th = "dark")
+            return true
         end if
         if action = "restore-session" then
-            return studio_ui._mark(studio_ui.restores_session(app))
+            return true
         end if
-        return ""
+        return false
+    end function
+
+    function menu_checked(app, action)
+        th = studio_ui.theme_of(app)
+        if action = "theme-system" then
+            return th = "system"
+        end if
+        if action = "theme-dark" then
+            return th = "dark"
+        end if
+        if action = "restore-session" then
+            return studio_ui.restores_session(app)
+        end if
+        return false
     end function
 
     ' `chosen`, not `on`: `on` is a RESERVED WORD and a parameter named one is
@@ -5635,6 +5663,32 @@ library studio_ui
         end if
         parts = split(path, "/")
         return parts[count(parts) - 1]
+    end function
+
+    ' The status line.
+    '
+    ' MOVED HERE FROM `studio_shell`, which is where it was written and where it
+    ' never belonged: it holds no widget and makes no toolkit call, and the Qt
+    ' shell cannot reach it there without loading GTK. `studio_shell.status_text`
+    ' is a delegate now, the same arrangement `run_line` / `prefix_text` /
+    ' `target_text` already have -- the display goldens print through the old
+    ' name, so it stays. The string is unchanged, which is why no golden moved.
+    function status_text(app)
+        ws = app.model.workspace
+        base = "ready"
+        if ws != nothing then
+            base = "ready — " + ws.name + " — " + count(ws.projects) + " project(s)"
+        end if
+        n = count(studio_ui.tab_rows(app))
+        line = base + " — " + n + " open"
+        ' Work that is open and NOT on screen has to be counted somewhere, or
+        ' the unsaved-changes warning on exit is about documents the user has
+        ' no memory of leaving open.
+        hidden = studio_ui.hidden_docs(app)
+        if hidden > 0 then
+            line = line + " (" + hidden + " in other projects)"
+        end if
+        return line
     end function
 
 end library

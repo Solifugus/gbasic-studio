@@ -52,9 +52,19 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 203 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 208 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 29 cases, headless AND offline (scripted transport)
 ```
+
+**Five of those are the Qt tiers, and `qtshell_shape` is the first case in this
+suite that asserts the window's STRUCTURE rather than its text.**
+`qtshell_shape` and `qtshell_docs` need no toolkit at all — the window is a
+record, so its shape is a string. `qtshell_check` runs gBASIC's own validator
+(`qt.check`, which upstream keeps outside the `#if HAVE_QT` guard for exactly
+this) behind a probe for the `qt` module, the same shape as the sqlite probe.
+`qtshell_open` BUILDS the window for real under `QT_QPA_PLATFORM=offscreen`
+and reads it back — **no display and no compositor**, which is strictly better
+than the `ui_gui*` tiers it will retire. `qt_shell_pure` is the tripwire.
 
 Golden-file based: a driver plus a `.out` of expected stdout, compared
 byte-for-byte, so update the `.out` when output changes *intentionally* and say
@@ -161,6 +171,11 @@ lib/studio_agent.bas    the agent over llm.bas — orientation (STU-6) and actin
                         testable with no network
 lib/studio_shell.bas    the GTK view — renders model state and reconciles on
                         redraw; holds no decisions
+lib/studio_shell_qt.bas STU-22 the SAME window as DATA, for the Qt
+                        conversion: `window_for(app)` is a pure function from
+                        the model to the record `qt.open` reads, so the
+                        window's SHAPE is in the headless suite for the first
+                        time. No `qt.`, no `gi.`, no `gtk.` — tripwired
 lib/studio_style.bas    the ONE stylesheet, the shared CSS provider, and the
                         spacing unit. Classes go on through `style.apply`, which
                         attaches the provider at the same time
@@ -294,6 +309,112 @@ Two consequences worth knowing before you touch the shell:
   library function shadowing one earns a note on STDERR at every load. Several
   golden tiers capture stderr, so that is eleven failing tests and not a style
   question — which is exactly how `tool_call` was found.
+
+### The Qt conversion (STU-22, in progress)
+
+**gBASIC grew a Qt GUI system and Studio is switching to it, GTK being thrown
+out.** The decision is the user's (2026-10-19) and the whole of why it is
+affordable is **the interaction rule**: a signal handler is an adapter, every
+decision lives in `studio_ui` over plain data, and `gi.connect` appears in one
+file. So the toolkit-touching code is **three files and 333 of 26,300 lines —
+1.3%**: `lib/studio_shell.bas` (215 lines), `app/studio.bas` (114),
+`lib/studio_style.bas` (4). Twenty-five of twenty-seven libraries are
+toolkit-free. A rule written for testability bought a port.
+
+- **THE SURFACE IS A RECORD, which is the whole difference.** `qt.open` reads
+  `{ kind, word, name, options, items }` and asks only that `kind` is
+  `"window"` (gBASIC §0.9), so `studio_shell_qt.window_for(app)` is an
+  ordinary pure function and the window's shape is DATA. Under GTK the layout
+  could only be asserted by opening a window, which is why every `ui_gui*`
+  tier skips without a display and why every defect in the browser, run-strip
+  and output-pane sections below was found by taking a SCREENSHOT. Those
+  tiers assert text; nothing asserted structure.
+- A container carries a **name or options, never both** (§0.8: `tabs
+  settings( movable: true )` costs four reduce/reduce conflicts), and a
+  `split`'s one slot is its **direction** — so a split cannot be named, and
+  pane sizes are addressed by walking up from a part inside one.
+- **`qt.resize_panes` is addressed by a part that IS one of that split's own
+  panes**, because the walk stops at the nearest region. Asking with the
+  browser TABLE finds the scroll it sits in; asking with a part in the console
+  finds the vertical split. So `pane_sizes` names `files_scroll`, `beside` and
+  `book`, one per split, and the arithmetic is per-split — the right split's
+  own width is what the outer split left it, which is also what GTK's
+  `rsplit.position` has always meant.
+- **No pixel is asserted.** Measured upstream: 260/540 of an 800-wide splitter
+  comes back 252/522, and a resize re-proportions. What a session stores is a
+  ratio in effect.
+- **THE ONE THING THE VOCABULARY CANNOT DO IS A CONTAINER WHOSE CHILDREN
+  CHANGE.** `qt.refresh` covers a `table`'s rows and a form's subject and
+  nothing else, and `qt.invoke` passes **no arguments**, so `removeTab(int)`
+  and `setTabText(int, QString)` are unreachable by construction. Studio's
+  notebook is one tab per open document, so a document opening is a NEW
+  WINDOW. The generation loop works — measured, two generations in one
+  process, with the buffers, the active tab, the geometry and the pane sizes
+  all carried — but it loses per-document undo history and **the window's
+  position on screen** (`x`/`y` are read-only and the record takes
+  `width`/`height` only). A window that jumps when you open a file is worse
+  than what it buys. `docs/qt_dynamic_children_proposal.md` in the gBASIC tree
+  is the write-up and the proposed verb; the fallback is one editor plus an
+  open-documents `table` as the tab strip, which costs the undo stack.
+- **Which is why a tab caption here is the plain file name.**
+  `studio_ui.tab_label` prefixes `* ` / `~ ` / `! `, and a Qt caption is fixed
+  at construction — so using it would rebuild the window on the FIRST
+  KEYSTROKE in any document. The marker went to the window title (where every
+  other editor puts it) and the status line, both settable at run time.
+  `tab_label` is untouched and is still what the GTK shell renders.
+- **The browser is a `table`, not a column of labels.** A table is the only
+  widget here whose row COUNT can change without rebuilding (`qt.refresh`,
+  §0.11 — written for this shape, upstream says so by name), and expanding a
+  directory is exactly that. It also answers `qt.selected` and takes
+  `qt.select`, and a right-click lands on a row rather than on a widget found
+  by scanning for a y. ONE COLUMN, carrying `studio_ui.row_label`'s flat
+  string: a table cell has neither the margin nor the two-label glyph trick,
+  so the flat rendering is the one that survives — and it is the one every
+  golden already addresses a row by. The cost is a header row and grid lines a
+  file tree does not want; `showGrid` is a property, header visibility is not.
+- **A table's `items` are its COLUMNS and a column is not a part.** Its `name`
+  is the row FIELD each cell reads, which is why the browser's column is
+  called `label`.
+- **The menus come out BETTER than the GTK original, not equal to it.** Real
+  `QAction`s: `shortcut:` retires the `Gtk.EventControllerKey` that is the one
+  control in this window with no test at all (there is no way to synthesise a
+  key press through the bridge, so STU-20 shipped it as a sanctioned
+  exception), and `checkable:` retires the `●`/`○` glyphs — which were always
+  a trade for a pressable menu rather than a limitation. `studio_ui` gained
+  `menu_checkable` and `menu_checked`, and `menu_mark` is DERIVED from them,
+  so the glyph is a GTK rendering of one decision rather than a second copy of
+  it. And `qt.invoke(win, item, "trigger")` is a real press, where an unmapped
+  `Gtk.Button` in a popover silently ignores `activate()`.
+- **A separator answers `unknown`, not `""`** (§0.7), which the open tier's
+  golden records — the absent/empty distinction this language makes
+  everywhere, load-bearing in a menu.
+- **A gBASIC TIMER FIRES WHILE `qt.run()` HOLDS THE THREAD.** Measured: eight
+  ticks of `timer.every(0.05)` delivered inside the loop, each writing into
+  the window — the exact shape of the run poller. That was the other thing the
+  conversion had to establish, and it works because gBASIC's event-loop body
+  has two callers sharing it (§0.4). **But `qt.run()` must be called from the
+  TOP LEVEL of the `program` block**: from inside a function every
+  loop-delivered source is silently starved and the program hangs with no
+  output (gBASIC's DOGFOOD, 2026-10-19 — the one item in its open ledger).
+  Studio already calls GTK's equivalent from the top level.
+- **`studio_ui.status_text` moved out of `studio_shell`**, where it was
+  written and never belonged: it holds no widget and makes no toolkit call,
+  and the Qt shell cannot reach it from a library that loads GTK.
+  `studio_shell.status_text` is a delegate, the arrangement `run_line` /
+  `prefix_text` / `target_text` already have. The string is unchanged, which
+  is why no golden moved.
+- **A library needs `library <name>` at the top or `load` cannot find it.**
+  Costs one puzzled minute; the error is `library not found`, which reads as a
+  path problem.
+- `qt.check` **RAISES** rather than answering false, so it is a test gate and
+  not a runtime guard. `qt.open` runs it too, for the reason upstream states:
+  a validator nobody is obliged to call is necessary and not sufficient.
+- **The shadowing is real and it is on this machine.** `qt.highlighting`
+  reports the definition FILE, and here it is
+  `~/.local/share/org.kde.syntax-highlighting/syntax/gbasic.xml` — a June
+  hand-install, 6,839 bytes, with a different keyword list — shadowing the
+  repository's 10,286-byte October copy and reporting the identical language
+  name. So the golden holds the language and never the file.
 
 ### The New Project window
 

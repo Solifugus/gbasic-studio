@@ -25,7 +25,23 @@ the password in neither the file nor the generated program; **STU-15** made
 boilerplate declarative text with holes in it and built the SQL builders on
 that, which write the statement into your file and never run it; **STU-16**
 replaced ten toolbar buttons with two menus that can say what they act on;
-**STU-17** added the schema browser, which shows you the question it asked.
+**STU-17** added the schema browser, which shows you the question it asked;
+**STU-18** made the theme and the restore-on-start setting reachable;
+**STU-19** gave Studio its own dark look, the whole window and not just the
+editor; **STU-20** made the code's text size the editor's own; and **STU-21**
+gave a tab its own right-click menu.
+
+**STU-22 is under way: gBASIC grew a Qt GUI system and Studio is moving to
+it.** Nothing a user sees has changed yet. What makes it affordable is a rule
+written for a different reason — a signal handler here is an adapter and every
+decision lives in a toolkit-free library — so the GTK-touching code is three
+files and about 1.3% of the source. The first piece has landed:
+`lib/studio_shell_qt.bas` describes the same window as *data*, which means the
+window's shape is now in the headless test suite for the first time, and the
+whole window can be built and read back with **no display at all**. Everything
+Studio needs from the new system exists except one thing — a notebook whose
+set of tabs can change while the window is open — and that is written up for
+the language side rather than worked around here.
 
 What works when you click it: a browser row (a file opens into a tab, a
 directory expands, a project becomes active), a notebook tab, typing in the
@@ -641,7 +657,7 @@ workspace instead:
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 203 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 208 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 29 cases, headless AND offline — no network, no key
 ```
 
