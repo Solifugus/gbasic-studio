@@ -503,7 +503,21 @@ function _editors(app)
             studio_shell_qt.part_page(r.doc_id), [
             box("column", { margin: 0, spacing: 0 }, [
                 part("source", studio_shell_qt.part_editor(r.doc_id),
-                     { language: "gBASIC" }) ]) ]))
+                     { language: "gBASIC",
+                       ' THE MARGIN (gBASIC §0.29, the second ask built for
+                       ' Studio by name). `marks` is the gutter Studio has had
+                       ' since STU-5: a `section` glyph at every runnable
+                       ' section's start line, which is the whole notebook
+                       ' affordance, and an `error` glyph at the parse
+                       ' diagnostic's line, which is the only thing in the
+                       ' window that says WHERE a syntax error is.
+                       '
+                       ' `line_numbers` is new to Studio and should have been
+                       ' there all along: gBASIC's own diagnostics are
+                       ' `line:column` and a reader had nothing to count
+                       ' against. The GTK editor never called
+                       ' `set_show_line_numbers`.
+                       line_numbers: true, marks: true }) ]) ]))
     end for
     if count(pages) = 0 then
         pages = append(pages, captioned_named("tab", "(no document)", "page_welcome", [

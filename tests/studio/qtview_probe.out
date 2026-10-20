@@ -32,8 +32,16 @@
   section:  section: sec-1 statements
   ed_doc_1: [print "main" / ]
   highlighted as: gBASIC
+  margin:         true numbers, true marks
+  section marks:  [1]
+  error marks:    []
 -- edited in the model --
   tabs:     ["* main.bas"]
   title:    * main.bas — gBASIC Studio — workspace
   status:   saved nothing; this is a probe
   ed_doc_1: [print "typed" / ]
+-- and with a syntax error in it --
+  parses:        false
+  error marks:   [3]
+  section marks: [1]
+  errors pane:   error 3:5  syntax error, unexpected PROGRAM, expecting RPAREN

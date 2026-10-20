@@ -610,6 +610,16 @@ program main(args)
         ed = studio_shell_qt.part_editor(doc.id)
         print "  " + ed + ": [" + replace(qt.read(win, ed, "plainText"), chr(10), " / ") + "]"
         print "  highlighted as: " + qt.highlighting(win, ed).language
+        ' `line_numbers` is a CONSTRUCTION option and not a Q_PROPERTY, so it
+        ' has its own reader -- which also answers the margin's width, and
+        ' `unknown` for a part that has no margin at all.
+        print "  margin:         " + string(qt.gutter(win, ed).line_numbers) + " numbers, " + string(qt.gutter(win, ed).marks) + " marks"
+        ' THE GUTTER, which is the second thing gBASIC built for this consumer
+        ' by name. `section` is the whole notebook affordance -- a cell
+        ' boundary is otherwise invisible -- and the lines are 1-based here
+        ' where `studio_ui` keeps them 0-based for a Gtk.TextBuffer.
+        print "  section marks:  " + string(qt.marks(win, ed, "section"))
+        print "  error marks:    " + string(qt.marks(win, ed, "error"))
 
         ' AND EDITED IN THE MODEL, which is where the marker comes from. The
         ' caption moves and the editor is NOT rebuilt -- the one claim the
@@ -623,6 +633,21 @@ program main(args)
         print "  title:    " + qt.read(win, studio_shell_qt.window_name(), "windowTitle")
         print "  status:   " + qt.read(win, studio_shell_qt.part_status(), "text")
         print "  " + ed + ": [" + replace(qt.read(win, ed, "plainText"), chr(10), " / ") + "]"
+
+        ' AND A FILE THAT DOES NOT PARSE, which is the half of the gutter that
+        ' matters: the run strip says only that a file is broken, and the
+        ' margin says WHICH LINE. Edited in the model so the parse fails and
+        ' the sections survive -- `studio_sections._apply` keeps the
+        ' last-known-good set, which is why a document can fail to parse and
+        ' still have a full list of sections.
+        print "-- and with a syntax error in it --"
+        G.app.dm = studio_docs.edit(G.app.dm, doc.id, "program main(args)" + chr(10) + "  print (((" + chr(10) + "end program" + chr(10))
+        nav = studio_ui.nav_rows(G.app)
+        G.app = studio_view_qt.render(win, G.app, "")
+        print "  parses:        " + string(studio_ui.parses(studio_ui.view_for(G.app).st))
+        print "  error marks:   " + string(qt.marks(win, ed, "error"))
+        print "  section marks: " + string(qt.marks(win, ed, "section"))
+        print "  errors pane:   " + studio_qt_first_line(qt.read(win, "err_body", "plainText"))
 
         z = qt.close(win)
         return nothing

@@ -176,6 +176,8 @@ function render_run(win, app)
 
     z = qt.set(win, "results_body", "plainText", studio_ui.results_body(app))
 
+    app = studio_view_qt._gutter(win, app)
+
     b = studio_view_qt._lines(win, "branch_body", studio_ui.branch_rows(app),
                               "(no branches)")
     app = b
@@ -183,6 +185,51 @@ function render_run(win, app)
                               "(nothing tabular in the latest run)")
     app = t
     return app
+end function
+
+' THE GUTTER: a mark per line in the active editor's margin.
+'
+' Two categories, which are Studio's own and which gBASIC named after them:
+' `section` at every runnable section's start -- the whole notebook affordance,
+' since a cell boundary is otherwise invisible -- and `error` at the parse
+' diagnostic's line, which is the only thing in the window that says WHERE a
+' syntax error is.
+'
+' NO CACHE, AND THAT IS THE API SHAPE PAYING OFF. The GTK shell caches what it
+' has drawn on `shell.marked` and `shell.errmarked`, gated on the outline's
+' revision and on the error lines' signature, because GTK's marks are
+' add/remove per line and redrawing them means widget churn at caret-move rate.
+' `qt.mark` REPLACES a whole category -- which is what Studio asked for, because
+' it recomputes the whole list on every redraw and a cache is a thing to get
+' wrong -- so writing it unconditionally is idempotent and cheap, and there are
+' two fewer caches here than there.
+'
+' LINES ARE 1-BASED HERE AND 0-BASED THERE. `studio_ui.section_marks` subtracts
+' one because a `Gtk.TextBuffer` counts from zero; `qt.mark` refuses a 0 by
+' name, line numbers starting at 1. So the +1 goes at this ONE call site rather
+' than `studio_ui` growing a second answer -- the parser's own numbering is
+' 1-based and this is putting it back.
+function _gutter(win, app)
+    doc = studio_docs.active_doc(app.dm)
+    if doc = nothing then
+        return app
+    end if
+    part = studio_shell_qt.part_editor(doc.id)
+    m = studio_ui.section_marks(app)
+    app = m.app
+    z = qt.mark(win, part, "section", studio_view_qt._one_based(m.lines))
+    e = studio_ui.error_marks(app)
+    app = e.app
+    z = qt.mark(win, part, "error", studio_view_qt._one_based(e.lines))
+    return app
+end function
+
+function _one_based(lines)
+    out = []
+    for each n in lines
+        out = append(out, n + 1)
+    end for
+    return out
 end function
 
 ' A pane whose model is a LIST OF ROWS, rendered as text.

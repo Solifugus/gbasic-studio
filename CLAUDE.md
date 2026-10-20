@@ -99,6 +99,43 @@ valgrind is absent. The `ui_gui*` tiers discard stderr like the other
 loop-running tiers: GTK's allocation warnings vary by version and theme, and
 `G_DEBUG=fatal-criticals` turns a real GTK critical into a nonzero exit anyway.
 
+**PIN THE INTERPRETER WHEN THE LANGUAGE IS BEING WORKED ON IN PARALLEL.**
+Studio's suite builds and runs the SIBLING checkout, so a session rebuilding
+`~/development/gbasic/gbasic` replaces the binary *under a run in progress* —
+and the failures that produces are unattributable. Measured on 2026-10-19:
+
+- `ui_gui_menus` failed once on a Wayland *"Tried to map a grabbing popup with
+  a non-top most parent"* while my own Qt probes ran alongside;
+- a run died outright with `no gbasic interpreter at ...`;
+- `sessions_clean` failed with `timeout: failed to execute process: Permission
+  denied`, which is the binary being swapped mid-exec;
+- and `results_memory (evict, valgrind)` failed **twice** with valgrind
+  reporting `0 errors` and `definitely lost: 0 bytes` — so its
+  `--error-exitcode=99` never fired. Alone, the same invocation finishes in
+  **7 seconds** against a 900-second budget, and all five valgrind modes pass
+  in sequence.
+
+I took the second failure as evidence it was real. **It was not** — the re-run
+was exposed to the same rebuild, which is not a second measurement. Seven
+compiler processes were live at the time.
+
+The answer is not patience, it is a pinned interpreter, through the override
+this file already documents:
+
+```sh
+git -C ~/development/gbasic archive HEAD | tar -x -C "$SC/gb"
+make -C "$SC/gb" -j"$(nproc)"
+GBASIC="$SC/gb/gbasic" GBASIC_STDLIB="$SC/gb/stdlib" \
+    GBASIC_SYNTAX_PATH="$SC/gb/editors/kate" tests/run_studio.sh
+```
+
+`git archive` rather than a worktree: no git metadata in a scratchpad, nothing
+to go stale, and nothing that touches the other session's tree. It buys a
+result nothing can move, no CPU contention with their build, and a KNOWN
+interpreter revision behind every number reported. The cost is stated: results
+are against their **HEAD**, not their working tree, so re-export when they land
+something you need.
+
 **`acts_task` drove a run with a TICK COUNT and not a clock, and that was a
 defect rather than flakiness.** `while n < 400` around `tick_run` is not a wait:
 400 ticks of a busy loop complete in microseconds, long before a child process
@@ -586,6 +623,40 @@ toolkit-free. A rule written for testability bought a port.
   that vocabulary.
 - **New Project says it has no window yet** rather than doing nothing, for the
   reason every other refusal here is named.
+- **THE GUTTER IS BACK, and it is better than the GTK one** (gBASIC §0.29,
+  the second ask built for Studio by name — and the user widened it on reading
+  the note: *"I was only thinking line numbers and forgot about break points."*
+  The categories are `note`, `section`, `warning`, `error`, `break`). Studio
+  writes `section` at every runnable section's start line, which is the whole
+  notebook affordance — a cell boundary is otherwise invisible — and `error` at
+  the parse diagnostic's line, which is the only thing in the window that says
+  WHERE a syntax error is.
+- **It also has LINE NUMBERS now, which it should have had all along.** The GTK
+  editor never called `set_show_line_numbers`, and gBASIC's own diagnostics are
+  `line:column`, so a reader had nothing to count against.
+- **NO MARK CACHE, and that is the API shape paying off.** The GTK shell keeps
+  `shell.marked` and `shell.errmarked`, gated on the outline's revision and on
+  the error lines' signature, because GTK's marks are add/remove per line and
+  redrawing them is widget churn at caret-move rate. `qt.mark` REPLACES a whole
+  category — which is exactly what Studio asked for, because it recomputes the
+  list on every redraw and a cache is a thing to get wrong — so writing it
+  unconditionally is idempotent and cheap. Two fewer caches than the GTK path.
+- **LINES ARE 1-BASED THERE AND 0-BASED HERE.** `studio_ui.section_marks`
+  subtracts one for a `Gtk.TextBuffer`; `qt.mark` refuses a 0 by name. The +1
+  goes at the ONE call site in `studio_view_qt._gutter` rather than `studio_ui`
+  growing a second answer — the parser's own numbering is 1-based and this is
+  putting it back.
+- **`line_numbers` is a CONSTRUCTION option, not a `Q_PROPERTY`**, so it has
+  its own reader: `qt.gutter(win, part)` answers `{line_numbers, marks, width}`,
+  or `unknown` for a part with no margin.
+- **Section marks survive a failed parse**, which the tier pins: a broken file
+  reads back `section marks: [1]` and `error marks: [3]`, because
+  `studio_sections._apply` keeps the last-known-good sections. The error mark
+  and the Errors pane agree on the line, which is the check worth having —
+  either alone passes on a gutter marking the wrong row.
+- **`qt.gutter_click(win, part)` exists and nothing uses it yet.** It answers
+  which line a click landed on, which is how a breakpoint would be set. Studio
+  has no breakpoints; recorded so the next person does not go looking.
 
 ### The New Project window
 
