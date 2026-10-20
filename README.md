@@ -35,10 +35,12 @@ gave a tab its own right-click menu.
 it.** Nothing a user sees has changed yet. What makes it affordable is a rule
 written for a different reason — a signal handler here is an adapter and every
 decision lives in a toolkit-free library — so the GTK-touching code is three
-files and about 1.3% of the source. The first piece has landed:
+files and about 1.3% of the source. Two pieces have landed:
 `lib/studio_shell_qt.bas` describes the same window as *data*, which means the
-window's shape is now in the headless test suite for the first time, and the
-whole window can be built and read back with **no display at all**. Everything
+window's shape is now in the headless test suite for the first time; and
+`./studio qt` opens that window for real, renders your workspace into it, and
+reacts to a browser row — all of it testable with **no display at all**. It is
+not the default yet: a few panes are still read-only there. Everything
 Studio needs from the new system now exists: the one gap — a notebook whose set
 of tabs can change while the window is open — was written up for the language
 side rather than worked around here, and gBASIC built it the same day.
@@ -657,7 +659,7 @@ workspace instead:
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 209 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 211 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 29 cases, headless AND offline — no network, no key
 ```
 

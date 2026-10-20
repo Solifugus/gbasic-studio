@@ -493,18 +493,38 @@ end function
 ' SENTENCE and a horizontal row has a hard width budget) stays two rows.
 function _console(app)
     u = studio_style.unit()
+    ' TWO ROWS, and the state line owns the second. A refusal carries a whole
+    ' SENTENCE ("that section is ambiguous after the last edit; disambiguate it
+    ' first") and a horizontal row of buttons plus two labels has a hard width
+    ' budget, so under GTK the sentence arrived ellipsized after its first few
+    ' words. Nothing about that changed with the toolkit.
+    '
+    ' Three of the five buttons are HIDDEN rather than absent, which is the
+    ' rule the GTK strip already follows: a control that is added and removed
+    ' is a control whose parent can be destroyed under a live window, and under
+    ' Qt it would additionally need a reconcile where `qt.set(… "visible" …)`
+    ' does.
     strip = box("row", { margin: 0, spacing: u }, [
         part("button", "run_btn", { label: "Run Section" }),
         part("button", "run_all_btn", { label: "Run All" }),
         part("button", "stop_btn", { label: "Stop" }),
+        part("button", "snippet_btn", { label: "Insert SQL…" }),
+        part("button", "schema_btn", { label: "Schema…" }),
         part("text", "run_section", { label: "section: (none)" }),
         part("text", "run_standing", { label: "" }),
         bare("stretch") ])
     panes = [ strip,
               part("text", "run_state", { label: "" }),
+              part("text", "run_branch", { label: "" }),
               bare("separator"),
-              part("text", "out_head", { label: "Output" }),
-              part("memo", "out_body", {}),
+              part("text", "prefix_head",
+                   { label: "Prefix output — sections replayed before the target" }),
+              part("memo", "prefix_body", {}),
+              bare("separator"),
+              part("text", "target_head",
+                   { label: "Target output — the section you ran" }),
+              part("memo", "target_body", {}),
+              bare("separator"),
               part("text", "err_head", { label: "Errors" }),
               part("memo", "err_body", {}) ]
     return named("scroll", studio_shell_qt.part_console(),
@@ -534,7 +554,10 @@ end function
 function side_panes()
     out = []
     out = append(out, { id: "branch", label: "Branches" })
-    out = append(out, { id: "results", label: "Results" })
+    ' The results heading says what the pane is KEYED TO, not what it is: the
+    ' body already opens with "Results — sec-N", so a heading reading "Results"
+    ' put the word on two consecutive lines. Same wording as the GTK pane.
+    out = append(out, { id: "results", label: "For the section at the cursor" })
     out = append(out, { id: "tables", label: "Tables" })
     out = append(out, { id: "git", label: "Git" })
     out = append(out, { id: "agent", label: "Assistant" })

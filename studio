@@ -13,6 +13,14 @@
 #           (defaults to ~/.gbasic-studio, created on first run)
 #   folder  gui mode only: an existing directory to open as a project, e.g.
 #             ./studio gui ~/.gbasic-studio ~/development/myproject
+#
+# STU-22: `qt` runs the window under gBASIC's Qt GUI system instead of GTK,
+# through a second entry point (app/studio_qt.bas). It is the migration target
+# and not yet the default -- some panes are still read-only there -- so the GTK
+# window is what `gui` gives you until the conversion is finished.
+#
+#   ./studio qt                       the Qt window, same home
+#   ./studio qt ~/.gbasic-studio ~/development/myproject
 set -u
 # Remembered before the cd, because a folder argument the user typed is relative
 # to where THEY are, not to where Studio lives.
@@ -29,7 +37,8 @@ if [ ! -x "$GBASIC" ]; then
 fi
 if [ ! -d "$GBASIC_STDLIB" ]; then
     printf 'no gBASIC stdlib at %s\n' "$GBASIC_STDLIB" >&2
-    printf 'Studio needs persist, filetree, gtk, sourceeditor and gi from it\n' >&2
+    printf 'Studio needs persist and filetree from it, plus gtk/sourceeditor/gi\n' >&2
+    printf 'for the GTK window (the Qt window needs neither -- qt is a module)\n' >&2
     exit 1
 fi
 
@@ -65,10 +74,23 @@ export GBASIC_STUDIO_VIEWERS="$PWD/viewers"
 # somewhere else, and Studio's own working directory is never the answer, so the
 # location is supplied from out here like the viewer registry above.
 export GBASIC_STUDIO_SHARE="$PWD/share"
+# STU-22: the Qt window is a SECOND ENTRY POINT, not a mode inside the first.
+# app/studio.bas loads gi, gtk, datagrid and sourceeditor in its display block,
+# and this process must load none of them -- `gi.new("Gtk.<Widget>")` segfaults
+# before GTK is initialized rather than raising, so one stray load is a crash
+# with no output. The syntax definition comes from the gBASIC checkout beside
+# the stdlib, which is where the Kate file it highlights from lives.
+entry=app/studio.bas
+if [ "$mode" = "qt" ]; then
+    entry=app/studio_qt.bas
+    mode=gui
+    export GBASIC_SYNTAX_PATH="${GBASIC_SYNTAX_PATH:-$(dirname "$GBASIC_STDLIB")/editors/kate}"
+fi
+
 # Only pass a third argument when there is one: several modes read args[2] as
 # their own parameter, and handing them an empty string is not the same as
 # handing them nothing.
 if [ -n "$folder" ]; then
-    exec "$GBASIC" app/studio.bas "$mode" "$home" "$folder"
+    exec "$GBASIC" "$entry" "$mode" "$home" "$folder"
 fi
-exec "$GBASIC" app/studio.bas "$mode" "$home"
+exec "$GBASIC" "$entry" "$mode" "$home"

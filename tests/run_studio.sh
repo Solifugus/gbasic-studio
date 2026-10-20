@@ -1067,6 +1067,65 @@ else
     printf 'SKIP qtshell_reconcile (this gBASIC has no qt module)\n'
 fi
 
+# THE QT SHELL, OPENED AND RENDERED FOR REAL, through its own entry point.
+#
+# `qtshell_open` builds the record and reads it back; this drives the actual
+# application: startup over a real home, the window opened, one render filling
+# it from the model, then a browser row activated through the same
+# `studio_ui.activate_row` a click calls, then an edit in the model. So it
+# asserts the RENDERER -- every pane holding what studio_ui says it should --
+# and the row model reaching the window, which between them is what the
+# `ui_gui*` tiers need a display for.
+#
+# One tier and not two, because the cold window and the one-document window are
+# the same code path with different data, and a tier that only ever sees an
+# empty window is the STU-2B dead end wearing a golden.
+qtprobe2="$tmproot/qt_probe2.bas"
+printf 'program main(args)\n  print qt.check({ kind: "window", name: "w", options: {}, items: [] })\nend program\n' > "$qtprobe2"
+if GBASIC_PATH="$GBASIC_STDLIB" timeout 60 "$GBASIC" "$qtprobe2" >/dev/null 2>&1; then
+    qh="$tmproot/qtview_probe"; qp="$tmproot/qtview_probe_proj"
+    rm -rf "$qh" "$qp"; mkdir -p "$qh"
+    mkproj_ui "$qp"
+    : >"$stdout_file"
+    if QT_QPA_PLATFORM=offscreen \
+            GBASIC_SYNTAX_PATH="${GBASIC_SYNTAX_PATH:-$(dirname "$GBASIC_STDLIB")/editors/kate}" \
+            timeout 120 "$GBASIC" app/studio_qt.bas probe "$qh" "$qp" \
+            >"$stdout_file" 2>/dev/null; then
+        if diff -u tests/studio/qtview_probe.out "$stdout_file"; then
+            printf 'PASS qtview_probe (the Qt application opened, rendered and reacted, with no display)\n'
+        else
+            fail "qtview_probe (output diff)"
+        fi
+    else
+        if grep -q 'qt\.' "$stdout_file"; then
+            cat "$stdout_file"; fail "qtview_probe (nonzero exit)"
+        else
+            printf 'SKIP qtview_probe (this gBASIC has no Qt backend)\n'
+        fi
+    fi
+else
+    printf 'SKIP qtview_probe (this gBASIC has no qt module)\n'
+fi
+
+# NO GTK ANYWHERE ON THE QT PATH.
+#
+# The two Qt libraries and the Qt entry must never reach `gi`, `gtk`,
+# `sourceeditor` or `datagrid`. It is not a style point: `gi.new("Gtk.<Widget>")`
+# SEGFAULTS before GTK is initialized rather than raising, and `datagrid` pulls
+# in `gi` -- so one stray load turns a window that has no use for GTK into a
+# crash with no output, which is the signature this repository has met three
+# times. Comments stripped, because these files explain the rule by naming the
+# libraries it forbids.
+qtgtk="$tmproot/qt_no_gtk.txt"
+sed -e "s/'.*//" lib/studio_view_qt.bas app/studio_qt.bas > "$qtgtk"
+if grep -nE '(^|[^a-z_])(gi|gtk|sourceeditor|datagrid)\.' "$qtgtk"; then
+    fail "qt_no_gtk (the Qt path reaches GTK)"
+fi
+if ! grep -q 'studio_view_qt.render' "$qtgtk"; then
+    fail "qt_no_gtk (the scanner read nothing)"
+fi
+printf 'PASS qt_no_gtk (no GTK on the Qt path)\n'
+
 # NOTHING IN THE QT SHELL TOUCHES A TOOLKIT, and that is a tripwire rather than
 # an intention. One `qt.read` in there would take the two tiers above down on a
 # machine with no Qt -- and the whole value of the record is that the shape is

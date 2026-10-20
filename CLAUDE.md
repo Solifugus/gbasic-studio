@@ -52,7 +52,7 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 209 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 211 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 29 cases, headless AND offline (scripted transport)
 ```
 
@@ -67,7 +67,12 @@ and reads it back — **no display and no compositor**, which is strictly better
 than the `ui_gui*` tiers it will retire. `qtshell_reconcile` grows the tab set,
 moves a caption and closes a tab, and its load-bearing check is that **a kept
 editor still holds what was typed into it** — everything else in it passes on a
-reconcile that is a rebuild dressed up. `qt_shell_pure` is the tripwire.
+reconcile that is a rebuild dressed up. `qtview_probe` drives the actual
+application through its own entry point: startup over a real home, the window
+opened, one render filling it from the model, a browser row activated through
+the same `studio_ui.activate_row` a click calls, then an edit — so it asserts
+the RENDERER and the row model reaching the window, which is what the `ui_gui*`
+tiers need a display for. `qt_shell_pure` and `qt_no_gtk` are the tripwires.
 
 Golden-file based: a driver plus a `.out` of expected stdout, compared
 byte-for-byte, so update the `.out` when output changes *intentionally* and say
@@ -100,6 +105,11 @@ GBASIC=/usr/local/bin/gbasic GBASIC_STDLIB=/usr/local/share/gbasic/stdlib tests/
 app/studio.bas   entry point; dispatches modes, owns the GTK application object
                  and the callback-scope global, and is the ONLY place with
                  gi.connect
+app/studio_qt.bas STU-22 the Qt entry point — `./studio qt`. A SECOND entry
+                 during the migration rather than a mode in the first, because
+                 this process must load no `gi`, `gtk`, `datagrid` or
+                 `sourceeditor` at all, and because it is deletable: when GTK
+                 goes, this becomes `app/studio.bas`
 lib/studio.bas          app lifecycle over the model (launch/create/open/shutdown)
 lib/studio_model.bas    workspace / project / session / settings schema
 lib/studio_docs.bas     document manager: open, dirty, save, close, external change
@@ -179,6 +189,11 @@ lib/studio_shell_qt.bas STU-22 the SAME window as DATA, for the Qt
                         the model to the record `qt.open` reads, so the
                         window's SHAPE is in the headless suite for the first
                         time. No `qt.`, no `gi.`, no `gtk.` — tripwired
+lib/studio_view_qt.bas  STU-22 and what is IN it right now — the Qt
+                        counterpart of `studio_shell.refresh`/`refresh_run`,
+                        every line a `qt.` call and not one a decision.
+                        Separate from the shell because the shell has to stay
+                        reachable from a machine with no Qt
 lib/studio_style.bas    the ONE stylesheet, the shared CSS provider, and the
                         spacing unit. Classes go on through `style.apply`, which
                         attaches the provider at the same time
@@ -424,12 +439,47 @@ toolkit-free. A rule written for testability bought a port.
 - `qt.check` **RAISES** rather than answering false, so it is a test gate and
   not a runtime guard. `qt.open` runs it too, for the reason upstream states:
   a validator nobody is obliged to call is necessary and not sufficient.
-- **The shadowing is real and it is on this machine.** `qt.highlighting`
-  reports the definition FILE, and here it is
+- **The shadowing was real and it was on this machine.** `qt.highlighting`
+  reports the definition FILE, and it was
   `~/.local/share/org.kde.syntax-highlighting/syntax/gbasic.xml` — a June
-  hand-install, 6,839 bytes, with a different keyword list — shadowing the
-  repository's 10,286-byte October copy and reporting the identical language
-  name. So the golden holds the language and never the file.
+  hand-install with **137** keywords against the repository's **261**, missing
+  `do`, `until`, `exit`, `exists`, `mod`, `floor` and the whole crypto/bytes/
+  stats surface, and highlighting `resume`, which the language REMOVED in
+  0.1.0-rc5. It shadowed the repository's copy and reported the identical
+  language name. Fixed by installing the repository's file over it (2026-10-19),
+  which Kate needs anyway since Kate knows nothing of `GBASIC_SYNTAX_PATH`.
+  **The golden still holds the language and never the file**, because the
+  shadowing is structural and the next hand-install will do it again.
+- **A RENDERER IS NOT A SHELL, and they are two files on purpose.**
+  `studio_shell_qt` answers what the window IS and makes no toolkit call;
+  `studio_view_qt` answers what is in it right now and every line of it is a
+  `qt.` call. The split is what lets the shape be asserted with no Qt at all.
+  `render` is the full redraw and `render_run` is what the poller calls sixteen
+  times a second — the browser is NOT in the second (it would fight the user
+  for their own file tree) and neither is git (detection FORKS).
+- **Both RETURN THE APP**, and a caller that drops it re-parses the document at
+  cursor-move rate — plus the thing CLAUDE.md already records: the next failed
+  parse then has no cached state to retain sections from, so a typed-in syntax
+  error reaches `no-parse` instead of `refused`.
+- **`qt.open` BINDS A TABLE'S SUBJECT FROM THE FRAME THAT CALLS IT**, so `nav`
+  has to exist in that frame *before* the open and not after. The refusal says
+  so in as many words, which is the difference between a minute and an
+  afternoon. `studio_shell_qt.nav_subject()` is the one place that name is
+  written.
+- **The text is written only where it DIFFERS.** A `qt.write` that set the same
+  string again would still reset the caret and clear the undo stack — the whole
+  thing the reconcile exists to protect — so `_tabs` reads first. It is also
+  why a new page's editor is filled by the renderer rather than at build time:
+  the record carries shape, and text is state.
+- The branch and table panes are **memos of joined lines** for now, and that is
+  stated as a limit rather than left to be found: under GTK they are listboxes
+  whose rows are CLICKABLE (a branch is selected by clicking one, a table
+  opened by clicking one). Making them `table`s — the one clickable list this
+  vocabulary has — is the next increment.
+- **`timer.every` is the run poller**, at 0.0625s like the GTK `gi.timeout`,
+  and only the FINAL tick of a run does a full redraw. It is guarded by
+  `qt.is_open`, because a window can close without the program asking and every
+  other verb then refuses for a reason that is nobody's mistake.
 
 ### The New Project window
 

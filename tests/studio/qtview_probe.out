@@ -1,0 +1,32 @@
+-- the Qt shell, opened and rendered --
+  title:    gBASIC Studio — workspace
+  status:   ready — workspace — 1 project(s) — 0 open
+  rows:     6
+  tabs:     ["(no document)"]
+  section:  section: (none)
+  state:    [run: (no session)]
+  standing: []
+  run all:  false
+  snippets: false
+  prefix:   [(this section has not run)]
+  target:   [(this section has not run)]
+  errors:   Errors [(none)]
+  results:  [(no document open)]
+  branches: [(no branches)]
+  tables:   [(nothing tabular in the latest run)]
+  git:      []
+  dark is checked: false
+-- a browser row activated, exactly as a click would --
+  action:   open
+  title:    main.bas — gBASIC Studio — workspace
+  status:   ready — workspace — 1 project(s) — 1 open
+  tabs:     ["main.bas"]
+  on top:   0
+  section:  section: sec-1 statements
+  ed_doc_1: [print "main" / ]
+  highlighted as: gBASIC
+-- edited in the model --
+  tabs:     ["* main.bas"]
+  title:    * main.bas — gBASIC Studio — workspace
+  status:   saved nothing; this is a probe
+  ed_doc_1: [print "typed" / ]
