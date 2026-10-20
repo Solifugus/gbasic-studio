@@ -86,7 +86,26 @@ program main(args)
     ' nobody is obliged to call is necessary and not sufficient -- and a raise
     ' out of `qt.check` names the part and the path, where a half-built window
     ' names whatever Qt tripped over first.
+    ' A WINDOW THAT WILL NOT VALIDATE SAYS WHY AND EXITS CLEANLY.
+    '
+    ' `qt.check` RAISES rather than answering, which made it a test gate --
+    ' and a raise IS catchable (`on error goto next`, frame-scoped; CLAUDE.md
+    ' used to say otherwise in five places and it is measured false). Caught, it
+    ' is a runtime guard as well: a malformed record names the part and the path
+    ' it is at, which is worth printing at a user where a runtime error dump is
+    ' not. `qt.open` validates too, so this is the message and not the
+    ' protection.
+    '
+    ' NOTHING ELSE ON THIS PATH CATCHES. A `qt.read` of a part that is not there
+    ' is a bug in the record, and catching one is how a window renders half of
+    ' itself and says nothing.
+    on error goto next
     ok = qt.check(win)
+    if error then
+        print to error "gBASIC Studio: this window will not build — " + error.message
+        return nothing
+    end if
+    on error stop
     ' THE BROWSER'S SUBJECT HAS TO BE IN THIS FRAME BEFORE THE OPEN, not after
     ' it: `qt.open` binds a `table to show` by reading the named variable out of
     ' the frame that calls it, and refuses the whole window when it is not
@@ -101,6 +120,10 @@ program main(args)
     ' a separate initial-population path is how a view starts disagreeing with
     ' its refresh.
     G.app = studio_view_qt.render(win, G.app, "")
+    ' The chrome, once. Not in the record because the browser spends its one
+    ' slot on being named with a subject, and not per render because none of it
+    ' changes while Studio runs.
+    dressed = studio_view_qt.dress(win, G.app)
 
     ' The layout the user last left. Each split is addressed by a part that is
     ' one of ITS OWN panes, because the walk stops at the nearest region.
@@ -116,7 +139,19 @@ program main(args)
         print "-- the Qt shell, opened and rendered --"
         print "  title:    " + qt.read(win, studio_shell_qt.window_name(), "windowTitle")
         print "  status:   " + qt.read(win, studio_shell_qt.part_status(), "text")
-        print "  rows:     " + string(qt.read(win, studio_shell_qt.part_browser(), "rowCount"))
+        ' A TREE, not a table, so there is no `rowCount` to read -- and asking
+        ' it for the DEPTH of a row is the better assertion anyway: a populate
+        ' that ignored the depth builds a flat tree whose every name, index,
+        ' selection and heading reads back correctly, so the depth is the one
+        ' thing nothing else in this probe can see.
+        print "  rows:     " + string(count(studio_ui.nav_rows(G.app)))
+        print "  heading:  " + qt.heading(win, studio_shell_qt.part_browser(), 0)
+        i = 0
+        for each nr in studio_ui.nav_rows(G.app)
+            cell = qt.cell(win, studio_shell_qt.part_browser(), i, "text")
+            print "    " + string(qt.depth(win, studio_shell_qt.part_browser(), i)) + " [" + studio_qt_scrub(cell, G.app) + "]"
+            i = i + 1
+        end for
         print "  tabs:     " + string(qt.tabs(win, studio_shell_qt.part_tabs()))
         print "  section:  " + qt.read(win, "run_section", "text")
         print "  state:    [" + qt.read(win, "run_state", "text") + "]"
@@ -221,6 +256,30 @@ function studio_qt_default_home()
         return h + "/.gbasic-studio"
     end if
     return ".gbasic-studio"
+end function
+
+' A project's own NAME out of a line, because this probe reaches its project
+' through the real `studio.startup` + `adopt_folder` path -- which is what a
+' user does -- and that names a project after the DIRECTORY it is in. The
+' runner's fixture is a temp directory, so the name is a different string on
+' every machine and in every tier.
+'
+' The tier reduces it rather than the probe printing less than it should, which
+' is the rule `ui.bas`'s `safe_detail` and `app/studio.bas`'s `path_free`
+' already follow: a golden's need to be path-free is not a reason to assert
+' something weaker than what the window holds.
+function studio_qt_scrub(line, app)
+    ws = app.model.workspace
+    if ws = nothing then
+        return line
+    end if
+    out = line
+    for each p in ws.projects
+        if p.name != "" then
+            out = replace(out, p.name, "(project)")
+        end if
+    end for
+    return out
 end function
 
 ' Where a row of a given kind and name sits in the browser's row array.

@@ -2,6 +2,13 @@
   title:    gBASIC Studio — workspace
   status:   ready — workspace — 1 project(s) — 0 open
   rows:     6
+  heading:  File
+    0 [Workspace: workspace]
+    0 [● (project)]
+    1 [▸ docs]
+    1 [▸ src]
+    1 [  README.md]
+    1 [  main.bas]
   tabs:     ["(no document)"]
   section:  section: (none)
   state:    [run: (no session)]

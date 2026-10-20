@@ -5,15 +5,14 @@
   title:   main.bas — gBASIC Studio — ws
   tabs:    1
   status:  ready — ws — 1 project(s) — 1 open
-== the browser, which is a table so its row count is free ==
-  heading: Files
-  rows:    6
-    [Workspace: ws]
-    [● Alpha]
-    [  ▸ docs]
-    [  ▸ src]
-    [    README.md]
-    [    main.bas]
+== the browser, which is a TREE with a depth the widget has ==
+  heading: File
+    0 [Workspace: ws]
+    0 [● Alpha]
+    1 [▸ docs]
+    1 [▸ src]
+    1 [  README.md]
+    1 [  main.bas]
 == the menus are the toolkit's own now ==
   bar:     ["Project","File","Settings"]
   Project: ["New Project…","Open Folder",unknown,"Add Project File","Close Project"]
@@ -37,7 +36,7 @@
   ed_doc_1: [print "main" / ]
   highlighted as: gBASIC
 == and every split takes the sizes the session asked for ==
-  files_scroll  true
+  files         true
   beside        true
   book          true
 == closed, and every verb then refuses by name ==

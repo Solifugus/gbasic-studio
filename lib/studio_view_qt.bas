@@ -35,9 +35,53 @@
 
 load studio_ui
 load studio_docs
+load studio_style
 load studio_shell_qt
 
 library studio_view_qt
+
+' ---------------------------------------------------------------------------
+' The window's LOOK, set once.
+' ---------------------------------------------------------------------------
+
+' Chrome that never changes, applied after the window opens.
+'
+' WHY IT IS NOT IN THE RECORD: a container carries a NAME OR OPTIONS AND NEVER
+' BOTH (gBASIC §0.8 -- `tabs settings( movable: true )` costs four reduce/reduce
+' conflicts), and the browser spends its one slot on being named `files` with a
+' subject. So its ten chrome properties go through the by-name route instead,
+' which is what upstream means by "the look was always one `qt.set` away".
+'
+' ONCE, not per render: none of it changes while Studio runs, and a property
+' write that cannot change anything is work at redraw rate for nothing.
+function dress(win, app)
+    files = studio_shell_qt.part_browser()
+    ' A file tree has no header row. `headerHidden` IS a Q_PROPERTY where
+    ' `headerVisible` is not -- which corrected Studio's own ask in the helpful
+    ' direction, and is why the heading is declared at all: a column still
+    ' needs a caption for `qt.heading` to be an oracle over the mapping.
+    z = qt.set(win, files, "headerHidden", true)
+    ' NO ARROWS, because Studio owns expansion. See `studio_shell_qt._browser`:
+    ' the rows handed over ARE the visible set, so a widget that could collapse
+    ' one by itself would desynchronise the index the click dispatcher uses.
+    z = qt.set(win, files, "itemsExpandable", false)
+    z = qt.set(win, files, "rootIsDecorated", false)
+    ' The same eight pixels per level the GTK browser uses, and for the same
+    ' measured reason: twelve was visibly wider than the two-spaces-in-a-
+    ' proportional-font it replaced, wide enough that two names started
+    ' ellipsizing which had fitted before. Qt's default is 20.
+    z = qt.set(win, files, "indentation", studio_style.indent())
+    ' Every row is one line of text, so Qt may assume it and stop measuring.
+    z = qt.set(win, files, "uniformRowHeights", true)
+    ' NOT striped. A file tree with alternating bands reads as a report; the
+    ' property is there and this is a choice rather than an omission.
+    z = qt.set(win, files, "alternatingRowColors", false)
+    ' A browser row is not sortable: the order is the filesystem's, with
+    ' directories first, and sorting the view while `nav_rows` keeps its own
+    ' order would make one index mean two different rows.
+    z = qt.set(win, files, "sortingEnabled", false)
+    return nothing
+end function
 
 ' ---------------------------------------------------------------------------
 ' The full redraw.

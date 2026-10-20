@@ -167,6 +167,24 @@ function show_table(name, subject, columns)
              direction: "show", subject: subject, items: columns }
 end function
 
+' A TREE that shows a list, which is the same production with a different word
+' (gBASIC §0.28, built for this browser by name). The shape comes from a DEPTH
+' COLUMN that is not drawn -- `field depth( depth: true )` -- over a FLAT list,
+' which is exactly what a program owning its own expansion hands over.
+'
+' `to show` and nothing else: `to edit` would have to write a value back from a
+' row that may be a PARENT, and `to ask` is a table's third direction for rows
+' a program cannot hold, where a tree's shape comes from depths it has in hand.
+function show_tree(name, subject, columns)
+    return { kind: "container", word: "tree", name: name,
+             direction: "show", subject: subject, items: columns }
+end function
+
+' The column that carries the depth and is never drawn.
+function depth_column(name)
+    return part("field", name, { depth: true })
+end function
+
 function column_of(name, caption)
     return part("field", name, { label: caption })
 end function
@@ -425,28 +443,41 @@ function _main(app)
     return splitter("across", [ studio_shell_qt._browser(app), right ])
 end function
 
-' The browser, which is a TABLE and not a column of labels.
+' THE BROWSER IS A TREE (gBASIC §0.28, built for it by name).
 '
-' Three reasons, and the first is the one that decided it: a table is the only
-' widget in this vocabulary whose row COUNT can change without rebuilding the
-' window (`qt.refresh`, §0.11 -- written for this shape, the design doc says
-' so by name). Expanding a directory is exactly that. Second, a table answers
-' `qt.selected` and takes `qt.select`, which is the whole of the browser's
-' selection model. Third, the right-click lands on a row rather than on a
-' widget we had to find by scanning for a y -- `row.get_allocation()` RAISES
-' through the GTK bridge, which is why `ui_gui_ctx` scans `get_row_at_y` at
-' all.
+' It was a `table` for one increment, and only because a table was the only
+' widget in this vocabulary whose row COUNT could change without rebuilding the
+' window -- expanding a directory being exactly that. It worked and it looked
+' like a spreadsheet pretending to be a file tree: a header row that could not
+' be hidden through the by-name route, grid lines, flat rows with two spaces
+' per level inside the string, and no indentation of its own. The ask went
+' upstream with those measurements and came back built.
 '
-' ONE COLUMN, carrying `studio_ui`'s own flat `label`. The indentation is two
-' spaces per level inside that string, which is what `row_label` has always
-' produced and what every golden addresses a row by. Under GTK the indent is a
-' MARGIN and the glyph is a second label pinned to one character; a table cell
-' has neither, so the flat rendering is the one that survives -- and it is the
-' rendering the tests already hold.
+' TWO COLUMNS, ONE OF THEM INVISIBLE. `text` is the row without its
+' indentation -- the tree does that -- and `depth` is declared `depth: true`,
+' which makes it the shape rather than a cell. At most one such column, because
+' two would be a declaration with two answers.
+'
+' STUDIO OWNS EXPANSION AND THE WIDGET DOES NOT, which is not a preference. The
+' rows `nav_rows` answers are the VISIBLE ones and the click dispatcher indexes
+' that same array -- deriving rows twice desynchronises the moment the
+' filesystem changes between a render and a click. gBASIC measured the half that
+' makes this load-bearing: after a collapse Qt's own NotHidden iterator still
+' counts every row, so there is no free "visible index" and an index can only
+' mean the rows the program handed over. Studio hands over the visible ones, so
+' the two numbers coincide by construction. `itemsExpandable` is therefore OFF
+' and the `▾` / `▸` glyphs stay Studio's own, exactly as they are under GTK,
+' where they are characters in the row and clicking the ROW toggles.
+'
+' AND NO `scroll` AROUND IT. A tree scrolls itself, like a table and a memo, so
+' a scroller would be a second region for the pane walk to stop at -- which is
+' what `qt.resize_panes` and `qt.pane` walk up through. Dropping it makes the
+' tree the split's own pane and so the thing that addresses it.
 function _browser(app)
-    return named("scroll", studio_shell_qt.part_browser() + "_scroll", [
-        show_table(studio_shell_qt.part_browser(), studio_shell_qt.nav_subject(),
-                   [ column_of("label", "Files") ]) ])
+    return show_tree(studio_shell_qt.part_browser(),
+                     studio_shell_qt.nav_subject(),
+                     [ column_of("text", "File"),
+                       depth_column("depth") ])
 end function
 
 ' One tab per visible document, each holding one `source`.
@@ -595,9 +626,10 @@ function pane_sizes(app)
     ' than the horizontal one. Measured upstream both ways, with the control
     ' that a direct pane is still found.
     out = []
-    ' The outer split: the browser against everything else. The scroll IS the
-    ' pane, so it is what addresses this one.
-    out = append(out, { at: studio_shell_qt.part_browser() + "_scroll",
+    ' The outer split: the browser against everything else. The tree IS the
+    ' pane -- it scrolls itself and wears no scroller -- so it addresses this
+    ' one directly.
+    out = append(out, { at: studio_shell_qt.part_browser(),
                         sizes: [ browser, w - browser ] })
     ' The right split, whose own width is what the outer split left it -- not
     ' the window's. GTK's `rsplit.position` is measured from the rsplit's own

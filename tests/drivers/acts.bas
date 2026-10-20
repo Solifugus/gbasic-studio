@@ -146,15 +146,34 @@ program main(args)
     r = try_call(app, log, pol, "execute_section", {}, "")
     app = r.app
     log = r.log
-    ' Drive the run to completion the way the window's timer does.
-    n = 0
-    while n < 400
-      t = studio_ui.tick_run(app)
-      app = t.app
-      if not t.active then
+    ' DRIVE THE RUN TO COMPLETION, and the bound is a WALL CLOCK rather than a
+    ' tick count.
+    '
+    ' This was `while n < 400`, which is not a wait at all: 400 ticks of a busy
+    ' loop complete in microseconds, long before the child process has been
+    ' scheduled -- so the loop fell out with the run still in flight and
+    ' `section_output` reported an EMPTY target as though that were the answer.
+    ' It flaked intermittently for exactly as long as the machine happened to
+    ' start children fast enough, and today's interpreter rebuild made it
+    ' reproducible: two failures in five clean runs.
+    '
+    ' `ui.bas`'s `drive` and `agent.bas` both loop on `active` with no cap and
+    ' have never hung, so the condition is right; the cap is the backstop, and
+    ' it SAYS SO rather than printing an empty output. A tier that reports a
+    ' silent wrong answer is worse than one that fails.
+    deadline = monotonic() + 60
+    t = studio_ui.tick_run(app)
+    app = t.app
+    while t.active
+      if monotonic() > deadline then
+        print "  TIMED OUT waiting for the run"
         break
       end if
-      n = n + 1
+      ' The rate the window's own timer polls at, which is what this claims to
+      ' be doing -- a busy loop is not the same thing and was the defect.
+      sleep(0.0625)
+      t = studio_ui.tick_run(app)
+      app = t.app
     end while
     r = try_call(app, log, pol, "section_output", { section_id: studio_ui.view_for(app).sid }, "")
     app = r.app

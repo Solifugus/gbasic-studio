@@ -93,6 +93,20 @@ valgrind is absent. The `ui_gui*` tiers discard stderr like the other
 loop-running tiers: GTK's allocation warnings vary by version and theme, and
 `G_DEBUG=fatal-criticals` turns a real GTK critical into a nonzero exit anyway.
 
+**`acts_task` drove a run with a TICK COUNT and not a clock, and that was a
+defect rather than flakiness.** `while n < 400` around `tick_run` is not a wait:
+400 ticks of a busy loop complete in microseconds, long before a child process
+has been scheduled, so the loop fell out with the run still in flight and
+`section_output` reported an EMPTY target as though that were the answer. It
+flaked for as long as the machine happened to start children fast enough; a
+2026-10-19 interpreter rebuild made it two failures in five clean runs. Fixed
+with a `monotonic()` deadline, a `sleep(0.0625)` between ticks (the rate the
+window's own timer polls at, which is what the comment already claimed) and a
+loop condition of `active` — which is what `ui.bas`'s `drive` and `agent.bas`
+have always done, neither having ever hung. The backstop SAYS it timed out
+rather than printing an empty output: a tier that reports a silent wrong answer
+is worse than one that fails. Six consecutive clean runs after.
+
 Before a release, also run against what users actually have:
 
 ```sh
@@ -149,9 +163,11 @@ lib/studio_overlays.bas STU-9 code-overlay branches: per-section replacement
                         text, stamped with the canonical fingerprint it was
                         written against; projected, never written to the .bas
 lib/studio_git.bas      STU-11 optional git over `process.run` — found by
-                        `process.which` (never by running it), because
-                        process.run raises on a missing executable and gBASIC
-                        cannot catch a raise
+                        `process.which` (never by running it). The old reason
+                        given here — that a raise cannot be caught — is FALSE;
+                        see "gBASIC CAN catch a raise" below. `which` is still
+                        right, because "is git installed?" asked by running it
+                        is the wrong question however it fails
 lib/studio_projects.bas  ONE project's state in a file of its own —
                         `<home>/state/<key>.json`: section anchors, the branch
                         tree, the overlays. Keyed by the project's IDENTITY
@@ -392,19 +408,45 @@ toolkit-free. A rule written for testability bought a port.
   in the record, so `studio_ui.tab_label` is reached here exactly as it is
   there and nothing about what `* ` / `~ ` / `! ` MEANS moved toolkits. The
   window title carries it too, which is conventional and costs nothing.
-- **The browser is a `table`, not a column of labels.** A table is the only
-  widget here whose row COUNT can change without rebuilding (`qt.refresh`,
-  §0.11 — written for this shape, upstream says so by name), and expanding a
-  directory is exactly that. It also answers `qt.selected` and takes
-  `qt.select`, and a right-click lands on a row rather than on a widget found
-  by scanning for a y. ONE COLUMN, carrying `studio_ui.row_label`'s flat
-  string: a table cell has neither the margin nor the two-label glyph trick,
-  so the flat rendering is the one that survives — and it is the one every
-  golden already addresses a row by. The cost is a header row and grid lines a
-  file tree does not want; `showGrid` is a property, header visibility is not.
-- **A table's `items` are its COLUMNS and a column is not a part.** Its `name`
-  is the row FIELD each cell reads, which is why the browser's column is
-  called `label`.
+- **THE BROWSER IS A `tree`** (gBASIC §0.28, built for it by name after the
+  user asked for *"a better looking tree view on the left"*). It was a `table`
+  for one increment, and only because a table was the only widget whose row
+  COUNT could change without rebuilding — expanding a directory being exactly
+  that. It worked and looked like a spreadsheet pretending to be a file tree:
+  a header row, grid lines, flat rows, no indentation of its own. The ask went
+  upstream with those measurements and came back built.
+- **TWO COLUMNS, ONE OF THEM INVISIBLE.** `text` is the row without its
+  indentation (the tree does that) and `depth` is declared `depth: true`,
+  which makes it the SHAPE rather than a cell. At most one such column,
+  because two would be a declaration with two answers.
+- **`studio_ui.row_text` is new and `row_label` is DERIVED FROM IT.** The flat
+  string stays the one every golden addresses a row by; the tree wants the
+  glyph and the name without the indent. Two independent renderings of one row
+  is the `projects[].documents` mistake — one derived from the other is not.
+  `_row` carries both.
+- **Studio owns expansion and the widget does not, and that is load-bearing.**
+  `nav_rows` answers the VISIBLE rows and the click dispatcher indexes that
+  same array. gBASIC measured the half that makes it necessary: after a
+  collapse Qt's own `NotHidden` iterator still counts every row, so there is no
+  free "visible index" and an index can only mean the rows the program handed
+  over. So `itemsExpandable` is OFF and the `▾`/`▸` glyphs stay Studio's, as
+  they are under GTK where clicking the ROW toggles.
+- **`qt.depth` is the oracle.** A populate that ignored the depth builds a flat
+  tree whose every name, index, selection and heading reads back correctly, so
+  nothing else can see it — and it answers the depth the WIDGET has, walked up
+  the item's parents, not the number the record carried.
+- **The chrome is `qt.set` and not the record**, because a container carries a
+  name OR options and never both and the browser spends its slot on being
+  named with a subject. Ten properties are reachable — `headerHidden` IS one
+  where `headerVisible` is not, which corrected Studio's own ask — and
+  `studio_view_qt.dress` sets seven of them ONCE, none of them changing while
+  Studio runs. `showGrid` does not exist on a tree at all.
+- **No `scroll` around it.** A tree scrolls itself, like a table and a memo, so
+  a scroller would be a second region for the pane walk to stop at — and the
+  walk is how `qt.resize_panes` and `qt.pane` find a split. The tree is the
+  pane now and addresses the outer split directly.
+- **A tree's or table's `items` are its COLUMNS and a column is not a part.**
+  Its `name` is the row FIELD each cell reads.
 - **The menus come out BETTER than the GTK original, not equal to it.** Real
   `QAction`s: `shortcut:` retires the `Gtk.EventControllerKey` that is the one
   control in this window with no test at all (there is no way to synthesise a
@@ -1532,9 +1574,11 @@ toolkit-free. A rule written for testability bought a port.
   `result` (the insert's `rows_affected: 2`) and `rows` (the select's two rows),
   which is exactly the two facts worth having.
 - **Nothing catches, and that is the right behaviour rather than a limitation
-  worked around.** gBASIC cannot catch a raise and a database error is one, so
-  a failing statement ends the run where it failed and the ones after it do not
-  execute. A rebuild whose third statement fails has no business running the
+  worked around.** A database error is a raise, and a raise CAN be caught
+  (`on error goto next` — see below; the claim this sentence used to make is
+  false), so this is now a CHOICE rather than a limitation — and the argument
+  for it never needed the limitation: a failing statement ends the run where it
+  failed and the ones after it do not execute. A rebuild whose third statement fails has no business running the
   fourth.
 - **A whole-file run is filed against the cell it ENDED at** — the last one on
   success, the failing one on failure (`studio_session._refile`, called from
@@ -1569,9 +1613,10 @@ toolkit-free. A rule written for testability bought a port.
   the statements that did it — and the panes, which follow the caret, have
   something to show wherever it lands. That is the notebook picture, and it is
   what `.sql` was framed as from the start.
-- **Printed as the run goes, never accumulated.** gBASIC cannot catch a raise
-  and a database error is one, so a statement that fails takes the whole
-  program down — and a capture held to the end would lose every cell that had
+- **Printed as the run goes, never accumulated.** A statement that fails
+  takes the whole generated program down — not because a raise is uncatchable
+  (it is not; see below) but because nothing in the generated program catches
+  one — and a capture held to the end would lose every cell that had
   already succeeded, which is exactly the half a failed rebuild most needs to
   show. Measured: a five-cell run that fails at the third leaves two finished
   results, one failure carrying the engine's message, and nothing at all for
@@ -1995,10 +2040,12 @@ toolkit-free. A rule written for testability bought a port.
 - `agent_widgets` keeps `studio_teaching.registry()` and `studio_shell.teachable()`
   the same set. A registry entry the shell cannot resolve is a teaching request
   that reports success and draws nothing.
-- Git is found by `process.which`, NEVER by running it. `process.run` raises on
-  a missing executable and gBASIC cannot catch a raise, so "is git installed?"
-  asked by trying would crash the window of everyone who does not have it. This
-  is why git can be optional at all — and why **Studio requires gBASIC
+- Git is found by `process.which`, NEVER by running it. **The reason this file
+  gave for five phases is FALSE** — `process.run` does raise on a missing
+  executable, and that raise is perfectly catchable (measured; see below). What
+  stands is the question: "is git installed?" asked by RUNNING it spawns a
+  process to learn something a PATH walk answers, and that is wrong however it
+  fails. This is why git can be optional at all — and why **Studio requires gBASIC
   0.1.0-rc3**: `which` cannot be probed around on older builds (they lack
   `has_builtin` too; you cannot probe for the prober), so the floor is stated
   rather than worked around.
@@ -2082,8 +2129,9 @@ toolkit-free. A rule written for testability bought a port.
   buffer's highlight engine calls back into the manager that produced its
   language, and a transient one finalizing on return is a documented
   GtkSourceView critical. `ed.set_language(id)` RAISES on an unknown id and
-  gBASIC cannot catch a raise, so everything but gBASIC goes through the object
-  `guess_language` returns; `nothing` just means no highlighting, which is right
+  and this file used to say that raise could not be caught, which is false --
+  so everything but gBASIC goes through the object `guess_language` returns
+  because that is simpler, not because it had to; `nothing` just means no highlighting, which is right
   for a `.txt` and for a Makefile, which it does not recognise.
 - `studio_tools._is_refusal` must list every way `run_section` declines —
   `execute_section` is an agent act over the same function, and an action
@@ -2353,6 +2401,60 @@ not, and neither do ours).
   behavioural change that moves a golden is a deliberate, listed rebaseline);
   measure, don't assume; report what you could not verify. Never mark anything
   "verified".
+
+### gBASIC CAN catch a raise, and this file said otherwise five times
+
+**`on error goto next` exists, is frame-scoped, and works.** Measured
+2026-10-19 against gBASIC 0.10.0, on the two cases the five sentences actually
+named:
+
+```
+-- process.run on an executable that is not there --
+  caught: true  [process.run: could not execute '/definitely/not/here/...':
+                 No such file or directory]
+-- a library refusal, caught in the calling frame --
+  caught: true  [split separator cannot be empty]
+-- and the program is still here, which is the whole point --
+  alive
+```
+
+A raise abandons the statement, records the error, and execution continues at
+the next statement in the same list; `if error then` claims it; the setting dies
+with the frame, so a function can catch and return a clean fallback without its
+caller knowing. `on error stop` restores propagation mid-frame. One pending
+error at a time, and an unacknowledged one re-raises at the call site — so
+nothing vanishes.
+
+**This is the THIRD inherited "the platform cannot do X" claim in this file
+found false by measuring it**, after `GMenuModel` menus and
+`Gtk.StyleContext.add_provider_for_display`. The pattern is identical every
+time: a limitation recorded once, repeated by later phases as the reason for a
+design, and never re-tested. **If a sentence here gives a platform limitation as
+its reason, test the limitation before building on it.**
+
+**What changes and what does not.** Every decision that named this stands, and
+each for a reason that was always sufficient on its own:
+
+- `process.which` over running git, and `_interpreter_path` over running the
+  interpreter — because *"is it installed?"* asked by running it spawns a
+  process to learn what a PATH walk answers.
+- A SQL run that stops at its failing statement — because a rebuild whose third
+  statement fails has no business running the fourth. It is now a CHOICE,
+  which is a better thing for it to be.
+- `ed.set_language` reached through the object `guess_language` returns —
+  because that is simpler, and it is GTK-side code about to be deleted anyway.
+
+**What it opens.** `qt.check` RAISES rather than answering, which made it a test
+gate; caught, it is a runtime guard too, and `app/studio_qt.bas` uses it as one
+— a window that will not validate says why and exits cleanly instead of dumping
+a runtime error at a user. Anything that relies on `on error` moves the stated
+floor from **0.1.0-rc3 to 0.1.0-rc5**, which is where `on error resume next` was
+replaced by it; nothing relies on it yet except that one guard.
+
+**Where it must NOT go: a renderer.** A `qt.read` on a part that is not there
+is a bug in the record, and catching it is how a window renders half of itself
+and says nothing. The rule this file already states for a wrong node name in
+CSS — *fails silently, and that is the whole risk* — is the same rule.
 
 ## Known live issue
 

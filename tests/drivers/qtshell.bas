@@ -26,7 +26,7 @@ end function
 
 ' One line per node: the nesting as indentation, then the word, then whatever
 ' the node carries in its one free slot (a name, a direction, or a caption).
-function show_tree(node, depth)
+function print_shape(node, depth)
   indent = ""
   i = 0
   while i < depth
@@ -63,7 +63,7 @@ function show_tree(node, depth)
 
   if has(node, "items") then
     for each child in node.items
-      z = show_tree(child, depth + 1)
+      z = print_shape(child, depth + 1)
     end for
   end if
   return nothing
@@ -198,7 +198,7 @@ program main(args)
   if mode = "shape" then
     print "== the window, cold =="
     win = studio_shell_qt.window_for(app)
-    z = show_tree(win, 0)
+    z = print_shape(win, 0)
 
     print "== and every option in it =="
     z = show_options(win, "")
@@ -294,15 +294,17 @@ program main(args)
     print "  tabs:    " + string(qt.read(win, studio_shell_qt.part_tabs(), "count"))
     print "  status:  " + qt.read(win, studio_shell_qt.part_status(), "text")
 
-    print "== the browser, which is a table so its row count is free =="
+    print "== the browser, which is a TREE with a depth the widget has =="
     print "  heading: " + qt.heading(win, studio_shell_qt.part_browser(), 0)
-    print "  rows:    " + string(qt.read(win, studio_shell_qt.part_browser(), "rowCount"))
-    n = qt.read(win, studio_shell_qt.part_browser(), "rowCount")
+    ' THE DEPTH IS THE ORACLE. A populate that ignored it builds a flat tree
+    ' whose every name, index, selection and heading reads back correctly, so
+    ' nothing else here can see it -- and it is asked of the WIDGET, walked up
+    ' the item's parents, rather than being the number the record carried.
     j = 0
-    while j < n
-      print "    [" + qt.cell(win, studio_shell_qt.part_browser(), j, "label") + "]"
+    for each nr in nav
+      print "    " + string(qt.depth(win, studio_shell_qt.part_browser(), j)) + " [" + qt.cell(win, studio_shell_qt.part_browser(), j, "text") + "]"
       j = j + 1
-    end while
+    end for
 
     print "== the menus are the toolkit's own now =="
     print "  bar:     " + string(qt.menus(win))
@@ -325,7 +327,9 @@ program main(args)
     end for
 
     print "== the nesting, asked of the LAYOUT rather than of the record =="
-    print "  browser: " + nesting(qt.pane(win, studio_shell_qt.part_browser() + "_scroll"))
+    ' The TREE itself, which is the pane -- it scrolls itself and wears no
+    ' scroller, so there is no nearer region for the walk to stop at.
+    print "  browser: " + nesting(qt.pane(win, studio_shell_qt.part_browser()))
     print "  editors: " + nesting(qt.pane(win, studio_shell_qt.part_tabs()))
     print "  console: " + nesting(qt.pane(win, studio_shell_qt.part_console()))
     print "  beside:  " + nesting(qt.pane(win, studio_shell_qt.part_beside()))

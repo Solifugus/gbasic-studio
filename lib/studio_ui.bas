@@ -403,12 +403,21 @@ library studio_ui
     function _row(kind, name, depth, glyph, path, project_id)
         return { kind: kind, name: name, depth: depth, glyph: glyph,
                  label: studio_ui.row_label(kind, name, depth, glyph),
+                 ' The same row without its indentation, for a widget that
+                 ' indents by itself. Derived here beside `label` so the two
+                 ' cannot disagree about the glyph or the separator.
+                 text: studio_ui.row_text(kind, name, glyph),
                  path: path, project_id: project_id }
     end function
 
     ' The flat rendering: two spaces per level, the glyph, a separating space,
     ' then the name. A row with no glyph at all (the info rows) gets no
     ' separator either, or every one of them would start with a space.
+    '
+    ' BUILT FROM `row_text` rather than beside it, because a real TREE widget
+    ' does the indentation itself and so wants the glyph and the name WITHOUT
+    ' it. Two independent renderings of one row is the `projects[].documents`
+    ' mistake; one of them derived from the other is not.
     function row_label(kind, name, depth, glyph)
         indent = ""
         i = 0
@@ -416,10 +425,24 @@ library studio_ui
             indent = indent + "  "
             i = i + 1
         end while
+        return indent + studio_ui.row_text(kind, name, glyph)
+    end function
+
+    ' A row WITHOUT its indentation: the glyph, a separating space, the name.
+    '
+    ' What a tree widget wants, the indentation being the tree's own job. The
+    ' glyphs stay Studio's -- `●` `○` for which project is active, `▾` `▸` for
+    ' a directory -- because Studio owns expansion and the widget does not, so
+    ' the widget has no arrows to draw. gBASIC measured why that matters: after
+    ' a collapse Qt's own NotHidden iterator still counts every row, so there
+    ' is no "visible index" and an index can only mean the rows the program
+    ' handed over. Studio hands over the visible ones, which is the invariant
+    ' `nav_rows` already rests on.
+    function row_text(kind, name, glyph)
         if glyph = "" then
-            return indent + name
+            return name
         end if
-        return indent + glyph + " " + name
+        return glyph + " " + name
     end function
 
     ' Activate the row at `index` of the row array the view actually rendered.
