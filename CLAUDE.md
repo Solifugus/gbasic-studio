@@ -623,6 +623,40 @@ toolkit-free. A rule written for testability bought a port.
   that vocabulary.
 - **New Project says it has no window yet** rather than doing nothing, for the
   reason every other refusal here is named.
+- **THE BROWSER'S RIGHT-CLICK MENU IS A `popup`, and it belongs to the WINDOW**
+  — a `QMenu` is placed by nothing, so one written inside a `row` is a
+  declaration the layout silently ignores, and gBASIC refuses it there. Built
+  ONCE holding every item `studio_ui.context_all` names, shown or hidden per row
+  by `context_actions`, exactly as the GTK popover is.
+- **THREE THINGS LAND BETTER HERE THAN UNDER GTK, and all three are the
+  toolkit's doing rather than ours.** (1) Measured, a right-click fires ONLY
+  `customContextMenuRequested` — not `itemClicked`, not
+  `itemSelectionChanged` — so Studio's rule that a right-click SELECTS and does
+  not activate arrives from Qt instead of being enforced in a handler. (2) An
+  all-hidden `QMenu` is `isEmpty()` and `popup()` leaves it invisible, so
+  `qt.popup` answers FALSE and this file's own "a popover with nothing in it
+  reads as a control that failed" is the toolkit's refusal now; the info row
+  reports `shown=false`. (3) Naming the handler is what asks for the policy —
+  every widget starts at `DefaultContextMenu`, under which that signal is never
+  emitted, so a one-line version would have been a handler connected to
+  nothing.
+- **`G.ctx_index` is the row the menu was raised on**, and every item acts on
+  THAT row rather than on whatever is selected when the item is pressed — the
+  same reason the GTK shell keeps one. `project-file` and `close-project` name
+  that row's project, where the header's items act on the ACTIVE one, because a
+  right-click must not change which project you are in.
+- **`qt.select` is a TABLE's verb and raises on a field.** "Select what is in
+  the name field" is `qt.invoke(… "selectAll")`, a zero-argument method — the
+  GTK `select_region(0, -1)` equivalent. The raise aborted the rename handler
+  after it had already written the field, so the action came back `selected`
+  rather than `rename-ready`: a handler that half-ran.
+- **`qt.right_click` CANNOT aim at a tree row** — its third argument is a
+  table's (`"files` is not a table, so it has no row to click"). The tier
+  selects the row first and clicks the part, which drives the whole menu path
+  and leaves only the aiming simulated. Stated in the tier rather than hidden,
+  and asked for upstream: §0.20's justification for the table form is "what
+  makes `right-click the third file` writable", and the third file is now a tree
+  row.
 - **THE GUTTER IS BACK, and it is better than the GTK one** (gBASIC §0.29,
   the second ask built for Studio by name — and the user widened it on reading
   the note: *"I was only thinking line numbers and forgot about break points."*

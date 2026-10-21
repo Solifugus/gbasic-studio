@@ -198,6 +198,16 @@ function window_name()
     return "studio"
 end function
 
+function part_nav_menu()
+    return "nav_menu"
+end function
+
+' A browser context item, named after the action it performs -- the same rule
+' the header items follow, so `studio_ui.context_all` stays the only list.
+function part_ctx(action)
+    return "ctx_" + studio_shell_qt._ident(action)
+end function
+
 ' The browser's subject: the variable `app/studio.bas` must be holding when it
 ' calls `qt.open` and `qt.refresh`. Named here so the record and the renderer
 ' cannot drift about it -- gBASIC refuses a subject it cannot find in the
@@ -283,6 +293,11 @@ function window_for(app)
     for each spec in studio_ui.menus()
         items = append(items, studio_shell_qt._menu_for(app, spec))
     end for
+    ' THE BROWSER'S CONTEXT MENU, which belongs to the WINDOW and not to a
+    ' layout. A `QMenu` is placed by nothing, so a `popup` written inside a
+    ' `row` is a declaration the layout silently ignores -- gBASIC refuses it
+    ' there, the same rule a `menu` follows and reached by the same route.
+    items = append(items, studio_shell_qt._nav_menu(app))
     items = append(items, studio_shell_qt._body(app))
 
     return { kind: "window", name: studio_shell_qt.window_name(),
@@ -314,6 +329,29 @@ function title_for(app)
         return plain + " — " + base
     end if
     return marker + " — " + base
+end function
+
+' The browser's right-click menu: every item there is, BUILT ONCE, shown or
+' hidden per row.
+'
+' That is the GTK shell's arrangement kept deliberately, and the reason is the
+' same: minting widgets inside a selection handler is the doubling `ui_gui_solo`
+' exists to catch one level up, and under Qt it would additionally need a
+' reconcile where `qt.set(... "visible" ...)` does. `studio_ui.context_actions`
+' decides which a row offers and `studio_ui.context_all` is the closed list, so
+' nothing here knows what a row is.
+'
+' AN EMPTY MENU IS WORSE THAN NONE, and Qt agrees: an all-hidden `QMenu` is
+' `isEmpty()` and `popup()` leaves it invisible, so `qt.popup` answers false and
+' Studio's own comment -- "a popover with nothing in it reads as a control that
+' failed" -- is enforced by the toolkit rather than by us.
+function _nav_menu(app)
+    entries = []
+    for each action in studio_ui.context_all()
+        entries = append(entries, part("item", studio_shell_qt.part_ctx(action),
+                                       { label: studio_ui.context_label(action) }))
+    end for
+    return named("popup", studio_shell_qt.part_nav_menu(), entries)
 end function
 
 ' A menu and its items. A `menu`'s slot carries a CAPTION and not a name

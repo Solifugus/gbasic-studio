@@ -222,6 +222,124 @@ function on_qt_nav_clicked()
     return qt_took(r)
 end function
 
+' ---- the browser's right-click menu ---------------------------------------
+
+' THE RIGHT-CLICK, which asks for the menu and does not act.
+'
+' `customContextMenuRequested` is the signal, and naming the handler is what
+' ASKS for it: every widget starts at Qt's `DefaultContextMenu` policy, under
+' which that signal is never emitted -- so gBASIC sets the policy when it sees
+' the handler rather than making the request take two lines.
+'
+' MEASURED, A RIGHT-CLICK FIRES ONLY THIS. Not `itemClicked` and not
+' `itemSelectionChanged`, so it cannot open the file it is about -- which is
+' Studio's rule ("right-click SELECTS and does not activate") arriving from the
+' toolkit rather than being enforced here.
+'
+' THE ROW IS REMEMBERED, because every item acts on the row that was clicked
+' rather than on whatever is selected when the item is pressed. That is the same
+' reason the GTK shell keeps `G.ctx_index`.
+function on_qt_nav_context()
+    idx = qt.selected(G.win, studio_shell_qt.part_browser())
+    if is_unknown(idx) then
+        return nothing
+    end if
+    G.ctx_index = idx
+    rows = studio_ui.nav_rows(G.app)
+    offered = studio_ui.context_actions(rows, idx)
+    for each action in studio_ui.context_all()
+        z = qt.set(G.win, studio_shell_qt.part_ctx(action), "visible",
+                   contains(offered, action))
+    end for
+    ' AN EMPTY MENU IS NOT SHOWN, and Qt is what refuses: an all-hidden QMenu
+    ' is `isEmpty()` and `popup()` leaves it invisible, so this answers false
+    ' for a row that offers nothing -- which is an ordinary outcome and not a
+    ' failure, exactly as the GTK `context_for` reports it.
+    G.ctx_shown = qt.popup(G.win, studio_shell_qt.part_nav_menu())
+    return nothing
+end function
+
+' The row the menu was raised on, or `nothing`.
+function qt_ctx_row()
+    rows = studio_ui.nav_rows(G.app)
+    if G.ctx_index < 0 then
+        return nothing
+    end if
+    if G.ctx_index >= count(rows) then
+        return nothing
+    end if
+    return rows[G.ctx_index]
+end function
+
+function on_qt_ctx_open()
+    r = qt_ctx_row()
+    if r = nothing then
+        return nothing
+    end if
+    res = studio_ui.activate_row(G.app, studio_ui.nav_rows(G.app), G.ctx_index)
+    if res.action = "open" then
+        qt_note("file_opened", r.path, "")
+    end if
+    return qt_took(res)
+end function
+
+function on_qt_ctx_new_file()
+    return on_qt_new_file()
+end function
+
+function on_qt_ctx_new_folder()
+    return on_qt_new_folder()
+end function
+
+' RENAME DOES NOT RENAME. It fills the header field with the current name and
+' focuses it, because that field is where a name comes from and a second route
+' to one is two places to get naming rules wrong. The item says "Rename…" for
+' that reason.
+function on_qt_ctx_rename()
+    r = qt_ctx_row()
+    if r = nothing then
+        return nothing
+    end if
+    z = qt.write(G.win, studio_shell_qt.part_name_field(), r.name)
+    ' FOCUS IT AND SELECT WHAT IS IN IT, so the next keystroke replaces the
+    ' name rather than appending to it -- which is what the GTK handler's
+    ' `grab_focus` + `select_region(0, -1)` does. `qt.select` is a TABLE's verb
+    ' and raises on a field; `selectAll` is an ordinary zero-argument method,
+    ' which is what `qt.invoke` passes.
+    z = qt.invoke(G.win, studio_shell_qt.part_name_field(), "setFocus")
+    z = qt.invoke(G.win, studio_shell_qt.part_name_field(), "selectAll")
+    G.last_action = "rename-ready"
+    G.last_detail = r.name
+    return qt_redraw()
+end function
+
+function on_qt_ctx_delete()
+    return on_qt_delete()
+end function
+
+' THE ITEM NAMES THE ROW IT CAME FROM, where the menu item in the header acts
+' on the ACTIVE project -- because a right-click must not change which project
+' you are in.
+function on_qt_ctx_project_file()
+    r = qt_ctx_row()
+    if r = nothing then
+        return nothing
+    end if
+    res = studio_ui.add_project_file(G.app, r.project_id)
+    if res.action = "created" then
+        qt_note("file_created", res.detail, "")
+    end if
+    return qt_took(res)
+end function
+
+function on_qt_ctx_close_project()
+    r = qt_ctx_row()
+    if r = nothing then
+        return nothing
+    end if
+    return qt_took(studio_ui.close_project(G.app, r.project_id))
+end function
+
 ' ---- the notebook ---------------------------------------------------------
 
 function on_qt_tab_changed()
@@ -405,6 +523,7 @@ function qt_wire(win)
     files = studio_shell_qt.part_browser()
     win = qt_on(win, files, "itemSelectionChanged", on_qt_nav_selected)
     win = qt_on(win, files, "itemClicked", on_qt_nav_clicked)
+    win = qt_on(win, files, "customContextMenuRequested", on_qt_nav_context)
     win = qt_on(win, studio_shell_qt.part_tabs(), "currentChanged", on_qt_tab_changed)
     win = qt_on(win, studio_shell_qt.part_save(), "clicked", on_qt_save)
     win = qt_on(win, "run_btn", "clicked", on_qt_run)
@@ -430,7 +549,23 @@ function qt_wire(win)
     win = qt_on(win, qt_item("text-smaller"), "triggered", on_qt_text_smaller)
     win = qt_on(win, qt_item("text-reset"), "triggered", on_qt_text_reset)
     win = qt_on(win, qt_item("restore-session"), "triggered", on_qt_restore_session)
+
+    ' The browser's own menu. Every item dispatches to the SAME `studio_ui`
+    ' function the header item does -- which is what keeps Delete armed from
+    ' here, because a second implementation would quietly undo the two-click
+    ' rule on the same file from a different control.
+    win = qt_on(win, qt_ctx("open"), "triggered", on_qt_ctx_open)
+    win = qt_on(win, qt_ctx("new-file-here"), "triggered", on_qt_ctx_new_file)
+    win = qt_on(win, qt_ctx("new-folder-here"), "triggered", on_qt_ctx_new_folder)
+    win = qt_on(win, qt_ctx("rename"), "triggered", on_qt_ctx_rename)
+    win = qt_on(win, qt_ctx("delete"), "triggered", on_qt_ctx_delete)
+    win = qt_on(win, qt_ctx("project-file"), "triggered", on_qt_ctx_project_file)
+    win = qt_on(win, qt_ctx("close-project"), "triggered", on_qt_ctx_close_project)
     return win
+end function
+
+function qt_ctx(action)
+    return studio_shell_qt.part_ctx(action)
 end function
 
 function qt_item(action)
@@ -496,6 +631,10 @@ program main(args)
           ' Set across every render, because our own writes echo back as
           ' signals -- see `qt_redraw_saying`.
           redrawing: false,
+          ' The browser row a right-click was raised on, and whether the menu
+          ' actually appeared. Every item acts on THAT row rather than on
+          ' whatever is selected when the item is pressed.
+          ctx_index: 0 - 1, ctx_shown: false,
           ' Whether a run is in flight. The GTK shell lets its timer remove
           ' itself by returning `active`; a `timer.every` keeps ticking, so the
           ' flag is what stops the poller doing work between runs.
@@ -709,6 +848,34 @@ program main(args)
         z = qt.invoke(win, "run_btn", "click")
         print "  " + qt.read(win, studio_shell_qt.part_status(), "text")
 
+        print "-- the browser's own right-click menu, per row --"
+        ' `qt.right_click` cannot aim at a TREE row (its third argument is a
+        ' table's), so the row is selected first and the click lands on the
+        ' part. In a real window the press itself moves the current item, which
+        ' is what §0.20 measured for a table -- so this drives the menu path
+        ' faithfully and only the aiming is simulated.
+        for each want in ["file", "dir", "project", "info"]
+            at = qt_row_of_kind(want)
+            if at < 0 then
+                print "  " + padto_qt(want, 8) + "(no such row)"
+            else
+                z = qt.select(win, studio_shell_qt.part_browser(), at)
+                z = qt.right_click(win, studio_shell_qt.part_browser())
+                print "  " + padto_qt(want, 8) + "shown=" + string(G.ctx_shown) + " offers: " + join(studio_ui.context_actions(studio_ui.nav_rows(G.app), G.ctx_index), ", ")
+                z = qt.invoke(win, studio_shell_qt.part_nav_menu(), "hide")
+            end if
+        end for
+        print "  (an all-hidden menu is not shown, which is Qt refusing rather"
+        print "   than us: an empty one reads as a control that failed)"
+
+        print "-- Rename from that menu FILLS the field and does not rename --"
+        at = qt_row_of_kind("file")
+        z = qt.select(win, studio_shell_qt.part_browser(), at)
+        z = qt.right_click(win, studio_shell_qt.part_browser())
+        z = qt.invoke(win, qt_ctx("rename"), "trigger")
+        print "  action: " + G.last_action
+        print "  field:  [" + qt.read(win, studio_shell_qt.part_name_field(), "text") + "]"
+
         print "-- Close Project, which had no toolbar button at all --"
         z = qt.invoke(win, qt_item("close-project"), "trigger")
         ' The project is CLOSED by now, so its name is out of the workspace and
@@ -864,6 +1031,19 @@ end function
 ' The browser row index of a kind and a name, read off the model's own rows --
 ' which is the array the dispatcher indexes, so a tier addressing a row this
 ' way addresses the same thing a click does.
+' The first row of a given KIND, whatever it is called -- so a tier can ask for
+' "a directory" without knowing the fixture's names.
+function qt_row_of_kind(kind)
+    i = 0
+    for each r in studio_ui.nav_rows(G.app)
+        if r.kind = kind then
+            return i
+        end if
+        i = i + 1
+    end for
+    return 0 - 1
+end function
+
 function qt_row_of(kind, name)
     return studio_qt_row_index(studio_ui.nav_rows(G.app), kind, name)
 end function
