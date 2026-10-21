@@ -35,6 +35,23 @@
 -- Rename from that menu FILLS the field and does not rename --
   action: rename-ready
   field:  [README.md]
+-- New Project opens its own window, filled and pressed for real --
+  open:     true
+  name:     [Project 2]
+  main.bas ticked by default: true
+  .gstudio.json is NOT:       false
+  (a box you had to untick is not consent)
+  a second press presents the one that is open, not a second:
+    still one window: true
+-- a refusal keeps the window open, with what was typed in it --
+  note:     give the project a name
+  open:     true
+-- and a licence with no author refuses by its own name --
+  note:     MIT names a copyright holder — fill in Author
+-- filled in properly, Create makes the project --
+  action:   project-created
+  window:   false (closed on success)
+  projects: 2
 -- Close Project, which had no toolbar button at all --
   action: project-closed | closed (project) — the folder is untouched
-  projects: 0
+  projects: 1

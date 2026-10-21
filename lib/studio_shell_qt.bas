@@ -453,6 +453,90 @@ function _nav_menu(app)
     return named("popup", studio_shell_qt.part_nav_menu(), entries)
 end function
 
+' ---------------------------------------------------------------------------
+' The New Project window.
+' ---------------------------------------------------------------------------
+
+function new_project_name()
+    return "newproj"
+end function
+
+' The subject the form edits. `qt.subject(win, "opts")` IS the whole of the
+' widget-to-value read, which is what makes this window so much smaller than
+' the GTK one.
+function newproj_subject()
+    return "opts"
+end function
+
+function part_np(name)
+    return name
+end function
+
+' A SECOND ORDINARY WINDOW, NOT A MODAL ONE, and that is deliberate twice over.
+'
+' CLAUDE.md's standing rule is that an async surface is one no test can press,
+' which is why New Project is a window Studio builds rather than a
+' `GtkAlertDialog`. gBASIC's §0.18 shows a modal window CAN be driven -- a timer
+' keeps running while `qt.open_modal` blocks, so a program can answer its own
+' window -- but §0.15's stated limit is the other case, a dialog raised from a
+' HANDLER, and this one is raised from a menu item. §0.17 measured two ordinary
+' windows open at once with parts scoped per window, so the shape that matches
+' today's behaviour is also the shape with no limit in it.
+'
+' A `form to edit` DOES THE WHOLE JOB, which the GTK version could not.
+' Measured: it binds fields AND checks AND a choice from one record, and
+' `qt.subject` reads the lot back -- so `studio_shell.new_project_options`,
+' which walks eight widgets and maps a drop-down index back to a licence id
+' through `_index_of`, becomes one verb. The options record was always the
+' thing being edited; now it is also the thing the window is bound to.
+function new_project_window(opts, license_ids)
+    u = studio_style.unit()
+    return { kind: "window", name: studio_shell_qt.new_project_name(),
+             options: { title: "gBASIC Studio — new project",
+                        width: 560, height: 420 },
+             items: [ box("column", { margin: u * 2, spacing: u }, [
+                 part("text", "np_head", { label: "New project" }),
+                 { kind: "container", word: "form", direction: "edit",
+                   subject: studio_shell_qt.newproj_subject(), items: [
+                     part("field", "name",
+                          { label: "Name",
+                            toolTip: "What the project is called. The DIRECTORY is a slug of this, so \"My Thing\" lands in my-thing." }),
+                     part("field", "location",
+                          { label: "Location",
+                            toolTip: "The directory the project directory is made inside. ~/ and relative paths work." }),
+                     part("field", "author",
+                          { label: "Author",
+                            toolTip: "Who a licence names as the copyright holder. Taken from git's user.name when there is one." }),
+                     part("choice", "license",
+                          { label: "Licence",
+                            toolTip: "Studio does not write a licence of its own: it copies the text from share/licenses/ and fills in the year and the author." }),
+                     ' THE FOUR FILES, in the order a project usually acquires
+                     ' them. ONLY main.bas IS ON: a project with nothing in it
+                     ' scans to zero browser rows and there is nowhere to
+                     ' click. `.gstudio.json` is off most deliberately --
+                     ' ticking it by default would be Studio putting its own
+                     ' file in your directory because you did not look, which
+                     ' is the behaviour that file exists to avoid. A box you
+                     ' had to untick is not consent.
+                     part("check", "main",
+                          { label: "main.bas — a file you can run straight away" }),
+                     part("check", "readme", { label: "README.md" }),
+                     part("check", "projfile",
+                          { label: ".gstudio.json — a stable id, an ignore list, an interpreter pin" }),
+                     part("check", "git",
+                          { label: "git repository — git init, and a .gitignore" }) ] },
+                 ' The refusal goes HERE and the window STAYS OPEN with what was
+                 ' typed still in it: the field to fix is in this window, and
+                 ' closing it to put the reason in a status line behind it would
+                 ' hide both.
+                 part("text", "np_note", { label: "" }),
+                 bare("stretch"),
+                 box("row", { margin: 0, spacing: u }, [
+                     bare("stretch"),
+                     part("button", "np_cancel", { label: "Cancel" }),
+                     part("button", "np_create", { label: "Create" }) ]) ]) ] }
+end function
+
 ' A menu and its items. A `menu`'s slot carries a CAPTION and not a name
 ' (§0.7, asserted both ways upstream so a menu and a table cannot drift
 ' together), and an ITEM is a QAction addressed by name -- which is what makes

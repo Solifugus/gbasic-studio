@@ -421,11 +421,72 @@ end function
 ' ONE FUNCTION PER ITEM, because a handler takes no arguments and so cannot be
 ' told which item fired. The GTK shell has the same list for the same reason.
 
+' NEW PROJECT OPENS A WINDOW, and the window is built ONCE and presented
+' again on a second press -- minting a second set of parts over the same
+' handlers is the doubling `ui_gui_solo` exists to catch one level up, and
+' under Qt a second `qt.open` of the same name refuses by name anyway.
 function on_qt_new_project()
-    print to error "Studio (Qt): New Project opens a window, which is not built yet"
-    G.last_action = ""
-    G.last_detail = ""
-    return qt_redraw_saying("New Project needs its own window, which the Qt shell does not have yet")
+    if qt_np_is_open() then
+        return nothing
+    end if
+    ' THE SUBJECT HAS TO BE IN THIS FRAME, by the name the record declares --
+    ' `qt.open` binds a `form to edit` out of the frame that calls it.
+    opts = studio_ui.default_options(G.app, G.app.paths.home)
+    G.npwin = qt_wire_newproj(studio_shell_qt.new_project_window(opts, studio_ui.license_ids()))
+    z = qt.open(G.npwin)
+    ' A `choice`'s own list, which is data rather than declaration -- the
+    ' licences Studio actually SHIPS, so an id whose text is missing cannot be
+    ' offered in the first place.
+    z = qt.options(G.npwin, "license", studio_ui.license_ids())
+    z = qt.write(G.npwin, "license", opts.license)
+    return nothing
+end function
+
+' CREATE. `project_plan` decides and `create_project` acts, so a refused plan
+' has touched nothing -- and the refusals are NAMED, each reaching this window's
+' own note by name, so a New Project that will not go through says which field
+' to change.
+function on_qt_np_create()
+    ' ONE VERB IS THE WHOLE WIDGET-TO-VALUE READ. The GTK shell walks eight
+    ' widgets and maps a drop-down index back to a licence id; a `form to edit`
+    ' binds the record and `qt.subject` hands it back.
+    opts = qt.subject(G.npwin, studio_shell_qt.newproj_subject())
+    r = studio_ui.create_project(G.app, opts)
+    if r.action = "project-created" then
+        G.app = r.app
+        qt_note("project_created", r.detail, "")
+        z = qt.close(G.npwin)
+        G.last_action = r.action
+        G.last_detail = r.detail
+        return qt_redraw()
+    end if
+    ' REFUSED: the window stays open with what was typed still in it, and the
+    ' reason goes in the note beside the fields rather than in a status line
+    ' behind the window.
+    z = qt.set(G.npwin, "np_note", "text", studio_ui.action_notice(r.action, r.detail))
+    return nothing
+end function
+
+function on_qt_np_cancel()
+    return qt.close(G.npwin)
+end function
+
+' Whether the New Project window is up.
+'
+' `qt.is_open` takes a window RECORD and refuses `nothing` -- correctly, there
+' being no window to ask about -- so "has it ever been opened" is a separate
+' question from "is it open", and conflating them raised on the FIRST press.
+function qt_np_is_open()
+    if G.npwin = nothing then
+        return false
+    end if
+    return qt.is_open(G.npwin)
+end function
+
+function qt_wire_newproj(win)
+    win = qt_on(win, "np_create", "clicked", on_qt_np_create)
+    win = qt_on(win, "np_cancel", "clicked", on_qt_np_cancel)
+    return win
 end function
 
 function on_qt_open_folder()
@@ -690,6 +751,9 @@ program main(args)
           ' actually appeared. Every item acts on THAT row rather than on
           ' whatever is selected when the item is pressed.
           ctx_index: 0 - 1, ctx_shown: false,
+          ' The New Project window, which is a SECOND ordinary window rather
+          ' than a modal one -- see `studio_shell_qt.new_project_window`.
+          npwin: nothing,
           ' Whether a run is in flight. The GTK shell lets its timer remove
           ' itself by returning `active`; a `timer.every` keeps ticking, so the
           ' flag is what stops the poller doing work between runs.
@@ -986,6 +1050,44 @@ program main(args)
         z = qt.invoke(win, qt_ctx("rename"), "trigger")
         print "  action: " + G.last_action
         print "  field:  [" + qt.read(win, studio_shell_qt.part_name_field(), "text") + "]"
+
+        print "-- New Project opens its own window, filled and pressed for real --"
+        z = qt.invoke(win, qt_item("new-project"), "trigger")
+        print "  open:     " + string(qt_np_is_open())
+        print "  name:     [" + qt.read(G.npwin, "name", "text") + "]"
+        print "  main.bas ticked by default: " + string(qt.read(G.npwin, "main", "checked"))
+        print "  .gstudio.json is NOT:       " + string(qt.read(G.npwin, "projfile", "checked"))
+        print "  (a box you had to untick is not consent)"
+        print "  a second press presents the one that is open, not a second:"
+        z = qt.invoke(win, qt_item("new-project"), "trigger")
+        print "    still one window: " + string(qt_np_is_open())
+
+        print "-- a refusal keeps the window open, with what was typed in it --"
+        z = qt.write(G.npwin, "name", "")
+        z = qt.invoke(G.npwin, "np_create", "click")
+        print "  note:     " + qt.read(G.npwin, "np_note", "text")
+        print "  open:     " + string(qt_np_is_open())
+
+        print "-- and a licence with no author refuses by its own name --"
+        ' MIT, not Apache: those two are the only ids whose LICENSE text names
+        ' a copyright holder in the file itself, so they are the two that can
+        ' refuse for want of one. And the id is written as a VALUE rather than
+        ' an index -- `qt.write` refuses one that is not in the choice's list
+        ' by name, so a licence Studio does not ship cannot be chosen at all,
+        ' where the GTK window maps a drop-down index back through `_index_of`.
+        z = qt.write(G.npwin, "name", "A Fine Project")
+        z = qt.write(G.npwin, "author", "")
+        z = qt.write(G.npwin, "license", "MIT")
+        z = qt.invoke(G.npwin, "np_create", "click")
+        print "  note:     " + qt.read(G.npwin, "np_note", "text")
+
+        print "-- filled in properly, Create makes the project --"
+        z = qt.write(G.npwin, "author", "A Person")
+        z = qt.write(G.npwin, "license", "none")
+        z = qt.invoke(G.npwin, "np_create", "click")
+        print "  action:   " + G.last_action
+        print "  window:   " + string(qt_np_is_open()) + " (closed on success)"
+        print "  projects: " + string(count(G.app.model.workspace.projects))
 
         print "-- Close Project, which had no toolbar button at all --"
         z = qt.invoke(win, qt_item("close-project"), "trigger")

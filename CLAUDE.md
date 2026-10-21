@@ -623,6 +623,33 @@ toolkit-free. A rule written for testability bought a port.
   that vocabulary.
 - **New Project says it has no window yet** rather than doing nothing, for the
   reason every other refusal here is named.
+- **NEW PROJECT IS A SECOND ORDINARY WINDOW, NOT A MODAL ONE**, and that is
+  deliberate twice over. gBASIC's §0.18 shows a modal CAN be driven — a timer
+  keeps running while `qt.open_modal` blocks, so a program answers its own
+  window — but §0.15's stated limit is a dialog raised from a HANDLER, and this
+  one is raised from a menu item. §0.17 measured two ordinary windows open at
+  once with parts scoped per window, so the shape that matches today's
+  behaviour is also the shape with no limit in it. The standing rule holds
+  unchanged: an async surface is one no test can press.
+- **`form to edit` DOES THE WHOLE JOB, which the GTK version could not.**
+  Measured: it binds fields AND checks AND a choice from one record, and
+  `qt.subject` reads the lot back — so `studio_shell.new_project_options`,
+  which walks eight widgets and maps a drop-down index back to a licence id
+  through `_index_of`, becomes ONE VERB. The options record was always the
+  thing being edited; now it is also the thing the window is bound to.
+- **A licence Studio does not ship cannot be chosen.** The id goes in as a
+  VALUE and `qt.write` refuses one absent from the choice's list BY NAME, where
+  the GTK window maps an index and can refuse nothing. `license_ids` is
+  case-sensitive (`Apache-2.0`, not `apache-2.0`) and only `MIT` and
+  `BSD-3-Clause` name a holder in the text, so only those two can refuse for
+  want of an author.
+- **A `choice`'s list is DATA, set with `qt.options` after the window opens** —
+  not part of the declaration, because the licences Studio ships are a
+  directory listing and not a vocabulary.
+- **`qt.is_open` takes a window RECORD and refuses `nothing`**, correctly,
+  there being no window to ask about — so "has it ever been opened" is a
+  different question from "is it open", and conflating them raised on the FIRST
+  press. `qt_np_is_open` is the guard.
 - **THE QT WINDOW IS A `QMainWindow`, and the three splits are three DOCK
   AREAS** (gBASIC §0.30, which found that dock panes, a status bar and a
   toolbar were never three pieces of work — all three hang off `QMainWindow`,
