@@ -75,7 +75,8 @@ window studio
         scroll beside
           column
             text branch_head
-            memo branch_body
+            table branch_list to show branches
+              field line
             text results_head
             memo results_body
             text tables_head
@@ -136,13 +137,14 @@ window studio
   /studio/across/across/down/console/err_head         label=Errors
   /studio/across/across/beside                        margin=6 spacing=6
   /studio/across/across/beside/branch_head            label=Branches
+  /studio/across/across/beside/branch_list/line       label=Branch
   /studio/across/across/beside/results_head           label=For the section at the cursor
   /studio/across/across/beside/tables_head            label=Tables
   /studio/across/across/beside/git_head               label=Git
   /studio/across/across/beside/agent_head             label=Assistant
   /studio/status                                      label=ready — ws — 1 project(s) — 0 open
 == every name it declares ==
-  mi_new_project mi_open_folder mi_project_file mi_close_project mi_new_file mi_new_folder mi_rename mi_delete mi_reload mi_close_tab mi_theme_system mi_theme_dark mi_text_bigger mi_text_smaller mi_text_reset mi_restore_session nav_menu ctx_open ctx_new_file_here ctx_new_folder_here ctx_rename ctx_delete ctx_project_file ctx_close_project wordmark name_field save files text depth book page_welcome welcome console run_btn run_all_btn stop_btn snippet_btn schema_btn run_section run_standing run_state run_branch prefix_head prefix_body target_head target_body err_head err_body beside branch_head branch_body results_head results_body tables_head tables_body git_head git_body agent_head agent_body status
+  mi_new_project mi_open_folder mi_project_file mi_close_project mi_new_file mi_new_folder mi_rename mi_delete mi_reload mi_close_tab mi_theme_system mi_theme_dark mi_text_bigger mi_text_smaller mi_text_reset mi_restore_session nav_menu ctx_open ctx_new_file_here ctx_new_folder_here ctx_rename ctx_delete ctx_project_file ctx_close_project wordmark name_field save files text depth book page_welcome welcome console run_btn run_all_btn stop_btn snippet_btn schema_btn run_section run_standing run_state run_branch prefix_head prefix_body target_head target_body err_head err_body beside branch_head branch_list results_head results_body tables_head tables_body git_head git_body agent_head agent_body status
 == the title carries the marker too, which is conventional ==
   cold: gBASIC Studio — ws
 == pane sizes, one list per split, addressed by a part inside it ==

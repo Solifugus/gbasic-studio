@@ -650,6 +650,31 @@ toolkit-free. A rule written for testability bought a port.
   GTK `select_region(0, -1)` equivalent. The raise aborted the rename handler
   after it had already written the field, so the action came back `selected`
   rather than `rename-ready`: a handler that half-ran.
+- **THE BRANCH PANE IS A `table`, because its rows are CLICKABLE** — a branch
+  is chosen by clicking one and `+` makes a new one, which a memo of joined
+  lines cannot do. `studio_ui.branch_line` is new and composes the row (the
+  selection mark, the name, the overlay mark, the staleness note); the GTK
+  shell was composing that INLINE, which made it a rendering decision in a
+  view. Both shells go through the one function now and the string is
+  unchanged, which is why no GTK golden moved.
+- **The TABLES pane stays text, and the reason is scheduling rather than
+  taste**: its rows open a GRID WINDOW, which is the one area this conversion
+  leaves for last because a parallel session owns the data grid. A clickable row
+  there would have nowhere to go. `results`, `git` and `agent` are prose and
+  were never lists.
+- **EVERY SUBJECT THE RECORD DECLARES must exist in the frame that calls
+  `qt.open`**, and there are two now. Adding the second broke both `qtshell`
+  modes that open a window — `qt.open` refused the whole window — so the
+  driver has a function for it rather than a line to forget.
+- **AND THAT MISTAKE GOT PAST MY OWN GOLDEN CHECK, which is worth more than the
+  feature.** Those two runs exited nonzero and produced TRUNCATED output, and I
+  copied it over the goldens, dropping 41 and 20 lines. The
+  fixture-independence check passed because it compared **two identically
+  broken runs** — agreement-is-not-correctness arriving in the very thing built
+  to stop golden drift. Regeneration now refuses on a nonzero exit, on empty
+  output, and on a fixture difference, and PRINTS THE LINE DELTA (`151 -> 153`)
+  so a shrink cannot pass unnoticed. Restore from git rather than patching
+  forward from a damaged golden.
 - **`qt.right_click` CANNOT aim at a tree row** — its third argument is a
   table's (`"files` is not a table, so it has no row to click"). The tier
   selects the row first and clicks the part, which drives the whole menu path

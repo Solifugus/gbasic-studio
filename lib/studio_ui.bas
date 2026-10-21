@@ -3955,6 +3955,26 @@ library studio_ui
         return { app: app, rows: rows, point: v.sid }
     end function
 
+    ' A branch row AS ONE STRING: the selection mark, the name, the overlay
+    ' mark, and the staleness note.
+    '
+    ' MOVED OUT OF THE SHELL, where it was composed inline -- which made it a
+    ' rendering decision in a view, and the interaction rule puts decisions
+    ' here. It is also the `row_label` rule: two shells render this now, and
+    ' two independent compositions of one row is how they drift. The string is
+    ' unchanged, which is why no golden moved.
+    function branch_line(r)
+        mark = "   "
+        if r.selected then
+            mark = " * "
+        end if
+        text = mark + r.label + studio_ui.overlay_mark(r)
+        if r.stale then
+            text = text + "   [ancestry changed]"
+        end if
+        return text
+    end function
+
     ' Click row `index` of what was rendered. `name` is the header field, which
     ' names a new branch the way it names a new file.
     function activate_branch_row(app, rows, index, name)

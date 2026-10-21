@@ -143,6 +143,18 @@ function tab_captions(node)
   return out
 end function
 
+' EVERY SUBJECT THE RECORD DECLARES has to exist in the frame that opens the
+' window -- `qt.open` resolves a `table to show` by name out of that frame and
+' refuses the whole window otherwise. There are two now (the browser's rows and
+' the branch pane's), so this is a function rather than a line to forget.
+function qt_branch_subject(app)
+    out = []
+    for each r in studio_ui.branch_rows(app).rows
+        out = append(out, { line: studio_ui.branch_line(r) })
+    end for
+    return out
+end function
+
 ' A pane report without its SIZES. The nesting is a fact about the record and
 ' is byte-stable; the pixels are not -- Qt re-proportions a splitter against
 ' its allocation, and upstream measured 260/540 of an 800-wide splitter coming
@@ -287,6 +299,7 @@ program main(args)
     ' exactly that -- which is why `studio_shell_qt.nav_subject()` exists
     ' rather than the string being written here and there.
     nav = studio_ui.nav_rows(app)
+    branches = qt_branch_subject(app)
     print "  open:  " + string(qt.open(win))
 
     print "== what the window says about itself =="
@@ -371,6 +384,7 @@ program main(args)
     app = o.app
     win = studio_shell_qt.window_for(app)
     nav = studio_ui.nav_rows(app)
+    branches = qt_branch_subject(app)
     print "== one document, and something typed into it =="
     print "  open:  " + string(qt.open(win))
     print "  tabs:  " + string(qt.tabs(win, studio_shell_qt.part_tabs()))

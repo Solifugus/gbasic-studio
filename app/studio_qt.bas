@@ -340,6 +340,26 @@ function on_qt_ctx_close_project()
     return qt_took(studio_ui.close_project(G.app, r.project_id))
 end function
 
+' ---- the branch pane ------------------------------------------------------
+
+' A BRANCH ROW CHOSEN. The rows are DATA that changes, which is why the pane is
+' a table rather than a row of buttons -- the same argument the browser rests
+' on, and `qt.selected` answers the index against the array that produced them.
+function on_qt_branch_row()
+    if G.redrawing then
+        return nothing
+    end if
+    idx = qt.selected(G.win, studio_shell_qt.part_branches())
+    if is_unknown(idx) then
+        return nothing
+    end if
+    br = studio_ui.branch_rows(G.app)
+    G.app = br.app
+    ' The header field names a new branch the way it names a new file, which is
+    ' what the `+` row reads.
+    return qt_took(studio_ui.activate_branch_row(G.app, br.rows, idx, qt_typed_name()))
+end function
+
 ' ---- the notebook ---------------------------------------------------------
 
 function on_qt_tab_changed()
@@ -524,6 +544,7 @@ function qt_wire(win)
     win = qt_on(win, files, "itemSelectionChanged", on_qt_nav_selected)
     win = qt_on(win, files, "itemClicked", on_qt_nav_clicked)
     win = qt_on(win, files, "customContextMenuRequested", on_qt_nav_context)
+    win = qt_on(win, studio_shell_qt.part_branches(), "itemSelectionChanged", on_qt_branch_row)
     win = qt_on(win, studio_shell_qt.part_tabs(), "currentChanged", on_qt_tab_changed)
     win = qt_on(win, studio_shell_qt.part_save(), "clicked", on_qt_save)
     win = qt_on(win, "run_btn", "clicked", on_qt_run)
@@ -671,6 +692,13 @@ program main(args)
     ' there. Found by running it -- the refusal says so in as many words, which
     ' is the difference between a minute and an afternoon.
     nav = studio_ui.nav_rows(G.app)
+    ' THE BRANCH PANE'S SUBJECT, bound at open for the same reason `nav` is:
+    ' `qt.open` reads a `table to show` out of the frame that calls it and
+    ' refuses the whole window when the variable is not there.
+    branches = []
+    for each br in studio_ui.branch_rows(G.app).rows
+        branches = append(branches, { line: studio_ui.branch_line(br) })
+    end for
     z = qt.open(win)
     G.win = win
 
@@ -721,7 +749,9 @@ program main(args)
         print "  target:   [" + qt.read(win, "target_body", "plainText") + "]"
         print "  errors:   " + qt.read(win, "err_head", "text") + " [" + qt.read(win, "err_body", "plainText") + "]"
         print "  results:  [" + studio_qt_first_line(qt.read(win, "results_body", "plainText")) + "]"
-        print "  branches: [" + studio_qt_first_line(qt.read(win, "branch_body", "plainText")) + "]"
+        ' THE BRANCH PANE IS A TABLE now, so there is no body to read: its
+        ' rows are what it holds, and a row is `studio_ui.branch_line`.
+        print "  branches: " + string(qt_branch_cells(win))
         print "  tables:   [" + studio_qt_first_line(qt.read(win, "tables_body", "plainText")) + "]"
         print "  git:      [" + qt.read(win, "git_body", "plainText") + "]"
         print "  dark is checked: " + string(qt.read(win, studio_shell_qt.part_item("theme-dark"), "checked"))
@@ -759,6 +789,13 @@ program main(args)
         ' where `studio_ui` keeps them 0-based for a Gtk.TextBuffer.
         print "  section marks:  " + string(qt.marks(win, ed, "section"))
         print "  error marks:    " + string(qt.marks(win, ed, "error"))
+        ' THE BRANCH PANE POPULATES once there is a section to branch at --
+        ' cold it is empty, because a branch point is a section and there was
+        ' no document. `*` is the selected one and `+` is the row that makes a
+        ' new one, which is why this pane had to be a table and not a memo.
+        print "  branches:       " + string(qt_branch_cells(win))
+        z = qt.select(win, studio_shell_qt.part_branches(), 0)
+        print "  chose Baseline: " + G.last_action
 
         ' AND EDITED IN THE MODEL, which is where the marker comes from. The
         ' caption moves and the editor is NOT rebuilt -- the one claim the
@@ -1018,6 +1055,17 @@ function qt_sync_buffer(app)
         z = qt_redraw()
     end if
     return app
+end function
+
+' Every row the branch table is holding, read back off the widget.
+function qt_branch_cells(win)
+    out = []
+    i = 0
+    for each r in studio_ui.branch_rows(G.app).rows
+        out = append(out, qt.cell(win, studio_shell_qt.part_branches(), i, "line"))
+        i = i + 1
+    end for
+    return out
 end function
 
 function padto_qt(text, width)

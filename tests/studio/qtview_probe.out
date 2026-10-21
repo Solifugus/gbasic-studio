@@ -19,7 +19,7 @@
   target:   [(this section has not run)]
   errors:   Errors [(none)]
   results:  [(no document open)]
-  branches: [(no branches)]
+  branches: []
   tables:   [(nothing tabular in the latest run)]
   git:      []
   dark is checked: false
@@ -35,6 +35,8 @@
   margin:         true numbers, true marks
   section marks:  [1]
   error marks:    []
+  branches:       [" * Baseline","   +"]
+  chose Baseline: baseline
 -- edited in the model --
   tabs:     ["* main.bas"]
   title:    * main.bas — gBASIC Studio — workspace

@@ -221,6 +221,17 @@ function part_browser()
     return "files"
 end function
 
+' The branch pane's subject -- the same arrangement the browser has, and the
+' same reason the name is written once: `qt.open` and `qt.refresh` both resolve
+' it out of the frame that calls them.
+function branch_subject()
+    return "branches"
+end function
+
+function part_branches()
+    return "branch_list"
+end function
+
 function part_tabs()
     return "book"
 end function
@@ -625,7 +636,26 @@ function _beside(app)
     panes = []
     for each p in studio_shell_qt.side_panes()
         panes = append(panes, part("text", p.id + "_head", { label: p.label }))
-        panes = append(panes, part("memo", p.id + "_body", {}))
+        if p.id = "branch" then
+            ' THE BRANCH PANE IS A TABLE, because its rows are CLICKABLE: a
+            ' branch is selected by clicking one, and `+` makes a new one. A
+            ' memo of joined lines cannot do that, which is what the other
+            ' panes here still are.
+            '
+            ' ONE COLUMN, carrying `studio_ui.branch_line` -- the selection
+            ' mark, the name, the overlay mark and the staleness note, composed
+            ' in `studio_ui` where a decision belongs rather than in a view.
+            panes = append(panes, show_table(studio_shell_qt.part_branches(),
+                                             studio_shell_qt.branch_subject(),
+                                             [ column_of("line", "Branch") ]))
+        else
+            ' STILL TEXT, and the reason differs by pane. `tables`'s rows open a
+            ' GRID WINDOW, which is the one area this conversion leaves for
+            ' last because a parallel session owns the data grid -- so a
+            ' clickable row would have nowhere to go. `results`, `git` and
+            ' `agent` are prose and were never lists.
+            panes = append(panes, part("memo", p.id + "_body", {}))
+        end if
     end for
     panes = append(panes, bare("stretch"))
     return named("scroll", studio_shell_qt.part_beside(),

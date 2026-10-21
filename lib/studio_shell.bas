@@ -1876,15 +1876,9 @@ library studio_shell
         app = br.app
         studio_shell._clear_listbox(shell.bpane.list)
         for each r in br.rows
-            mark = "   "
-            if r.selected then
-                mark = " * "
-            end if
-            text = mark + r.label + studio_ui.overlay_mark(r)
-            if r.stale then
-                text = text + "   [ancestry changed]"
-            end if
-            shell.bpane.list.append(studio_shell._left(gtk.label(text)))
+            ' Composed by `studio_ui.branch_line` now, not here: two shells
+            ' render this and a view does not get to decide what a row says.
+            shell.bpane.list.append(studio_shell._left(gtk.label(studio_ui.branch_line(r))))
         end for
         shell.bpane.rows = br.rows
         ' STU-9: conflicts are SURFACED on every redraw, never acted on (§9.3).

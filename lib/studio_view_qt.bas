@@ -178,9 +178,16 @@ function render_run(win, app)
 
     app = studio_view_qt._gutter(win, app)
 
-    b = studio_view_qt._lines(win, "branch_body", studio_ui.branch_rows(app),
-                              "(no branches)")
-    app = b
+    ' THE BRANCH PANE IS A TABLE, so it follows its subject the way the browser
+    ' does -- read out of THIS frame by the name the record declares.
+    br = studio_ui.branch_rows(app)
+    app = br.app
+    branches = []
+    for each r in br.rows
+        branches = append(branches, { line: studio_ui.branch_line(r) })
+    end for
+    z = qt.refresh(win, studio_shell_qt.part_branches())
+
     t = studio_view_qt._lines(win, "tables_body", studio_ui.table_rows(app),
                               "(nothing tabular in the latest run)")
     app = t
