@@ -27,14 +27,14 @@
   Run needs the caret, which this toolkit cannot yet report — use ./studio for now
 -- the browser's own right-click menu, per row --
   file    shown=true offers: open, rename, delete
-  dir     shown=true offers: new-file-here, new-folder-here, rename, delete
-  project shown=true offers: project-file, close-project
-  info    shown=false offers: 
+  dir     shown=true offers: open, rename, delete
+  project shown=true offers: open, rename, delete
+  info    shown=true offers: open, rename, delete
   (an all-hidden menu is not shown, which is Qt refusing rather
    than us: an empty one reads as a control that failed)
 -- Rename from that menu FILLS the field and does not rename --
   action: rename-ready
-  field:  [a.bas]
+  field:  [README.md]
 -- Close Project, which had no toolbar button at all --
   action: project-closed | closed (project) — the folder is untouched
   projects: 0

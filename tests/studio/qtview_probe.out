@@ -23,6 +23,26 @@
   tables:   [(nothing tabular in the latest run)]
   git:      []
   dark is checked: false
+-- the furniture: which EDGE did each dock land on? --
+  files     left
+  console   bottom
+  branch    right, tabbed with 4
+  results   right, tabbed with 4
+  tables    right, tabbed with 4
+  git       right, tabbed with 4
+  agent     right, tabbed with 4
+  (Qt TABS the docks sharing an edge, which is what stops the
+   last of five panes sitting below the fold)
+-- and the toolbar's items are QActions with real icons --
+  save            icon=true
+  tb_reload       icon=true
+  tb_open_folder  icon=true
+  tb_new_file     icon=true
+  tb_new_folder   icon=true
+-- the layout round-trips, which is what a dragged dock needs --
+  saved:    true (base64, because the blob is not UTF-8)
+  restored: true
+  a blob it does not know is REPORTED, not raised: false
 -- a browser row activated, exactly as a click would --
   action:   open
   title:    main.bas — gBASIC Studio — workspace

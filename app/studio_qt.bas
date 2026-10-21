@@ -523,6 +523,32 @@ function on_qt_restore_session()
     return qt_took(studio_ui.toggle_restore(G.app))
 end function
 
+' ---- closing --------------------------------------------------------------
+
+' THE WINDOW IS CLOSING, AND THIS IS THE ONLY MOMENT ITS LAYOUT CAN BE READ.
+'
+' `on <win>.closed` fires BEFORE gBASIC forgets the window, which is what §0.17
+' built it for: afterwards every verb refuses, correctly, because a window the
+' person dismissed must not go on answering with the values it was showing.
+' The GTK shell has the same problem and the same shape of answer -- it reads
+' its geometry in `close-request`, because the loop returns only once the
+' window is gone.
+function on_qt_closed()
+    if not qt.is_open(G.win) then
+        return nothing
+    end if
+    w = qt.read(G.win, studio_shell_qt.window_name(), "width")
+    h = qt.read(G.win, studio_shell_qt.window_name(), "height")
+    session = G.app.model.session
+    session.window.width = w
+    session.window.height = h
+    ' The whole arrangement, base64 -- see `studio_model.qt_layout_of` for why
+    ' it is one opaque string and not a record of numbers.
+    session.qt_layout = qt.layout(G.win)
+    G.app.model.session = session
+    return nothing
+end function
+
 ' ---- the wiring -----------------------------------------------------------
 
 ' Append a handler record to a window record.
@@ -546,7 +572,15 @@ function qt_wire(win)
     win = qt_on(win, files, "customContextMenuRequested", on_qt_nav_context)
     win = qt_on(win, studio_shell_qt.part_branches(), "itemSelectionChanged", on_qt_branch_row)
     win = qt_on(win, studio_shell_qt.part_tabs(), "currentChanged", on_qt_tab_changed)
-    win = qt_on(win, studio_shell_qt.part_save(), "clicked", on_qt_save)
+    ' SAVE IS A `QAction` ON THE TOOLBAR NOW, so its signal is `triggered`
+    ' rather than `clicked` -- the part name is unchanged, which is what kept
+    ' every other reference to it working.
+    win = qt_on(win, studio_shell_qt.part_save(), "triggered", on_qt_save)
+    win = qt_on(win, "tb_reload", "triggered", on_qt_reload)
+    win = qt_on(win, "tb_open_folder", "triggered", on_qt_open_folder)
+    win = qt_on(win, "tb_new_file", "triggered", on_qt_new_file)
+    win = qt_on(win, "tb_new_folder", "triggered", on_qt_new_folder)
+    win = qt_on(win, studio_shell_qt.window_name(), "closed", on_qt_closed)
     win = qt_on(win, "run_btn", "clicked", on_qt_run)
     win = qt_on(win, "run_all_btn", "clicked", on_qt_run_all)
     win = qt_on(win, "stop_btn", "clicked", on_qt_stop)
@@ -712,11 +746,26 @@ program main(args)
     ' changes while Studio runs.
     dressed = studio_view_qt.dress(win, G.app)
 
-    ' The layout the user last left. Each split is addressed by a part that is
-    ' one of ITS OWN panes, because the walk stops at the nearest region.
-    for each p in studio_shell_qt.pane_sizes(G.app)
-        sized = qt.resize_panes(win, p.at, p.sizes)
-    end for
+    ' THE LAYOUT THE USER LAST LEFT, restored whole.
+    '
+    ' This replaces the three divider numbers the GTK shell stores, and it is a
+    ' strictly larger thing: `QMainWindow` saves which dock is at which edge,
+    ' which are tabbed together, which are closed or floating, and every size.
+    ' A `Gtk.Paned` could offer one number per divider and nothing about
+    ' arrangement, which is why dragging a dock somewhere useful was never
+    ' something Studio could remember.
+    '
+    ' A BLOB IT DOES NOT RECOGNISE IS REPORTED, NOT RAISED -- `qt.restore_layout`
+    ' answers false, which is exactly what a launch meets after the window's
+    ' own declaration changed. Losing a saved arrangement is not worth stopping
+    ' a program for, so this is noted on stderr and nothing else.
+    saved_layout = studio_model.qt_layout_of(G.app.model.session)
+    if saved_layout != "" then
+        took = qt.restore_layout(win, saved_layout)
+        if not took then
+            print to error "Studio (Qt): the saved window layout was not recognised — starting from the declaration"
+        end if
+    end if
 
     if mode = "probe" then
         ' A headless tier's mode: everything above has happened for real,
@@ -755,6 +804,31 @@ program main(args)
         print "  tables:   [" + studio_qt_first_line(qt.read(win, "tables_body", "plainText")) + "]"
         print "  git:      [" + qt.read(win, "git_body", "plainText") + "]"
         print "  dark is checked: " + string(qt.read(win, studio_shell_qt.part_item("theme-dark"), "checked"))
+
+        print "-- the furniture: which EDGE did each dock land on? --"
+        ' ASKED OF THE WINDOW (`dockWidgetArea`) rather than of anything we
+        ' remembered when the pane was built -- which is the rule `qt.at` and
+        ' `qt.pane` already follow, and it is load-bearing here: a pane in the
+        ' wrong area is INVISIBLE from the language otherwise, since every part
+        ' inside it reads back by name whichever edge it ended up on and
+        ' `visible` is true either way.
+        print "  " + padto_qt("files", 10) + qt.dock(win, studio_shell_qt.part_browser_dock()).area
+        print "  " + padto_qt("console", 10) + qt.dock(win, studio_shell_qt.part_console_dock()).area
+        for each sp in studio_shell_qt.side_panes()
+            d = qt.dock(win, studio_shell_qt.part_side_dock(sp.id))
+            print "  " + padto_qt(sp.id, 10) + d.area + ", tabbed with " + string(d.tabbed_with)
+        end for
+        print "  (Qt TABS the docks sharing an edge, which is what stops the"
+        print "   last of five panes sitting below the fold)"
+        print "-- and the toolbar's items are QActions with real icons --"
+        for each ti in [studio_shell_qt.part_save(), "tb_reload", "tb_open_folder", "tb_new_file", "tb_new_folder"]
+            print "  " + padto_qt(ti, 16) + "icon=" + string(qt.has_icon(win, ti))
+        end for
+        print "-- the layout round-trips, which is what a dragged dock needs --"
+        blob = qt.layout(win)
+        print "  saved:    " + string(count(blob) > 0) + " (base64, because the blob is not UTF-8)"
+        print "  restored: " + string(qt.restore_layout(win, blob))
+        print "  a blob it does not know is REPORTED, not raised: " + string(qt.restore_layout(win, "bm90aGluZw=="))
 
         ' AND THEN A DOCUMENT OPENS, through the same `studio_ui.activate_row`
         ' a browser click calls -- so this half asserts the row model reaching
@@ -878,7 +952,7 @@ program main(args)
         print "  action: " + G.last_action
 
         print "-- Save with nothing open refuses by name --"
-        z = qt.invoke(win, studio_shell_qt.part_save(), "click")
+        z = qt.invoke(win, studio_shell_qt.part_save(), "trigger")
         print "  action: " + G.last_action + " | " + studio_qt_scrub(qt.read(win, studio_shell_qt.part_status(), "text"), G.app)
 
         print "-- Run says why it cannot, rather than running the wrong cell --"
@@ -976,8 +1050,9 @@ program main(args)
 
     rc = qt.run()
     ' The session is written on the way out, exactly as the GTK path writes it
-    ' from `close-request`. Here the window has already gone, so the geometry
-    ' had to be read before it did -- which is what `on <win>.closed` is for.
+    ' from `close-request`. Here the window has already gone by the time
+    ' `qt.run()` returns, so anything that has to be read off it is read in the
+    ' `closed` handler -- which is what §0.17 built that handler for.
     saved = studio.shutdown(G.app)
     logged = studio_history.save(home, G.log)
     print "saved: " + join(saved, ", ")

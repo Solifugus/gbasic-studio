@@ -42,10 +42,40 @@ library studio_model
         return { browser: 260, console: 380, right: 620 }
     end function
 
+    ' THE QT LAYOUT, which is a different thing from the three dividers above
+    ' and supersedes them for that shell.
+    '
+    ' A `QMainWindow` saves its whole arrangement -- which dock is at which
+    ' edge, which are tabbed together, which are closed or floating, and every
+    ' size -- where a `Gtk.Paned` could offer one number per divider and nothing
+    ' about arrangement. So this is ONE OPAQUE STRING rather than a record of
+    ' numbers, and it is BASE64: measured upstream, the blob is not valid UTF-8
+    ' (95 of 143 bytes NUL, 16 above 127), and `session.json` is JSON.
+    '
+    ' GUARDED LIKE EVERY OTHER STORED VALUE, because this is a file a user can
+    ' edit and a crash can truncate. An unrecognised blob is not an error:
+    ' `qt.restore_layout` answers false for one it does not know, which is
+    ' exactly what a program meets after its own declaration changed, and losing
+    ' a saved arrangement is not worth stopping a launch for.
+    function qt_layout_of(session)
+        if not has(session, "qt_layout") then
+            return ""
+        end if
+        v = session.qt_layout
+        if not is_string(v) then
+            return ""
+        end if
+        return v
+    end function
+
     ' One stored divider, or the default. Guarded because this is a JSON file a
     ' user can edit and a crash can truncate, and a divider read as `unknown`
     ' or as 0 is a pane collapsed to its floor on startup with no way to tell
     ' why. Below 40 is not a pane anybody meant.
+    '
+    ' KEPT FOR THE GTK SHELL, which still has three GtkPaneds. The Qt shell uses
+    ' `qt_layout_of` instead; the two coexist until GTK goes, and a home written
+    ' by one opens in the other -- each simply ignores what it cannot use.
     function pane_at(session, name, fallback)
         if not has(session, "panes") then
             return fallback

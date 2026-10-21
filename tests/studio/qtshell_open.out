@@ -27,17 +27,22 @@
   mi_text_bigger: Ctrl++
   mi_text_smaller: Ctrl+-
   mi_text_reset: Ctrl+0
-== the nesting, asked of the LAYOUT rather than of the record ==
-  browser: split across pane 0 of 2
-  editors: split down pane 0 of 2
-  console: split down pane 1 of 2
-  beside:  split across pane 1 of 2
+== the furniture, asked of the WINDOW rather than of the record ==
+  files:   left, tabbed with 0
+  console: bottom, tabbed with 0
+  branch:  right, tabbed with 4
+  results: right, tabbed with 4
+  tables:  right, tabbed with 4
+  git:     right, tabbed with 4
+  agent:   right, tabbed with 4
+  and the editor is the CENTRAL widget, which is docked to nothing:
+    tabs:  (not docked)
 == the editor round-trips the document ==
   ed_doc_1: [print "main" / ]
   highlighted as: gBASIC
-== and every split takes the sizes the session asked for ==
-  files         true
-  beside        true
-  book          true
+== and the whole arrangement saves and restores ==
+  saved:    true
+  restored: true
+  unknown:  false (reported, not raised)
 == closed, and every verb then refuses by name ==
   is_open: false

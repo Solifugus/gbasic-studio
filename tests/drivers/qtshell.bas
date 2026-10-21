@@ -47,7 +47,15 @@ function print_shape(node, depth)
     slot = node.name
   end if
   if has(node, "label") then
-    slot = "\"" + node.label + "\""
+    ' A DOCK CARRIES BOTH, and the name is the load-bearing half: Qt keys a
+    ' saved layout by it, and a dock with none makes `saveState` warn and omit
+    ' the pane. So both are printed rather than the caption winning -- a golden
+    ' that showed only the caption could not see a dock losing its name.
+    if slot != "" then
+      slot = slot + " \"" + node.label + "\""
+    else
+      slot = "\"" + node.label + "\""
+    end if
   end if
 
   line = indent + word
@@ -101,8 +109,14 @@ function names_of(node, acc)
   out = acc
   if node.kind != "window" then
     if has(node, "name") then
+      ' A `split`'s slot is its DIRECTION and a `docks`' is its EDGE, so
+      ' neither is a part name and neither registers as one -- the same
+      ' exclusion for the same reason, found the second time by a dock area
+      ' turning up in this list as though it were addressable.
       if node.word != "split" then
-        out = append(out, node.name)
+        if node.word != "docks" then
+          out = append(out, node.name)
+        end if
       end if
     end if
   end if
@@ -179,8 +193,42 @@ function tabs_items(node)
   return []
 end function
 
-function nesting(p)
-  return p.kind + " " + p.direction + " pane " + string(p.index) + " of " + string(p.panes)
+' Every dock the RECORD declares, with the edge of the area holding it.
+function dock_areas(node, edge)
+  out = []
+  here = edge
+  if has(node, "word") then
+    if node.word = "docks" then
+      here = node.name
+    end if
+    if node.word = "dock" then
+      out = append(out, { name: node.name, edge: here })
+    end if
+  end if
+  if has(node, "items") then
+    for each c in node.items
+      for each d in dock_areas(c, here)
+        out = append(out, d)
+      end for
+    end for
+  end if
+  return out
+end function
+
+' A dock's EDGE and how many panes it shares it with.
+'
+' This replaced a `nesting` helper over `qt.pane`, because §0.30 turned the
+' three splits into three dock AREAS and `qt.pane` now answers `unknown` for a
+' part in no splitter -- which `nesting` met as a field access on a non-record.
+' The check is the same KIND of check: ask the WINDOW where the thing ended up,
+' never anything we remembered when it was built, because a pane in the wrong
+' area is invisible from the language otherwise.
+function docked(win, name)
+  d = qt.dock(win, name)
+  if is_unknown(d) then
+    return "(not docked)"
+  end if
+  return d.area + ", tabbed with " + string(d.tabbed_with)
 end function
 
 program main(args)
@@ -221,9 +269,14 @@ program main(args)
     print "== the title carries the marker too, which is conventional =="
     print "  cold: " + studio_shell_qt.title_for(app)
 
-    print "== pane sizes, one list per split, addressed by a part inside it =="
-    for each p in studio_shell_qt.pane_sizes(app)
-      print "  at " + pad(p.at, 14) + string(p.sizes)
+    print "== and where the record puts each dock, before any window exists =="
+    ' THE RECORD'S OWN ANSWER, which is the half a shape golden can assert:
+    ' `qtshell_open` asks the WINDOW the same question through `qt.dock` and
+    ' the two must agree. Either alone is weaker -- the record could declare an
+    ' edge the backend ignores, and the window could report one the record
+    ' never asked for.
+    for each a in dock_areas(win, "")
+      print "  " + pad(a.name, 16) + a.edge
     end for
   end if
 
@@ -339,13 +392,14 @@ program main(args)
       print "  " + nm + ": " + qt.read(win, nm, "shortcut")
     end for
 
-    print "== the nesting, asked of the LAYOUT rather than of the record =="
-    ' The TREE itself, which is the pane -- it scrolls itself and wears no
-    ' scroller, so there is no nearer region for the walk to stop at.
-    print "  browser: " + nesting(qt.pane(win, studio_shell_qt.part_browser()))
-    print "  editors: " + nesting(qt.pane(win, studio_shell_qt.part_tabs()))
-    print "  console: " + nesting(qt.pane(win, studio_shell_qt.part_console()))
-    print "  beside:  " + nesting(qt.pane(win, studio_shell_qt.part_beside()))
+    print "== the furniture, asked of the WINDOW rather than of the record =="
+    print "  files:   " + docked(win, studio_shell_qt.part_browser_dock())
+    print "  console: " + docked(win, studio_shell_qt.part_console_dock())
+    for each sp in studio_shell_qt.side_panes()
+      print "  " + pad(sp.id + ":", 9) + docked(win, studio_shell_qt.part_side_dock(sp.id))
+    end for
+    print "  and the editor is the CENTRAL widget, which is docked to nothing:"
+    print "    tabs:  " + docked(win, studio_shell_qt.part_tabs())
 
     print "== the editor round-trips the document =="
     doc = studio_docs.active_doc(app.dm)
@@ -357,10 +411,15 @@ program main(args)
     ' reports the identical name -- so only the language is asserted.
     print "  highlighted as: " + qt.highlighting(win, ed).language
 
-    print "== and every split takes the sizes the session asked for =="
-    for each p in studio_shell_qt.pane_sizes(app)
-      print "  " + pad(p.at, 14) + string(qt.resize_panes(win, p.at, p.sizes))
-    end for
+    print "== and the whole arrangement saves and restores =="
+    ' ONE OPAQUE BLOB, where the GTK shell stores three divider numbers: a
+    ' QMainWindow saves which dock is at which edge, which are tabbed, which
+    ' are closed or floating, and every size. Base64, because the blob is not
+    ' valid UTF-8 and `session.json` is JSON.
+    blob = qt.layout(win)
+    print "  saved:    " + string(count(blob) > 0)
+    print "  restored: " + string(qt.restore_layout(win, blob))
+    print "  unknown:  " + string(qt.restore_layout(win, "bm90aGluZw==")) + " (reported, not raised)"
 
     z = qt.close(win)
     print "== closed, and every verb then refuses by name =="

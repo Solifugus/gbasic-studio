@@ -40,7 +40,11 @@ files and about 1.3% of the source. Two pieces have landed:
 window's shape is now in the headless test suite for the first time; and
 `./studio qt` opens that window for real, renders your workspace into it, and
 responds to its menus, its browser, Save and the tab row — all of it testable
-with **no display at all**, which the GTK window never was. The editor there has a
+with **no display at all**, which the GTK window never was. It is a proper main window
+now: the file tree docks on the left, the console along the bottom, and the five
+side panes are tabs down the right edge — each one closable, floatable and
+draggable to another edge, with the whole arrangement remembered between
+launches. There is a real toolbar and a real status bar. The editor there has a
 margin with line numbers — which the GTK one never had — and the same marks
 beside it: one at the start of every runnable section, one on the line a syntax
 error is. It is not the default yet: Run still needs something the new toolkit

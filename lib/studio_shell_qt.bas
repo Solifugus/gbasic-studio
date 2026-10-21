@@ -180,6 +180,43 @@ function show_tree(name, subject, columns)
              direction: "show", subject: subject, items: columns }
 end function
 
+' A DOCK AREA. Its slot carries the EDGE -- `left`, `right`, `top`, `bottom` --
+' the way a split's carries its direction, and for the same reason: an area with
+' no edge is not an area.
+function docks(edge, panes)
+    return { kind: "container", word: "docks", name: edge, items: panes }
+end function
+
+' A DOCK PANE, and the ONLY shape in this vocabulary carrying a NAME AND a
+' CAPTION both. §0.8's one-slot rule looks as though it forbids that, and
+' gBASIC measured why it does not: the wall stands between two heads that both
+' end in NEWLINE, and this head has a STRING where the choice would be, so one
+' token of lookahead settles it.
+'
+' IT NEEDS BOTH FOR DIFFERENT REASONS. The caption is what a person reads on the
+' pane's title bar. The NAME is what `qt.set` and `qt.dock` address -- and what
+' Qt keys a saved layout by: a dock with no `objectName` makes `saveState` WARN
+' and omit it, so "restore my layout" would come back silently partial, and
+' every tier here captures stderr.
+function dock(name, caption, items)
+    return { kind: "container", word: "dock", name: name, label: caption,
+             items: items }
+end function
+
+function toolbar(name, items)
+    return named("toolbar", name, items)
+end function
+
+' The status bar. A bare container, and it holds named `text` parts rather than
+' carrying a message itself: a `QStatusBar` has NO property for its text
+' (`message` and `currentMessage` are both absent, and `showMessage` takes an
+' argument `qt.invoke` cannot pass), while a `QLabel` inside one carries `text`
+' as an ordinary Q_PROPERTY. So the by-name route reaches it and no verb was
+' needed.
+function status_bar(items)
+    return { kind: "container", word: "status", options: {}, items: items }
+end function
+
 ' The column that carries the depth and is never drawn.
 function depth_column(name)
     return part("field", name, { depth: true })
@@ -230,6 +267,26 @@ end function
 
 function part_branches()
     return "branch_list"
+end function
+
+' A DOCK'S NAME IS WHAT QT KEYS A SAVED LAYOUT BY, so every one is written here
+' and nowhere else -- measured upstream, a dock with no `objectName` makes
+' `saveState` WARN and omit it, so "restore my layout" would come back silently
+' partial, and every tier here captures stderr.
+function part_browser_dock()
+    return "dock_files"
+end function
+
+function part_console_dock()
+    return "dock_console"
+end function
+
+function part_side_dock(id)
+    return "dock_" + id
+end function
+
+function part_toolbar()
+    return "toolbar"
 end function
 
 function part_tabs()
@@ -293,23 +350,54 @@ end function
 ' refuse a malformed one with no display anywhere.
 function window_for(app)
     model = app.model
-    ws = model.workspace
 
     items = []
     ' THE MENU BAR BELONGS TO THE WINDOW and not to a layout (§0.7): Qt would
     ' put a QMenuBar wherever the layout said, so a `menu` inside a `row`
     ' renders as a bar in the middle of the screen, and gBASIC refuses it at
-    ' load time for that reason. So the menus go at the top level, before the
-    ' body, and the header row below holds only what is genuinely a toolbar.
+    ' load time for that reason. A main window additionally has to PLACE it
+    ' with `setMenuBar` -- added to the central widget's layout it renders
+    ' inside the window, under the toolbar and above the content, which is the
+    ' one existing path §0.30 had to change.
     for each spec in studio_ui.menus()
         items = append(items, studio_shell_qt._menu_for(app, spec))
     end for
-    ' THE BROWSER'S CONTEXT MENU, which belongs to the WINDOW and not to a
-    ' layout. A `QMenu` is placed by nothing, so a `popup` written inside a
-    ' `row` is a declaration the layout silently ignores -- gBASIC refuses it
-    ' there, the same rule a `menu` follows and reached by the same route.
+    ' THE BROWSER'S CONTEXT MENU, which belongs to the WINDOW too. A `QMenu` is
+    ' placed by nothing, so a `popup` written inside a `row` is a declaration
+    ' the layout silently ignores -- gBASIC refuses it there.
     items = append(items, studio_shell_qt._nav_menu(app))
-    items = append(items, studio_shell_qt._body(app))
+
+    ' --- THE FURNITURE, which is what makes this a QMainWindow -------------
+    '
+    ' A window asks for one by HOLDING a `docks`, a `toolbar` or a `status`,
+    ' decided from the declaration rather than offered as an option -- so a
+    ' window with none is untouched. THREE SPLITS BECAME THREE DOCK AREAS, and
+    ' that is not a cosmetic swap:
+    '
+    '   * a dock has a TITLE BAR saying what it is, where Studio's right-hand
+    '     column was five headings in a scroller and CLAUDE.md's own verdict on
+    '     it was "an undifferentiated list of sentences";
+    '   * Qt TABS docks that share an area, measured -- which closes the
+    '     complaint that the last of five stacked panes sits below the fold, a
+    '     heading reading "Errors" over a pane you cannot see being
+    '     indistinguishable from one reading "Errors" over "(none)";
+    '   * and a dock can be closed, floated and dragged to another edge, which
+    '     `qt.layout` then SAVES whole -- where GTK could store three divider
+    '     numbers and nothing about arrangement.
+    items = append(items, studio_shell_qt._toolbar(app))
+    items = append(items, docks("left", [
+        dock(studio_shell_qt.part_browser_dock(), "Files",
+             [ studio_shell_qt._browser(app) ]) ]))
+    items = append(items, docks("bottom", [
+        dock(studio_shell_qt.part_console_dock(), "Console",
+             [ studio_shell_qt._console(app) ]) ]))
+    items = append(items, docks("right", studio_shell_qt._side_docks(app)))
+    items = append(items, status_bar([
+        part("text", studio_shell_qt.part_status(),
+             { label: studio_ui.status_text(app) }) ]))
+
+    ' --- and the CENTRAL widget, which is the editor -----------------------
+    items = append(items, studio_shell_qt._central(app))
 
     return { kind: "window", name: studio_shell_qt.window_name(),
              options: { title: studio_shell_qt.title_for(app),
@@ -440,57 +528,98 @@ function shortcut_for(action)
     return ""
 end function
 
-' ---------------------------------------------------------------------------
-' The body: header, the three splits, status bar.
-' ---------------------------------------------------------------------------
-
-function _body(app)
-    rows = []
-    rows = append(rows, studio_shell_qt._header(app))
-    rows = append(rows, studio_shell_qt._main(app))
-    rows = append(rows, part("text", studio_shell_qt.part_status(),
-                             { label: studio_ui.status_text(app) }))
-    return box("column", { margin: 0, spacing: 0 }, rows)
-end function
-
-' The header. Two menus and a button became three menus and a button at
-' STU-16/STU-18, and the menus have left the row entirely now -- they belong to
-' the window. What is left is the wordmark, the name field and Save, which is
-' what a toolbar is for: the one verb pressed constantly, and the one field
-' every naming action reads.
-function _header(app)
-    u = studio_style.unit()
-    items = []
-    items = append(items, part("text", "wordmark", { label: "gBASIC Studio" }))
-    items = append(items, bare("separator"))
-    ' STU-2D's name field, and the placeholder is still the only thing in the
-    ' window that says Open Folder reads this as a PATH.
-    items = append(items, part("field", studio_shell_qt.part_name_field(),
-        { placeholderText: "name or path",
-          toolTip: "A name for New File / New Folder / Rename, or a folder path for Open Folder (~ works). New Project asks for its own." }))
-    items = append(items, part("button", studio_shell_qt.part_save(),
-        { label: "Save",
-          toolTip: "Write the active document to disk. Over a file that changed underneath, press twice — the first press arms it." }))
-    ' The stretch is what keeps the three of them at the left instead of spread
-    ' across the window. It takes no name, which gBASIC refuses rather than
-    ' ignores.
-    items = append(items, bare("stretch"))
-    return box("row", { margin: u, spacing: u }, items)
-end function
-
-' browser | ( ( editors / console ) | right column )
+' THE TOOLBAR, which is what the header row used to be and is now the
+' toolkit's own.
 '
-' The same three nested splits the GTK shell has, in the same order, so a
-' divider the user dragged under GTK means the same thing here. Under GTK they
-' are `gtk.paned` and each holds exactly two children; a QSplitter holds any
-' number, which is why pane sizes are a LIST upstream (§0.22) and why
-' `pane_sizes` below answers one per split.
-function _main(app)
-    inner = splitter("down", [ studio_shell_qt._editors(app),
-                            studio_shell_qt._console(app) ])
-    right = splitter("across", [ inner, studio_shell_qt._beside(app) ])
-    return splitter("across", [ studio_shell_qt._browser(app), right ])
+' Its entries are `QAction`s -- the SAME objects a menu's items are, so `icon:`
+' and `checkable:` work on one here exactly as there, and an `item` means the
+' same thing in both places by construction rather than by agreement.
+'
+' THE ICONS ARE `SP_` STANDARD PIXMAPS, which is the one source that always
+' resolves. Measured on this machine, which has NO ICON THEME AT ALL: all five
+' answer `qt.has_icon` true, where a freedesktop name would warn and draw
+' nothing. That is §0.23's own reason for preferring them.
+'
+' SAVE IS STILL NOT IN A MENU. It is pressed constantly, it is the only control
+' with a state of its own (the conflict arm), and a second route would be a
+' second widget for the teaching registry and the smoke modes to tell apart. It
+' keeps the part name it had as a button, so nothing addressing it moved.
+'
+' AND RUN IS NOT HERE, which is STU-16's own lesson applied rather than a
+' slip. That phase existed because ten toolbar buttons mixed three SCOPES with
+' nothing saying which: the workspace, the browser selection, and the active
+' document. This toolbar is document-and-workspace scope -- Save, Reload, Open
+' Folder, New File, New Folder. Run is SECTION scope and belongs beside the
+' thing that names the section, which is the run strip in the console dock: a
+' Run button next to "section: sec-1 statements" says what it will run, and one
+' on a global toolbar does not. Two routes to one verb is also the thing Save
+' is deliberately spared.
+function _toolbar(app)
+    return toolbar(studio_shell_qt.part_toolbar(), [
+        part("item", studio_shell_qt.part_save(),
+             { label: "Save", icon: "SP_DialogSaveButton",
+               toolTip: "Write the active document to disk. Over a file that changed underneath, press twice — the first press arms it." }),
+        part("item", "tb_reload",
+             { label: "Reload", icon: "SP_BrowserReload",
+               toolTip: studio_ui.menu_hint("reload") }),
+        bare("separator"),
+        part("item", "tb_open_folder",
+             { label: "Open Folder", icon: "SP_DialogOpenButton",
+               toolTip: studio_ui.menu_hint("open-folder") }),
+        part("item", "tb_new_file",
+             { label: "New File", icon: "SP_FileIcon",
+               toolTip: studio_ui.menu_hint("new-file") }),
+        part("item", "tb_new_folder",
+             { label: "New Folder", icon: "SP_FileDialogNewFolder",
+               toolTip: studio_ui.menu_hint("new-folder") }) ])
 end function
+
+' The five panes that were a scrolled column on the right, each now a dock with
+' a title bar of its own. Qt TABS the ones sharing an edge -- measured, two in
+' the same area come back `tabbed_with: 1` -- which is what closes the
+' complaint that the last of five stacked panes sits below the fold, a heading
+' reading "Errors" over a pane you cannot see being indistinguishable from one
+' reading "Errors" over "(none)".
+function _side_docks(app)
+    out = []
+    for each p in studio_shell_qt.side_panes()
+        if p.id = "branch" then
+            body = show_table(studio_shell_qt.part_branches(),
+                              studio_shell_qt.branch_subject(),
+                              [ column_of("line", "Branch") ])
+        else
+            ' Still a memo, and the reason differs by pane. `tables`'s rows open
+            ' a GRID WINDOW, the one area this conversion leaves for last
+            ' because a parallel session owns the data grid, so a clickable row
+            ' would have nowhere to go. `results`, `git` and `agent` are prose
+            ' and were never lists.
+            body = part("memo", p.id + "_body", {})
+        end if
+        out = append(out, dock(studio_shell_qt.part_side_dock(p.id), p.label,
+                               [ body ]))
+    end for
+    return out
+end function
+
+' THE CENTRAL WIDGET IS THE EDITOR, which is what a main window is for: the
+' thing the application is about sits in the middle and everything else docks
+' around it.
+'
+' The name field rides above it, and that is the whole of what is left of the
+' header row -- the wordmark went (the title bar says it), Save went to the
+' toolbar, and the menus belong to the window. A `toolbar` admits `item` and
+' `separator` only, so a field cannot live in one.
+function _central(app)
+    u = studio_style.unit()
+    return box("column", { margin: 0, spacing: 0 }, [
+        box("row", { margin: u, spacing: u }, [
+            part("field", studio_shell_qt.part_name_field(),
+                 { placeholderText: "name or path",
+                   toolTip: "A name for New File / New Folder / Rename, or a folder path for Open Folder (~ works). New Project asks for its own." }),
+            bare("stretch") ]),
+        studio_shell_qt._editors(app) ])
+end function
+
 
 ' THE BROWSER IS A TREE (gBASIC §0.28, built for it by name).
 '
@@ -625,43 +754,6 @@ function _console(app)
                  [ box("column", { margin: u, spacing: u }, panes) ])
 end function
 
-' The right-hand column: branches, results, tables, git, the assistant.
-'
-' Each is a heading and a body, built once and shown or hidden -- the rule the
-' GTK shell already follows, and it survives the move because `qt.set(win,
-' name, "visible", false)` is the ordinary by-name route. A pane that is added
-' and removed is a pane whose parent can be destroyed under a live window.
-function _beside(app)
-    u = studio_style.unit()
-    panes = []
-    for each p in studio_shell_qt.side_panes()
-        panes = append(panes, part("text", p.id + "_head", { label: p.label }))
-        if p.id = "branch" then
-            ' THE BRANCH PANE IS A TABLE, because its rows are CLICKABLE: a
-            ' branch is selected by clicking one, and `+` makes a new one. A
-            ' memo of joined lines cannot do that, which is what the other
-            ' panes here still are.
-            '
-            ' ONE COLUMN, carrying `studio_ui.branch_line` -- the selection
-            ' mark, the name, the overlay mark and the staleness note, composed
-            ' in `studio_ui` where a decision belongs rather than in a view.
-            panes = append(panes, show_table(studio_shell_qt.part_branches(),
-                                             studio_shell_qt.branch_subject(),
-                                             [ column_of("line", "Branch") ]))
-        else
-            ' STILL TEXT, and the reason differs by pane. `tables`'s rows open a
-            ' GRID WINDOW, which is the one area this conversion leaves for
-            ' last because a parallel session owns the data grid -- so a
-            ' clickable row would have nowhere to go. `results`, `git` and
-            ' `agent` are prose and were never lists.
-            panes = append(panes, part("memo", p.id + "_body", {}))
-        end if
-    end for
-    panes = append(panes, bare("stretch"))
-    return named("scroll", studio_shell_qt.part_beside(),
-                 [ box("column", { margin: u, spacing: u }, panes) ])
-end function
-
 ' The right column's vocabulary, in the order STU-8/9/11/10 put them. A closed
 ' list, so a pane cannot be added by a renderer that happens to know a name.
 function side_panes()
@@ -674,54 +766,6 @@ function side_panes()
     out = append(out, { id: "tables", label: "Tables" })
     out = append(out, { id: "git", label: "Git" })
     out = append(out, { id: "agent", label: "Assistant" })
-    return out
-end function
-
-' ---------------------------------------------------------------------------
-' Pane sizes.
-'
-' GTK's `position` is ONE number because a Gtk.Paned has exactly two children.
-' A QSplitter holds any number, so `qt.resize_panes` takes a LIST (§0.22) -- and
-' what is stored is a ratio in effect: measured upstream, asking 260/540 of an
-' 800-wide splitter gives back 252/522, and a window resize re-proportions.
-' A count mismatch is REFUSED rather than clamped, so these lists must be
-' exactly two long, which is what keeps them honest about the three splits
-' being two-pane each.
-' ---------------------------------------------------------------------------
-
-' What to hand `qt.resize_panes` for each split, keyed by a part INSIDE that
-' split -- which is how a split is addressed at all, there being no name to
-' look up. Read out of the session, guarded by `studio_model.pane_at` exactly
-' as the GTK shell reads it, because this is JSON a user can hand-edit.
-function pane_sizes(app)
-    session = app.model.session
-    w = session.window.width
-    h = session.window.height
-    browser = studio_model.pane_at(session, "browser", 260)
-    right = studio_model.pane_at(session, "right", 620)
-    console = studio_model.pane_at(session, "console", 380)
-
-    ' EACH SPLIT IS ADDRESSED BY A PART THAT IS ONE OF ITS OWN PANES, because
-    ' `splitter_of` stops at the NEAREST region (§0.22) -- so asking with the
-    ' browser TABLE would find the scroll it sits in and resize nothing, and
-    ' asking with a part in the console would find the vertical split rather
-    ' than the horizontal one. Measured upstream both ways, with the control
-    ' that a direct pane is still found.
-    out = []
-    ' The outer split: the browser against everything else. The tree IS the
-    ' pane -- it scrolls itself and wears no scroller -- so it addresses this
-    ' one directly.
-    out = append(out, { at: studio_shell_qt.part_browser(),
-                        sizes: [ browser, w - browser ] })
-    ' The right split, whose own width is what the outer split left it -- not
-    ' the window's. GTK's `rsplit.position` is measured from the rsplit's own
-    ' left edge, so the number means the same thing in both toolkits.
-    out = append(out, { at: studio_shell_qt.part_beside(),
-                        sizes: [ right, (w - browser) - right ] })
-    ' The vertical split, inside that. `book` is the tabs container, which is
-    ' its first pane.
-    out = append(out, { at: studio_shell_qt.part_tabs(),
-                        sizes: [ console, h - console ] })
     return out
 end function
 

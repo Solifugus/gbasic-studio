@@ -623,6 +623,69 @@ toolkit-free. A rule written for testability bought a port.
   that vocabulary.
 - **New Project says it has no window yet** rather than doing nothing, for the
   reason every other refusal here is named.
+- **THE QT WINDOW IS A `QMainWindow`, and the three splits are three DOCK
+  AREAS** (gBASIC §0.30, which found that dock panes, a status bar and a
+  toolbar were never three pieces of work — all three hang off `QMainWindow`,
+  so it was §0.18's question asked of a different root). A window asks for one
+  by HOLDING a `docks`, a `toolbar` or a `status`; one holding none is
+  untouched.
+- **Files dock LEFT, the console BOTTOM, and the five side panes RIGHT where Qt
+  TABS them** — measured, `tabbed_with: 4`. That closes a complaint this file
+  has carried for two phases: the five side panes were headings in a scrolled
+  column ("an undifferentiated list of sentences"), and the last of them sat
+  below the fold, where a heading reading "Errors" over a pane you cannot see
+  is indistinguishable from one reading "Errors" over "(none)". Each is now a
+  titled pane that can be closed, floated or dragged to another edge.
+- **The EDITOR is the central widget**, which is what a main window is for, and
+  `qt.dock` correctly answers `unknown` for it — docked to nothing.
+- **A `dock` is the only shape carrying a NAME AND a CAPTION both**, which
+  §0.8's one-slot rule appears to forbid and does not: that wall stands between
+  two heads both ending in NEWLINE, and this one has a STRING where the choice
+  would be. It needs both — the caption is what a person reads on the title
+  bar, and **the name is what Qt keys a saved layout by**: a dock with no
+  `objectName` makes `saveState` warn and omit it, so a restored layout would
+  come back silently partial.
+- **`qt.layout` REPLACES the three divider numbers, and is a larger thing.**
+  One opaque base64 blob holding which dock is at which edge, which are tabbed,
+  which are closed or floating, and every size — where `studio_model.panes`
+  could offer one number per divider and nothing about arrangement, so a
+  dragged pane was never something Studio could remember. Base64 because the
+  blob is NOT valid UTF-8 (95 of 143 bytes NUL) and `session.json` is JSON.
+  `studio_model.qt_layout_of` guards it like every other stored value, and
+  `studio_model.pane_at` stays for the GTK shell — a home written by one shell
+  opens in the other, each ignoring what it cannot use.
+- **An unrecognised layout is REPORTED, not raised.** `qt.restore_layout`
+  answers false, which is exactly what a launch meets after the window's own
+  declaration changed; losing a saved arrangement is not worth stopping a
+  program for. Studio says so on stderr and carries on.
+- **It is read in `on <win>.closed`**, because that is the only moment it can
+  be: the handler fires before gBASIC forgets the window, and afterwards every
+  verb refuses — correctly, since a dismissed window must not go on answering
+  with what it was showing. Same shape as the GTK shell reading its geometry in
+  `close-request`.
+- **THE TOOLBAR IS SCOPED, which is STU-16's lesson applied rather than a
+  slip.** Save, Reload, Open Folder, New File, New Folder — document and
+  workspace verbs, with `SP_` standard-pixmap icons (all five measured
+  resolving on this machine, which has NO ICON THEME AT ALL, where a
+  freedesktop name would warn and draw nothing). **Run is NOT there**: that is
+  SECTION scope and belongs beside the thing that names the section, so it
+  stays on the run strip — a Run button next to "section: sec-1 statements"
+  says what it will run and one on a global toolbar does not. STU-16 exists
+  because ten toolbar buttons mixed three scopes with nothing saying which.
+- **A toolbar's entries are `QAction`s**, the same objects a menu's items are,
+  so Save's signal is `triggered` and not `clicked` now. Its part NAME is
+  unchanged, which is what kept every other reference to it working.
+- **A `status` holds named `text` parts and carries no message itself**: a
+  `QStatusBar` has no property for its text (`message` and `currentMessage`
+  both absent, `showMessage` takes an argument `qt.invoke` cannot pass), while
+  a `QLabel` inside one carries `text` as an ordinary `Q_PROPERTY`.
+- **A `docks`' slot is its EDGE, like a `split`'s is its direction**, so
+  neither is a part name — found the second time by a dock area turning up in
+  the shape golden's name list as though it were addressable.
+- **AND THE GOLDEN GUARD PAID FOR ITSELF WITHIN THE HOUR.** `qtshell_shape`
+  exited nonzero (it still called the deleted `pane_sizes`) and the guard
+  REFUSED TO OVERWRITE the golden — where the same class of mistake had
+  silently dropped 61 lines two hours earlier.
 - **THE BROWSER'S RIGHT-CLICK MENU IS A `popup`, and it belongs to the WINDOW**
   — a `QMenu` is placed by nothing, so one written inside a `row` is a
   declaration the layout silently ignores, and gBASIC refuses it there. Built

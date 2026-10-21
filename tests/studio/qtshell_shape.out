@@ -32,61 +32,65 @@ window studio
     item ctx_delete
     item ctx_project_file
     item ctx_close_project
-  column
-    row
-      text wordmark
-      separator
-      field name_field
-      button save
-      stretch
-    split across
+  toolbar toolbar
+    item save
+    item tb_reload
+    separator
+    item tb_open_folder
+    item tb_new_file
+    item tb_new_folder
+  docks left
+    dock dock_files "Files"
       tree files to show nav
         field text
         field depth
-      split across
-        split down
-          tabs book
-            tab "(no document)"
-              column
-                text welcome
-                stretch
-          scroll console
-            column
-              row
-                button run_btn
-                button run_all_btn
-                button stop_btn
-                button snippet_btn
-                button schema_btn
-                text run_section
-                text run_standing
-                stretch
-              text run_state
-              text run_branch
-              separator
-              text prefix_head
-              memo prefix_body
-              separator
-              text target_head
-              memo target_body
-              separator
-              text err_head
-              memo err_body
-        scroll beside
-          column
-            text branch_head
-            table branch_list to show branches
-              field line
-            text results_head
-            memo results_body
-            text tables_head
-            memo tables_body
-            text git_head
-            memo git_body
-            text agent_head
-            memo agent_body
+  docks bottom
+    dock dock_console "Console"
+      scroll console
+        column
+          row
+            button run_btn
+            button run_all_btn
+            button stop_btn
+            button snippet_btn
+            button schema_btn
+            text run_section
+            text run_standing
             stretch
+          text run_state
+          text run_branch
+          separator
+          text prefix_head
+          memo prefix_body
+          separator
+          text target_head
+          memo target_body
+          separator
+          text err_head
+          memo err_body
+  docks right
+    dock dock_branch "Branches"
+      table branch_list to show branches
+        field line
+    dock dock_results "For the section at the cursor"
+      memo results_body
+    dock dock_tables "Tables"
+      memo tables_body
+    dock dock_git "Git"
+      memo git_body
+    dock dock_agent "Assistant"
+      memo agent_body
+  status
     text status
+  column
+    row
+      field name_field
+      stretch
+    tabs book
+      tab page_welcome "(no document)"
+        column
+          text welcome
+          stretch
 == and every option in it ==
   /studio                                             height=800 title=gBASIC Studio — ws width=1200
   /studio/mi_new_project                              label=New Project… toolTip=Open the New Project window: name it, choose where it goes, and pick what to create.
@@ -112,42 +116,43 @@ window studio
   /studio/nav_menu/ctx_delete                         label=Delete
   /studio/nav_menu/ctx_project_file                   label=Add project file
   /studio/nav_menu/ctx_close_project                  label=Close project
+  /studio/toolbar/save                                icon=SP_DialogSaveButton label=Save toolTip=Write the active document to disk. Over a file that changed underneath, press twice — the first press arms it.
+  /studio/toolbar/tb_reload                           icon=SP_BrowserReload label=Reload toolTip=Check every open document against the file on disk: re-read the ones you have not edited, and flag the ones you have as conflicts. Nothing you typed is discarded.
+  /studio/toolbar/tb_open_folder                      icon=SP_DialogOpenButton label=Open Folder toolTip=Open a folder you already have as a project. Type its path in the name field first; ~/ and relative paths work.
+  /studio/toolbar/tb_new_file                         icon=SP_FileIcon label=New File toolTip=Create a file named by the header field — in the selected folder, the folder holding the selected file, or the project root.
+  /studio/toolbar/tb_new_folder                       icon=SP_FileDialogNewFolder label=New Folder toolTip=Create a folder named by the header field — in the selected folder, the folder holding the selected file, or the project root.
+  /studio/left/dock_files/files/text                  label=File
+  /studio/left/dock_files/files/depth                 depth=true
+  /studio/bottom/dock_console/console                 margin=6 spacing=6
+  /studio/bottom/dock_console/console                 margin=0 spacing=6
+  /studio/bottom/dock_console/console/run_btn         label=Run Section
+  /studio/bottom/dock_console/console/run_all_btn     label=Run All
+  /studio/bottom/dock_console/console/stop_btn        label=Stop
+  /studio/bottom/dock_console/console/snippet_btn     label=Insert SQL…
+  /studio/bottom/dock_console/console/schema_btn      label=Schema…
+  /studio/bottom/dock_console/console/run_section     label=section: (none)
+  /studio/bottom/dock_console/console/run_standing    label=
+  /studio/bottom/dock_console/console/run_state       label=
+  /studio/bottom/dock_console/console/run_branch      label=
+  /studio/bottom/dock_console/console/prefix_head     label=Prefix output — sections replayed before the target
+  /studio/bottom/dock_console/console/target_head     label=Target output — the section you ran
+  /studio/bottom/dock_console/console/err_head        label=Errors
+  /studio/right/dock_branch/branch_list/line          label=Branch
+  /studio/status                                      label=ready — ws — 1 project(s) — 0 open
   /studio                                             margin=0 spacing=0
   /studio                                             margin=6 spacing=6
-  /studio/wordmark                                    label=gBASIC Studio
   /studio/name_field                                  placeholderText=name or path toolTip=A name for New File / New Folder / Rename, or a folder path for Open Folder (~ works). New Project asks for its own.
-  /studio/save                                        label=Save toolTip=Write the active document to disk. Over a file that changed underneath, press twice — the first press arms it.
-  /studio/across/files/text                           label=File
-  /studio/across/files/depth                          depth=true
-  /studio/across/across/down/book/page_welcome        margin=12 spacing=6
-  /studio/across/across/down/book/page_welcome/welcomelabel=Open a file from the browser, or File ▸ New File.
-  /studio/across/across/down/console                  margin=6 spacing=6
-  /studio/across/across/down/console                  margin=0 spacing=6
-  /studio/across/across/down/console/run_btn          label=Run Section
-  /studio/across/across/down/console/run_all_btn      label=Run All
-  /studio/across/across/down/console/stop_btn         label=Stop
-  /studio/across/across/down/console/snippet_btn      label=Insert SQL…
-  /studio/across/across/down/console/schema_btn       label=Schema…
-  /studio/across/across/down/console/run_section      label=section: (none)
-  /studio/across/across/down/console/run_standing     label=
-  /studio/across/across/down/console/run_state        label=
-  /studio/across/across/down/console/run_branch       label=
-  /studio/across/across/down/console/prefix_head      label=Prefix output — sections replayed before the target
-  /studio/across/across/down/console/target_head      label=Target output — the section you ran
-  /studio/across/across/down/console/err_head         label=Errors
-  /studio/across/across/beside                        margin=6 spacing=6
-  /studio/across/across/beside/branch_head            label=Branches
-  /studio/across/across/beside/branch_list/line       label=Branch
-  /studio/across/across/beside/results_head           label=For the section at the cursor
-  /studio/across/across/beside/tables_head            label=Tables
-  /studio/across/across/beside/git_head               label=Git
-  /studio/across/across/beside/agent_head             label=Assistant
-  /studio/status                                      label=ready — ws — 1 project(s) — 0 open
+  /studio/book/page_welcome                           margin=12 spacing=6
+  /studio/book/page_welcome/welcome                   label=Open a file from the browser, or File ▸ New File.
 == every name it declares ==
-  mi_new_project mi_open_folder mi_project_file mi_close_project mi_new_file mi_new_folder mi_rename mi_delete mi_reload mi_close_tab mi_theme_system mi_theme_dark mi_text_bigger mi_text_smaller mi_text_reset mi_restore_session nav_menu ctx_open ctx_new_file_here ctx_new_folder_here ctx_rename ctx_delete ctx_project_file ctx_close_project wordmark name_field save files text depth book page_welcome welcome console run_btn run_all_btn stop_btn snippet_btn schema_btn run_section run_standing run_state run_branch prefix_head prefix_body target_head target_body err_head err_body beside branch_head branch_list results_head results_body tables_head tables_body git_head git_body agent_head agent_body status
+  mi_new_project mi_open_folder mi_project_file mi_close_project mi_new_file mi_new_folder mi_rename mi_delete mi_reload mi_close_tab mi_theme_system mi_theme_dark mi_text_bigger mi_text_smaller mi_text_reset mi_restore_session nav_menu ctx_open ctx_new_file_here ctx_new_folder_here ctx_rename ctx_delete ctx_project_file ctx_close_project toolbar save tb_reload tb_open_folder tb_new_file tb_new_folder dock_files files text depth dock_console console run_btn run_all_btn stop_btn snippet_btn schema_btn run_section run_standing run_state run_branch prefix_head prefix_body target_head target_body err_head err_body dock_branch branch_list dock_results results_body dock_tables tables_body dock_git git_body dock_agent agent_body status name_field book page_welcome welcome
 == the title carries the marker too, which is conventional ==
   cold: gBASIC Studio — ws
-== pane sizes, one list per split, addressed by a part inside it ==
-  at files         [260,940]
-  at beside        [620,320]
-  at book          [380,420]
+== and where the record puts each dock, before any window exists ==
+  dock_files      left
+  dock_console    bottom
+  dock_branch     right
+  dock_results    right
+  dock_tables     right
+  dock_git        right
+  dock_agent      right
