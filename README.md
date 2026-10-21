@@ -47,12 +47,17 @@ draggable to another edge, with the whole arrangement remembered between
 launches. There is a real toolbar and a real status bar. The editor there has a
 margin with line numbers — which the GTK one never had — and the same marks
 beside it: one at the start of every runnable section, one on the line a syntax
-error is. It is not the default yet: Run still needs something the new toolkit
-cannot report (where the text cursor is), the New Project window is not built,
-and two side panes are text where they should be lists. Everything
-Studio needs from the new system now exists: the one gap — a notebook whose set
-of tabs can change while the window is open — was written up for the language
-side rather than worked around here, and gBASIC built it the same day.
+error is. New Project opens its own window there
+too, and filling it in is one record rather than eight widgets.
+
+It is not the default yet. Three things are missing and each is honest about
+itself rather than silently wrong: **Run refuses by name**, because the new
+toolkit cannot yet report where the text cursor is and running the wrong
+section would be worse than running nothing; there is no clipboard to copy a
+file path to; and the Tables pane is text where it should be a list, which
+waits on the data grid. Everything else Studio asked of the language got built
+— a notebook whose set of tabs can change, a tree, a margin with marks, and the
+window's own furniture — mostly within hours of being asked for.
 
 What works when you click it: a browser row (a file opens into a tab, a
 directory expands, a project becomes active), a notebook tab, typing in the
