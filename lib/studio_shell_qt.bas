@@ -779,7 +779,16 @@ function _editors(app)
                        ' `line:column` and a reader had nothing to count
                        ' against. The GTK editor never called
                        ' `set_show_line_numbers`.
-                       line_numbers: true, marks: true }) ]) ]))
+                       line_numbers: true, marks: true,
+                       ' AND ITS COLOURS, which `qt.theme` cannot reach:
+                       ' measured, a stylesheet does not move Qt's palette and
+                       ' `theme` is construction-only -- `qt.read` and `qt.set`
+                       ' both refuse it ("a QPlainTextEdit has no `theme`
+                       ' property"). So it is DECLARED from the setting, or a
+                       ' dark Studio would wrap a light editor: the exact fault
+                       ' STU-19 removed from the GTK window, re-entering
+                       ' through a new door.
+                       theme: studio_style.qt_source_theme(app.model.settings.theme) }) ]) ]))
     end for
     if count(pages) = 0 then
         pages = append(pages, captioned_named("tab", "(no document)", "page_welcome", [

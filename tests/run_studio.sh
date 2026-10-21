@@ -1106,6 +1106,7 @@ if GBASIC_PATH="$GBASIC_STDLIB" timeout 60 "$GBASIC" "$qtprobe2" >/dev/null 2>&1
 else
     printf 'SKIP qtview_probe (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_press (this gBASIC has no qt module)\n'
+    printf 'SKIP qtview_reopen (this gBASIC has no qt module)\n'
 fi
 
     # EVERY CONTROL PRESSED, FOR REAL, WITH NO DISPLAY.
@@ -1139,6 +1140,55 @@ fi
             cat "$stdout_file"; fail "qtview_press (nonzero exit)"
         else
             printf 'SKIP qtview_press (this gBASIC has no Qt backend)\n'
+        fi
+    fi
+
+    # A SECOND LAUNCH OVER A HOME THAT HAS BEEN USED.
+    #
+    # THIS IS THE TIER WHOSE ABSENCE LET A CRASH SHIP. Every other Qt tier
+    # above does `rm -rf "$qh"` first, so all of them were testing a FIRST
+    # launch -- and `app.dm` was reaching `app/studio_qt.bas` only as a side
+    # effect of `create_registered_workspace`, which runs only when a home has
+    # no workspace yet. So an empty home got a document manager by accident and
+    # a used one got none: `./studio qt` died with `unknown record field: dm`
+    # out of `studio_ui.tab_rows` before the window was built, on every home
+    # that had ever been opened before. Thirteen green tiers, none of them
+    # looking at the second launch, and the user found it in a minute by
+    # opening Studio twice.
+    #
+    # SO THIS ONE RUNS THE SAME MODE TWICE AGAINST ONE HOME and holds both
+    # outputs. The second block is the assertion and the first is what leaves
+    # something for it to find; the DIFFERENCE between them is the point --
+    # `documents restored: 0` becomes `1`, the title gains the document, and
+    # `dark applied` goes from false to true because the setting the first run
+    # pressed was written down. A golden holding only one launch could not say
+    # any of that.
+    qh="$tmproot/qtview_reopen"; qp="$tmproot/qtview_reopen_proj"
+    rm -rf "$qh" "$qp"; mkdir -p "$qh"
+    mkproj_ui "$qp"
+    : >"$stdout_file"
+    reopen_ok=yes
+    for pass in 1 2; do
+        printf -- '===== launch %s =====\n' "$pass" >>"$stdout_file"
+        if ! QT_QPA_PLATFORM=offscreen \
+                GBASIC_SYNTAX_PATH="${GBASIC_SYNTAX_PATH:-$(dirname "$GBASIC_STDLIB")/editors/kate}" \
+                timeout 120 "$GBASIC" app/studio_qt.bas reopen "$qh" "$qp" \
+                >>"$stdout_file" 2>/dev/null; then
+            reopen_ok=no
+            break
+        fi
+    done
+    if [ "$reopen_ok" = yes ]; then
+        if diff -u tests/studio/qtview_reopen.out "$stdout_file"; then
+            printf 'PASS qtview_reopen (a used home opens, and what it kept came back)\n'
+        else
+            fail "qtview_reopen (output diff)"
+        fi
+    else
+        if grep -q 'qt\.' "$stdout_file"; then
+            cat "$stdout_file"; fail "qtview_reopen (nonzero exit)"
+        else
+            printf 'SKIP qtview_reopen (this gBASIC has no Qt backend)\n'
         fi
     fi
 

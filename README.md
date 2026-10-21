@@ -32,7 +32,7 @@ editor; **STU-20** made the code's text size the editor's own; and **STU-21**
 gave a tab its own right-click menu.
 
 **STU-22 is under way: gBASIC grew a Qt GUI system and Studio is moving to
-it.** Nothing a user sees has changed yet. What makes it affordable is a rule
+it.** Nothing a user sees has changed yet, because `gui` is still GTK. What makes it affordable is a rule
 written for a different reason — a signal handler here is an adapter and every
 decision lives in a toolkit-free library — so the GTK-touching code is three
 files and about 1.3% of the source. Two pieces have landed:
@@ -50,12 +50,21 @@ beside it: one at the start of every runnable section, one on the line a syntax
 error is. New Project opens its own window there
 too, and filling it in is one record rather than eight widgets.
 
+It also has Studio's dark look now, as a Qt style sheet — one sheet for the
+whole application, built from the same palette the GTK one uses, and the
+editor's own syntax colours are declared from the same setting so a dark Studio
+cannot end up wrapping a light editor. Picking Dark re-themes the chrome at
+once; an editor tab already open keeps its colours until the next launch, and
+the status line says so.
+
 It is not the default yet. Three things are missing and each is honest about
 itself rather than silently wrong: **Run refuses by name**, because the new
 toolkit cannot yet report where the text cursor is and running the wrong
 section would be worse than running nothing; there is no clipboard to copy a
 file path to; and the Tables pane is text where it should be a list, which
-waits on the data grid. Everything else Studio asked of the language got built
+waits on the data grid. One limit is worth naming: *Follow the desktop* there
+means Studio applies no sheet of its own, because Qt gives it no way to ask
+whether your desktop is dark — so on a dark desktop, choose Dark. Everything else Studio asked of the language got built
 — a notebook whose set of tabs can change, a tree, a margin with marks, and the
 window's own furniture — mostly within hours of being asked for.
 
@@ -673,7 +682,7 @@ workspace instead:
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 212 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 213 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 29 cases, headless AND offline — no network, no key
 ```
 

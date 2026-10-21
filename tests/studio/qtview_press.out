@@ -34,7 +34,8 @@
    than us: an empty one reads as a control that failed)
 -- Rename from that menu FILLS the field and does not rename --
   action: rename-ready
-  field:  [README.md]
+  raised on a file, and the field holds that row: true
+  field is a file in the project: true
 -- New Project opens its own window, filled and pressed for real --
   open:     true
   name:     [Project 2]

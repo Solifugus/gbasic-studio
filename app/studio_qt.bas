@@ -560,12 +560,48 @@ function on_qt_close_tab()
     return qt_took(r)
 end function
 
+' THE APPLICATION'S DARK SHEET. One call, and the only `qt.` verb in Studio
+' that touches no part: `qt.theme` belongs to the QApplication, which is what
+' makes it the counterpart of the display-wide GTK provider rather than of a
+' per-widget one.
+'
+' "Follow the desktop" sets NO SHEET, which is the honest reading of the words
+' under a toolkit that gives Studio no way to ask whether the desktop is dark
+' -- see `studio_style.qt_dark_for`. Clearing is the same call with "", which
+' gBASIC's own cookbook establishes.
+function qt_apply_theme(app)
+    if studio_style.qt_dark_for(app.model.settings.theme) then
+        return qt.theme(studio_style.dark_qss())
+    end if
+    return qt.theme("")
+end function
+
+' The two theme items. Each one is still an ADAPTER -- `studio_ui.set_theme`
+' makes the decision and records it -- with the sheet applied after, because
+' the setting is what the sheet is derived from.
+'
+' THE NOTICE SAYS WHAT DID NOT CHANGE. The chrome re-themes on the press; an
+' editor already built keeps its highlighting, `theme:` being construction-only
+' (measured -- `qt.set` refuses it by name). Saying so is the same courtesy the
+' restore-session toggle already pays, and the alternative is a user looking at
+' half a change wondering which half is broken.
+function qt_theme_to(name)
+    r = studio_ui.set_theme(G.app, name)
+    ' From `r.app` and not from `G`: the sheet is derived from the setting the
+    ' decision just made, and `qt_took` below is what installs it on the global.
+    themed = qt_apply_theme(r.app)
+    if r.action = "theme-set" then
+        r.detail = r.detail + " — open editors keep their colours until the next launch"
+    end if
+    return qt_took(r)
+end function
+
 function on_qt_theme_system()
-    return qt_took(studio_ui.set_theme(G.app, "system"))
+    return qt_theme_to("system")
 end function
 
 function on_qt_theme_dark()
-    return qt_took(studio_ui.set_theme(G.app, "dark"))
+    return qt_theme_to("dark")
 end function
 
 function on_qt_text_bigger()
@@ -725,7 +761,17 @@ program main(args)
         home = studio_qt_default_home()
     end if
 
-    app = studio.startup(home)
+    ' `launch`, NOT `startup` -- and getting this wrong meant the Qt window had
+    ' never once opened on a home that had been used before. `startup` is the
+    ' STU-0 model load; `launch` is that plus the live document manager, the
+    ' restored drafts and the viewer registry. `app.dm` was reaching this entry
+    ' point only as a SIDE EFFECT of `create_registered_workspace`, which
+    ' `startup` calls only when there is no workspace yet -- so every one of the
+    ' Qt tiers, each building an empty home, had a document manager by accident,
+    ' and the first real home raised `unknown record field: dm` out of
+    ' `studio_ui.tab_rows` before the window was built. The GTK entry has called
+    ' `launch` since STU-2.
+    app = studio.launch(home)
 
     ' An explicit project, the way `./studio gui <home> <dir>` takes one.
     if count(args) > 2 then
@@ -797,6 +843,11 @@ program main(args)
     for each br in studio_ui.branch_rows(G.app).rows
         branches = append(branches, { line: studio_ui.branch_line(br) })
     end for
+    ' THEMED BEFORE IT OPENS. `qt.theme` needs no display and is remembered
+    ' until there is a QApplication to put it on, which is upstream's stated
+    ' reason for that design: refusing until a window existed would make the
+    ' first window appear unthemed and then change under the user.
+    themed = qt_apply_theme(G.app)
     z = qt.open(win)
     G.win = win
 
@@ -967,6 +1018,78 @@ program main(args)
         return nothing
     end if
 
+    ' A SECOND LAUNCH OVER A HOME THAT HAS BEEN USED, which is the one state
+    ' every other tier here skips -- and the state in which this entry point
+    ' did not work at all.
+    '
+    ' All thirteen Qt tiers `rm -rf` their home first, so all thirteen were
+    ' testing a FIRST launch. `app.dm` was reaching this program only as a side
+    ' effect of `create_registered_workspace`, which `studio.startup` calls
+    ' only when there is no workspace yet, so an empty home got a document
+    ' manager by accident and a real one got none: `unknown record field: dm`
+    ' out of `studio_ui.tab_rows`, before the window was even built. Reported
+    ' by the user, who was the first person ever to open Studio twice.
+    '
+    ' SO THIS MODE PERSISTS ON ITS WAY OUT, and the tier runs it TWICE against
+    ' one home. The second run is the assertion; the first exists to leave
+    ' something behind for it to find.
+    if mode = "reopen" then
+        print "-- the home as it arrived --"
+        print "  workspace present:  " + string(G.app.model.workspace != nothing)
+        print "  documents restored: " + string(count(G.app.dm.docs))
+        print "-- the window, built from that model --"
+        print "  opened:   " + string(qt.is_open(win))
+        print "  tabs:     " + string(qt.tabs(win, studio_shell_qt.part_tabs()))
+        print "  title:    " + studio_qt_scrub(qt.read(win, studio_shell_qt.window_name(), "windowTitle"), G.app)
+        print "  rows:     " + string(count(studio_ui.nav_rows(G.app)))
+
+        ' OPEN ONE FILE, so the next launch has a document to restore and the
+        ' `_reload_docs` half is exercised rather than assumed.
+        rows = studio_ui.nav_rows(G.app)
+        at = studio_qt_row_index(rows, "file", "main.bas")
+        if at >= 0 then
+            r = studio_ui.activate_row(G.app, rows, at)
+            G.app = r.app
+            nav = studio_ui.nav_rows(G.app)
+            G.app = studio_view_qt.render(win, G.app, "")
+            print "-- with main.bas open --"
+            print "  action:   " + r.action
+            print "  tabs:     " + string(qt.tabs(win, studio_shell_qt.part_tabs()))
+            doc = studio_docs.active_doc(G.app.dm)
+            ed = studio_shell_qt.part_editor(doc.id)
+            print "  gutter:   " + string(qt.gutter(win, ed).line_numbers)
+            print "  language: " + qt.highlighting(win, ed).language
+        end if
+
+        ' THE THEME, which is the other half of what the user reported. The
+        ' sheet is the application's and needs no part to ask about.
+        print "-- the application's own sheet --"
+        print "  setting:      " + studio_ui.theme_of(G.app)
+        print "  dark applied: " + string(len(qt.theme()) > 0)
+        ' AND THE WHOLE LOOP, pressed rather than reasoned about: the menu item
+        ' goes through the same `qt_theme_to` a click calls, the sheet lands on
+        ' the QApplication, the setting is written, and the SECOND run of this
+        ' mode starts dark -- which is what makes "the theme does nothing" a
+        ' thing a tier can catch next time.
+        '
+        ' What is NOT asserted is how it looks. A wrong Qt selector is ignored
+        ' in silence exactly as a wrong GTK node name is, so this says the
+        ' sheet is set and is the one we meant, and no more than that.
+        pressed = qt_theme_to("dark")
+        print "  after Dark:   " + G.last_action + " — " + G.last_detail
+        print "  sheet set:    " + string(len(qt.theme()) > 0)
+        print "  it is OURS:   " + string(contains(qt.theme(), studio_style.dark_bg()))
+        print "  editor would be built: " + studio_style.qt_source_theme(studio_ui.theme_of(G.app))
+
+        z = qt.close(win)
+        ' PERSISTED, unlike `probe` and `press`, because the whole point of
+        ' this mode is what the NEXT launch finds -- and `persist`, not
+        ' `shutdown`, for the reason the exit path below now states.
+        saved = studio.persist(G.app)
+        print "  persisted:    " + string(count(saved) > 0)
+        return nothing
+    end if
+
     if mode = "press" then
         ' PRESSING EVERY CONTROL, FOR REAL, WITH NO DISPLAY.
         '
@@ -1044,12 +1167,29 @@ program main(args)
         print "   than us: an empty one reads as a control that failed)"
 
         print "-- Rename from that menu FILLS the field and does not rename --"
+        ' THE ASSERTION IS A RELATIONSHIP, NOT A FILENAME, and the first
+        ' version of it was neither. `qt.right_click` cannot aim at a tree row,
+        ' so the click lands at a point in the widget and whatever row is under
+        ' that point becomes the one the menu was raised on -- which means the
+        ' row depends on ROW HEIGHT. This golden held `README.md` for one
+        ' reason only: that was the row the point hit with Qt's default item
+        ' metrics. Adding `QTreeView::item { padding: 2px; }` to Studio's dark
+        ' sheet moved it to `b.bas`, and a tier whose expected value moves when
+        ' a stylesheet changes padding is asserting the wrong thing.
+        '
+        ' So it reports the row the menu WAS raised on, and the field beside
+        ' it. The invariant is that they are the same row -- which is the whole
+        ' claim ("Rename fills the field with the row you right-clicked") and
+        ' is true at any row height.
         at = qt_row_of_kind("file")
         z = qt.select(win, studio_shell_qt.part_browser(), at)
         z = qt.right_click(win, studio_shell_qt.part_browser())
+        raised = qt_ctx_row()
         z = qt.invoke(win, qt_ctx("rename"), "trigger")
+        filled = qt.read(win, studio_shell_qt.part_name_field(), "text")
         print "  action: " + G.last_action
-        print "  field:  [" + qt.read(win, studio_shell_qt.part_name_field(), "text") + "]"
+        print "  raised on a " + raised.kind + ", and the field holds that row: " + string(filled = raised.name)
+        print "  field is a file in the project: " + string(contains(filled, ".") and filled != "")
 
         print "-- New Project opens its own window, filled and pressed for real --"
         z = qt.invoke(win, qt_item("new-project"), "trigger")
@@ -1151,11 +1291,35 @@ program main(args)
     end watch
 
     rc = qt.run()
+    ' CANCEL THE BEAT, OR THE PROCESS NEVER EXITS. A `timer.every` is a live
+    ' source in gBASIC's own event loop, and that loop outlives `program`: with
+    ' the timer still registered the interpreter sat at 2% CPU forever after
+    ' this block returned -- the window gone, the session already saved, and
+    ' every `print` below lost in an unflushed stdout buffer, so a terminal
+    ' showed NOTHING. Measured both ways: uncancelled, exit 124 with no output;
+    ' cancelled, exit 0 with all of it. Found by the user leaving the window
+    ' open and closing it, which no tier does -- gBASIC's own two Qt lifecycle
+    ' fixtures both cancel, and I copied the timer without the cancel.
+    beat_off = timer.cancel(beat)
     ' The session is written on the way out, exactly as the GTK path writes it
     ' from `close-request`. Here the window has already gone by the time
     ' `qt.run()` returns, so anything that has to be read off it is read in the
     ' `closed` handler -- which is what §0.17 built that handler for.
-    saved = studio.shutdown(G.app)
+    ' `persist`, NOT `shutdown`, and this was the same mistake as `startup`
+    ' versus `launch` one line of this program apart. `shutdown` is the STU-0
+    ' writer: it copies the workspace into the session and writes two files.
+    ' `persist` is what closing a window MEANS -- it folds the live document
+    ' manager back into the workspace (`_sync_docs`), captures the unsaved
+    ' buffers as drafts, and writes the active project's anchors, branches and
+    ' overlays out of `app.pstate` -- and then calls `shutdown` itself.
+    '
+    ' So under Qt, closing the window was dropping the open tab set, every
+    ' unsaved buffer, and every section anchor. The last of those is the worst:
+    ' anchors are what keep a result attached to the section it came from
+    ' across an edit, and a state rebuilt from scratch numbers sections in FILE
+    ' order -- which is the STU-3 misattribution, re-entering through the exit
+    ' path. `app/studio.bas` has called `persist` here since STU-2.
+    saved = studio.persist(G.app)
     logged = studio_history.save(home, G.log)
     print "saved: " + join(saved, ", ")
     return nothing

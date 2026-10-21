@@ -1,0 +1,44 @@
+===== launch 1 =====
+-- the home as it arrived --
+  workspace present:  true
+  documents restored: 0
+-- the window, built from that model --
+  opened:   true
+  tabs:     ["(no document)"]
+  title:    gBASIC Studio — workspace
+  rows:     6
+-- with main.bas open --
+  action:   open
+  tabs:     ["main.bas"]
+  gutter:   true
+  language: gBASIC
+-- the application's own sheet --
+  setting:      system
+  dark applied: false
+  after Dark:   theme-set — dark — open editors keep their colours until the next launch
+  sheet set:    true
+  it is OURS:   true
+  editor would be built: dark
+  persisted:    true
+===== launch 2 =====
+-- the home as it arrived --
+  workspace present:  true
+  documents restored: 1
+-- the window, built from that model --
+  opened:   true
+  tabs:     ["main.bas"]
+  title:    main.bas — gBASIC Studio — workspace
+  rows:     6
+-- with main.bas open --
+  action:   open
+  tabs:     ["main.bas"]
+  gutter:   true
+  language: gBASIC
+-- the application's own sheet --
+  setting:      dark
+  dark applied: true
+  after Dark:   theme-same — dark
+  sheet set:    true
+  it is OURS:   true
+  editor would be built: dark
+  persisted:    true

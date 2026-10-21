@@ -638,4 +638,155 @@ library studio_style
         return "#2f6fb5"
     end function
 
+    ' ======================================================================
+    ' STU-22 -- THE SAME DARK, AS A QT STYLE SHEET.
+    '
+    ' `qt.theme(sheet)` takes ONE sheet for the whole application, which is the
+    ' display-wide GTK provider's counterpart and arrived for the same reason:
+    ' it restyles nodes Studio never touches. What it is NOT is the same text.
+    ' A QSS selects on Qt CLASS NAMES (`QMenuBar::item`) where `dark_css`
+    ' selects on GTK node names (`menubar > item`), so none of those 72 lines
+    ' carry over -- but every COLOUR does, through the same `dark_*` functions
+    ' above. One palette, two renderings: the arrangement `row_label` and
+    ' `row_text` already have, and the opposite of two independent sets of
+    ' literals drifting apart.
+    '
+    ' WHAT THIS SHEET CANNOT DO, stated because the menu has to say it: a
+    ' stylesheet DOES NOT MOVE QT'S PALETTE, and the editor's syntax colours
+    ' come from the `source` part's own `theme:` -- which is a CONSTRUCTION
+    ' option, measured: `qt.read` and `qt.set` both refuse it by name ("a
+    ' QPlainTextEdit has no `theme` property"). So the chrome re-themes the
+    ' instant the menu is pressed and the highlighting of an editor already
+    ' built does not. That is the GTK fault this phase exists to avoid --
+    ' dark chrome around a light editor -- so the SOURCE PART IS DECLARED FROM
+    ' THE SETTING and the notice says the rest follows next launch.
+    '
+    ' NOT ASSERTED BY ANY GOLDEN, AND IT CANNOT BE: a wrong Qt selector is
+    ' silently ignored exactly as a wrong GTK node name is, and the risk
+    ' `studio_style`'s own header states ("a wrong node name fails silently,
+    ' and that is the whole risk") applies here unchanged. What a tier CAN
+    ' assert is that the sheet is set, that it is the sheet asked for, and that
+    ' Qt parsed it without complaint. Whether it LOOKS right is a judgement
+    ' that needs eyes on the window.
+    ' ======================================================================
+    ' ONE DECISION, and under Qt it has no toolkit half.
+    '
+    ' `dark_for` asks GTK three questions (the theme name, the prefer-dark
+    ' setting, GTK_THEME) because none of them alone carries the answer -- see
+    ' `toolkit_is_dark`. Qt offers Studio NO equivalent: gBASIC exposes no
+    ' colour-scheme reader, so "follow the desktop" can only mean SET NO SHEET
+    ' OF OUR OWN and let the platform style stand, which is what the words
+    ' already promise.
+    '
+    ' THE COST IS NAMED RATHER THAN HIDDEN. A person on a dark desktop who
+    ' chooses "Follow the desktop" gets dark chrome from their own platform
+    ' style and LIGHT highlighting in the editor, because the `source` part's
+    ' `theme:` has to be declared and there is nothing to derive it from. That
+    ' is the GTK defect STU-19 removed, and the answer is the same one STU-19
+    ' gave: Studio owns one look, dark, and choosing Dark is how you get it.
+    function qt_dark_for(theme)
+        return theme = "dark"
+    end function
+
+    ' The `source` part's `theme:`, which is `"light"` or `"dark"` and nothing
+    ' else. One place, because the shell declares it and a tier asserts it.
+    function qt_source_theme(theme)
+        if studio_style.qt_dark_for(theme) then
+            return "dark"
+        end if
+        return "light"
+    end function
+
+    function dark_qss()
+        bg = studio_style.dark_bg()
+        base = studio_style.dark_base()
+        ctl = studio_style.dark_ctl()
+        hi = studio_style.dark_ctl_hi()
+        fg = studio_style.dark_fg()
+        faint = studio_style.dark_dim()
+        line = studio_style.dark_line()
+        sel = studio_style.dark_sel()
+        l = []
+
+        ' The ground. Every widget, then the two that own a window's body.
+        l = append(l, "QWidget { background: " + bg + "; color: " + fg + "; }")
+        l = append(l, "QMainWindow { background: " + bg + "; }")
+        l = append(l, "QMainWindow::separator { background: " + line + "; width: 4px; height: 4px; }")
+
+        ' Text surfaces sit DARKER than the chrome, which is what `dark_base`
+        ' is for -- the same relationship the GTK sheet gives them.
+        l = append(l, "QPlainTextEdit, QTextEdit, QLineEdit, QListView, QTreeView, QTableView {")
+        l = append(l, "  background: " + base + "; color: " + fg + ";")
+        l = append(l, "  border: 1px solid " + line + "; selection-background-color: " + sel + ";")
+        l = append(l, "  selection-color: #ffffff; }")
+
+        ' THE MENUS, which are the toolkit's own now and so need naming here.
+        l = append(l, "QMenuBar { background: " + bg + "; color: " + fg + "; border-bottom: 1px solid " + line + "; }")
+        l = append(l, "QMenuBar::item { background: transparent; padding: 4px 8px; }")
+        l = append(l, "QMenuBar::item:selected { background: " + hi + "; }")
+        l = append(l, "QMenu { background: " + ctl + "; color: " + fg + "; border: 1px solid " + line + "; }")
+        l = append(l, "QMenu::item { padding: 4px 24px 4px 24px; }")
+        l = append(l, "QMenu::item:selected { background: " + sel + "; color: #ffffff; }")
+        l = append(l, "QMenu::item:disabled { color: " + faint + "; }")
+        l = append(l, "QMenu::separator { height: 1px; background: " + line + "; margin: 4px 8px; }")
+
+        ' The toolbar and the status bar, which are §0.30's furniture.
+        l = append(l, "QToolBar { background: " + bg + "; border: 0px; spacing: 2px; padding: 2px; }")
+        l = append(l, "QToolButton { background: transparent; border: 1px solid transparent; padding: 3px; border-radius: 3px; }")
+        l = append(l, "QToolButton:hover { background: " + hi + "; border: 1px solid " + line + "; }")
+        l = append(l, "QToolButton:pressed { background: " + sel + "; }")
+        l = append(l, "QStatusBar { background: " + bg + "; color: " + faint + "; border-top: 1px solid " + line + "; }")
+        l = append(l, "QStatusBar QLabel { color: " + fg + "; }")
+
+        ' THE DOCKS. Their title bar is the one piece of chrome a person drags,
+        ' so it reads as a handle rather than as more background.
+        l = append(l, "QDockWidget { color: " + fg + "; titlebar-close-icon: none; titlebar-normal-icon: none; }")
+        l = append(l, "QDockWidget::title { background: " + ctl + "; color: " + fg + ";")
+        l = append(l, "  padding: 4px 6px; border-bottom: 1px solid " + line + "; }")
+
+        ' The notebook. A selected tab is lifted to the EDITOR's own base, so
+        ' the page and its tab read as one surface.
+        l = append(l, "QTabWidget::pane { border: 1px solid " + line + "; background: " + bg + "; }")
+        l = append(l, "QTabBar { background: " + bg + "; }")
+        l = append(l, "QTabBar::tab { background: " + ctl + "; color: " + faint + ";")
+        l = append(l, "  padding: 5px 10px; border: 1px solid " + line + "; border-bottom: 0px; }")
+        l = append(l, "QTabBar::tab:selected { background: " + base + "; color: " + fg + "; }")
+        l = append(l, "QTabBar::tab:hover { background: " + hi + "; color: " + fg + "; }")
+
+        ' The browser tree and the branch table. `::branch` is left to the
+        ' theme: Studio draws its own expander glyphs and `itemsExpandable` is
+        ' off, so there is nothing of Qt's there to colour.
+        l = append(l, "QTreeView::item, QTableView::item { padding: 2px; }")
+        l = append(l, "QTreeView::item:selected, QTableView::item:selected { background: " + sel + "; color: #ffffff; }")
+        l = append(l, "QTreeView::item:hover, QTableView::item:hover { background: " + hi + "; }")
+        l = append(l, "QHeaderView::section { background: " + ctl + "; color: " + fg + ";")
+        l = append(l, "  padding: 4px; border: 0px; border-bottom: 1px solid " + line + "; }")
+
+        ' Controls.
+        l = append(l, "QPushButton { background: " + ctl + "; color: " + fg + ";")
+        l = append(l, "  border: 1px solid " + line + "; padding: 4px 12px; border-radius: 3px; }")
+        l = append(l, "QPushButton:hover { background: " + hi + "; }")
+        l = append(l, "QPushButton:pressed { background: " + sel + "; color: #ffffff; }")
+        l = append(l, "QPushButton:disabled { color: " + faint + "; }")
+        l = append(l, "QComboBox { background: " + ctl + "; color: " + fg + ";")
+        l = append(l, "  border: 1px solid " + line + "; padding: 3px 6px; }")
+        l = append(l, "QComboBox QAbstractItemView { background: " + ctl + "; color: " + fg + ";")
+        l = append(l, "  selection-background-color: " + sel + "; }")
+        l = append(l, "QCheckBox, QRadioButton { color: " + fg + "; }")
+        l = append(l, "QGroupBox { border: 1px solid " + line + "; margin-top: 8px; padding-top: 6px; }")
+        l = append(l, "QGroupBox::title { color: " + fg + "; subcontrol-origin: margin; left: 8px; padding: 0px 4px; }")
+        l = append(l, "QSplitter::handle { background: " + line + "; }")
+        l = append(l, "QToolTip { background: " + ctl + "; color: " + fg + "; border: 1px solid " + line + "; }")
+
+        ' The scrollbars, which are the clearest sign a window was half-themed.
+        l = append(l, "QScrollBar:vertical { background: " + bg + "; width: 12px; margin: 0px; }")
+        l = append(l, "QScrollBar:horizontal { background: " + bg + "; height: 12px; margin: 0px; }")
+        l = append(l, "QScrollBar::handle { background: " + hi + "; border-radius: 4px; min-height: 24px; min-width: 24px; }")
+        l = append(l, "QScrollBar::handle:hover { background: " + faint + "; }")
+        l = append(l, "QScrollBar::add-line, QScrollBar::sub-line { height: 0px; width: 0px; }")
+        l = append(l, "QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }")
+
+        return join(l, "\n")
+    end function
+
 end library

@@ -52,12 +52,12 @@ you want content without clicking.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 212 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 213 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 29 cases, headless AND offline (scripted transport)
 ```
 
-**Five of those are the Qt tiers, and `qtshell_shape` is the first case in this
-suite that asserts the window's STRUCTURE rather than its text.**
+**Fourteen of those are the Qt tiers, and `qtshell_shape` is the first case in
+this suite that asserts the window's STRUCTURE rather than its text.**
 `qtshell_shape` and `qtshell_docs` need no toolkit at all — the window is a
 record, so its shape is a string. `qtshell_check` runs gBASIC's own validator
 (`qt.check`, which upstream keeps outside the `#if HAVE_QT` guard for exactly
@@ -806,6 +806,155 @@ toolkit-free. A rule written for testability bought a port.
 - **`qt.gutter_click(win, part)` exists and nothing uses it yet.** It answers
   which line a click landed on, which is how a breakpoint would be set. Studio
   has no breakpoints; recorded so the next person does not go looking.
+
+#### THE WINDOW HAD NEVER BEEN OPENED ON A REAL DESKTOP, AND THAT IS THE LESSON
+
+**Thirteen green Qt tiers and `./studio qt` did not work.** The user said *"I
+keep seeing the old GTK version and I don't think I have actually seen the QT
+version, yet"* — true, and the reason was that I had run the Qt path **only**
+under `QT_QPA_PLATFORM=offscreen` for an entire phase, while `DISPLAY=:0` was
+available the whole time. Offscreen is the right default for the suite. It is
+not the same thing as having looked.
+
+Launching it took four minutes and found **three defects, none of which any
+tier could see**, plus one more the user found by closing the window:
+
+- **`studio.launch`, NOT `studio.startup`.** `startup` is the STU-0 model load;
+  `launch` is that plus the live document manager, the restored drafts and the
+  viewer registry. `app.dm` was reaching the Qt entry only as a SIDE EFFECT of
+  `create_registered_workspace`, which `startup` calls only `if ws = nothing` —
+  so a home with no workspace got a document manager by accident and a home
+  with one got none. `./studio qt` died with `unknown record field: dm` out of
+  `studio_ui.tab_rows` **before the window was built**, on every home that had
+  ever been opened before. The GTK entry has called `launch` since STU-2.
+- **EVERY QT TIER `rm -rf`s ITS HOME, so every Qt tier tested a FIRST launch.**
+  That is the whole reason a hundred percent pass rate described a path no user
+  would ever take: the second launch — which is every launch after the first —
+  was covered by nothing. `qtview_reopen` is the answer: it runs one mode
+  TWICE against one home and holds both outputs, because the DIFFERENCE is the
+  assertion (`documents restored: 0` becomes `1`, the title gains the document,
+  `dark applied` goes false to true). A golden holding one launch cannot say any
+  of that. **When a fixture is built fresh for every case, "it works twice" is
+  an untested claim.**
+- **`studio.persist`, NOT `studio.shutdown`, on the way out** — the same
+  mistake as `startup` versus `launch`, one line of the same program apart.
+  `shutdown` copies the workspace into the session and writes two files.
+  `persist` folds the live document manager back into the workspace
+  (`_sync_docs`), captures the unsaved buffers as DRAFTS, and writes the active
+  project's anchors, branches and overlays out of `app.pstate` — then calls
+  `shutdown` itself. So closing the Qt window was dropping the open tab set,
+  every unsaved buffer, and every section anchor. **The last is the worst:**
+  anchors are what keep a result attached to its section across an edit, and a
+  state rebuilt from scratch numbers sections in FILE order — the STU-3
+  misattribution, re-entering through the exit path.
+- **CANCEL THE `timer.every`, OR THE PROCESS NEVER EXITS.** A repeating timer
+  is a live source in gBASIC's own event loop and that loop OUTLIVES `program`.
+  The user closed the window; the session was written correctly; the
+  interpreter then sat at ~2% CPU indefinitely with no window — and every
+  `print` after `qt.run()` was lost in an unflushed stdout buffer, so a
+  terminal showed NOTHING. Measured both ways on a 20-line reduction:
+  uncancelled, exit 124 with zero output; `timer.cancel(beat)`, exit 0 with all
+  of it. The two halves compound — the symptom is "produced nothing and hung",
+  which points at the code before the first print rather than after the last.
+  gBASIC's own `qt_lifecycle_loop_fixture` and `qt_lifecycle_stop_fixture` both
+  cancel; I copied the timer and not the cancel. Fourth appearance of the
+  block-buffered-death signature in this file, first as a hang rather than a
+  crash.
+
+#### Theming under Qt, which was a dead control
+
+**The user's report was exact: *"changing the theme to dark and the other
+option makes no difference."*** It did nothing, because nothing on the Qt path
+applied a theme at all — the menu item wrote the setting, moved its own
+checkmark, and reached no renderer. A control that records a preference nobody
+reads is the dead button this repository keeps refusing to ship, and this one
+shipped.
+
+- **`qt.theme(sheet)` is one sheet for the whole QApplication**, which makes it
+  the counterpart of the display-wide GTK provider and not of a per-widget one.
+  It needs NO display and is remembered until there is a QApplication to put it
+  on, which is upstream's stated reason for that design — so Studio themes
+  BEFORE it opens, and the first window never appears unthemed and then changes.
+- **None of `dark_css`'s 72 lines carry over, and every colour does.** A QSS
+  selects on Qt class names (`QMenuBar::item`) where the GTK sheet selects on
+  node names (`menubar > item`). `studio_style.dark_qss()` is therefore a new
+  sheet built from the SAME `dark_bg`/`dark_base`/`dark_fg`/`dark_dim`/
+  `dark_line`/`dark_sel`/`dark_ctl` functions — one palette, two renderings,
+  the arrangement `row_label` and `row_text` already have. Two independent sets
+  of hex literals would drift, and the palette is the half that was already
+  looked at by eye under GTK.
+- **A STYLESHEET DOES NOT MOVE QT'S PALETTE, so the editor needs its own.**
+  Measured: `theme` on a `source` is CONSTRUCTION-ONLY — `qt.read` and `qt.set`
+  both refuse it by name (*"a QPlainTextEdit has no `theme` property"*). So the
+  part is DECLARED from the setting
+  (`studio_style.qt_source_theme(app.model.settings.theme)`), or a dark Studio
+  would wrap a light editor: **the exact fault STU-19 removed from the GTK
+  window, re-entering through a new door.**
+- **Which means the chrome re-themes on the press and an editor already built
+  does not**, and the notice SAYS so — *"open editors keep their colours until
+  the next launch"* — which is the same courtesy the restore-session toggle
+  already pays. A user looking at half a change otherwise has to guess which
+  half is broken.
+- **"Follow the desktop" sets NO SHEET, because Qt gives Studio nothing to
+  ask.** `dark_for` puts three questions to GTK; gBASIC exposes no
+  colour-scheme reader at all, so under Qt the honest reading of those words is
+  to let the platform style stand. `studio_style.qt_dark_for` is that one
+  decision. **The cost is named rather than hidden:** somebody on a dark desktop
+  choosing "Follow the desktop" gets dark chrome from their platform and LIGHT
+  highlighting, and the answer is STU-19's — Studio owns one look, dark, and
+  choosing Dark is how you get it.
+- **NO GOLDEN CAN SEE WHETHER IT LOOKS RIGHT, and that is stated rather than
+  left to be found.** A wrong Qt selector is ignored in silence exactly as a
+  wrong GTK node name is — the risk `studio_style`'s own header already names.
+  What `qtview_reopen` asserts is that the sheet is set, that it is the sheet
+  asked for (`contains(qt.theme(), dark_bg())`), that Qt parsed it without
+  complaint, and that the setting survives a launch. Whether it is a good dark
+  needs eyes on the window.
+- **`dim` is a reserved word.** Sixth in this file's series after `read`, `on`,
+  `to`, `program` and `step`, and the failure is identical every time: a parse
+  error in a library, so nothing that loads it can run.
+
+#### A GOLDEN THAT HELD WHERE A BLIND CLICK LANDED
+
+**Adding `QTreeView::item { padding: 2px; }` moved `qtview_press`**, and the
+failure was worth more than the stylesheet. The tier right-clicks the browser,
+and `qt.right_click` CANNOT aim at a tree row (its third argument is a
+table's) — so the click lands at a POINT in the widget and whatever row sits
+under that point becomes the row the menu was raised on. Which row that is
+depends on ROW HEIGHT. The golden said `README.md` for exactly one reason:
+that was the row the point hit under Qt's default item metrics. Two pixels of
+padding made it `b.bas`.
+
+- **Diagnosed by elimination, and my first guess was wrong.** The failure
+  appeared in the same commit as `studio.launch`, so that is what I suspected;
+  measured, `launch` and `startup` give the identical row list and the
+  identical `ctx_index`. Five runs each, deterministic both ways — so not a
+  flake either. The differentiator was a file I had not thought to suspect.
+- **The fix is to assert the RELATIONSHIP, not the filename.** The tier now
+  reports the row the menu was raised on and whether the name field holds that
+  row — which is the actual claim ("Rename fills the field with the row you
+  right-clicked") and is true at any row height. **An expected value that moves
+  when a stylesheet changes padding was asserting the wrong thing**, and it
+  would have gone on being wrong every time anyone touched the sheet.
+- The deliberate rebaseline is two lines, 57 → 58, and the line delta was
+  printed before it was taken — the guard this file already describes.
+
+#### A tripwire that does not check what it claims
+
+**`qt_no_gtk` greps `lib/studio_view_qt.bas` and `app/studio_qt.bas` for a
+direct `gi.`/`gtk.` and nothing else — so it passes while the Qt process loads
+`gi` TRANSITIVELY.** `lib/studio_shell_qt.bas` loads `studio_style` (for
+`indent()`, and now for the QSS), and `studio_style` has `load gi` at library
+level for `new_provider`. Measured: it works — loading the module is harmless,
+and it is `gi.new("Gtk.<Widget>")` before `gtk_init` that segfaults — so this
+is a latent risk and not a live crash. The honest fix is to split the
+GTK-touching half of `studio_style` (`new_provider`, `apply`, `attach`) into
+its own library so the pure half (colours, the spacing unit, the decisions) is
+reachable from either toolkit. **Not done, deliberately:** it is pre-existing,
+it demonstrably works, and a dependency refactor stacked on four other changes
+is how something that was fine gets broken. Whoever does it should strengthen
+the tripwire to walk the `load` graph at the same time, since a transitive
+check would fail today and that failure is the point.
 
 ### The New Project window
 
