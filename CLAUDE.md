@@ -914,6 +914,49 @@ shipped.
   `to`, `program` and `step`, and the failure is identical every time: a parse
   error in a library, so nothing that loads it can run.
 
+#### A STYLESHEET CANNOT REACH WHAT THE PALETTE PAINTS, AND THAT IS THE LIMIT
+
+**The first dark sheet made the file tree's rows and all five toolbar icons
+disappear**, and the user found it in the first minute of looking. The cause is
+one sentence that was already written down and that I applied to only half of
+what it covers — gBASIC's own reference, on the `source` part: *"`qt.theme` sets
+a stylesheet, and a stylesheet does not move Qt's palette."* I read that as a
+fact about syntax highlighting. It is a fact about **everything Qt paints from
+the palette**.
+
+- **MEASURED FIRST, and it ruled out every structural explanation.** With the
+  sheet applied, `qt.read(win, "files", "visible")` was true, the tree was
+  256x216, row 2 read `▸ docs` at depth 1, the dock was on the `left` at
+  274x259, the toolbar was visible at height 39, and `qt.has_icon` was true for
+  all five buttons. **Nothing had gone.** It was being drawn dark-on-dark. A
+  window can be structurally perfect and visually empty, and the whole Qt tier
+  suite reads the structure.
+- **The two surfaces that cannot be reached, and why.** An item view's row text
+  is drawn by the DELEGATE, so a `color` on `QTreeView` is not what paints a
+  row — `QTreeView::item { color: … }` is, and an unstated item colour on a
+  darkened background is the thing that vanished. The toolbar is worse: its
+  buttons carry `SP_` STANDARD PIXMAPS, which Qt's own style generates from the
+  palette, and **this machine has no icon theme at all** — so there is no
+  themed file to recolour and no sheet rule that reaches them.
+- **A BARE `QWidget { background: … }` RULE IS THE TRAP.** It is the obvious way
+  to make an application dark and it darkens the two surfaces above along with
+  everything else, so their palette-painted content disappears. There is no
+  such rule now; every container is named.
+- **The toolbar is deliberately NOT darkened, and that is a stated cost.** A
+  lighter band under the menus in a dark window is visibly imperfect and is a
+  thing you can still use; five invisible icons is not. Same for a
+  `QComboBox`'s drop-down arrow and a dock's close/float buttons — style
+  pixmaps, left alone.
+- **The real fix is a palette and gBASIC has no verb for one.** Asked upstream.
+  Until then Studio's dark is a sheet over a light palette, which is why it can
+  only go as far as the containers whose text it owns.
+- **AND THIS IS THE CASE FOR NOT WRITING A STYLESHEET BLIND.** Every tier
+  passed. `qtview_reopen` asserted the sheet was set, was the sheet asked for,
+  parsed without complaint, and survived a launch — all four true, with the
+  window unusable. The GTK half of this file already says it (*"a wrong node
+  name fails silently, and that is the whole risk"* / *"LOOK AT THE WINDOW"*);
+  this is the same rule, in a second toolkit, costing a second round.
+
 #### A GOLDEN THAT HELD WHERE A BLIND CLICK LANDED
 
 **Adding `QTreeView::item { padding: 2px; }` moved `qtview_press`**, and the

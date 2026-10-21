@@ -708,39 +708,74 @@ library studio_style
         sel = studio_style.dark_sel()
         l = []
 
-        ' The ground. Every widget, then the two that own a window's body.
-        l = append(l, "QWidget { background: " + bg + "; color: " + fg + "; }")
+        ' NO BARE `QWidget` RULE, and that was the whole defect. Styling every
+        ' widget at once darkened two surfaces whose CONTENT Qt paints from the
+        ' palette rather than from the sheet -- so the content kept its
+        ' light-theme colours and became invisible. Measured: the tree was
+        ' still 256x216 with `▸ docs` at row 2, the toolbar still 39 high with
+        ' all five icons present and visible. Nothing had gone; it was being
+        ' drawn in dark-on-dark. So each container is named, and the two that
+        ' cannot be reached this way are left to the platform.
         l = append(l, "QMainWindow { background: " + bg + "; }")
         l = append(l, "QMainWindow::separator { background: " + line + "; width: 4px; height: 4px; }")
+        l = append(l, "QDialog { background: " + bg + "; }")
+        l = append(l, "QLabel { color: " + fg + "; background: transparent; }")
 
         ' Text surfaces sit DARKER than the chrome, which is what `dark_base`
         ' is for -- the same relationship the GTK sheet gives them.
-        l = append(l, "QPlainTextEdit, QTextEdit, QLineEdit, QListView, QTreeView, QTableView {")
+        l = append(l, "QPlainTextEdit, QTextEdit, QLineEdit {")
         l = append(l, "  background: " + base + "; color: " + fg + ";")
         l = append(l, "  border: 1px solid " + line + "; selection-background-color: " + sel + ";")
         l = append(l, "  selection-color: #ffffff; }")
 
+        ' THE TREE AND THE TABLE, with their ITEM COLOUR SAID OUT LOUD. A
+        ' `color` on the view is not what paints a row: the delegate draws item
+        ' text, and on a dark background an unstated item colour is the thing
+        ' that disappeared. `::item` carries it, and `::branch` is left alone --
+        ' Studio draws its own expander glyphs and `itemsExpandable` is off, so
+        ' there is nothing of Qt's there to colour.
+        l = append(l, "QTreeView, QTableView, QListView {")
+        l = append(l, "  background: " + base + "; color: " + fg + ";")
+        l = append(l, "  border: 1px solid " + line + "; outline: 0;")
+        l = append(l, "  selection-background-color: " + sel + "; selection-color: #ffffff; }")
+        l = append(l, "QTreeView::item, QTableView::item, QListView::item {")
+        l = append(l, "  color: " + fg + "; background: transparent; padding: 2px; }")
+        l = append(l, "QTreeView::item:selected, QTableView::item:selected, QListView::item:selected {")
+        l = append(l, "  background: " + sel + "; color: #ffffff; }")
+        l = append(l, "QTreeView::item:hover, QTableView::item:hover, QListView::item:hover {")
+        l = append(l, "  background: " + hi + "; color: " + fg + "; }")
+        l = append(l, "QHeaderView { background: " + ctl + "; }")
+        l = append(l, "QHeaderView::section { background: " + ctl + "; color: " + fg + ";")
+        l = append(l, "  padding: 4px; border: 0px; border-bottom: 1px solid " + line + "; }")
+
         ' THE MENUS, which are the toolkit's own now and so need naming here.
+        ' A menu's text is the sheet's to colour, which is why these are safe
+        ' where the toolbar is not.
         l = append(l, "QMenuBar { background: " + bg + "; color: " + fg + "; border-bottom: 1px solid " + line + "; }")
-        l = append(l, "QMenuBar::item { background: transparent; padding: 4px 8px; }")
+        l = append(l, "QMenuBar::item { background: transparent; color: " + fg + "; padding: 4px 8px; }")
         l = append(l, "QMenuBar::item:selected { background: " + hi + "; }")
         l = append(l, "QMenu { background: " + ctl + "; color: " + fg + "; border: 1px solid " + line + "; }")
-        l = append(l, "QMenu::item { padding: 4px 24px 4px 24px; }")
+        l = append(l, "QMenu::item { color: " + fg + "; padding: 4px 24px 4px 24px; }")
         l = append(l, "QMenu::item:selected { background: " + sel + "; color: #ffffff; }")
         l = append(l, "QMenu::item:disabled { color: " + faint + "; }")
         l = append(l, "QMenu::separator { height: 1px; background: " + line + "; margin: 4px 8px; }")
 
-        ' The toolbar and the status bar, which are §0.30's furniture.
-        l = append(l, "QToolBar { background: " + bg + "; border: 0px; spacing: 2px; padding: 2px; }")
-        l = append(l, "QToolButton { background: transparent; border: 1px solid transparent; padding: 3px; border-radius: 3px; }")
-        l = append(l, "QToolButton:hover { background: " + hi + "; border: 1px solid " + line + "; }")
-        l = append(l, "QToolButton:pressed { background: " + sel + "; }")
+        ' THE TOOLBAR IS DELIBERATELY NOT DARKENED, and that is the honest cost
+        ' of having no palette. Its buttons carry `SP_` STANDARD PIXMAPS, which
+        ' Qt's own style generates from the palette -- this machine has no icon
+        ' theme at all, so there is no themed file to recolour -- and a sheet
+        ' cannot reach them. Darkening the strip under them made five icons
+        ' vanish. Left alone it is a lighter band in a dark window, which is
+        ' visibly imperfect and is a thing you can still use. The real fix is a
+        ' palette verb, asked for upstream.
         l = append(l, "QStatusBar { background: " + bg + "; color: " + faint + "; border-top: 1px solid " + line + "; }")
         l = append(l, "QStatusBar QLabel { color: " + fg + "; }")
 
-        ' THE DOCKS. Their title bar is the one piece of chrome a person drags,
-        ' so it reads as a handle rather than as more background.
-        l = append(l, "QDockWidget { color: " + fg + "; titlebar-close-icon: none; titlebar-normal-icon: none; }")
+        ' The docks. Their title bar is the one piece of chrome a person drags,
+        ' so it reads as a handle rather than as more background. The close and
+        ' float buttons are the style's own pixmaps, so they are NOT hidden and
+        ' NOT recoloured -- same reason as the toolbar.
+        l = append(l, "QDockWidget { color: " + fg + "; }")
         l = append(l, "QDockWidget::title { background: " + ctl + "; color: " + fg + ";")
         l = append(l, "  padding: 4px 6px; border-bottom: 1px solid " + line + "; }")
 
@@ -753,30 +788,25 @@ library studio_style
         l = append(l, "QTabBar::tab:selected { background: " + base + "; color: " + fg + "; }")
         l = append(l, "QTabBar::tab:hover { background: " + hi + "; color: " + fg + "; }")
 
-        ' The browser tree and the branch table. `::branch` is left to the
-        ' theme: Studio draws its own expander glyphs and `itemsExpandable` is
-        ' off, so there is nothing of Qt's there to colour.
-        l = append(l, "QTreeView::item, QTableView::item { padding: 2px; }")
-        l = append(l, "QTreeView::item:selected, QTableView::item:selected { background: " + sel + "; color: #ffffff; }")
-        l = append(l, "QTreeView::item:hover, QTableView::item:hover { background: " + hi + "; }")
-        l = append(l, "QHeaderView::section { background: " + ctl + "; color: " + fg + ";")
-        l = append(l, "  padding: 4px; border: 0px; border-bottom: 1px solid " + line + "; }")
-
-        ' Controls.
+        ' Controls whose text the sheet owns.
         l = append(l, "QPushButton { background: " + ctl + "; color: " + fg + ";")
         l = append(l, "  border: 1px solid " + line + "; padding: 4px 12px; border-radius: 3px; }")
         l = append(l, "QPushButton:hover { background: " + hi + "; }")
         l = append(l, "QPushButton:pressed { background: " + sel + "; color: #ffffff; }")
         l = append(l, "QPushButton:disabled { color: " + faint + "; }")
-        l = append(l, "QComboBox { background: " + ctl + "; color: " + fg + ";")
-        l = append(l, "  border: 1px solid " + line + "; padding: 3px 6px; }")
-        l = append(l, "QComboBox QAbstractItemView { background: " + ctl + "; color: " + fg + ";")
-        l = append(l, "  selection-background-color: " + sel + "; }")
-        l = append(l, "QCheckBox, QRadioButton { color: " + fg + "; }")
-        l = append(l, "QGroupBox { border: 1px solid " + line + "; margin-top: 8px; padding-top: 6px; }")
+        l = append(l, "QCheckBox, QRadioButton { color: " + fg + "; background: transparent; }")
+        l = append(l, "QGroupBox { color: " + fg + "; border: 1px solid " + line + "; margin-top: 8px; padding-top: 6px; }")
         l = append(l, "QGroupBox::title { color: " + fg + "; subcontrol-origin: margin; left: 8px; padding: 0px 4px; }")
         l = append(l, "QSplitter::handle { background: " + line + "; }")
         l = append(l, "QToolTip { background: " + ctl + "; color: " + fg + "; border: 1px solid " + line + "; }")
+        l = append(l, "QScrollArea { background: " + bg + "; border: 0px; }")
+
+        ' A `QComboBox`'s drop-down ARROW is a style pixmap like the toolbar's
+        ' icons, so the closed box is left near the platform's lightness and
+        ' only its popup list is darkened -- the list is item text, which the
+        ' sheet does own.
+        l = append(l, "QComboBox QAbstractItemView { background: " + ctl + "; color: " + fg + ";")
+        l = append(l, "  selection-background-color: " + sel + "; selection-color: #ffffff; }")
 
         ' The scrollbars, which are the clearest sign a window was half-themed.
         l = append(l, "QScrollBar:vertical { background: " + bg + "; width: 12px; margin: 0px; }")
