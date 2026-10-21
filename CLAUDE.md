@@ -1029,6 +1029,48 @@ The third was real, by design, and the user chose to change the design:
   lost) and chose this, because a light window around a dark editor is the
   STU-19 defect wearing the other shoe.
 
+#### Studio ships its own toolbar icons for the dark theme
+
+The text toolbar was the user's choice between two imperfect options, and they
+said so: *"it would be better if we could get some different icons for the
+toolbar in dark mode but this will do."* It was worth doing, and two
+measurements made it cheap:
+
+- **`icon:` takes a FILE PATH** as readily as an `SP_` name — upstream states
+  it: *"A string that names an existing file is that file."*
+- **And an icon is SETTABLE AT RUN TIME.** `qt.set(win, part, "icon", path)`
+  answers true and `qt.has_icon` stays true. That is what lets the toolbar
+  follow a theme change rather than wait for a relaunch, which mattered here
+  because a `toolbar` is **not** a container `qt.refresh` will rebuild (it
+  admits `tabs`, `column`, `row`, `group`).
+
+So `share/icons/toolbar/` holds five light-stroke PNGs and the script that
+authored them, `studio_style.toolbar_icon(part, theme)` is the one decision,
+and `studio_view_qt.render` sets them beside the button style. Dark is back to
+`IconOnly`.
+
+- **A MISSING FILE IS REFUSED BY `qt.set`, not warned about** — unlike a
+  freedesktop theme name, which is warning 2116. So `dark_icons_available`
+  checks first, and an installed copy that did not ship the directory gets a
+  toolbar of labels rather than a window that will not open. Checked on the one
+  icon that stands for the set: they are written by one script in one commit,
+  and five `exists` calls per redraw to answer one question is work for nothing.
+- **Light gets the `SP_` names back**, not Studio's own, so switching away from
+  dark restores the platform's icons rather than leaving a light strip wearing
+  a dark theme's art.
+- **`qt.read(win, part, "icon")` REFUSES** — *"an icon has no text form"* —
+  which is right: a QIcon is an object, and there is nothing truthful to render
+  as a string. So the assertion a tier can make is `qt.has_icon` for all five
+  in both themes, and *"is it the right picture"* is not assertable at all.
+- **AND THE ICONS WERE LOOKED AT, which is the first thing in this phase that
+  was.** The script composites the five on Studio's own toolbar colour
+  (`--contact-sheet`), and the first draft was wrong in two of five: the reload
+  arrowhead did not render at all (a circle with a notch, which reads as a
+  spinner) and the "open" folder was a closed folder with a line across it.
+  Both were redrawn. **An image file can be read back and judged where a window
+  cannot**, which is the one visual check available here — see the rest of this
+  section for how much the absence of that cost.
+
 #### A tripwire that does not check what it claims
 
 **`qt_no_gtk` greps `lib/studio_view_qt.bas` and `app/studio_qt.bas` for a

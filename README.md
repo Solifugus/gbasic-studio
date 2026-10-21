@@ -55,10 +55,12 @@ whole application, built from the same palette the GTK one uses, and the
 editor's own syntax colours come from the same setting so a dark Studio cannot
 end up wrapping a light editor. Picking Dark re-themes everything at once,
 open editors included; the cost is that those tabs are rebuilt to do it, so
-their undo history starts again, and the status line says so. While dark, the
-toolbar shows its labels rather than its icons — those icons are drawn by Qt's
-own style from a palette a stylesheet cannot move, so on a dark strip they
-would be invisible. Under *Follow the desktop* the icons come back.
+their undo history starts again, and the status line says so. The toolbar keeps its
+icons while dark, because Studio ships a light-stroke set of its own for it:
+the stock ones are drawn by Qt's own style from a palette a stylesheet cannot
+move, so on a dark strip they were invisible. Under *Follow the desktop* the
+platform's own icons come back. If the shipped set is missing, the toolbar
+falls back to labels rather than to blank buttons.
 
 It is not the default yet. Three things are missing and each is honest about
 itself rather than silently wrong: **Run refuses by name**, because the new

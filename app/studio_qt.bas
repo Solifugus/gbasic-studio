@@ -1091,6 +1091,7 @@ program main(args)
         print "  it is OURS:   " + string(contains(qt.theme(), studio_style.dark_bg()))
         print "  editor would be built: " + studio_style.qt_source_theme(studio_ui.theme_of(G.app))
         print "  toolbar style:        " + string(qt.read(win, studio_shell_qt.part_toolbar(), "toolButtonStyle"))
+        print "  every toolbar icon arrived: " + string(qt_all_icons(win))
         ' AND THE REBUILT EDITOR, which is the load-bearing half. Pressing Dark
         ' renames every page, so `qt.refresh` builds a new `source` -- and the
         ' three things that must survive that are the text (written back from
@@ -1115,6 +1116,7 @@ program main(args)
         print "  action:        " + G.last_action
         print "  sheet cleared: " + string(len(qt.theme()) = 0)
         print "  toolbar style: " + string(qt.read(win, studio_shell_qt.part_toolbar(), "toolButtonStyle"))
+        print "  every icon arrived: " + string(qt_all_icons(win))
         print "  editor built:  " + studio_style.qt_source_theme(studio_ui.theme_of(G.app))
         ' Back to dark, so the NEXT launch of this mode starts themed -- which
         ' is what the second block of this tier's golden asserts.
@@ -1499,6 +1501,23 @@ end function
 ' the invariant CLAUDE.md states: the renderer and the click dispatcher consume
 ' THE SAME array, because deriving rows twice desynchronises the moment the
 ' filesystem changes between a render and a click.
+' Whether every toolbar item has an icon on it.
+'
+' `qt.has_icon` is the ONLY way to ask -- `qt.read(win, part, "icon")` refuses
+' by name ("an icon has no text form"), which is right: a QIcon is an object
+' and there is nothing truthful to render as a string. That refusal is also
+' why this is the assertion a tier can make and "is it the RIGHT icon" is not.
+' What it does catch is the failure that actually happened: a dark theme whose
+' icons are drawn from a palette, present and invisible.
+function qt_all_icons(win)
+    for each ti in studio_style.toolbar_icons()
+        if not qt.has_icon(win, ti.part) then
+            return false
+        end if
+    end for
+    return true
+end function
+
 function studio_qt_row_index(rows, kind, name)
     i = 0
     for each r in rows

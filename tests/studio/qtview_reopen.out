@@ -19,7 +19,8 @@
   sheet set:    true
   it is OURS:   true
   editor would be built: dark
-  toolbar style:        ToolButtonTextOnly
+  toolbar style:        ToolButtonIconOnly
+  every toolbar icon arrived: true
   after the rebuild, the editor still holds its text: true
   ... its margin:    true
   ... its language:  gBASIC
@@ -27,6 +28,7 @@
   action:        theme-set
   sheet cleared: true
   toolbar style: ToolButtonIconOnly
+  every icon arrived: true
   editor built:  light
   and back to dark for the next launch: theme-set
   persisted:    true
@@ -51,7 +53,8 @@
   sheet set:    true
   it is OURS:   true
   editor would be built: dark
-  toolbar style:        ToolButtonTextOnly
+  toolbar style:        ToolButtonIconOnly
+  every toolbar icon arrived: true
   after the rebuild, the editor still holds its text: true
   ... its margin:    true
   ... its language:  gBASIC
@@ -59,6 +62,7 @@
   action:        theme-set
   sheet cleared: true
   toolbar style: ToolButtonIconOnly
+  every icon arrived: true
   editor built:  light
   and back to dark for the next launch: theme-set
   persisted:    true

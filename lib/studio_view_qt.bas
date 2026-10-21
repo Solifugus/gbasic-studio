@@ -99,6 +99,17 @@ function render(win, app, notice)
     ' cannot be made legible on a dark strip without a palette.
     z = qt.set(win, studio_shell_qt.part_toolbar(), "toolButtonStyle",
                studio_style.qt_tool_button_style(app.model.settings.theme))
+    ' AND THE ICONS THEMSELVES, which follow the theme for the same reason: the
+    ' declared `SP_` pixmaps are drawn from a palette a stylesheet cannot move,
+    ' so the dark theme wears files Studio ships. `studio_style.toolbar_icon`
+    ' is the decision -- it answers "" when there is nothing to put on, and a
+    ' `qt.set` of "" would clear the icon rather than leave it.
+    for each ti in studio_style.toolbar_icons()
+        want = studio_style.toolbar_icon(ti.part, app.model.settings.theme)
+        if want != "" then
+            z = qt.set(win, ti.part, "icon", want)
+        end if
+    end for
 
     ' THE BROWSER. `qt.refresh` re-reads the subject from THIS frame by the
     ' name the record declares, so the variable has to be called exactly that

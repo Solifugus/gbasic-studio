@@ -9,6 +9,8 @@ repository told a desktop environment what Studio was.
 share/applications/org.gbasic.Studio.desktop   the desktop entry
 share/icons/hicolor/<size>/apps/org.gbasic.Studio.png   the icon, 16 … 256
 share/icons/hicolor/<size>/status/gbasic-studio-error.png   the gutter's error mark, 16/24/32
+share/icons/toolbar/*.png                      the Qt toolbar's icons for the DARK theme
+share/icons/toolbar/make_icons.py              the script that authored them
 share/licenses/<spdx-id>.txt                   the licence texts New Project can write
 share/templates/project.templates              the boilerplate New Project renders
 share/templates/sql.templates                  the statements the SQL builders write
@@ -67,3 +69,30 @@ outside the process instead: `./studio` prepends this directory to
 `XDG_DATA_DIRS`, which is where GTK looks for icon themes at startup. Installed
 the ordinary way — these two trees copied into `/usr/local/share` or
 `~/.local/share` — the same name resolves with nothing set at all.
+
+## The Qt toolbar's dark icons
+
+`icons/toolbar/` holds five PNGs — `save`, `reload`, `open-folder`,
+`new-file`, `new-folder` — drawn in a light stroke for Studio's dark theme,
+plus the script that authored them.
+
+**They exist because a stylesheet cannot recolour a style's own icon.** The
+toolbar's declared icons are `SP_` standard pixmaps, Qt's own 81, which are
+the only source that works on a machine with no desktop icon theme installed
+— and this one has none. Qt's style draws them **from the palette**, and
+`qt.theme` sets a stylesheet, which does not move the palette. On a dark strip
+they were dark glyphs on dark: measured invisible, while `qt.has_icon` went on
+answering true for every one of them.
+
+**The provenance is the script.** `make_icons.py` is not a build step and
+nothing runs it automatically; it is here so that "where did these come from"
+has an answer better than "somebody drew them". Run it and it rewrites exactly
+the bytes beside it, and `--contact-sheet` composites the five on Studio's own
+toolbar colour so they can be looked at rather than guessed at. Apache-2.0
+with the rest of Studio, like everything else here that Studio authored — as
+opposed to `licenses/`, which is verbatim upstream text with its own README.
+
+**Studio falls back to labels if they are missing.** `qt.set` REFUSES an icon
+path that is not there, rather than warning, so `studio_style` checks before
+offering one: an installed copy that did not ship this directory gets a
+toolbar of words while dark instead of a window that will not open.

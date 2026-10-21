@@ -713,6 +713,82 @@ library studio_style
     ' chose text. Under "Follow the desktop" there is no sheet, the palette is
     ' the platform's, and the icons are right again.
     '
+    ' ===================================================================
+    ' THE TOOLBAR'S ICONS, which Studio ships for the dark theme.
+    '
+    ' The declared icons are `SP_` STANDARD PIXMAPS -- Qt's own 81, the only
+    ' source that works with no desktop icon theme installed, which this
+    ' machine does not have. Qt's style draws them FROM THE PALETTE, and
+    ' `qt.theme` does not move the palette, so on a dark strip they were dark
+    ' glyphs on dark: measured invisible while `qt.has_icon` answered true for
+    ' every one of them.
+    '
+    ' So the dark theme gets files Studio ships, in a light stroke, authored by
+    ' `share/icons/toolbar/make_icons.py` -- and `icon:` takes a path as
+    ' readily as an `SP_` name ("a string that names an existing file is that
+    ' file"). Measured settable AT RUN TIME: `qt.set(win, part, "icon", path)`
+    ' answers true and `qt.has_icon` stays true, which is what lets the
+    ' toolbar follow a theme change rather than wait for a relaunch -- a
+    ' `toolbar` is NOT a container `qt.refresh` will rebuild.
+    '
+    ' A MISSING FILE IS REFUSED BY `qt.set`, not warned about, so this checks
+    ' before offering a path. An installed copy that did not ship the icons
+    ' therefore falls back to labels rather than taking the window down.
+    ' ===================================================================
+    function toolbar_icons()
+        out = []
+        out = append(out, { part: "save", sp: "SP_DialogSaveButton", file: "save" })
+        out = append(out, { part: "tb_reload", sp: "SP_BrowserReload", file: "reload" })
+        out = append(out, { part: "tb_open_folder", sp: "SP_DialogOpenButton", file: "open-folder" })
+        out = append(out, { part: "tb_new_file", sp: "SP_FileIcon", file: "new-file" })
+        out = append(out, { part: "tb_new_folder", sp: "SP_FileDialogNewFolder", file: "new-folder" })
+        return out
+    end function
+
+    ' Where the shipped icons are, or "" when there is no share directory --
+    ' the same `GBASIC_STUDIO_SHARE` the licences and templates are found
+    ' through, exported by `./studio` and by the test runner.
+    function toolbar_icon_dir()
+        v = env("GBASIC_STUDIO_SHARE")
+        if is_string(v) then
+            if v != "" then
+                return v + "/icons/toolbar"
+            end if
+        end if
+        return ""
+    end function
+
+    ' Whether the dark set is actually on disk. Checked on the ONE icon that
+    ' stands for the set rather than on all five: they are written by a single
+    ' script in a single commit, and five `exists` calls per redraw to answer
+    ' the same question is work for nothing.
+    function dark_icons_available()
+        d = studio_style.toolbar_icon_dir()
+        if d = "" then
+            return false
+        end if
+        p = d + "/save.png"
+        return exists({file} p)
+    end function
+
+    ' The icon string to put on one toolbar item under `theme`, or "" for
+    ' "leave it alone". Light is the declared `SP_` name, so a switch BACK
+    ' restores the icons rather than leaving Studio's own on a light strip.
+    function toolbar_icon(part, theme)
+        for each e in studio_style.toolbar_icons()
+            if e.part = part then
+                if studio_style.qt_dark_for(theme) then
+                    if studio_style.dark_icons_available() then
+                        return studio_style.toolbar_icon_dir() + "/" + e.file + ".png"
+                    end if
+                    return ""
+                end if
+                return e.sp
+            end if
+        end for
+        return ""
+    end function
+
     ' THE ENUM, AND I GOT IT WRONG ONCE. `Qt::ToolButtonStyle` is IconOnly 0,
     ' TextOnly 1, TextBesideIcon 2, TextUnderIcon 3, FollowStyle 4 -- so
     ' TextOnly is ONE. Writing 3 produced `ToolButtonTextUnderIcon`, which puts
@@ -724,7 +800,13 @@ library studio_style
     ' The enum goes in as a NUMBER through the by-name route -- measured, a
     ' `qt.set` of 2 reads back `ToolButtonTextBesideIcon`.
     function qt_tool_button_style(theme)
+        ' Icons both ways WHEN Studio's dark set is on disk; labels only when
+        ' it is not, because a dark strip of invisible icons is the defect this
+        ' whole arrangement exists to remove and a row of words is not.
         if studio_style.qt_dark_for(theme) then
+            if studio_style.dark_icons_available() then
+                return 0
+            end if
             return 1
         end if
         return 0
