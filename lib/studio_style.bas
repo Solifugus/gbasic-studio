@@ -697,6 +697,39 @@ library studio_style
         return "light"
     end function
 
+    ' THE TOOLBAR SHOWS TEXT WHILE DARK, AND ICONS OTHERWISE.
+    '
+    ' Not a preference -- the icons are `SP_` standard pixmaps that Qt's own
+    ' style generates from the palette, and `qt.theme` does not move the
+    ' palette, so on a dark strip they are dark glyphs on dark. Measured:
+    ' darkening the toolbar made all five vanish while `qt.has_icon` went on
+    ' answering true for every one of them.
+    '
+    ' A LABEL IS THE SHEET'S TO COLOUR, so text is the one treatment that is
+    ' legible without a palette -- and every toolbar item already carries a
+    ' `label`, which is what a tooltip and the teaching registry use. The
+    ' alternative was leaving the strip at the platform's lightness, which
+    ' works and puts a pale band under the menus in a dark window; the user
+    ' chose text. Under "Follow the desktop" there is no sheet, the palette is
+    ' the platform's, and the icons are right again.
+    '
+    ' THE ENUM, AND I GOT IT WRONG ONCE. `Qt::ToolButtonStyle` is IconOnly 0,
+    ' TextOnly 1, TextBesideIcon 2, TextUnderIcon 3, FollowStyle 4 -- so
+    ' TextOnly is ONE. Writing 3 produced `ToolButtonTextUnderIcon`, which puts
+    ' each label under the blank where its invisible icon is and makes the
+    ' strip taller for nothing. Caught by reading the property back in the
+    ' tier, which is the only reason it did not ship: the window would have
+    ' looked merely odd rather than broken.
+    '
+    ' The enum goes in as a NUMBER through the by-name route -- measured, a
+    ' `qt.set` of 2 reads back `ToolButtonTextBesideIcon`.
+    function qt_tool_button_style(theme)
+        if studio_style.qt_dark_for(theme) then
+            return 1
+        end if
+        return 0
+    end function
+
     function dark_qss()
         bg = studio_style.dark_bg()
         base = studio_style.dark_base()
@@ -760,14 +793,18 @@ library studio_style
         l = append(l, "QMenu::item:disabled { color: " + faint + "; }")
         l = append(l, "QMenu::separator { height: 1px; background: " + line + "; margin: 4px 8px; }")
 
-        ' THE TOOLBAR IS DELIBERATELY NOT DARKENED, and that is the honest cost
-        ' of having no palette. Its buttons carry `SP_` STANDARD PIXMAPS, which
-        ' Qt's own style generates from the palette -- this machine has no icon
-        ' theme at all, so there is no themed file to recolour -- and a sheet
-        ' cannot reach them. Darkening the strip under them made five icons
-        ' vanish. Left alone it is a lighter band in a dark window, which is
-        ' visibly imperfect and is a thing you can still use. The real fix is a
-        ' palette verb, asked for upstream.
+        ' THE TOOLBAR IS DARK AGAIN, and it is only safe because its buttons
+        ' show TEXT while dark -- see `qt_tool_button_style`. A label is the
+        ' sheet's to colour where a style-generated pixmap is not, so this rule
+        ' and that one are a pair: darkening the strip without switching to
+        ' text is what made five icons invisible.
+        l = append(l, "QToolBar { background: " + bg + "; border: 0px; spacing: 2px; padding: 2px; }")
+        l = append(l, "QToolBar::separator { background: " + line + "; width: 1px; margin: 4px 4px; }")
+        l = append(l, "QToolButton { background: transparent; color: " + fg + ";")
+        l = append(l, "  border: 1px solid transparent; padding: 4px 8px; border-radius: 3px; }")
+        l = append(l, "QToolButton:hover { background: " + hi + "; border: 1px solid " + line + "; }")
+        l = append(l, "QToolButton:pressed { background: " + sel + "; color: #ffffff; }")
+        l = append(l, "QToolButton:disabled { color: " + faint + "; }")
         l = append(l, "QStatusBar { background: " + bg + "; color: " + faint + "; border-top: 1px solid " + line + "; }")
         l = append(l, "QStatusBar QLabel { color: " + fg + "; }")
 

@@ -327,6 +327,32 @@ function part_page(doc_id)
     return "page_" + studio_shell_qt._ident(doc_id)
 end function
 
+' THE SAME PAGE, PER THEME -- which is how an editor gets rebuilt when the
+' theme changes.
+'
+' A `source`'s `theme:` is construction-only (measured: `qt.set` refuses it by
+' name), so changing it means building a new widget, and `qt.refresh` rebuilds
+' a child only when its NAME moves -- it does not recurse into one it keeps. So
+' the theme goes in the PAGE's name: switch theme and every page is a new name,
+' every editor is rebuilt with the new colours, and the editor's own part name
+' is unchanged so nothing that addresses it has to know.
+'
+' Measured that this is safe rather than assumed: a refresh that renames the
+' page while a child keeps its name does NOT clash -- the old page's names are
+' purged before the new one is built -- and the rebuilt editor comes back with
+' its language resolving and its margin intact (`line_numbers=true marks=true`).
+' It comes back EMPTY, which is correct: the widget is new, and the renderer
+' writes the text back from the model on the same redraw, because `_tabs`
+' already writes wherever the text differs.
+'
+' WHAT IS LOST IS THE CARET AND THE UNDO STACK, for open tabs, on a deliberate
+' theme change only. The user chose that over a window that stays
+' half-themed until the next launch. Unsaved text is NOT at risk: Studio's
+' model owns it, which is the whole reason this is affordable.
+function part_page_for(doc_id, theme)
+    return studio_shell_qt.part_page(doc_id) + "_" + theme
+end function
+
 ' A menu item, named after the action it performs -- so the action vocabulary
 ' in `studio_ui.menus` is the only list of them, exactly as it is under GTK
 ' where `menubar.items` is keyed the same way.
@@ -762,7 +788,8 @@ function _editors(app)
         ' what it says. Measured: the caption moves and the editor keeps its
         ' text, its caret and its undo stack.
         pages = append(pages, captioned_named("tab", r.label,
-            studio_shell_qt.part_page(r.doc_id), [
+            studio_shell_qt.part_page_for(r.doc_id,
+                studio_style.qt_source_theme(app.model.settings.theme)), [
             box("column", { margin: 0, spacing: 0 }, [
                 part("source", studio_shell_qt.part_editor(r.doc_id),
                      { language: "gBASIC",

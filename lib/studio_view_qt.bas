@@ -92,6 +92,14 @@ end function
 ' to do) -- the same signature `studio_shell.refresh` has, so a caller moving
 ' between the two shells changes nothing but the name.
 function render(win, app, notice)
+    ' THE TOOLBAR'S BUTTON STYLE, on the full redraw rather than in `dress`,
+    ' because it is the one piece of chrome that FOLLOWS THE THEME: text while
+    ' dark, icons otherwise. `studio_style.qt_tool_button_style` is the
+    ' decision and this is one `qt.set` -- see that function for why an icon
+    ' cannot be made legible on a dark strip without a palette.
+    z = qt.set(win, studio_shell_qt.part_toolbar(), "toolButtonStyle",
+               studio_style.qt_tool_button_style(app.model.settings.theme))
+
     ' THE BROWSER. `qt.refresh` re-reads the subject from THIS frame by the
     ' name the record declares, so the variable has to be called exactly that
     ' -- `studio_shell_qt.nav_subject()` is the one place that name is written,

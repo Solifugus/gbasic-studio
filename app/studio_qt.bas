@@ -580,18 +580,28 @@ end function
 ' makes the decision and records it -- with the sheet applied after, because
 ' the setting is what the sheet is derived from.
 '
-' THE NOTICE SAYS WHAT DID NOT CHANGE. The chrome re-themes on the press; an
-' editor already built keeps its highlighting, `theme:` being construction-only
-' (measured -- `qt.set` refuses it by name). Saying so is the same courtesy the
-' restore-session toggle already pays, and the alternative is a user looking at
-' half a change wondering which half is broken.
+' THE WHOLE WINDOW RE-THEMES, EDITORS INCLUDED, and the editors cost something
+' to do it.
+'
+' `theme:` on a `source` is construction-only -- measured, `qt.set` refuses it
+' by name -- so an open editor can only change colour by being REBUILT, which
+' `studio_shell_qt.part_page_for` arranges by putting the theme in the page's
+' name. The redraw that follows this press is what does it.
+'
+' WHAT THAT COSTS, said in the notice because it is the user's to notice: each
+' open tab's caret and undo stack reset. Unsaved text does NOT -- Studio's
+' model owns the buffer and `_tabs` writes it back wherever it differs, which
+' is the same mechanism that fills a newly opened tab. The user was offered the
+' alternative (chrome now, editors next launch, nothing lost) and chose this,
+' because a light window around a dark editor is the STU-19 defect wearing the
+' other shoe.
 function qt_theme_to(name)
     r = studio_ui.set_theme(G.app, name)
     ' From `r.app` and not from `G`: the sheet is derived from the setting the
     ' decision just made, and `qt_took` below is what installs it on the global.
     themed = qt_apply_theme(r.app)
     if r.action = "theme-set" then
-        r.detail = r.detail + " — open editors keep their colours until the next launch"
+        r.detail = r.detail + " — open editors were rebuilt, so their undo history starts again"
     end if
     return qt_took(r)
 end function
@@ -1080,6 +1090,36 @@ program main(args)
         print "  sheet set:    " + string(len(qt.theme()) > 0)
         print "  it is OURS:   " + string(contains(qt.theme(), studio_style.dark_bg()))
         print "  editor would be built: " + studio_style.qt_source_theme(studio_ui.theme_of(G.app))
+        print "  toolbar style:        " + string(qt.read(win, studio_shell_qt.part_toolbar(), "toolButtonStyle"))
+        ' AND THE REBUILT EDITOR, which is the load-bearing half. Pressing Dark
+        ' renames every page, so `qt.refresh` builds a new `source` -- and the
+        ' three things that must survive that are the text (written back from
+        ' the model), the margin (a construction option, so it has to be in the
+        ' rebuilt record) and the highlighter. An editor that came back empty
+        ' or without its gutter would be the reconcile defect this conversion
+        ' already met once, arriving through the theme.
+        if at >= 0 then
+            doc2 = studio_docs.active_doc(G.app.dm)
+            ed2 = studio_shell_qt.part_editor(doc2.id)
+            print "  after the rebuild, the editor still holds its text: " + string(len(qt.read(win, ed2, "plainText")) > 0)
+            print "  ... its margin:    " + string(qt.gutter(win, ed2).line_numbers)
+            print "  ... its language:  " + qt.highlighting(win, ed2).language
+        end if
+
+        ' AND BOTH WAYS. A theme that only goes dark is half a control, and the
+        ' toolbar's icons have to come BACK under "Follow the desktop" -- there
+        ' is no sheet then, the palette is the platform's, and an icon is the
+        ' better affordance when it can be seen.
+        print "-- and Follow the desktop puts it all back --"
+        back = qt_theme_to("system")
+        print "  action:        " + G.last_action
+        print "  sheet cleared: " + string(len(qt.theme()) = 0)
+        print "  toolbar style: " + string(qt.read(win, studio_shell_qt.part_toolbar(), "toolButtonStyle"))
+        print "  editor built:  " + studio_style.qt_source_theme(studio_ui.theme_of(G.app))
+        ' Back to dark, so the NEXT launch of this mode starts themed -- which
+        ' is what the second block of this tier's golden asserts.
+        again = qt_theme_to("dark")
+        print "  and back to dark for the next launch: " + G.last_action
 
         z = qt.close(win)
         ' PERSISTED, unlike `probe` and `press`, because the whole point of

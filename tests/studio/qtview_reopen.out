@@ -15,10 +15,20 @@
 -- the application's own sheet --
   setting:      system
   dark applied: false
-  after Dark:   theme-set — dark — open editors keep their colours until the next launch
+  after Dark:   theme-set — dark — open editors were rebuilt, so their undo history starts again
   sheet set:    true
   it is OURS:   true
   editor would be built: dark
+  toolbar style:        ToolButtonTextOnly
+  after the rebuild, the editor still holds its text: true
+  ... its margin:    true
+  ... its language:  gBASIC
+-- and Follow the desktop puts it all back --
+  action:        theme-set
+  sheet cleared: true
+  toolbar style: ToolButtonIconOnly
+  editor built:  light
+  and back to dark for the next launch: theme-set
   persisted:    true
 ===== launch 2 =====
 -- the home as it arrived --
@@ -41,4 +51,14 @@
   sheet set:    true
   it is OURS:   true
   editor would be built: dark
+  toolbar style:        ToolButtonTextOnly
+  after the rebuild, the editor still holds its text: true
+  ... its margin:    true
+  ... its language:  gBASIC
+-- and Follow the desktop puts it all back --
+  action:        theme-set
+  sheet cleared: true
+  toolbar style: ToolButtonIconOnly
+  editor built:  light
+  and back to dark for the next launch: theme-set
   persisted:    true

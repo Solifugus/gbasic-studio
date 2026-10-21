@@ -52,10 +52,13 @@ too, and filling it in is one record rather than eight widgets.
 
 It also has Studio's dark look now, as a Qt style sheet — one sheet for the
 whole application, built from the same palette the GTK one uses, and the
-editor's own syntax colours are declared from the same setting so a dark Studio
-cannot end up wrapping a light editor. Picking Dark re-themes the chrome at
-once; an editor tab already open keeps its colours until the next launch, and
-the status line says so.
+editor's own syntax colours come from the same setting so a dark Studio cannot
+end up wrapping a light editor. Picking Dark re-themes everything at once,
+open editors included; the cost is that those tabs are rebuilt to do it, so
+their undo history starts again, and the status line says so. While dark, the
+toolbar shows its labels rather than its icons — those icons are drawn by Qt's
+own style from a palette a stylesheet cannot move, so on a dark strip they
+would be invisible. Under *Follow the desktop* the icons come back.
 
 It is not the default yet. Three things are missing and each is honest about
 itself rather than silently wrong: **Run refuses by name**, because the new

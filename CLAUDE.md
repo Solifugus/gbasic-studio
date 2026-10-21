@@ -982,6 +982,53 @@ padding made it `b.bas`.
 - The deliberate rebaseline is two lines, 57 → 58, and the line delta was
   printed before it was taken — the guard this file already describes.
 
+#### What the user saw, and the two decisions it forced
+
+**Reported from a real window, after the sheet landed:** the toolbar buttons
+invisible, no file tree until a click brought it into view, and — after
+switching to Follow the desktop — a light window around a still-dark editor.
+
+The first two were the PRE-FIX sheet: their session saved at 07:25 and the fix
+landed at 07:32. The detail that confirms it is the click: the old sheet set
+`QTreeView::item:selected { color: #ffffff }` and nothing for an unselected
+item, so clicking a row made the one row they had selected the only visible
+thing in the tree. **A user's description of a symptom located the exact rule
+that was missing.** The saved layout was checked and exonerated — restored, the
+dock comes back visible at 268x448 on the left.
+
+The third was real, by design, and the user chose to change the design:
+
+- **THE TOOLBAR SHOWS TEXT WHILE DARK.** Its icons are `SP_` standard pixmaps
+  Qt's style draws from the palette, so no sheet reaches them; the two options
+  were a pale strip under the menus (icons visible, a seam in a dark window) or
+  labels. Labels: a label's colour is the sheet's. `studio_style`
+  `qt_tool_button_style` is the decision, `studio_view_qt.render` applies it on
+  the full redraw rather than in `dress`, because it is the one piece of chrome
+  that FOLLOWS the theme. Under Follow the desktop the icons come back, which
+  the tier asserts in both directions.
+- **AND I HAD THE ENUM WRONG.** `Qt::ToolButtonStyle` is IconOnly 0, **TextOnly
+  1**, TextBesideIcon 2, TextUnderIcon 3. I wrote 3 and got
+  `ToolButtonTextUnderIcon` — each label under the blank where its invisible
+  icon sits, and a taller strip for nothing. **Caught only because the tier
+  reads the property back**, and an earlier probe had already shown 2 →
+  `TextBesideIcon`, which is the same fact I failed to carry across. A window
+  that looks merely odd is the hardest kind of wrong to notice.
+- **A THEME CHANGE NOW REBUILDS THE OPEN EDITORS.** `theme:` is
+  construction-only, and `qt.refresh` rebuilds a child only when its NAME
+  moves and does not recurse into one it keeps — so the theme goes in the
+  PAGE's name (`studio_shell_qt.part_page_for`). Measured before building on
+  it: renaming a page while its child keeps its name does **not** clash (the
+  old names are purged first), and the rebuilt editor comes back with its
+  language resolving and `line_numbers=true marks=true`. It comes back EMPTY,
+  which is correct — the widget is new and `_tabs` writes the text back from
+  the model on the same redraw, the same path that fills a newly opened tab.
+- **The cost is the caret and the undo stack**, for open tabs, on a deliberate
+  theme change only, and the notice says so. **Unsaved text is not at risk**,
+  and that is what made this affordable: Studio's model owns the buffer. The
+  user was offered the alternative (chrome now, editors next launch, nothing
+  lost) and chose this, because a light window around a dark editor is the
+  STU-19 defect wearing the other shoe.
+
 #### A tripwire that does not check what it claims
 
 **`qt_no_gtk` greps `lib/studio_view_qt.bas` and `app/studio_qt.bas` for a
