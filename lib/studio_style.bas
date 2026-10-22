@@ -723,17 +723,30 @@ library studio_style
     ' glyphs on dark: measured invisible while `qt.has_icon` answered true for
     ' every one of them.
     '
-    ' So the dark theme gets files Studio ships, in a light stroke, authored by
-    ' `share/icons/toolbar/make_icons.py` -- and `icon:` takes a path as
-    ' readily as an `SP_` name ("a string that names an existing file is that
-    ' file"). Measured settable AT RUN TIME: `qt.set(win, part, "icon", path)`
-    ' answers true and `qt.has_icon` stays true, which is what lets the
-    ' toolbar follow a theme change rather than wait for a relaunch -- a
-    ' `toolbar` is NOT a container `qt.refresh` will rebuild.
+    ' So the dark theme gets files Studio ships, in a light stroke -- and
+    ' `icon:` takes a path as readily as an `SP_` name ("a string that names an
+    ' existing file is that file"). Measured settable AT RUN TIME:
+    ' `qt.set(win, part, "icon", path)` answers true and `qt.has_icon` stays
+    ' true, which is what lets the toolbar follow a theme change rather than
+    ' wait for a relaunch -- a `toolbar` is NOT a container `qt.refresh` will
+    ' rebuild.
+    '
+    ' THEY ARE SVG, and that is worth the sentence. Measured: a valid SVG sets
+    ' and reads back as an icon, and a MALFORMED one is refused by name with
+    ' Qt's own parser error on stderr -- so the file is really parsed rather
+    ' than trusted by its extension. The gain over the PNGs these replaced is
+    ' HiDPI: `libqsvgicon.so` re-renders at whatever size is asked for, where
+    ' one 24px bitmap is resampled and soft at 200%. The second gain is that an
+    ' SVG IS ITS OWN PROVENANCE -- it is text, it diffs, and you can read what
+    ' the shape is without running a generator, which is the same argument that
+    ' keeps this project's templates declarative.
     '
     ' A MISSING FILE IS REFUSED BY `qt.set`, not warned about, so this checks
-    ' before offering a path. An installed copy that did not ship the icons
-    ' therefore falls back to labels rather than taking the window down.
+    ' before offering a path. AND SO IS A FILE QT CANNOT READ, which a build
+    ' without Qt's SVG plugin would make of every one of these -- that one
+    ' cannot be answered by looking at the filesystem, so the caller catches it
+    ' and falls back to labels. See `app/studio_qt.bas`'s `qt_apply_toolbar`:
+    ' the guard lives in the entry point because a RENDERER MUST NOT CATCH.
     ' ===================================================================
     function toolbar_icons()
         out = []
@@ -767,7 +780,7 @@ library studio_style
         if d = "" then
             return false
         end if
-        p = d + "/save.png"
+        p = d + "/save.svg"
         return exists({file} p)
     end function
 
@@ -779,7 +792,7 @@ library studio_style
             if e.part = part then
                 if studio_style.qt_dark_for(theme) then
                     if studio_style.dark_icons_available() then
-                        return studio_style.toolbar_icon_dir() + "/" + e.file + ".png"
+                        return studio_style.toolbar_icon_dir() + "/" + e.file + ".svg"
                     end if
                     return ""
                 end if

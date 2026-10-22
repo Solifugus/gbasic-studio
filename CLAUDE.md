@@ -1044,10 +1044,29 @@ measurements made it cheap:
   because a `toolbar` is **not** a container `qt.refresh` will rebuild (it
   admits `tabs`, `column`, `row`, `group`).
 
-So `share/icons/toolbar/` holds five light-stroke PNGs and the script that
-authored them, `studio_style.toolbar_icon(part, theme)` is the one decision,
-and `studio_view_qt.render` sets them beside the button style. Dark is back to
+So `share/icons/toolbar/` holds five light-stroke SVGs,
+`studio_style.toolbar_icon(part, theme)` is the one decision, and
+`app/studio_qt.bas`'s `qt_apply_toolbar` applies them. Dark is back to
 `IconOnly`.
+
+**SVG, and measured rather than assumed.** A valid one sets and reads back as
+an icon; a MALFORMED one is refused by name with Qt's own parser error on
+stderr (*"Start tag expected. (line 1)"*), so the file is really parsed and not
+trusted by its extension. The gain over the PNGs it replaced is HiDPI —
+`libqsvgicon.so` re-renders at any size where one 24px bitmap is resampled and
+soft at 200% — and the gain over the generator script is that **an SVG is its
+own provenance**: text, diffable, readable without running anything, which is
+the argument that already keeps this project's templates declarative.
+
+**THE TOOLBAR'S CHROME IS NOT IN THE RENDERER, and that is the layering rule
+rather than a preference.** It is not in `dress` either: `dress` runs once and
+this changes when the theme does. It is in the entry point because it is the
+one thing on the Qt path that has to CATCH — a build of Qt with no SVG support
+refuses all five, `dark_icons_available` can only answer whether the FILE is
+there, and the refusal is the only signal. A renderer that caught would be how
+a window draws half of itself and says nothing, which this file states as a
+rule two sections up. Both fallbacks are exercised: a corrupt `save.svg` and a
+missing `share/` each give a toolbar of labels and a line on stderr.
 
 - **A MISSING FILE IS REFUSED BY `qt.set`, not warned about** — unlike a
   freedesktop theme name, which is warning 2116. So `dark_icons_available`
@@ -1063,13 +1082,20 @@ and `studio_view_qt.render` sets them beside the button style. Dark is back to
   as a string. So the assertion a tier can make is `qt.has_icon` for all five
   in both themes, and *"is it the right picture"* is not assertable at all.
 - **AND THE ICONS WERE LOOKED AT, which is the first thing in this phase that
-  was.** The script composites the five on Studio's own toolbar colour
-  (`--contact-sheet`), and the first draft was wrong in two of five: the reload
-  arrowhead did not render at all (a circle with a notch, which reads as a
-  spinner) and the "open" folder was a closed folder with a line across it.
-  Both were redrawn. **An image file can be read back and judged where a window
-  cannot**, which is the one visual check available here — see the rest of this
-  section for how much the absence of that cost.
+  was.** The first (bitmap) draft was wrong in two of five: the reload
+  arrowhead did not render at all — a circle with a notch, which reads as a
+  spinner — and the "open" folder was a closed folder with a line across it.
+  **An image file can be read back and judged where a window cannot**, which is
+  the one visual check available here; see the rest of this section for how
+  much the absence of it cost.
+- **HOW TO LOOK AT AN SVG HERE.** There is no `rsvg-convert`, no Inkscape, no
+  `cairosvg` and no Rsvg typelib on this machine, and PIL does not read SVG.
+  What there is, is `google-chrome`, which renders one properly:
+  `google-chrome --headless=new --no-sandbox --disable-gpu --hide-scrollbars
+  --force-device-scale-factor=2 --window-size=W,H --screenshot=out.png
+  file:///abs/path.html`. A small HTML sheet showing the icons at 3x on
+  `dark_bg` and again at their shipped 24px is what these were reviewed
+  against. Local file, no network.
 
 #### A tripwire that does not check what it claims
 

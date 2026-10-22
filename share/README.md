@@ -9,8 +9,7 @@ repository told a desktop environment what Studio was.
 share/applications/org.gbasic.Studio.desktop   the desktop entry
 share/icons/hicolor/<size>/apps/org.gbasic.Studio.png   the icon, 16 … 256
 share/icons/hicolor/<size>/status/gbasic-studio-error.png   the gutter's error mark, 16/24/32
-share/icons/toolbar/*.png                      the Qt toolbar's icons for the DARK theme
-share/icons/toolbar/make_icons.py              the script that authored them
+share/icons/toolbar/*.svg                      the Qt toolbar's icons for the DARK theme
 share/licenses/<spdx-id>.txt                   the licence texts New Project can write
 share/templates/project.templates              the boilerplate New Project renders
 share/templates/sql.templates                  the statements the SQL builders write
@@ -72,9 +71,8 @@ the ordinary way — these two trees copied into `/usr/local/share` or
 
 ## The Qt toolbar's dark icons
 
-`icons/toolbar/` holds five PNGs — `save`, `reload`, `open-folder`,
-`new-file`, `new-folder` — drawn in a light stroke for Studio's dark theme,
-plus the script that authored them.
+`icons/toolbar/` holds five SVGs — `save`, `reload`, `open-folder`,
+`new-file`, `new-folder` — drawn in a light stroke for Studio's dark theme.
 
 **They exist because a stylesheet cannot recolour a style's own icon.** The
 toolbar's declared icons are `SP_` standard pixmaps, Qt's own 81, which are
@@ -84,15 +82,25 @@ the only source that works on a machine with no desktop icon theme installed
 they were dark glyphs on dark: measured invisible, while `qt.has_icon` went on
 answering true for every one of them.
 
-**The provenance is the script.** `make_icons.py` is not a build step and
-nothing runs it automatically; it is here so that "where did these come from"
-has an answer better than "somebody drew them". Run it and it rewrites exactly
-the bytes beside it, and `--contact-sheet` composites the five on Studio's own
-toolbar colour so they can be looked at rather than guessed at. Apache-2.0
-with the rest of Studio, like everything else here that Studio authored — as
+**SVG rather than PNG**, for two reasons. Qt ships an icon-engine plugin for
+it (`libqsvgicon.so`), so a QIcon re-renders at whatever size it is asked for
+— where the 24px bitmaps these replaced were resampled and soft at 200%
+scaling, and the conventional fix is `@2x` variants, which is two files per
+icon and a naming rule. And **an SVG is its own provenance**: it is text, it
+diffs, and a reader can see what the shape is without running a generator.
+That is the same argument that keeps `templates/` declarative. Apache-2.0 with
+the rest of Studio, like everything else here that Studio authored — as
 opposed to `licenses/`, which is verbatim upstream text with its own README.
 
-**Studio falls back to labels if they are missing.** `qt.set` REFUSES an icon
-path that is not there, rather than warning, so `studio_style` checks before
-offering one: an installed copy that did not ship this directory gets a
-toolbar of words while dark instead of a window that will not open.
+**24x24 viewBox, 2px stroke, `#d6d6d6`** (`studio_style.dark_fg()`), with the
+two "new" icons carrying a `#4a9eff` plus (`accent_color`). Keeping the stroke
+weight identical across the five is what makes them look like a set.
+
+**Studio falls back to labels if they cannot be used.** Two different failures,
+both handled: `qt.set` refuses a path that is not there, so `studio_style`
+checks the directory first; and it refuses a file **Qt cannot read**, which a
+build without the SVG plugin would make of all five — that one cannot be
+answered from the filesystem, so `app/studio_qt.bas`'s `qt_apply_toolbar`
+catches the refusal and switches the toolbar to text. Both paths are exercised:
+a corrupt `save.svg` and a missing `share/` each produce a toolbar of words and
+a line on stderr, not a window that will not open.

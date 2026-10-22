@@ -569,6 +569,45 @@ end function
 ' under a toolkit that gives Studio no way to ask whether the desktop is dark
 ' -- see `studio_style.qt_dark_for`. Clearing is the same call with "", which
 ' gBASIC's own cookbook establishes.
+' THE TOOLBAR'S LOOK, which is the one piece of chrome that follows the theme.
+'
+' NOT IN THE RENDERER, and not in `dress` either. Not `dress`, because that
+' runs once and this changes when the theme does; not the renderer, because
+' this is the one place in the Qt path that has to CATCH -- and a renderer that
+' catches is how a window draws half of itself and says nothing, which is the
+' rule CLAUDE.md states for exactly this.
+'
+' WHAT IT CATCHES is a build of Qt with no SVG support. Studio's dark icons are
+' SVG, `qt.set` REFUSES a file Qt cannot read (measured: a malformed one comes
+' back "is not an image Qt can read", with Qt's parser error on stderr), and
+' `dark_icons_available` can only answer whether the FILE is there. So the
+' refusal is the signal, and the fallback is the labels the toolbar wore before
+' these icons existed -- five blank buttons being the one outcome worse than
+' either.
+function qt_apply_toolbar(app)
+    theme = app.model.settings.theme
+    style = studio_style.qt_tool_button_style(theme)
+    ok = true
+    on error goto next
+    for each ti in studio_style.toolbar_icons()
+        want = studio_style.toolbar_icon(ti.part, theme)
+        if want != "" then
+            z = qt.set(G.win, ti.part, "icon", want)
+            if error then
+                print to error "Studio (Qt): this Qt cannot read " + want + " — falling back to labels"
+                error.clear()
+                ok = false
+            end if
+        end if
+    end for
+    on error stop
+    if not ok then
+        style = 1
+    end if
+    z = qt.set(G.win, studio_shell_qt.part_toolbar(), "toolButtonStyle", style)
+    return ok
+end function
+
 function qt_apply_theme(app)
     if studio_style.qt_dark_for(app.model.settings.theme) then
         return qt.theme(studio_style.dark_qss())
@@ -600,6 +639,9 @@ function qt_theme_to(name)
     ' From `r.app` and not from `G`: the sheet is derived from the setting the
     ' decision just made, and `qt_took` below is what installs it on the global.
     themed = qt_apply_theme(r.app)
+    ' The icons and the button style follow the sheet, because the stock ones
+    ' are the thing the sheet cannot reach.
+    barred = qt_apply_toolbar(r.app)
     if r.action = "theme-set" then
         r.detail = r.detail + " — open editors were rebuilt, so their undo history starts again"
     end if
@@ -870,6 +912,7 @@ program main(args)
     ' slot on being named with a subject, and not per render because none of it
     ' changes while Studio runs.
     dressed = studio_view_qt.dress(win, G.app)
+    barred = qt_apply_toolbar(G.app)
 
     ' THE LAYOUT THE USER LAST LEFT, restored whole.
     '
