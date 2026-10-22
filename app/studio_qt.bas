@@ -434,14 +434,19 @@ end function
 ' faster than a plain wheel, while the text resizes under it. No Ctrl: decline
 ' and leave it alone, which is what keeps ordinary scrolling working.
 '
-' ONE STEP PER EVENT, on the sign. Positive is AWAY from you (Qt's sign),
-' which is bigger, as in every editor. NOT ACCUMULATED, and that is gBASIC's
-' choice rather than an oversight here: `qt.wheel()` reports WHOLE notches and
-' rounds a sub-notch turn AWAY from zero (qt_backend.cpp, "a sub-notch turn is
-' still a turn"), so a fraction never reaches this handler and an accumulator
-' would be dead code. The cost is a trackpad, which sends many small events:
-' one swipe climbs several steps. Asked upstream -- a fractional `dy`, or the
-' raw delta beside it, is what would let this accumulate.
+' ACCUMULATED, because a trackpad sends fractions of a notch: stepping once
+' per event would climb the ladder several rungs on one gentle swipe. Positive
+' is AWAY from you (Qt's sign), which is bigger, as in every editor.
+'
+' `dy_exact` is the UNROUNDED turn (gBASIC 1963388, asked for by Studio). `dy`
+' rounds a sub-notch turn away from zero, which is right for a program reading
+' only the sign and wrong for this one -- measured, a half-notch arrived as
+' dy=1. An interpreter older than 1963388 has no `dy_exact`, and there the
+' rounded `dy` is used, which is the one-step-per-event behaviour it had.
+'
+' A reversal starts the count again: leftover turn in the old direction is not
+' a reason to resist the new one. A fast wheel can carry several notches in one
+' event, so each whole one is a step.
 '
 ' Every editor's wheel lands here and none of them needs telling apart: the
 ' size is the application's, not one tab's.
@@ -451,14 +456,29 @@ function on_qt_editor_wheel()
         return nothing
     end if
     z = qt.swallow()
-    if ev.dy = 0 then
+    turn = ev.dy
+    if has(ev, "dy_exact") then
+        turn = ev.dy_exact
+    end if
+    if turn * G.wheel_acc < 0 then
+        G.wheel_acc = 0
+    end if
+    G.wheel_acc = G.wheel_acc + turn
+    r = nothing
+    while G.wheel_acc >= 1
+        G.wheel_acc = G.wheel_acc - 1
+        r = studio_ui.zoom_by(G.app, 1)
+        G.app = r.app
+    end while
+    while G.wheel_acc <= 0 - 1
+        G.wheel_acc = G.wheel_acc + 1
+        r = studio_ui.zoom_by(G.app, 0 - 1)
+        G.app = r.app
+    end while
+    if r = nothing then
         return nothing
     end if
-    delta = 1
-    if ev.dy < 0 then
-        delta = 0 - 1
-    end if
-    return qt_took(studio_ui.zoom_by(G.app, delta))
+    return qt_took(r)
 end function
 
 ' ---- the header -----------------------------------------------------------
@@ -986,6 +1006,8 @@ program main(args)
           ' The DOCUMENT a tab's right-click menu was raised on, and whether
           ' it appeared -- see `on_qt_tab_context`.
           tab_ctx_doc: "", tab_ctx_shown: false,
+          ' Wheel turn not yet spent as a zoom step -- see `on_qt_editor_wheel`.
+          wheel_acc: 0,
           ' The New Project window, which is a SECOND ordinary window rather
           ' than a modal one -- see `studio_shell_qt.new_project_window`.
           npwin: nothing,
@@ -1544,11 +1566,14 @@ program main(args)
         print "  Ctrl+wheel away:   claimed=" + string(took) + ", " + studio_ui.zoom_label(studio_ui.editor_zoom(G.app))
         took = qt.scroll(win, zed, 0 - 1, "ctrl")
         print "  Ctrl+wheel toward, on " + zdoc.display_name + ": " + studio_ui.zoom_label(studio_ui.editor_zoom(G.app))
-        ' A HALF-NOTCH IS A WHOLE STEP: gBASIC rounds a sub-notch turn away
-        ' from zero, so this line moves deliberately if it starts reporting
-        ' fractions -- see `on_qt_editor_wheel`.
-        took = qt.scroll(win, wed, 0.5, "ctrl")
-        print "  a half-notch (a trackpad): " + studio_ui.zoom_label(studio_ui.editor_zoom(G.app))
+        ' A TRACKPAD: quarter-notches add up, and four make one step. Before
+        ' gBASIC 1963388 each one arrived as a whole notch and this read 160%.
+        quarters = []
+        for each q in [1, 2, 3, 4]
+            took = qt.scroll(win, wed, 0.25, "ctrl")
+            quarters = append(quarters, studio_ui.zoom_label(studio_ui.editor_zoom(G.app)))
+        end for
+        print "  four quarter-notches (a trackpad): " + join(quarters, " ")
         wsize = number(split(qt.read(win, wed, "font"), ",")[1])
         print "  and the editor followed: " + string(round(wsize / zbase * 20) * 5) + "%"
         z = qt.invoke(win, qt_item("text-reset"), "trigger")

@@ -1093,19 +1093,25 @@ theme's failure, one row down the Settings menu.
   refresh-built (`qtview_press`, a tab opened later), theme-rebuilt and
   open-built (`qtview_reopen`, both launches). Dropping either injection turns
   its lines to `claimed=false, 100%`.
-- **One step per wheel EVENT, not accumulated.** `qt.wheel()` reports WHOLE
-  notches and rounds a sub-notch turn away from zero (qt_backend.cpp), so a
-  fraction never reaches Studio — an accumulator was written, measured to see
-  `dy=1` for a half-notch, and removed as dead code. The cost: a trackpad swipe
-  climbs several steps. Asked of gBASIC: a fractional `dy`, or the raw delta.
+- **The wheel is ACCUMULATED over `dy_exact`** (gBASIC 1963388, asked for by
+  Studio). `dy` is whole notches with a sub-notch turn rounded away from zero —
+  measured, a half-notch arrived as `dy=1`, so a first accumulator over `dy` was
+  dead code and one trackpad swipe climbed several rungs. `dy_exact` is the
+  unrounded turn; four quarter-notches now make exactly one step, and the tier
+  holds the sequence (`100% 100% 100% 115%`). A reversal resets the count.
+- **Older interpreters fall back to `dy`** through `has(ev, "dy_exact")` rather
+  than raising — measured by renaming the field: one step per event
+  (`115% 130% 150% 175%`), no error, and the tier goes red, which is the signal
+  wanted.
 - **The buffer and caret POLLS could now be `textChanged` handlers** by the
   same route. Not done here; the polls work and that is a separate change.
 - **No tier can press a key**, so whether `Ctrl++` matches the key a person
   actually presses (Ctrl+= unshifted on a US layout is `Key_Equal`, not
   `Key_Plus`) is a person's check.
 
-**THE PINNED INTERPRETER MOVED to gBASIC `d95392f`**, which is what Ctrl+wheel
-needed (3d3f7d9: `qt.refresh` connects the handlers of what it builds). Before
+**THE PINNED INTERPRETER MOVED to gBASIC `1963388`**, which is what Ctrl+wheel
+needed (3d3f7d9: `qt.refresh` connects the handlers of what it builds;
+1963388: `qt.wheel()` carries the unrounded `dy_exact`). Before
 that, `a9f1187` for `qt.caret` (§0.32) and the clipboard (§0.33), and `c4df516`
 before that. Re-pin with the `git archive` recipe this file already gives —
 and note the archive build here came out `HAVE_GTK=0`; Studio's GTK path goes
