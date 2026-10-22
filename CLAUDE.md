@@ -982,6 +982,64 @@ padding made it `b.bas`.
 - The deliberate rebaseline is two lines, 57 → 58, and the line delta was
   printed before it was taken — the guard this file already describes.
 
+#### RUN WORKS (gBASIC §0.32, `qt.caret`)
+
+**The one sentence in the Qt shell `studio_ui` could not compose is gone.** Run
+refused by name for four phases because the panes are caret-keyed (STU-5A') and
+`run_section(app, 0, 0)` resolves through `section_for`'s fall-through to the
+FIRST section — a plausible wrong answer, which is worse than a refusal.
+
+- **`qt.caret(win, part)` answers `{ line, column, selecting }` and is
+  ONE-BASED** — the numbering `source_outline`, a parse diagnostic and
+  `qt.mark` all share. Studio's `run_section` and `sync_cursor` take
+  ZERO-BASED coordinates (they add one internally, the GTK editor's `cursor()`
+  being a GtkTextBuffer position). **The minus one lives at the one place the
+  two numberings meet**, `qt_caret_now`, exactly as the plus one for the gutter
+  lives at the single call site in `studio_view_qt._gutter`. Two conversions in
+  one direction each, both nameable.
+- **`selecting` is carried because a caret inside a selection is one end of a
+  range**, and a bare line and column would be an ambiguous reading. Studio
+  does not act on it yet; the tier prints it.
+- **THE PANES FOLLOW THE CARET, and that is the half that makes Run's answer
+  predictable** — the strip names the section Run will run BEFORE it is
+  pressed. It is a POLL (`qt_sync_caret`), like the buffer sync beside it and
+  for the same reason: a per-editor signal cannot be connected, because the
+  reconcile builds a new child's widget without connecting its handler records.
+  Only `render_run` on a change, never a full redraw, and only when the caret
+  crossed INTO a different section — which is also what keeps the history from
+  getting one event per arrow key, the rule `on_cursor_moved` already states.
+- **A STOPPED RUN NOW GOES THERE INSTEAD OF ASKING.** `ran-stopped`'s notice has
+  read *"stopped at line 7 — put the caret there to see why"* since STU-14,
+  because a failed Run All moves the result out from under the caret and the
+  Errors pane then says "(none)" about a run that plainly failed. `qt.caret_to`
+  means Studio can simply go, and the model is synced after so the next poll
+  does not redraw again for a caret it just moved.
+- **CHECKED, NOT CAUGHT.** `qt.caret_to` REFUSES a line past the end, naming the
+  document's real length — deliberately, because a program placing the caret
+  where a diagnostic said is working from a model, and clamping would put it on
+  the wrong line and look like it worked. A column past its own line clamps,
+  which is ordinary. So `qt_go_to_stopped` checks the length against the model
+  rather than catching the refusal, and the tier asserts the refusal happens.
+- **The tier asserts the CHOOSING, not that a run occurred.** Two functions in
+  one document, caret on line 1 → `sec-2 function one`, caret on line 6 →
+  `sec-3 function two`, and Run answers `running (sec-3)`. A tier that only
+  checked "a run started" would pass on the fall-through bug this refusal
+  existed to prevent.
+- **It stops the child before finishing**, because `press` has no poller and a
+  run launched and abandoned is a process outliving the test that made it.
+
+**THE PINNED INTERPRETER MOVED to gBASIC `a9f1187`**, which is what `qt.caret`
+(§0.32) and the clipboard (§0.33) needed. Re-pin with the `git archive` recipe
+this file already gives; the old pin was `c4df516`.
+
+**And §0.33 records something worth keeping in mind in both directions.**
+Studio's request document reached them saying *"still request 1: the caret —
+unchanged and still the only thing blocking Run"*; it was written at 20:37 and
+§0.32 had landed at 23:02 the evening before. **A request document is a
+snapshot, and in a two-session estate it can be stale before it is read.** Check
+the other tree's HEAD before repeating an ask — `git -C ~/development/gbasic log
+--oneline -3` is the whole of it.
+
 #### What the user saw, and the two decisions it forced
 
 **Reported from a real window, after the sheet landed:** the toolbar buttons

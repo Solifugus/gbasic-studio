@@ -399,11 +399,50 @@ end function
 ' `studio_ui` DOES NOT COMPOSE, deliberately: "no caret under Qt" is a fact
 ' about a toolkit mid-migration and not a thing Studio's model knows, so it
 ' does not earn a place in that vocabulary. It goes when the caret arrives.
+' WHERE THE CARET IS, in Studio's numbering.
+'
+' `qt.caret` answers `{ line, column, selecting }` and is ONE-BASED -- the same
+' numbering `source_outline`, a parse diagnostic and `qt.mark` all use. Studio's
+' own `run_section` and `sync_cursor` take ZERO-BASED coordinates (they add one
+' internally, because the GTK editor's `cursor()` is a GtkTextBuffer position).
+' So the minus one goes here, at the ONE place the two numberings meet, exactly
+' as the plus one for the gutter lives at the one call site in
+' `studio_view_qt._gutter`.
+'
+' `unknown` for a part that is not a text editor, and `nothing` when there is no
+' document -- the welcome page has no editor to ask.
+function qt_caret_now()
+    doc = studio_docs.active_doc(G.app.dm)
+    if doc = nothing then
+        return nothing
+    end if
+    c = qt.caret(G.win, studio_shell_qt.part_editor(doc.id))
+    if is_unknown(c) then
+        return nothing
+    end if
+    return { line0: c.line - 1, column0: c.column - 1, sid: doc.id }
+end function
+
+' RUN, which is what this whole conversion was waiting for.
+'
+' It refused by name for four phases, and the refusal was right: the panes are
+' caret-keyed (STU-5A'), so the strip names the section the caret is in and Run
+' runs that one. `run_section(app, 0, 0)` would have resolved through
+' `section_for`'s fall-through to the FIRST section -- a plausible wrong answer,
+' which is worse than a refusal. gBASIC built `qt.caret` (its §0.32) and the
+' sentence goes away.
+'
+' With no document there is no caret, and `run_section` is still the one that
+' says so: it answers `none` for an empty document set, which reaches the status
+' line by name like every other refusal here.
 function on_qt_run()
-    print to error "Studio (Qt): Run is not wired yet -- a source's caret cannot be read"
-    G.last_action = ""
-    G.last_detail = ""
-    return qt_redraw_saying("Run needs the caret, which this toolkit cannot yet report — use ./studio for now")
+    at = qt_caret_now()
+    if at = nothing then
+        return qt_took(studio_ui.run_section(G.app, 0, 0))
+    end if
+    r = studio_ui.run_section(G.app, at.line0, at.column0)
+    G.polling = r.active
+    return qt_took(r)
 end function
 
 function on_qt_run_all()
@@ -1227,9 +1266,61 @@ program main(args)
         z = qt.invoke(win, studio_shell_qt.part_save(), "trigger")
         print "  action: " + G.last_action + " | " + studio_qt_scrub(qt.read(win, studio_shell_qt.part_status(), "text"), G.app)
 
-        print "-- Run says why it cannot, rather than running the wrong cell --"
+        ' RUN, PRESSED FOR REAL, WITH THE CARET DECIDING WHICH SECTION.
+        '
+        ' This replaces four phases of a refusal. The claim worth asserting is
+        ' not "a run happened" -- it is that the caret is what CHOSE, so the
+        ' caret goes somewhere specific first and the strip is read back to see
+        ' that it names the section the caret is in. `run_section(app, 0, 0)`
+        ' would have answered the FIRST section whatever the caret said, which
+        ' is exactly the plausible wrong answer the refusal existed to avoid.
+        print "-- Run, and the CARET is what picks the section --"
+        z = qt.invoke(win, studio_shell_qt.part_item("new-file"), "trigger")
+        rows = studio_ui.nav_rows(G.app)
+        atf = studio_qt_row_index(rows, "file", "main.bas")
+        if atf >= 0 then
+            ro = studio_ui.activate_row(G.app, rows, atf)
+            G.app = ro.app
+            nav = studio_ui.nav_rows(G.app)
+            G.app = studio_view_qt.render(win, G.app, "")
+        end if
+        rdoc = studio_docs.active_doc(G.app.dm)
+        red = studio_shell_qt.part_editor(rdoc.id)
+        ' Two sections, so "which one" is a question with a wrong answer.
+        G.app.dm = studio_docs.edit(G.app.dm, rdoc.id,
+            "function one()" + chr(10) + "  return 1" + chr(10) + "end function" + chr(10) +
+            chr(10) +
+            "function two()" + chr(10) + "  return 2" + chr(10) + "end function" + chr(10))
+        nav = studio_ui.nav_rows(G.app)
+        G.app = studio_view_qt.render(win, G.app, "")
+        z = qt.caret_to(win, red, 1, 1)
+        G.app = qt_sync_caret(G.app)
+        print "  caret at line 1 — strip says: " + qt.read(win, "run_section", "text")
+        z = qt.caret_to(win, red, 6, 3)
+        G.app = qt_sync_caret(G.app)
+        print "  caret at line 6 — strip says: " + qt.read(win, "run_section", "text")
+        c = qt.caret(win, red)
+        print "  and the caret reads back 1-based: line=" + string(c.line) + " column=" + string(c.column) + " selecting=" + string(c.selecting)
         z = qt.invoke(win, "run_btn", "click")
-        print "  " + qt.read(win, studio_shell_qt.part_status(), "text")
+        print "  Run answered: " + G.last_action + " (" + G.last_detail + ")"
+        print "  status: " + studio_qt_scrub(qt.read(win, studio_shell_qt.part_status(), "text"), G.app)
+        ' A LINE PAST THE END IS REFUSED, naming the real length -- which is
+        ' what makes `qt.caret_to` safe to drive from a diagnostic, and why
+        ' `qt_go_to_stopped` checks the length rather than catching.
+        on error goto next
+        z = qt.caret_to(win, red, 999, 1)
+        if error then
+            print "  a line past the end is refused, as it should be"
+            error.clear()
+        else
+            print "  a line past the end was ACCEPTED, which it should not be"
+        end if
+        on error stop
+        ' STOPPED, so the tier leaves no child behind it. A run launched and
+        ' abandoned is a process outliving the test that made it, and this mode
+        ' has no poller to finish it.
+        z = qt.invoke(win, "stop_btn", "click")
+        print "  stopped: " + G.last_action
 
         print "-- the browser's own right-click menu, per row --"
         ' `qt.right_click` cannot aim at a TREE row (its third argument is a
@@ -1360,6 +1451,13 @@ program main(args)
                         ' when the status line and the results pane change.
                         G.last_action = t.action
                         G.last_detail = t.detail
+                        ' A Run All that stopped part way: put the caret on the
+                        ' line it stopped at, so the panes -- which follow the
+                        ' caret -- are showing the failure by the time the
+                        ' status line names it.
+                        if t.action = "ran-stopped" then
+                            went = qt_go_to_stopped(t.detail)
+                        end if
                         z = qt_redraw()
                     end if
                 end if
@@ -1371,6 +1469,10 @@ program main(args)
                 ' folded back through the one function the GTK buffer handler
                 ' calls. The cost is a sync lag of one tick, not correctness.
                 G.app = qt_sync_buffer(G.app)
+                ' AND THE CARET, which the panes are keyed to. Polled for the
+                ' same reason the buffer is, and cheap: a read and two integer
+                ' comparisons when it has not moved.
+                G.app = qt_sync_caret(G.app)
             end if
         end while
     end watch
@@ -1460,6 +1562,86 @@ end function
 ' ONLY THE ACTIVE EDITOR, because that is the only one anybody can be typing
 ' into, and reading every open document's text sixteen times a second is a
 ' string copy per document per tick for nothing.
+' A WHOLE-FILE RUN THAT STOPPED: GO THERE, rather than ask.
+'
+' `ran-stopped` carries the DOCUMENT LINE, and its notice has read "stopped at
+' line 7 — put the caret there to see why" since STU-14. That sentence exists
+' because the panes are caret-keyed and a failed Run All moves the result out
+' from under the caret, so the Errors pane says "(none)" about a run that
+' plainly failed. Telling the user to go there was the best Studio could do
+' with no way to move the caret; `qt.caret_to` (gBASIC §0.32) means it can
+' simply go.
+'
+' CHECKED, NOT CAUGHT. `qt.caret_to` REFUSES a line past the end -- naming the
+' document's real length, deliberately, because a program placing the caret
+' where a diagnostic said is working from a model and clamping would put it on
+' the wrong line and look like it worked. That refusal is right and Studio
+' should never provoke it: the line comes from the child's diagnostics mapped
+' back through `text_map`, and a document edited since the run started could be
+' shorter. So the length is checked here against the model, and a line past the
+' end leaves the caret alone and lets the status line say what it always said.
+function qt_go_to_stopped(detail)
+    doc = studio_docs.active_doc(G.app.dm)
+    if doc = nothing then
+        return false
+    end if
+    ln = number(detail)
+    if ln < 1 then
+        return false
+    end if
+    if ln > count(split(doc.content, chr(10))) then
+        return false
+    end if
+    z = qt.caret_to(G.win, studio_shell_qt.part_editor(doc.id), ln, 1)
+    ' The model follows the widget, or the next poll would read the new caret,
+    ' decide it moved, and redraw a second time for nothing.
+    r = studio_ui.sync_cursor(G.app, doc.id, ln - 1, 0)
+    G.app = r.app
+    return true
+end function
+
+' THE PANES FOLLOW THE CARET, which is STU-5A' and is what makes Run's answer
+' predictable: the strip says which section Run will run BEFORE it is pressed.
+'
+' A POLL, like the buffer sync beside it and for the same reason -- a per-editor
+' signal cannot be connected, because gBASIC's reconcile builds a new child's
+' widget without connecting its handler records. The GTK shell gets
+' `notify::cursor-position` and calls `sync_cursor`; here the caret is read on
+' the tick and handed to the same function.
+'
+' CHEAP PATH ONLY. `sync_cursor` answers `changed` when the caret crossed INTO a
+' different section, and only then is there anything to redraw -- `render_run`
+' and not a full redraw, because rebuilding the browser at arrow-key rate would
+' fight the user for their own file tree. That is the rule `pane_redraw`
+' already follows on the GTK side.
+'
+' The history gets the crossing and not the keystroke, for the reason
+' `on_cursor_moved` states: one event per arrow key would drown the log.
+function qt_sync_caret(app)
+    doc = studio_docs.active_doc(app.dm)
+    if doc = nothing then
+        return app
+    end if
+    c = qt.caret(G.win, studio_shell_qt.part_editor(doc.id))
+    if is_unknown(c) then
+        return app
+    end if
+    ' Nothing to do when it has not moved. `doc.cursor` is what `set_cursor`
+    ' last stored, in Studio's 1-based document coordinates.
+    if doc.cursor.line = c.line then
+        if doc.cursor.column = c.column then
+            return app
+        end if
+    end if
+    r = studio_ui.sync_cursor(app, doc.id, c.line - 1, c.column - 1)
+    app = r.app
+    if r.changed then
+        qt_note("section_selected", r.detail, "")
+        app = studio_view_qt.render_run(G.win, app)
+    end if
+    return app
+end function
+
 function qt_sync_buffer(app)
     doc = studio_docs.active_doc(app.dm)
     if doc = nothing then

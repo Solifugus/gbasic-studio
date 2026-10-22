@@ -23,8 +23,14 @@
   action: refreshed
 -- Save with nothing open refuses by name --
   action: none | nothing selected
--- Run says why it cannot, rather than running the wrong cell --
-  Run needs the caret, which this toolkit cannot yet report — use ./studio for now
+-- Run, and the CARET is what picks the section --
+  caret at line 1 — strip says: section: sec-2 function one
+  caret at line 6 — strip says: section: sec-3 function two
+  and the caret reads back 1-based: line=6 column=3 selecting=false
+  Run answered: running (sec-3)
+  status: running sec-3
+  a line past the end is refused, as it should be
+  stopped: stopping
 -- the browser's own right-click menu, per row --
   file    shown=true offers: open, rename, delete
   dir     shown=true offers: open, rename, delete

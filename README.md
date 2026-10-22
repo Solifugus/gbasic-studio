@@ -62,12 +62,17 @@ move, so on a dark strip they were invisible. Under *Follow the desktop* the
 platform's own icons come back. If the shipped set is missing, the toolbar
 falls back to labels rather than to blank buttons.
 
-It is not the default yet. Three things are missing and each is honest about
-itself rather than silently wrong: **Run refuses by name**, because the new
-toolkit cannot yet report where the text cursor is and running the wrong
-section would be worse than running nothing; there is no clipboard to copy a
-file path to; and the Tables pane is text where it should be a list, which
-waits on the data grid. One limit is worth naming: *Follow the desktop* there
+**Run works there now.** The caret decides which section runs, exactly as it
+does under GTK: put the cursor in a function and the strip names that section
+before you press anything. A whole-file `.sql` run that stops part way moves
+the caret to the line it stopped at, rather than telling you to go there
+yourself — the output panes follow the caret, so the failure is on screen by
+the time the status line names it.
+
+It is not the default yet. Two things are still missing, each honest about
+itself rather than silently wrong: a tab's own right-click menu is not built
+there (its Close and Copy file path), and the Tables pane is text where it
+should be a list, which waits on the data grid. One limit is worth naming: *Follow the desktop* there
 means Studio applies no sheet of its own, because Qt gives it no way to ask
 whether your desktop is dark — so on a dark desktop, choose Dark. Everything else Studio asked of the language got built
 — a notebook whose set of tabs can change, a tree, a margin with marks, and the
