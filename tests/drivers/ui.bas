@@ -2840,6 +2840,27 @@ program main(args)
     print "   status: " + studio_ui.action_notice(r.action, r.detail)
     print "heading: " + studio_ui.error_heading(studio_ui.error_body(app))
     print "errors:  <" + studio_ui.error_body(app) + ">"
+
+    banner("REOPENED broken: restored anchors have no position, and no mark")
+    ' What a relaunch meets: anchors saved while the file parsed, no cached
+    ' view, and text that does not parse. The restored sections are
+    ' anchor-only -- `start_line` 0 means "not known until a parse places it"
+    ' -- and the failed parse keeps them. Marked anyway, that was line -1
+    ' here and line 0 under Qt, which `qt.mark` REFUSES: the user's
+    ' `./studio qt` raised out of the first render with a file left broken.
+    app.view = nothing
+    vw = studio_ui.view_for(app)
+    app = vw.app
+    placed = 0
+    for each s in vw.st.sections
+        if s.start_line > 0 then
+            placed = placed + 1
+        end if
+    end for
+    print "sections restored=" + count(vw.st.sections) + " placed=" + placed + " valid=" + vw.st.valid
+    sm = studio_ui.section_marks(app)
+    app = sm.app
+    print "section marks=" + numlist(sm.lines) + " (none: nothing says where they are)"
   end if
 
   ' ---- runrefuse: a run Studio DECLINES, and where its sentence goes -------

@@ -21,3 +21,6 @@ sections retained=1 valid=false
 heading: Errors (2)
 errors:  <refused: the document does not parse; fix the errors first
 error 2:8  syntax error, unexpected THEN>
+== REOPENED broken: restored anchors have no position, and no mark ==
+sections restored=1 placed=0 valid=false
+section marks= (none: nothing says where they are)

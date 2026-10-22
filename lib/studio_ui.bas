@@ -4853,8 +4853,15 @@ library studio_ui
         if v.st != nothing then
             rev = v.st.revision
             for each s in v.st.sections
+                ' A section NO PARSE HAS PLACED has no line to mark. Restored
+                ' anchors carry `start_line` 0 ("not known yet") until a good
+                ' parse reattaches them, and a file reopened broken never gets
+                ' one -- marked anyway it was line -1 here, and line 0 under
+                ' Qt, where `qt.mark` refuses it and the first render raised.
                 if s.status != "stale" then
-                    lines = append(lines, s.start_line - 1)
+                    if s.start_line > 0 then
+                        lines = append(lines, s.start_line - 1)
+                    end if
                 end if
             end for
         end if
