@@ -34,6 +34,14 @@
   status: running sec-3
   a line past the end is refused, as it should be
   stopped: stopping
+-- a tab's own right-click menu acts on the tab CLICKED --
+  the menu holds: Close, Copy file path
+  right-clicked untitled-1.bas: shown=true, about the clicked one=true
+  Copy file path: copied-path | clipboard holds that file=true
+  status names the whole path: true
+  the active tab did not move: true
+  Close on the unsaved tab: armed-close, still open=true
+  Close on untitled-1.bas: closed, tabs 2 -> 1, active still the same=true
 -- the browser's own right-click menu, per row --
   file    shown=true offers: open, rename, delete
   dir     shown=true offers: open, rename, delete

@@ -371,6 +371,61 @@ function on_qt_tab_changed()
     return qt_took(studio_ui.select_tab(G.app, studio_ui.tab_rows(G.app), at))
 end function
 
+' ---- a tab's own menu (STU-21) --------------------------------------------
+'
+' Both items act on the tab that was CLICKED, not the active one: right-clicking
+' a background tab to close it must not first switch you to it -- the rule the
+' browser's menu follows.
+'
+' AND THAT IS WHY `currentIndex` IS THE WRONG QUESTION HERE. Measured upstream
+' (gBASIC §0.33): a right-press moves a tree's current row but correctly does
+' NOT move a tab bar's current index, so reading it would close whichever tab
+' was already active, in silence. `qt.which_tab()` answers the tab the event is
+' about -- or `unknown` for a right-click that landed on no tab, which gets no
+' menu, as under GTK where the gesture lives on the tab label only.
+'
+' The DOCUMENT is remembered, not the index: a redraw between the click and the
+' press can move the tab set, and an index would then name a neighbour.
+function on_qt_tab_context()
+    idx = qt.which_tab()
+    if is_unknown(idx) then
+        return nothing
+    end if
+    id = studio_ui.tab_doc_at(studio_ui.tab_rows(G.app), idx)
+    if id = "" then
+        return nothing
+    end if
+    G.tab_ctx_doc = id
+    G.tab_ctx_shown = qt.popup(G.win, studio_shell_qt.part_tab_menu())
+    return nothing
+end function
+
+' The SAME arming slot the header's Close Tab uses, deliberately: two slots
+' would let a document be armed from the menu and closed from the header with
+' no second click anywhere.
+function on_qt_tab_close()
+    r = studio_ui.close_doc(G.app, G.tab_ctx_doc, G.armed_doc)
+    G.armed_doc = r.armed
+    if r.action = "closed" then
+        qt_note("file_closed", r.detail, "")
+    end if
+    return qt_took(r)
+end function
+
+' `qt.copy` copies EAGERLY (measured upstream), so there is no buffer to keep
+' alive the way the GTK route has to keep one on the shell -- the text is on
+' the clipboard when the call returns.
+function on_qt_tab_copy_path()
+    r = studio_ui.tab_path(G.app, G.tab_ctx_doc)
+    if r.ok then
+        z = qt.copy(r.text)
+    end if
+    ' Not `qt_took`: `tab_path` changes nothing, so it hands back no app.
+    G.last_action = r.action
+    G.last_detail = r.detail
+    return qt_redraw()
+end function
+
 ' ---- the header -----------------------------------------------------------
 
 function on_qt_save()
@@ -760,6 +815,11 @@ function qt_wire(win)
     win = qt_on(win, files, "customContextMenuRequested", on_qt_nav_context)
     win = qt_on(win, studio_shell_qt.part_branches(), "itemSelectionChanged", on_qt_branch_row)
     win = qt_on(win, studio_shell_qt.part_tabs(), "currentChanged", on_qt_tab_changed)
+    ' Naming the handler is what asks for the context-menu policy, as for the
+    ' browser.
+    win = qt_on(win, studio_shell_qt.part_tabs(), "customContextMenuRequested", on_qt_tab_context)
+    win = qt_on(win, studio_shell_qt.part_tab_item("tab-close"), "triggered", on_qt_tab_close)
+    win = qt_on(win, studio_shell_qt.part_tab_item("tab-copy-path"), "triggered", on_qt_tab_copy_path)
     ' SAVE IS A `QAction` ON THE TOOLBAR NOW, so its signal is `triggered`
     ' rather than `clicked` -- the part name is unchanged, which is what kept
     ' every other reference to it working.
@@ -888,6 +948,9 @@ program main(args)
           ' actually appeared. Every item acts on THAT row rather than on
           ' whatever is selected when the item is pressed.
           ctx_index: 0 - 1, ctx_shown: false,
+          ' The DOCUMENT a tab's right-click menu was raised on, and whether
+          ' it appeared -- see `on_qt_tab_context`.
+          tab_ctx_doc: "", tab_ctx_shown: false,
           ' The New Project window, which is a SECOND ordinary window rather
           ' than a modal one -- see `studio_shell_qt.new_project_window`.
           npwin: nothing,
@@ -1338,6 +1401,56 @@ program main(args)
         ' has no poller to finish it.
         z = qt.invoke(win, "stop_btn", "click")
         print "  stopped: " + G.last_action
+
+        print "-- a tab's own right-click menu acts on the tab CLICKED --"
+        ' THE CLAIM IS "NOT THE ACTIVE ONE", so the tier makes sure there is a
+        ' background tab to aim at and asserts the active document did not
+        ' move. A menu reading `currentIndex` would pass every other line here.
+        trows = studio_ui.tab_rows(G.app)
+        active_id = studio_docs.active_doc(G.app.dm).id
+        bg = 0 - 1
+        i = 0
+        for each tr in trows
+            if bg < 0 then
+                if tr.doc_id != active_id then
+                    bg = i
+                end if
+            end if
+            i = i + 1
+        end for
+        print "  the menu holds: " + join(qt.menus(win, studio_shell_qt.part_tab_menu()), ", ")
+        if bg < 0 then
+            print "  (no background tab -- the fixture changed under this tier)"
+        else
+            bgdoc = studio_docs.doc_by_id(G.app.dm, trows[bg].doc_id)
+            z = qt.right_click(win, studio_shell_qt.part_tabs(), bg)
+            print "  right-clicked " + bgdoc.display_name + ": shown=" + string(G.tab_ctx_shown) + ", about the clicked one=" + string(G.tab_ctx_doc = bgdoc.id)
+            z = qt.invoke(win, studio_shell_qt.part_tab_menu(), "hide")
+            z = qt.invoke(win, studio_shell_qt.part_tab_item("tab-copy-path"), "trigger")
+            print "  Copy file path: " + G.last_action + " | clipboard holds that file=" + string(qt.clipboard() = bgdoc.path)
+            print "  status names the whole path: " + string(qt.read(win, studio_shell_qt.part_status(), "text") = "copied " + bgdoc.path)
+            print "  the active tab did not move: " + string(studio_docs.active_doc(G.app.dm).id = active_id)
+            ' The ACTIVE tab holds unsaved text, so Close from its menu ARMS --
+            ' through the same slot the header's Close Tab uses.
+            atab = 0 - 1
+            i = 0
+            for each tr in studio_ui.tab_rows(G.app)
+                if tr.doc_id = active_id then
+                    atab = i
+                end if
+                i = i + 1
+            end for
+            z = qt.right_click(win, studio_shell_qt.part_tabs(), atab)
+            z = qt.invoke(win, studio_shell_qt.part_tab_menu(), "hide")
+            z = qt.invoke(win, studio_shell_qt.part_tab_item("tab-close"), "trigger")
+            print "  Close on the unsaved tab: " + G.last_action + ", still open=" + string(studio_docs.doc_by_id(G.app.dm, active_id) != nothing)
+            ' And the background one, which closes without becoming active.
+            n_before = count(studio_ui.tab_rows(G.app))
+            z = qt.right_click(win, studio_shell_qt.part_tabs(), bg)
+            z = qt.invoke(win, studio_shell_qt.part_tab_menu(), "hide")
+            z = qt.invoke(win, studio_shell_qt.part_tab_item("tab-close"), "trigger")
+            print "  Close on " + bgdoc.display_name + ": " + G.last_action + ", tabs " + string(n_before) + " -> " + string(count(qt.tabs(win, studio_shell_qt.part_tabs()))) + ", active still the same=" + string(studio_docs.active_doc(G.app.dm).id = active_id)
+        end if
 
         print "-- the browser's own right-click menu, per row --"
         ' `qt.right_click` cannot aim at a TREE row (its third argument is a

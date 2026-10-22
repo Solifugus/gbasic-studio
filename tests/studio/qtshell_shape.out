@@ -32,6 +32,9 @@ window studio
     item ctx_delete
     item ctx_project_file
     item ctx_close_project
+  popup tab_menu
+    item tabm_tab_close
+    item tabm_tab_copy_path
   toolbar toolbar
     item save
     item tb_reload
@@ -116,6 +119,8 @@ window studio
   /studio/nav_menu/ctx_delete                         label=Delete
   /studio/nav_menu/ctx_project_file                   label=Add project file
   /studio/nav_menu/ctx_close_project                  label=Close project
+  /studio/tab_menu/tabm_tab_close                     label=Close
+  /studio/tab_menu/tabm_tab_copy_path                 label=Copy file path
   /studio/toolbar/save                                icon=SP_DialogSaveButton label=Save toolTip=Write the active document to disk. Over a file that changed underneath, press twice — the first press arms it.
   /studio/toolbar/tb_reload                           icon=SP_BrowserReload label=Reload toolTip=Check every open document against the file on disk: re-read the ones you have not edited, and flag the ones you have as conflicts. Nothing you typed is discarded.
   /studio/toolbar/tb_open_folder                      icon=SP_DialogOpenButton label=Open Folder toolTip=Open a folder you already have as a project. Type its path in the name field first; ~/ and relative paths work.
@@ -145,7 +150,7 @@ window studio
   /studio/book/page_welcome                           margin=12 spacing=6
   /studio/book/page_welcome/welcome                   label=Open a file from the browser, or File ▸ New File.
 == every name it declares ==
-  mi_new_project mi_open_folder mi_project_file mi_close_project mi_new_file mi_new_folder mi_rename mi_delete mi_reload mi_close_tab mi_theme_system mi_theme_dark mi_text_bigger mi_text_smaller mi_text_reset mi_restore_session nav_menu ctx_open ctx_new_file_here ctx_new_folder_here ctx_rename ctx_delete ctx_project_file ctx_close_project toolbar save tb_reload tb_open_folder tb_new_file tb_new_folder dock_files files text depth dock_console console run_btn run_all_btn stop_btn snippet_btn schema_btn run_section run_standing run_state run_branch prefix_head prefix_body target_head target_body err_head err_body dock_branch branch_list dock_results results_body dock_tables tables_body dock_git git_body dock_agent agent_body status name_field book page_welcome welcome
+  mi_new_project mi_open_folder mi_project_file mi_close_project mi_new_file mi_new_folder mi_rename mi_delete mi_reload mi_close_tab mi_theme_system mi_theme_dark mi_text_bigger mi_text_smaller mi_text_reset mi_restore_session nav_menu ctx_open ctx_new_file_here ctx_new_folder_here ctx_rename ctx_delete ctx_project_file ctx_close_project tab_menu tabm_tab_close tabm_tab_copy_path toolbar save tb_reload tb_open_folder tb_new_file tb_new_folder dock_files files text depth dock_console console run_btn run_all_btn stop_btn snippet_btn schema_btn run_section run_standing run_state run_branch prefix_head prefix_body target_head target_body err_head err_body dock_branch branch_list dock_results results_body dock_tables tables_body dock_git git_body dock_agent agent_body status name_field book page_welcome welcome
 == the title carries the marker too, which is conventional ==
   cold: gBASIC Studio — ws
 == and where the record puts each dock, before any window exists ==

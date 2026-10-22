@@ -1618,6 +1618,20 @@ library studio_ui
         return action
     end function
 
+    ' WHICH DOCUMENT a tab index is, over the same `tab_rows` the notebook was
+    ' built from -- or "" for an index that is not a tab (the welcome page, or
+    ' a right-click that landed on no tab at all). The Qt shell is handed an
+    ' INDEX by `qt.which_tab`, where the GTK one read an id off the label.
+    function tab_doc_at(rows, index)
+        if index < 0 then
+            return ""
+        end if
+        if index >= count(rows) then
+            return ""
+        end if
+        return rows[index].doc_id
+    end function
+
     ' The text a Copy file path puts on the clipboard: the WHOLE path, which is
     ' what makes it useful in a terminal or another editor. `doc.path` is
     ' already canonical -- `studio_docs.open` canonicalises what it stores --

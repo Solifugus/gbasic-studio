@@ -69,10 +69,13 @@ the caret to the line it stopped at, rather than telling you to go there
 yourself — the output panes follow the caret, so the failure is on screen by
 the time the status line names it.
 
-It is not the default yet. Two things are still missing, each honest about
-itself rather than silently wrong: a tab's own right-click menu is not built
-there (its Close and Copy file path), and the Tables pane is text where it
-should be a list, which waits on the data grid. One limit is worth naming: *Follow the desktop* there
+A tab's own right-click menu works there too — Close and Copy file path, acting
+on the tab you clicked rather than the one you are looking at, so closing a
+background tab does not first switch you to it.
+
+It is not the default yet. One thing is still missing, and it says so rather
+than being silently wrong: the Tables pane is text where it should be a list,
+which waits on the data grid. One limit is worth naming: *Follow the desktop* there
 means Studio applies no sheet of its own, because Qt gives it no way to ask
 whether your desktop is dark — so on a dark desktop, choose Dark. Everything else Studio asked of the language got built
 — a notebook whose set of tabs can change, a tree, a margin with marks, and the

@@ -1028,6 +1028,34 @@ FIRST section — a plausible wrong answer, which is worse than a refusal.
 - **It stops the child before finishing**, because `press` has no poller and a
   run launched and abandoned is a process outliving the test that made it.
 
+#### A tab's own menu under Qt (STU-21, gBASIC §0.33)
+
+- **`qt.which_tab()`, never `currentIndex`.** A right-press moves a tree's
+  current row but correctly does NOT move a tab bar's current index, so the
+  index answers the tab that was ALREADY active. Measured with the handler
+  perturbed to read it: the second Close in `qtview_press` closed the ACTIVE
+  `main.bas` with its unsaved text, because an arm from the line before was
+  still pending on it. Silent data loss, and the tier now goes red on it.
+- **The DOCUMENT is remembered (`G.tab_ctx_doc`), not the index** —
+  `studio_ui.tab_doc_at` maps it over the same `tab_rows` the notebook was
+  built from. A redraw between the click and the press can move the tab set.
+- Close goes through `studio_ui.close_doc` and the SAME `G.armed_doc` the
+  header's Close Tab uses, exactly as under GTK.
+- **`qt.copy` copies EAGERLY**, so there is no buffer to keep alive the way
+  the GTK route keeps one on the shell. And unlike GTK's, the clipboard IS
+  asserted here — `qt.clipboard()` reads it back under offscreen. That says
+  Qt's clipboard holds it; whether a desktop paste sees it is still a
+  person's check.
+- **A RAISE INSIDE A HANDLER DOES NOT FAIL THE PROCESS.** The first Copy went
+  through `qt_took`, which reads `r.app`, and `tab_path` returns none —
+  `unknown record field: app` on stderr, the handler abandoned, exit 0. The
+  Qt tiers discard stderr, so only the golden's missing line would have shown
+  it. Worth remembering when a press "did nothing".
+- **The first keystroke in a clean file used to flip the editor's text**
+  between old and new sixteen times a second: `qt_sync_buffer` called
+  `qt_redraw` (which renders `G.app`) while still holding the new model in a
+  local. Any handler that redraws must put its app in `G.app` FIRST.
+
 **THE PINNED INTERPRETER MOVED to gBASIC `a9f1187`**, which is what `qt.caret`
 (§0.32) and the clipboard (§0.33) needed. Re-pin with the `git archive` recipe
 this file already gives; the old pin was `c4df516`.

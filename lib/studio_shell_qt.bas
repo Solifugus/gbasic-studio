@@ -239,6 +239,16 @@ function part_nav_menu()
     return "nav_menu"
 end function
 
+' A TAB'S OWN MENU (STU-21) and its items, named after the actions
+' `studio_ui.tab_menu_all` lists -- the same rule the browser's items follow.
+function part_tab_menu()
+    return "tab_menu"
+end function
+
+function part_tab_item(action)
+    return "tabm_" + studio_shell_qt._ident(action)
+end function
+
 ' A browser context item, named after the action it performs -- the same rule
 ' the header items follow, so `studio_ui.context_all` stays the only list.
 function part_ctx(action)
@@ -392,6 +402,8 @@ function window_for(app)
     ' placed by nothing, so a `popup` written inside a `row` is a declaration
     ' the layout silently ignores -- gBASIC refuses it there.
     items = append(items, studio_shell_qt._nav_menu(app))
+    ' And a tab's, for the same reason.
+    items = append(items, studio_shell_qt._tab_menu(app))
 
     ' --- THE FURNITURE, which is what makes this a QMainWindow -------------
     '
@@ -766,6 +778,18 @@ function _browser(app)
                      studio_shell_qt.nav_subject(),
                      [ column_of("text", "File"),
                        depth_column("depth") ])
+end function
+
+' A tab's right-click menu (STU-21): Close and Copy file path. Both items are
+' always offered -- `tab_path` refuses BY NAME for a document with no file
+' behind it, which says more than a hidden item would.
+function _tab_menu(app)
+    entries = []
+    for each action in studio_ui.tab_menu_all()
+        entries = append(entries, part("item", studio_shell_qt.part_tab_item(action),
+                                       { label: studio_ui.tab_menu_label(action) }))
+    end for
+    return named("popup", studio_shell_qt.part_tab_menu(), entries)
 end function
 
 ' One tab per visible document, each holding one `source`.
