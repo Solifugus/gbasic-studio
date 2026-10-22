@@ -276,7 +276,7 @@ end function
 ' is also why a new page's editor is filled here rather than at build time: the
 ' record carries no text, because text is state and the record is shape.
 function _tabs(win, app)
-    items = studio_view_qt._tab_items(studio_shell_qt.window_for(app))
+    items = studio_view_qt.editor_handlers(app, studio_view_qt._tab_items(studio_shell_qt.window_for(app)))
     z = qt.refresh(win, studio_shell_qt.part_tabs(), items)
     for each r in studio_ui.tab_rows(app)
         doc = studio_docs.doc_by_id(app.dm, r.doc_id)
@@ -346,6 +346,64 @@ end function
 ' exactly what `qt.refresh(win, name, items)` takes. A redraw is therefore
 ' "build the record again and hand over the part that changed", with no second
 ' description of what a tab is.
+' EACH EDITOR'S OWN HANDLERS, put inside its page.
+'
+' gBASIC connects a handler exactly when the widget it TARGETS is built --
+' at `qt.open` or by the `qt.refresh` that builds it (fixed upstream at
+' 3d3f7d9; before that a refreshed child's handlers were never connected, which
+' is why Ctrl+wheel waited). So every page carries its editor's handlers from
+' the start, and an editor KEPT by a reconcile is untouched and connected once.
+'
+' THE HANDLERS ARE DATA ON THE APP (`qt_editor_handlers`, a list of
+' `{ signal, handler }`), set by the entry point. This file makes no decision
+' about them and the shell never sees them, which is what keeps
+' `studio_shell_qt` callable with no Qt -- the arrangement `qt_wire` has.
+' Pages pair with `tab_rows` by position, which is how `_editors` built them;
+' the welcome page has no row and no editor, and is passed through.
+function editor_handlers(app, pages)
+    hs = app["qt_editor_handlers"]
+    if hs = unknown then
+        return pages
+    end if
+    rows = studio_ui.tab_rows(app)
+    if count(rows) != count(pages) then
+        return pages
+    end if
+    out = []
+    i = 0
+    for each pg in pages
+        ed = studio_shell_qt.part_editor(rows[i].doc_id)
+        its = pg.items
+        for each h in hs
+            its = append(its, { kind: "handler", target: ed,
+                                signal: h.signal, handler: h.handler })
+        end for
+        pg.items = its
+        out = append(out, pg)
+        i = i + 1
+    end for
+    return out
+end function
+
+' The same, over a whole window record, for `qt.open` -- the editors open at
+' launch are built there and not by a refresh.
+function with_editor_handlers(app, node)
+    if has(node, "word") then
+        if node.word = "tabs" then
+            node.items = studio_view_qt.editor_handlers(app, node.items)
+            return node
+        end if
+    end if
+    if has(node, "items") then
+        out = []
+        for each c in node.items
+            out = append(out, studio_view_qt.with_editor_handlers(app, c))
+        end for
+        node.items = out
+    end if
+    return node
+end function
+
 function _tab_items(node)
     if has(node, "word") then
         if node.word = "tabs" then

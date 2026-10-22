@@ -1077,20 +1077,39 @@ theme's failure, one row down the Settings menu.
 - **The tier reads the FONT back off a real editor now**, as a ratio to the
   base to the nearest 5% (the base is the machine's, which a golden cannot
   hold), and opens a new tab while zoomed.
-- **Ctrl+WHEEL IS BLOCKED UPSTREAM**, not forgotten. `on <part>.wheel` plus
-  `qt.wheel()`/`qt.swallow()` is the route, but an editor is built by
-  `qt.refresh` and a refreshed child's handler records are never connected
-  (gBASIC DOGFOOD 2026-10-19, still true at `a9f1187`: `qt_connect_items` is
-  called from `qt.open` only). A wheel never propagates from a
-  `QPlainTextEdit` to the `tabs` around it, so there is no container to hang
-  it on instead.
+- **Ctrl+WHEEL works (gBASIC 3d3f7d9).** Until then a child built by
+  `qt.refresh` never had its handler records connected, and every editor but
+  those open at launch is built that way. gBASIC's rule now: a handler is
+  connected exactly when the widget it TARGETS is built, wherever its record
+  sits, and a KEPT widget is never reconnected — so a handler added to a kept
+  child's record does nothing until that child is rebuilt.
+- **So every page carries its editor's handlers from the start.** The handlers
+  are DATA on the app (`app.qt_editor_handlers`, `{ signal, handler }` pairs
+  set by the entry point); `studio_view_qt.editor_handlers` puts one record per
+  pair into each page it hands `qt.refresh`, and `with_editor_handlers` does the
+  same to the window record before `qt.open`, which builds the editors restored
+  at launch. The shell never sees a function value and stays Qt-free.
+- **Three build paths, each with its own tier line, each proven red**:
+  refresh-built (`qtview_press`, a tab opened later), theme-rebuilt and
+  open-built (`qtview_reopen`, both launches). Dropping either injection turns
+  its lines to `claimed=false, 100%`.
+- **One step per wheel EVENT, not accumulated.** `qt.wheel()` reports WHOLE
+  notches and rounds a sub-notch turn away from zero (qt_backend.cpp), so a
+  fraction never reaches Studio — an accumulator was written, measured to see
+  `dy=1` for a half-notch, and removed as dead code. The cost: a trackpad swipe
+  climbs several steps. Asked of gBASIC: a fractional `dy`, or the raw delta.
+- **The buffer and caret POLLS could now be `textChanged` handlers** by the
+  same route. Not done here; the polls work and that is a separate change.
 - **No tier can press a key**, so whether `Ctrl++` matches the key a person
   actually presses (Ctrl+= unshifted on a US layout is `Key_Equal`, not
   `Key_Plus`) is a person's check.
 
-**THE PINNED INTERPRETER MOVED to gBASIC `a9f1187`**, which is what `qt.caret`
-(§0.32) and the clipboard (§0.33) needed. Re-pin with the `git archive` recipe
-this file already gives; the old pin was `c4df516`.
+**THE PINNED INTERPRETER MOVED to gBASIC `d95392f`**, which is what Ctrl+wheel
+needed (3d3f7d9: `qt.refresh` connects the handlers of what it builds). Before
+that, `a9f1187` for `qt.caret` (§0.32) and the clipboard (§0.33), and `c4df516`
+before that. Re-pin with the `git archive` recipe this file already gives —
+and note the archive build here came out `HAVE_GTK=0`; Studio's GTK path goes
+through `gi`, so its tiers still ran.
 
 **And §0.33 records something worth keeping in mind in both directions.**
 Studio's request document reached them saying *"still request 1: the caret —

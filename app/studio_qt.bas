@@ -426,6 +426,41 @@ function on_qt_tab_copy_path()
     return qt_redraw()
 end function
 
+' ---- Ctrl+wheel: the editor's text size (STU-20) ---------------------------
+'
+' A WHEEL IS AN EVENT, NOT A SIGNAL, so the handler asks `qt.wheel()` for it.
+' Ctrl held: one step along the same ladder the menu items climb, through the
+' same `studio_ui.zoom_by` -- and `qt.swallow()`, or the editor ALSO scrolls,
+' faster than a plain wheel, while the text resizes under it. No Ctrl: decline
+' and leave it alone, which is what keeps ordinary scrolling working.
+'
+' ONE STEP PER EVENT, on the sign. Positive is AWAY from you (Qt's sign),
+' which is bigger, as in every editor. NOT ACCUMULATED, and that is gBASIC's
+' choice rather than an oversight here: `qt.wheel()` reports WHOLE notches and
+' rounds a sub-notch turn AWAY from zero (qt_backend.cpp, "a sub-notch turn is
+' still a turn"), so a fraction never reaches this handler and an accumulator
+' would be dead code. The cost is a trackpad, which sends many small events:
+' one swipe climbs several steps. Asked upstream -- a fractional `dy`, or the
+' raw delta beside it, is what would let this accumulate.
+'
+' Every editor's wheel lands here and none of them needs telling apart: the
+' size is the application's, not one tab's.
+function on_qt_editor_wheel()
+    ev = qt.wheel()
+    if not ev.ctrl then
+        return nothing
+    end if
+    z = qt.swallow()
+    if ev.dy = 0 then
+        return nothing
+    end if
+    delta = 1
+    if ev.dy < 0 then
+        delta = 0 - 1
+    end if
+    return qt_took(studio_ui.zoom_by(G.app, delta))
+end function
+
 ' ---- the header -----------------------------------------------------------
 
 function on_qt_save()
@@ -959,7 +994,11 @@ program main(args)
           ' flag is what stops the poller doing work between runs.
           polling: false }
 
-    win = qt_wire(studio_shell_qt.window_for(G.app))
+    ' EACH EDITOR'S HANDLERS, as data the renderer puts into every page --
+    ' see `studio_view_qt.editor_handlers`. Before the window is built, so the
+    ' editors open at launch carry them as well as every one built later.
+    G.app["qt_editor_handlers"] = [ { signal: "wheel", handler: on_qt_editor_wheel } ]
+    win = qt_wire(studio_view_qt.with_editor_handlers(G.app, studio_shell_qt.window_for(G.app)))
     ' REFUSED BEFORE OPENED, always. `qt.open` validates too, but a validator
     ' nobody is obliged to call is necessary and not sufficient -- and a raise
     ' out of `qt.check` names the part and the path, where a half-built window
@@ -1197,6 +1236,15 @@ program main(args)
         print "  tabs:     " + string(qt.tabs(win, studio_shell_qt.part_tabs()))
         print "  title:    " + studio_qt_scrub(qt.read(win, studio_shell_qt.window_name(), "windowTitle"), G.app)
         print "  rows:     " + string(count(studio_ui.nav_rows(G.app)))
+        ' A RESTORED editor is built by `qt.open`, not by a refresh, so its
+        ' handlers come from the window record (`with_editor_handlers`) -- the
+        ' one path the press tier, which starts from nothing open, cannot reach.
+        if count(G.app.dm.docs) > 0 then
+            rdoc0 = studio_docs.active_doc(G.app.dm)
+            took = qt.scroll(win, studio_shell_qt.part_editor(rdoc0.id), 1, "ctrl")
+            print "  Ctrl+wheel on the editor qt.open built: claimed=" + string(took) + ", " + studio_ui.zoom_label(studio_ui.editor_zoom(G.app))
+            z = qt.invoke(win, qt_item("text-reset"), "trigger")
+        end if
 
         ' OPEN ONE FILE, so the next launch has a document to restore and the
         ' `_reload_docs` half is exercised rather than assumed.
@@ -1248,6 +1296,11 @@ program main(args)
             doc2 = studio_docs.active_doc(G.app.dm)
             ed2 = studio_shell_qt.part_editor(doc2.id)
             print "  after the rebuild, the editor still holds its text: " + string(len(qt.read(win, ed2, "plainText")) > 0)
+            ' A rebuilt editor is a NEW widget, so its wheel handler has to
+            ' arrive with it -- the refresh connects what it builds.
+            took = qt.scroll(win, ed2, 1, "ctrl")
+            print "  ... Ctrl+wheel reaches it: claimed=" + string(took) + ", " + studio_ui.zoom_label(studio_ui.editor_zoom(G.app))
+            z = qt.invoke(win, qt_item("text-reset"), "trigger")
             print "  ... its margin:    " + string(qt.gutter(win, ed2).line_numbers)
             print "  ... its language:  " + qt.highlighting(win, ed2).language
         end if
@@ -1477,6 +1530,28 @@ program main(args)
         print "  a tab opened at " + zlabel + ": " + ndoc.display_name + " is at " + string(round(nsize / zbase * 20) * 5) + "%"
         z = qt.invoke(win, qt_item("text-reset"), "trigger")
         print "  shortcuts: " + qt.read(win, qt_item("text-bigger"), "shortcut") + " / " + qt.read(win, qt_item("text-smaller"), "shortcut") + " / " + qt.read(win, qt_item("text-reset"), "shortcut")
+
+        print "-- Ctrl+wheel, on editors a REFRESH built --"
+        ' Both editors here were built by `qt.refresh` and not by `qt.open`,
+        ' which is the whole point: until gBASIC 3d3f7d9 a refreshed child's
+        ' handlers were never connected, so the wheel would reach no handler
+        ' and every line below would read 100%. `claimed` is whether anything
+        ' took the event -- a plain wheel is declined, so the editor scrolls.
+        wed = studio_shell_qt.part_editor(ndoc.id)
+        took = qt.scroll(win, wed, 1)
+        print "  plain wheel on " + ndoc.display_name + ": claimed=" + string(took) + ", " + studio_ui.zoom_label(studio_ui.editor_zoom(G.app))
+        took = qt.scroll(win, wed, 1, "ctrl")
+        print "  Ctrl+wheel away:   claimed=" + string(took) + ", " + studio_ui.zoom_label(studio_ui.editor_zoom(G.app))
+        took = qt.scroll(win, zed, 0 - 1, "ctrl")
+        print "  Ctrl+wheel toward, on " + zdoc.display_name + ": " + studio_ui.zoom_label(studio_ui.editor_zoom(G.app))
+        ' A HALF-NOTCH IS A WHOLE STEP: gBASIC rounds a sub-notch turn away
+        ' from zero, so this line moves deliberately if it starts reporting
+        ' fractions -- see `on_qt_editor_wheel`.
+        took = qt.scroll(win, wed, 0.5, "ctrl")
+        print "  a half-notch (a trackpad): " + studio_ui.zoom_label(studio_ui.editor_zoom(G.app))
+        wsize = number(split(qt.read(win, wed, "font"), ",")[1])
+        print "  and the editor followed: " + string(round(wsize / zbase * 20) * 5) + "%"
+        z = qt.invoke(win, qt_item("text-reset"), "trigger")
 
         print "-- the browser's own right-click menu, per row --"
         ' `qt.right_click` cannot aim at a TREE row (its third argument is a

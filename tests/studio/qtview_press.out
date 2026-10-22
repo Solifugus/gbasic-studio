@@ -49,6 +49,12 @@
   text-reset    100% -> the editor is at 100%
   a tab opened at 115%: zoomed.bas is at 115%
   shortcuts: Ctrl++ / Ctrl+- / Ctrl+0
+-- Ctrl+wheel, on editors a REFRESH built --
+  plain wheel on zoomed.bas: claimed=false, 100%
+  Ctrl+wheel away:   claimed=true, 115%
+  Ctrl+wheel toward, on main.bas: 100%
+  a half-notch (a trackpad): 115%
+  and the editor followed: 115%
 -- the browser's own right-click menu, per row --
   file    shown=true offers: open, rename, delete
   dir     shown=true offers: open, rename, delete

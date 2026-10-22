@@ -22,6 +22,7 @@
   toolbar style:        ToolButtonIconOnly
   every toolbar icon arrived: true
   after the rebuild, the editor still holds its text: true
+  ... Ctrl+wheel reaches it: claimed=true, 115%
   ... its margin:    true
   ... its language:  gBASIC
 -- and Follow the desktop puts it all back --
@@ -41,6 +42,7 @@
   tabs:     ["main.bas"]
   title:    main.bas — gBASIC Studio — workspace
   rows:     6
+  Ctrl+wheel on the editor qt.open built: claimed=true, 115%
 -- with main.bas open --
   action:   open
   tabs:     ["main.bas"]
@@ -56,6 +58,7 @@
   toolbar style:        ToolButtonIconOnly
   every toolbar icon arrived: true
   after the rebuild, the editor still holds its text: true
+  ... Ctrl+wheel reaches it: claimed=true, 115%
   ... its margin:    true
   ... its language:  gBASIC
 -- and Follow the desktop puts it all back --
