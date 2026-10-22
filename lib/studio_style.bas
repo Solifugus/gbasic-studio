@@ -697,6 +697,29 @@ library studio_style
         return "light"
     end function
 
+    ' THE EDITOR'S TEXT SIZE UNDER Qt (STU-20), as a `font` property string.
+    '
+    ' A Qt font reads back as `QFont::toString` -- "Hack,10,-1,7,400,..." --
+    ' so the size is field 1 of a comma list, and gBASIC's own cookbook zooms
+    ' exactly this way. `base` is the font a FRESH editor came with, which is
+    ' the desktop's fixed-width font at the desktop's size: the zoom stays a
+    ' multiplier on what the user chose system-wide, the argument STU-20 made
+    ' for `font-size: <n>em` under GTK. Every other field is kept, so the
+    ' family and its fixed-pitch hint survive.
+    '
+    ' Rounded to a tenth: 10 * 1.15 is 11.499999999999998 in binary, and a
+    ' size compared against its own readback must not differ in the last bit.
+    function qt_zoomed_size(base, zoom)
+        f = split(base, ",")
+        return round(number(f[1]) * zoom * 10) / 10
+    end function
+
+    function qt_font_sized(base, size)
+        f = split(base, ",")
+        f[1] = string(size)
+        return join(f, ",")
+    end function
+
     ' THE TOOLBAR SHOWS TEXT WHILE DARK, AND ICONS OTHERWISE.
     '
     ' Not a preference -- the icons are `SP_` standard pixmaps that Qt's own

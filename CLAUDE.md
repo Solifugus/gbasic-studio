@@ -1056,6 +1056,38 @@ FIRST section — a plausible wrong answer, which is worse than a refusal.
   `qt_redraw` (which renders `G.app`) while still holding the new model in a
   local. Any handler that redraws must put its app in `G.app` FIRST.
 
+#### The text size under Qt was a dead control
+
+**Reported by the user: Ctrl++ / Ctrl+- did nothing.** The shortcuts and the
+menu items moved the SETTING — the ladder in `qtview_press` asserted exactly
+that and passed — and nothing on the Qt path ever applied it to an editor. The
+theme's failure, one row down the Settings menu.
+
+- `studio_view_qt._zoom` sets each editor's `font` property (a
+  `QFont::toString` list, size in field 1 — gBASIC's cookbook zooms this way)
+  to `base × zoom`, only where the size differs. `base` is the FIRST editor's
+  own font, cached on `app.qt_font_base` like `gitstate`: a freshly built
+  editor is always at the desktop's fixed-width size, so the zoom stays a
+  multiplier on what the user chose system-wide (STU-20's argument), and every
+  later editor — a new tab, or the theme change rebuilding them all — is
+  caught by the next render.
+- `studio_style.qt_zoomed_size` rounds to a TENTH: `10 * 1.15` is
+  `11.499999999999998`, and a size compared with its own readback must not
+  differ in the last bit or the font is rewritten on every redraw.
+- **The tier reads the FONT back off a real editor now**, as a ratio to the
+  base to the nearest 5% (the base is the machine's, which a golden cannot
+  hold), and opens a new tab while zoomed.
+- **Ctrl+WHEEL IS BLOCKED UPSTREAM**, not forgotten. `on <part>.wheel` plus
+  `qt.wheel()`/`qt.swallow()` is the route, but an editor is built by
+  `qt.refresh` and a refreshed child's handler records are never connected
+  (gBASIC DOGFOOD 2026-10-19, still true at `a9f1187`: `qt_connect_items` is
+  called from `qt.open` only). A wheel never propagates from a
+  `QPlainTextEdit` to the `tabs` around it, so there is no container to hang
+  it on instead.
+- **No tier can press a key**, so whether `Ctrl++` matches the key a person
+  actually presses (Ctrl+= unshifted on a US layout is `Key_Equal`, not
+  `Key_Plus`) is a person's check.
+
 **THE PINNED INTERPRETER MOVED to gBASIC `a9f1187`**, which is what `qt.caret`
 (§0.32) and the clipboard (§0.33) needed. Re-pin with the `git archive` recipe
 this file already gives; the old pin was `c4df516`.

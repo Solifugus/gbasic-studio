@@ -1452,6 +1452,32 @@ program main(args)
             print "  Close on " + bgdoc.display_name + ": " + G.last_action + ", tabs " + string(n_before) + " -> " + string(count(qt.tabs(win, studio_shell_qt.part_tabs()))) + ", active still the same=" + string(studio_docs.active_doc(G.app.dm).id = active_id)
         end if
 
+        print "-- the text size reaches the EDITOR, not just the setting --"
+        ' THE LADDER ABOVE ASSERTS THE SETTING, and that passed for a whole
+        ' phase while no editor ever changed size -- the renderer never applied
+        ' it. So this reads the FONT back off a real editor, as a ratio to the
+        ' size it was built at (the desktop's, which a golden cannot hold) and to
+        ' the nearest 5% (a 9pt base at 115% is 10.4pt, which reads 116), and
+        ' then opens a NEW tab while zoomed, because a freshly built editor
+        ' arrives at the desktop size and has to be caught by the next render.
+        zdoc = studio_docs.active_doc(G.app.dm)
+        zed = studio_shell_qt.part_editor(zdoc.id)
+        zbase = number(split(G.app["qt_font_base"], ",")[1])
+        for each a in ["text-bigger", "text-bigger", "text-smaller", "text-reset"]
+            z = qt.invoke(win, qt_item(a), "trigger")
+            zsize = number(split(qt.read(win, zed, "font"), ",")[1])
+            print "  " + padto_qt(a, 14) + G.last_detail + " -> the editor is at " + string(round(zsize / zbase * 20) * 5) + "%"
+        end for
+        z = qt.invoke(win, qt_item("text-bigger"), "trigger")
+        zlabel = G.last_detail
+        z = qt.write(win, studio_shell_qt.part_name_field(), "zoomed.bas")
+        z = qt.invoke(win, qt_item("new-file"), "trigger")
+        ndoc = studio_docs.active_doc(G.app.dm)
+        nsize = number(split(qt.read(win, studio_shell_qt.part_editor(ndoc.id), "font"), ",")[1])
+        print "  a tab opened at " + zlabel + ": " + ndoc.display_name + " is at " + string(round(nsize / zbase * 20) * 5) + "%"
+        z = qt.invoke(win, qt_item("text-reset"), "trigger")
+        print "  shortcuts: " + qt.read(win, qt_item("text-bigger"), "shortcut") + " / " + qt.read(win, qt_item("text-smaller"), "shortcut") + " / " + qt.read(win, qt_item("text-reset"), "shortcut")
+
         print "-- the browser's own right-click menu, per row --"
         ' `qt.right_click` cannot aim at a TREE row (its third argument is a
         ' table's), so the row is selected first and the click lands on the

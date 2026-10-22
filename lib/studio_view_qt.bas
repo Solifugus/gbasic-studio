@@ -286,6 +286,7 @@ function _tabs(win, app)
             if have != doc.content then
                 z = qt.write(win, part, doc.content)
             end if
+            app = studio_view_qt._zoom(win, app, part)
         end if
     end for
     ' Which page is on top. A document is made active in the MODEL and the
@@ -304,6 +305,32 @@ end function
 ' from both. -1 when the active document is not on screen, which is a state
 ' `focus_visible_doc` is supposed to prevent and which must not become a wrong
 ' index if it ever happens.
+' THE TEXT SIZE, which nothing on the Qt path applied: the menu items and
+' their Ctrl++ / Ctrl+- shortcuts moved the SETTING and the status line said
+' "text size 115%" about an editor that never changed -- the dead control the
+' theme was before it, found the same way, by the user.
+'
+' THE BASE IS THE FIRST EDITOR'S OWN FONT, kept on the app like `gitstate`.
+' A freshly built editor is always at the desktop's size, and nothing is
+' zoomed before the base is taken, so the first one seen is the base -- and
+' every editor built later (a new tab, or a theme change rebuilding them all)
+' comes back at that size and is set again here. Written only where the size
+' DIFFERS, the rule the text above follows: the reconcile keeps editors, and a
+' font set per redraw would be work at redraw rate for nothing.
+function _zoom(win, app, part)
+    font = qt.read(win, part, "font")
+    base = app["qt_font_base"]
+    if base = unknown then
+        base = font
+        app["qt_font_base"] = base
+    end if
+    want = studio_style.qt_zoomed_size(base, studio_ui.editor_zoom(app))
+    if number(split(font, ",")[1]) != want then
+        z = qt.set(win, part, "font", studio_style.qt_font_sized(base, want))
+    end if
+    return app
+end function
+
 function _page_of(app)
     i = 0
     for each r in studio_ui.tab_rows(app)

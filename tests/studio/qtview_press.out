@@ -42,6 +42,13 @@
   the active tab did not move: true
   Close on the unsaved tab: armed-close, still open=true
   Close on untitled-1.bas: closed, tabs 2 -> 1, active still the same=true
+-- the text size reaches the EDITOR, not just the setting --
+  text-bigger   115% -> the editor is at 115%
+  text-bigger   130% -> the editor is at 130%
+  text-smaller  115% -> the editor is at 115%
+  text-reset    100% -> the editor is at 100%
+  a tab opened at 115%: zoomed.bas is at 115%
+  shortcuts: Ctrl++ / Ctrl+- / Ctrl+0
 -- the browser's own right-click menu, per row --
   file    shown=true offers: open, rename, delete
   dir     shown=true offers: open, rename, delete
