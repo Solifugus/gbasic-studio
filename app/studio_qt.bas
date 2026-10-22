@@ -1286,6 +1286,23 @@ program main(args)
         end if
         rdoc = studio_docs.active_doc(G.app.dm)
         red = studio_shell_qt.part_editor(rdoc.id)
+        ' THE FIRST KEYSTROKE IN A CLEAN FILE MUST STAY TYPED. It is the one
+        ' keystroke that moves the dirty state and so takes the full redraw,
+        ' and that redraw once rendered the PRE-keystroke model -- writing the
+        ' old text back over the editor, every other tick, forever. Several
+        ' ticks, because one would pass on an oscillation.
+        print "-- typing into a clean file, and the poller leaves it typed --"
+        z = qt.write(win, red, "x")
+        k = 0
+        seen = []
+        while k < 4
+            G.app = qt_sync_buffer(G.app)
+            G.app = qt_sync_caret(G.app)
+            seen = append(seen, "[" + qt.read(win, red, "plainText") + "]")
+            k = k + 1
+        end while
+        print "  editor over four ticks: " + join(seen, " ")
+        print "  title: " + studio_qt_scrub(qt.read(win, studio_shell_qt.window_name(), "windowTitle"), G.app)
         ' Two sections, so "which one" is a question with a wrong answer.
         G.app.dm = studio_docs.edit(G.app.dm, rdoc.id,
             "function one()" + chr(10) + "  return 1" + chr(10) + "end function" + chr(10) +
@@ -1657,10 +1674,21 @@ function qt_sync_buffer(app)
     ' A FULL REDRAW ONLY WHEN THE DIRTY STATE MOVED, which is the one thing
     ' typing changes that the tab caption shows. `moved` is true only then --
     ' redrawing on every keystroke would rebuild the browser at typing rate.
+    '
+    ' G.app FIRST, because `qt_redraw` renders G.app and not this local. Handed
+    ' the pre-keystroke model, the renderer saw the editor differ from it and
+    ' wrote the OLD text back -- and the caller then stored the new model, so
+    ' the next tick disagreed the other way. The first keystroke in any clean
+    ' file flipped the editor between "" and "x" sixteen times a second
+    ' (reported by the user as flickering; measured offscreen, eight ticks
+    ' alternating). And the redraw's app is the one returned, or the view cache
+    ' it rebuilt is dropped.
     if r.moved then
+        G.app = app
         G.last_action = ""
         G.last_detail = ""
         z = qt_redraw()
+        return G.app
     end if
     return app
 end function

@@ -24,6 +24,9 @@
 -- Save with nothing open refuses by name --
   action: none | nothing selected
 -- Run, and the CARET is what picks the section --
+-- typing into a clean file, and the poller leaves it typed --
+  editor over four ticks: [x] [x] [x] [x]
+  title: * main.bas — gBASIC Studio — workspace
   caret at line 1 — strip says: section: sec-2 function one
   caret at line 6 — strip says: section: sec-3 function two
   and the caret reads back 1-based: line=6 column=3 selecting=false
