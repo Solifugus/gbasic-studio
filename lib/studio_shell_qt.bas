@@ -87,6 +87,7 @@ load studio_ui
 load studio_docs
 load studio_model
 load studio_style
+load studio_templates
 
 library studio_shell_qt
 
@@ -577,6 +578,107 @@ function table_window(caption, cols)
              items: [ box("column", { margin: u, spacing: u }, body) ] }
 end function
 
+' ---- STU-15: the snippet window ---------------------------------------------
+'
+' Insert SQL…: a builder that WRITES a statement into the file and never runs
+' it. Another ordinary window, New Project's shape. Every field of EVERY
+' snippet is built once and shown or hidden by which snippet is picked --
+' the GTK window's arrangement and the browser menu's, for the same reason: a
+' window whose parts change under a selection handler is a parent rebuilt out
+' from under whatever had focus.
+
+function snippet_window_name()
+    return "snipwin"
+end function
+
+' Where each template field lives in the window, ONE mapping read by the record
+' and by the handlers: `row` is the snippet's index, `name` the template's
+' field, `part` the text field and `line` the row holding it with its label.
+' Named by position because a field name is the template author's string.
+function snippet_fields(rows)
+    out = []
+    ri = 0
+    for each r in rows
+        fi = 0
+        for each f in r.fields
+            out = append(out, { row: ri, name: f.name, default: f.default,
+                                secret: f.secret,
+                                label: studio_templates.field_label(f),
+                                part: "sf_" + string(ri) + "_" + string(fi),
+                                line: "sl_" + string(ri) + "_" + string(fi) })
+            fi = fi + 1
+        end for
+        ri = ri + 1
+    end for
+    return out
+end function
+
+function snippet_window(rows, engine, conn_name)
+    u = studio_style.unit()
+    lines = []
+    for each f in studio_shell_qt.snippet_fields(rows)
+        opts = {}
+        if f.secret then
+            ' NOT masked: the value is about to be written into the document in
+            ' plain text, and a masked field would say the opposite.
+            opts = { toolTip: "This is written into your document in plain text — the statement carries it, so there is nowhere else for it to go." }
+        end if
+        lines = append(lines, named("row", f.line, [
+            part("text", f.part + "_label", { label: f.label }),
+            part("field", f.part, opts) ]))
+    end for
+    body = [
+        part("text", "sn_head", { label: "Write a statement into this file" }),
+        ' WHICH database, said out loud: a form offering `create login` without
+        ' saying it means SQL Server on `erp` is one you must already understand.
+        part("text", "sn_where", { label: conn_name + " — " + engine }),
+        part("choice", "sn_pick", {}),
+        part("text", "sn_desc", { label: "" }) ]
+    for each l in lines
+        body = append(body, l)
+    end for
+    body = append(body, part("text", "sn_note", { label: "" }))
+    body = append(body, box("row", { margin: 0, spacing: u }, [
+        bare("stretch"),
+        part("button", "sn_cancel", { label: "Cancel" }),
+        part("button", "sn_insert", { label: "Insert" }) ]))
+    return { kind: "window", name: studio_shell_qt.snippet_window_name(),
+             options: { title: "gBASIC Studio — snippet", width: 560, height: 420 },
+             items: [ box("column", { margin: u * 2, spacing: u }, body) ] }
+end function
+
+' ---- STU-17: the schema window ----------------------------------------------
+'
+' What the database says about itself: pick a table, see its columns AND the
+' exact question Studio asked to get them -- `pragma table_info`,
+' `information_schema.columns` -- because the window is a tool that shows you
+' how to ask, not only one that tells you. The columns are a read-only memo of
+' aligned lines, the GTK window's monospace label.
+
+function schema_window_name()
+    return "schemawin"
+end function
+
+function schema_window(conn_name, driver)
+    u = studio_style.unit()
+    return { kind: "window", name: studio_shell_qt.schema_window_name(),
+             options: { title: "gBASIC Studio — schema", width: 600, height: 520 },
+             items: [ box("column", { margin: u * 2, spacing: u }, [
+                 part("text", "sc_head", { label: "What this database says about itself" }),
+                 part("text", "sc_where", { label: conn_name + " — " + driver }),
+                 part("choice", "sc_pick", {}),
+                 part("memo", "sc_cols", { readOnly: true }),
+                 part("text", "sc_asked_head", { label: "Studio asked" }),
+                 part("text", "sc_asked", { label: "" }),
+                 part("text", "sc_note", { label: "" }),
+                 box("row", { margin: 0, spacing: u }, [
+                     bare("stretch"),
+                     part("button", "sc_close", { label: "Close" }),
+                     part("button", "sc_insert",
+                          { label: "Insert a select",
+                            toolTip: "Write `select <every column> from <this table>;` into your document, at the caret. Naming the columns rather than `select *` is the habit worth keeping." }) ]) ]) ] }
+end function
+
 function new_project_name()
     return "newproj"
 end function
@@ -976,6 +1078,9 @@ function _console(app)
         part("button", "run_btn", { label: "Run Section" }),
         part("button", "run_all_btn", { label: "Run All" }),
         part("button", "stop_btn", { label: "Stop" }),
+        ' FORCE STOP is SIGKILL after a grace period, for a child that ignores a
+        ' polite stop -- `studio_ui.force_stop_run`, the GTK button's function.
+        part("button", "force_btn", { label: "Force Stop" }),
         part("button", "snippet_btn", { label: "Insert SQL…" }),
         part("button", "schema_btn", { label: "Schema…" }),
         part("text", "run_section", { label: "section: (none)" }),

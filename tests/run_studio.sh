@@ -1115,6 +1115,8 @@ else
     printf 'SKIP qtview_probe (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_press (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_tables (this gBASIC has no qt module)\n'
+    printf 'SKIP qtview_snippet (this gBASIC has no qt module)\n'
+    printf 'SKIP qtview_schema (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_reopen (this gBASIC has no qt module)\n'
 fi
 
@@ -1186,6 +1188,58 @@ fi
         else
             printf 'SKIP qtview_tables (this gBASIC has no Qt backend)\n'
         fi
+    fi
+
+    # ONE RUNNER FOR A Qt MODE that drives a feature end to end: a fixture the
+    # caller built, the mode run once under offscreen, STDERR KEPT -- a raise in
+    # a handler exits 0, so `runtime error` there fails the tier -- and a skip
+    # only on gBASIC's own words for a build without Qt.
+    qt_mode_tier() { # tier mode home proj description
+        local tier="$1" mode="$2" home="$3" proj="$4" what="$5"
+        : >"$stdout_file"; : >"$qt_err"
+        if QT_QPA_PLATFORM=offscreen \
+                GBASIC_SYNTAX_PATH="${GBASIC_SYNTAX_PATH:-$(dirname "$GBASIC_STDLIB")/editors/kate}" \
+                timeout 120 "$GBASIC" app/studio_qt.bas "$mode" "$home" "$proj" \
+                >"$stdout_file" 2>"$qt_err"; then
+            if grep -q 'runtime error' "$qt_err"; then
+                grep 'runtime error' "$qt_err"; fail "$tier (a handler raised)"
+            elif diff -u "tests/studio/$tier.out" "$stdout_file"; then
+                printf 'PASS %s (%s)\n' "$tier" "$what"
+            else
+                fail "$tier (output diff)"
+            fi
+        elif grep -q 'Qt support is not available' "$qt_err"; then
+            printf 'SKIP %s (this gBASIC has no Qt backend)\n' "$tier"
+        else
+            cat "$stdout_file" "$qt_err"; fail "$tier (nonzero exit)"
+        fi
+    }
+
+    # INSERT SQL… under Qt (STU-15): the GTK `ui_gui_snippet` script, against
+    # the same fixture. No database: nothing is run.
+    qh="$tmproot/qtview_snippet"; qp="$tmproot/qtview_snippet_proj"
+    rm -rf "$qh" "$qp"; mkdir -p "$qh"; mkproj_ui "$qp"
+    printf -- '-- @database prod\n\nselect 1;\n' > "$qp/work.sql"
+    printf '{"schema_version":1,"id":"gsp-1-1","databases":{"prod":{"driver":"pg","host":"db.example","database":"acme","user":"matthew"}}}\n' > "$qp/.gstudio.json"
+    qt_mode_tier qtview_snippet snippet "$qh" "$qp" "a snippet picked, refused, filled and inserted"
+
+    # SCHEMA… under Qt (STU-17): the GTK `ui_gui_schema` script against the
+    # same SQLite fixture, probed for the sqlite module like that tier.
+    qt_sqlprobe="$tmproot/sqlite_probe_qt.bas"
+    printf 'load sqlite\nprogram main(args)\n  print "yes"\nend program\n' > "$qt_sqlprobe"
+    if GBASIC_PATH="$GBASIC_STDLIB" timeout 60 "$GBASIC" "$qt_sqlprobe" >/dev/null 2>&1; then
+        qh="$tmproot/qtview_schema"; qp="$tmproot/qtview_schema_proj"
+        rm -rf "$qh" "$qp"; mkdir -p "$qh" "$qp/data"
+        printf '{"schema_version":1,"id":"gsp-1-1","databases":{"app":{"driver":"sqlite","path":"data/app.db"}}}' > "$qp/.gstudio.json"
+        printf -- '-- @database app\n\nselect 1;\n' > "$qp/work.sql"
+        mkdb="$tmproot/mkdb_qt.bas"
+        printf 'load sqlite\nprogram main(args)\n  db = sqlite.connect(args[0])\n  r = sqlite.exec(db, "create table customers (id integer primary key, name text not null, note text)", [])\n  r = sqlite.exec(db, "create table orders (id integer primary key, customer_id integer, total real)", [])\n  r = sqlite.exec(db, "create view big_orders as select * from orders where total > 100", [])\n  sqlite.close(db)\nend program\n' > "$mkdb"
+        if ! GBASIC_PATH="$GBASIC_STDLIB" timeout 60 "$GBASIC" "$mkdb" "$qp/data/app.db" >/dev/null 2>&1; then
+            fail "qtview_schema (could not build the fixture database)"
+        fi
+        qt_mode_tier qtview_schema schema "$qh" "$qp" "a catalog read shown, picked and inserted"
+    else
+        printf 'SKIP qtview_schema (this gBASIC has no sqlite module)\n'
     fi
 
     # A SECOND LAUNCH OVER A HOME THAT HAS BEEN USED.

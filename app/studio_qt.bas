@@ -605,6 +605,249 @@ function qt_tables_report()
     return nothing
 end function
 
+' ---- STU-15: Insert SQL… ----------------------------------------------------
+'
+' The snippet window. `studio_ui.snippet_rows` decides what is offered (or why
+' nothing is, refused BY NAME before a window opens), `insert_snippet` writes
+' it; this is the adapter, plus the show/hide of the picked snippet's fields.
+function on_qt_snippet()
+    if G.snipwin != nothing then
+        if qt.is_open(G.snipwin) then
+            return nothing
+        end if
+    end if
+    r = studio_ui.snippet_rows(G.app)
+    if not r.ok then
+        G.last_action = r.why
+        G.last_detail = r.name
+        return qt_redraw()
+    end if
+    G.snip_rows = r.rows
+    G.snipwin = qt_wire_snippet(studio_shell_qt.snippet_window(r.rows, r.engine, r.name))
+    z = qt.open(G.snipwin)
+    names = []
+    for each row in r.rows
+        names = append(names, row.name)
+    end for
+    z = qt.options(G.snipwin, "sn_pick", names)
+    ' DEFAULTS ARE STATE, written after the open like an editor's text.
+    for each f in studio_shell_qt.snippet_fields(r.rows)
+        z = qt.write(G.snipwin, f.part, f.default)
+    end for
+    if count(names) > 0 then
+        z = qt.write(G.snipwin, "sn_pick", names[0])
+    end if
+    return qt_snip_show()
+end function
+
+function qt_wire_snippet(win)
+    win = qt_on(win, "sn_pick", "currentIndexChanged", qt_snip_show)
+    win = qt_on(win, "sn_insert", "clicked", on_qt_snip_insert)
+    win = qt_on(win, "sn_cancel", "clicked", on_qt_snip_cancel)
+    return win
+end function
+
+' Which snippet is picked: an index into `G.snip_rows`, or -1.
+function qt_snip_index()
+    at = qt.read(G.snipwin, "sn_pick", "currentIndex")
+    if at < 0 then
+        return 0 - 1
+    end if
+    if at >= count(G.snip_rows) then
+        return 0 - 1
+    end if
+    return at
+end function
+
+' Show the picked snippet's fields and its description, hide the rest -- one
+' function, so "which fields belong to this snippet" has one answer.
+function qt_snip_show()
+    sel = qt_snip_index()
+    for each f in studio_shell_qt.snippet_fields(G.snip_rows)
+        z = qt.set(G.snipwin, f.line, "visible", f.row = sel)
+    end for
+    desc = ""
+    if sel >= 0 then
+        desc = G.snip_rows[sel].description
+    end if
+    z = qt.set(G.snipwin, "sn_desc", "text", desc)
+    return nothing
+end function
+
+' Every field of the picked snippet, as `{ name: text }` -- the whole of this
+' window's widget-to-value read.
+function qt_snip_values(sel)
+    vals = {}
+    for each f in studio_shell_qt.snippet_fields(G.snip_rows)
+        if f.row = sel then
+            vals[f.name] = qt.read(G.snipwin, f.part, "text")
+        end if
+    end for
+    return vals
+end function
+
+' INSERT. A refusal keeps the window open with what was typed still in it and
+' the reason beside the fields; success closes it and puts the caret on the
+' statement's first line, so the strip names the new cell and Run runs it.
+function on_qt_snip_insert()
+    sel = qt_snip_index()
+    if sel < 0 then
+        return nothing
+    end if
+    r = studio_ui.insert_snippet(G.app, G.snip_rows[sel].id, qt_snip_values(sel))
+    if r.action != "inserted" then
+        z = qt.set(G.snipwin, "sn_note", "text", studio_ui.action_notice(r.action, r.detail))
+        return nothing
+    end if
+    z = qt.close(G.snipwin)
+    z = qt_took(r)
+    return qt_caret_to_model()
+end function
+
+function on_qt_snip_cancel()
+    return qt.close(G.snipwin)
+end function
+
+' The names of the fields the snippet window is SHOWING, read off the window.
+function qt_snip_shown()
+    out = []
+    for each f in studio_shell_qt.snippet_fields(G.snip_rows)
+        if qt.read(G.snipwin, f.line, "visible") then
+            out = append(out, f.name)
+        end if
+    end for
+    return out
+end function
+
+' ---- STU-17: Schema… --------------------------------------------------------
+'
+' A BLOCKING catalog read with a timeout, refused by name before a window
+' opens (`studio_ui.schema_tables`); a table's columns are read ON DEMAND when
+' it is picked (`schema_columns`), so the question shown is always about the
+' table on screen. `insert_schema_select` writes `select <every column>`.
+function on_qt_schema()
+    if G.schemawin != nothing then
+        if qt.is_open(G.schemawin) then
+            return nothing
+        end if
+    end if
+    r = studio_ui.schema_tables(G.app)
+    if not r.ok then
+        G.last_action = r.why
+        G.last_detail = r.detail
+        return qt_redraw()
+    end if
+    c = studio_ui.sql_connection(G.app, studio_docs.active_doc(G.app.dm))
+    G.schema_tables = r.tables
+    G.schema_columns = []
+    w = studio_shell_qt.schema_window(c.name, c.conn.driver)
+    w = qt_on(w, "sc_pick", "currentIndexChanged", qt_schema_pick)
+    w = qt_on(w, "sc_insert", "clicked", on_qt_schema_insert)
+    w = qt_on(w, "sc_close", "clicked", on_qt_schema_close)
+    G.schemawin = w
+    z = qt.open(G.schemawin)
+    z = qt.set(G.schemawin, "sc_asked", "text", r.source)
+    names = []
+    for each t in r.tables
+        names = append(names, studio_schema.table_label(t))
+    end for
+    ' Filling the list picks its first entry, which fires the pick handler --
+    ' so the window opens on the first table's columns and not a blank pane
+    ' that reads as still loading.
+    z = qt.options(G.schemawin, "sc_pick", names)
+    return qt_schema_pick()
+end function
+
+function qt_schema_index()
+    at = qt.read(G.schemawin, "sc_pick", "currentIndex")
+    if at < 0 then
+        return 0 - 1
+    end if
+    if at >= count(G.schema_tables) then
+        return 0 - 1
+    end if
+    return at
+end function
+
+function qt_schema_pick()
+    i = qt_schema_index()
+    if i < 0 then
+        return nothing
+    end if
+    r = studio_ui.schema_columns(G.app, G.schema_tables[i])
+    if not r.ok then
+        z = qt.write(G.schemawin, "sc_cols", "")
+        z = qt.set(G.schemawin, "sc_note", "text", studio_ui.action_notice(r.why, r.detail))
+        G.schema_columns = []
+        return nothing
+    end if
+    lines = []
+    for each col in r.columns
+        lines = append(lines, studio_schema.column_label(col))
+    end for
+    text = join(lines, chr(10))
+    if count(lines) = 0 then
+        ' An empty answer means the name did not match, which is worth saying.
+        text = "(the database returned no columns for this table)"
+    end if
+    z = qt.write(G.schemawin, "sc_cols", text)
+    z = qt.set(G.schemawin, "sc_asked", "text", r.source)
+    z = qt.set(G.schemawin, "sc_note", "text", "")
+    G.schema_columns = r.columns
+    return nothing
+end function
+
+' Kept OPEN on a refusal, like the snippet window: the thing to fix is here.
+function on_qt_schema_insert()
+    i = qt_schema_index()
+    t = nothing
+    if i >= 0 then
+        t = G.schema_tables[i]
+    end if
+    r = studio_ui.insert_schema_select(G.app, t, G.schema_columns)
+    if r.action != "inserted" then
+        z = qt.set(G.schemawin, "sc_note", "text", studio_ui.action_notice(r.action, r.detail))
+        return nothing
+    end if
+    z = qt.close(G.schemawin)
+    z = qt_took(r)
+    return qt_caret_to_model()
+end function
+
+function on_qt_schema_close()
+    return qt.close(G.schemawin)
+end function
+
+' PUT THE WIDGET'S CARET WHERE THE MODEL SAYS. An insert moves the caret in the
+' model; the renderer writes text and never a caret, so without this the next
+' caret poll reads the widget and syncs the model away from what was written.
+function qt_caret_to_model()
+    doc = studio_docs.active_doc(G.app.dm)
+    if doc = nothing then
+        return nothing
+    end if
+    line = doc.cursor.line
+    if line < 1 then
+        line = 1
+    end if
+    col = doc.cursor.column
+    if col < 1 then
+        col = 1
+    end if
+    z = qt.caret_to(G.win, studio_shell_qt.part_editor(doc.id), line, col)
+    G.app = qt_sync_caret(G.app)
+    return nothing
+end function
+
+' Two spaces before every line, so a block reads as belonging to its heading.
+function qt_indent(text)
+    out = []
+    for each l in split(text, chr(10))
+        out = append(out, "  " + l)
+    end for
+    return join(out, chr(10))
+end function
+
 ' ---- the header -----------------------------------------------------------
 
 function on_qt_save()
@@ -687,6 +930,10 @@ end function
 
 function on_qt_stop()
     return qt_took(studio_ui.stop_run(G.app))
+end function
+
+function on_qt_force_stop()
+    return qt_took(studio_ui.force_stop_run(G.app))
 end function
 
 ' ---- the menus ------------------------------------------------------------
@@ -1021,6 +1268,9 @@ function qt_wire(win)
     win = qt_on(win, "run_btn", "clicked", on_qt_run)
     win = qt_on(win, "run_all_btn", "clicked", on_qt_run_all)
     win = qt_on(win, "stop_btn", "clicked", on_qt_stop)
+    win = qt_on(win, "force_btn", "clicked", on_qt_force_stop)
+    win = qt_on(win, "snippet_btn", "clicked", on_qt_snippet)
+    win = qt_on(win, "schema_btn", "clicked", on_qt_schema)
 
     ' A QAction's signal is `triggered`, and `qt.invoke(win, item, "trigger")`
     ' is a REAL PRESS -- where an unmapped `Gtk.Button` inside a popover
@@ -1143,6 +1393,10 @@ program main(args)
           ' The grid window, the source its cells are read from, and the Tables
           ' row it was opened from -- see `on_qt_table_row`.
           tablewin: nothing, table_src: nothing, table_index: 0,
+          ' The snippet window and the rows it was built from.
+          snipwin: nothing, snip_rows: [],
+          ' The schema window, its tables, and the picked table's columns.
+          schemawin: nothing, schema_tables: [], schema_columns: [],
           ' Wheel turn not yet spent as a zoom step -- see `on_qt_editor_wheel`.
           wheel_acc: 0,
           ' The New Project window, which is a SECOND ordinary window rather
@@ -1235,6 +1489,95 @@ program main(args)
         if not took then
             print to error "Studio (Qt): the saved window layout was not recognised — starting from the declaration"
         end if
+    end if
+
+    if mode = "schema" then
+        ' SCHEMA…, pressed for real: the GTK `ui_gui_schema` script against the
+        ' same SQLite fixture -- two tables and a view, read through the
+        ' catalog, picked, and inserted as a select naming every column.
+        rows = studio_ui.nav_rows(G.app)
+        ro = studio_ui.activate_row(G.app, rows, studio_qt_row_index(rows, "file", "work.sql"))
+        G.app = ro.app
+        nav = studio_ui.nav_rows(G.app)
+        G.app = studio_view_qt.render(win, G.app, "")
+        print "opening the .sql file"
+        print "Schema is visible on a .sql document=" + string(qt.read(win, "schema_btn", "visible"))
+        print "clicking Schema…"
+        z = qt.invoke(win, "schema_btn", "click")
+        sw = G.schemawin
+        print "the window is open=" + string(qt.is_open(sw))
+        print "found " + string(count(G.schema_tables)) + " table(s)/view(s)"
+        for each t in G.schema_tables
+            print "  " + studio_schema.table_label(t)
+        end for
+        print "-- the first one, which opened with it --"
+        print "asked: " + qt.read(sw, "sc_asked", "text")
+        print qt_indent(qt.read(sw, "sc_cols", "plainText"))
+        print "picking the third"
+        z = qt.write(sw, "sc_pick", studio_schema.table_label(G.schema_tables[2]))
+        print "now showing " + qt.read(sw, "sc_pick")
+        print "asked: " + qt.read(sw, "sc_asked", "text")
+        print qt_indent(qt.read(sw, "sc_cols", "plainText"))
+        print "back to the first, and inserting a select"
+        z = qt.write(sw, "sc_pick", studio_schema.table_label(G.schema_tables[0]))
+        z = qt.invoke(sw, "sc_insert", "click")
+        print "action=" + G.last_action + " status=" + qt.read(win, studio_shell_qt.part_status(), "text")
+        print "the window closed=" + string(not qt.is_open(sw))
+        print "-- the document now --"
+        print qt.read(win, studio_shell_qt.part_editor(studio_docs.active_doc(G.app.dm).id), "plainText")
+        print "-- and the strip names what was written --"
+        print qt.read(win, "run_section", "text")
+        return nothing
+    end if
+
+    if mode = "snippet" then
+        ' INSERT SQL…, pressed for real: the GTK `ui_gui_snippet` script, step
+        ' for step, against the same fixture. Needs no database -- nothing is
+        ' run, which is the design showing through the test.
+        rows = studio_ui.nav_rows(G.app)
+        ro = studio_ui.activate_row(G.app, rows, studio_qt_row_index(rows, "file", "work.sql"))
+        G.app = ro.app
+        nav = studio_ui.nav_rows(G.app)
+        G.app = studio_view_qt.render(win, G.app, "")
+        print "opening the .sql file"
+        print "Insert SQL is visible on a .sql document=" + string(qt.read(win, "snippet_btn", "visible"))
+        print "Run All is too=" + string(qt.read(win, "run_all_btn", "visible"))
+        print "clicking Insert SQL…"
+        z = qt.invoke(win, "snippet_btn", "click")
+        sw = G.snipwin
+        print "the window is open=" + string(qt.is_open(sw))
+        print "offered " + string(count(G.snip_rows)) + " snippet(s) for this connection"
+        print "the first is " + qt.read(sw, "sn_pick")
+        print "description: " + qt.read(sw, "sn_desc", "text")
+        print "fields shown: " + join(qt_snip_shown(), ", ")
+        print "pressing Insert with a required field empty"
+        z = qt.invoke(sw, "sn_insert", "click")
+        print "note: " + qt.read(sw, "sn_note", "text")
+        print "the window stayed open=" + string(qt.is_open(sw))
+        print "picking the third snippet instead"
+        z = qt.write(sw, "sn_pick", G.snip_rows[2].name)
+        print "now offering " + qt.read(sw, "sn_pick")
+        print "fields shown: " + join(qt_snip_shown(), ", ")
+        print "back to the first, and filling it in"
+        z = qt.write(sw, "sn_pick", G.snip_rows[0].name)
+        for each f in studio_shell_qt.snippet_fields(G.snip_rows)
+            if f.row = 0 then
+                if f.name = "role" then
+                    z = qt.write(sw, f.part, "reporting")
+                end if
+                if f.name = "password" then
+                    z = qt.write(sw, f.part, "hunter2")
+                end if
+            end if
+        end for
+        z = qt.invoke(sw, "sn_insert", "click")
+        print "action=" + G.last_action + " status=" + qt.read(win, studio_shell_qt.part_status(), "text")
+        print "the window closed=" + string(not qt.is_open(sw))
+        print "-- the document now --"
+        print qt.read(win, studio_shell_qt.part_editor(studio_docs.active_doc(G.app.dm).id), "plainText")
+        print "-- and the strip names the statement just written --"
+        print qt.read(win, "run_section", "text")
+        return nothing
     end if
 
     if mode = "tables" then
@@ -1669,6 +2012,11 @@ program main(args)
         ' has no poller to finish it.
         z = qt.invoke(win, "stop_btn", "click")
         print "  stopped: " + G.last_action
+        ' AND FORCE STOP, on a second run: the escalation a child that ignores
+        ' the polite stop needs, pressed for real.
+        z = qt.invoke(win, "run_btn", "click")
+        z = qt.invoke(win, "force_btn", "click")
+        print "  force-stopped: " + G.last_action
 
         print "-- a tab's own right-click menu acts on the tab CLICKED --"
         ' THE CLAIM IS "NOT THE ACTIVE ONE", so the tier makes sure there is a

@@ -34,6 +34,7 @@
   status: running sec-3
   a line past the end is refused, as it should be
   stopped: stopping
+  force-stopped: forced
 -- a tab's own right-click menu acts on the tab CLICKED --
   the menu holds: Close, Copy file path
   right-clicked untitled-1.bas: shown=true, about the clicked one=true
