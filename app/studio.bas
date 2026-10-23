@@ -2041,6 +2041,48 @@ program main(args)
         return nothing
     end if
 
+    if mode = "edit" then
+        ' OPEN, SWITCH, TYPE, SAVE -- the retired `ui_gui` and the rest of
+        ' `ui_gui_new`. Rows are opened through `studio_ui.activate_row`, the
+        ' function the click handler calls, because nothing can synthesise a
+        ' left-click on a tree row (CLAUDE.md, the `itemClicked` exception).
+        ' Everything after that is the window: the TAB WIDGET's own
+        ' currentChanged, the caption read back off the tab, the toolbar's Save.
+        rows = studio_ui.nav_rows(G.app)
+        ro = studio_ui.activate_row(G.app, rows, studio_qt_row_index(rows, "file", "main.bas"))
+        G.app = ro.app
+        ro = studio_ui.activate_row(G.app, studio_ui.nav_rows(G.app), studio_qt_row_index(studio_ui.nav_rows(G.app), "dir", "src"))
+        G.app = ro.app
+        ro = studio_ui.activate_row(G.app, studio_ui.nav_rows(G.app), studio_qt_row_index(studio_ui.nav_rows(G.app), "file", "a.bas"))
+        G.app = ro.app
+        nav = studio_ui.nav_rows(G.app)
+        G.app = studio_view_qt.render(win, G.app, "")
+        bk = studio_shell_qt.part_tabs()
+        print "-- two files open, the second on top --"
+        print "  tabs: " + string(qt.tabs(win, bk)) + "  on top: " + string(qt.read(win, bk, "currentIndex"))
+        print "switching to the first tab through the tab widget itself"
+        z = qt.set(win, bk, "currentIndex", 0)
+        print "  action=" + G.last_action + ", active: " + studio_docs.active_doc(G.app.dm).display_name
+        print "typing into it"
+        ed = studio_shell_qt.part_editor(studio_docs.active_doc(G.app.dm).id)
+        z = qt.write(win, ed, "print \"edited\"" + chr(10))
+        G.app = qt_sync_buffer(G.app)
+        print "  tabs: " + string(qt.tabs(win, bk))
+        print "Save, from the toolbar"
+        z = qt.invoke(win, studio_shell_qt.part_save(), "trigger")
+        mf{file} = args[2] + "/main.bas"
+        print "  action=" + G.last_action + ", tabs: " + string(qt.tabs(win, bk))
+        print "  on disk: " + replace(read(mf), chr(10), "/")
+        print "Reload"
+        z = qt.invoke(win, qt_item("reload"), "trigger")
+        print "  action=" + G.last_action + ", tabs: " + string(qt.tabs(win, bk))
+        print "New Folder, with the field empty"
+        z = qt.invoke(win, qt_item("new-folder"), "trigger")
+        print "  action=" + G.last_action
+        print qt_indent(join(qt_nav_cells(win), chr(10)))
+        return nothing
+    end if
+
     if mode = "ctx" then
         ' THE BROWSER'S MENU ON ITS PROJECT AND FILE ROWS, and the header acts
         ' it shares -- the retired `ui_gui_ctx` and the rest of `ui_gui_name`

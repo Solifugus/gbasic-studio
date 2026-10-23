@@ -1303,7 +1303,10 @@ showed a retired tier can hide a render-side gap: `qtview_git` (ui_gui_git),
 panes, the results pane following the caret, the stale mark), `qtview_cold`
 (ui_gui_cold), `qtview_open` (ui_gui_open), and a floated dock surviving a
 relaunch in `qtview_reopen` (ui_gui_layout's claim), and `qtview_ctx`
-(ui_gui_ctx and the rest of ui_gui_name / ui_gui_settings).
+(ui_gui_ctx and the rest of ui_gui_name / ui_gui_settings), and `qtview_edit`
+(ui_gui and the rest of ui_gui_new: the tab widget's own switch, the unsaved
+caption, the toolbar's Save clearing it with the file changed on disk). Every
+retired claim now has a Qt successor except the ones listed next.
 
 **AND ONE OF OUR OWN QT GOLDENS HAD BEEN ASSERTING NOTHING.** `qtview_press`'s
 per-row right-click section printed the SAME menu for a file, a directory, a
@@ -1316,8 +1319,8 @@ none). **A golden whose cases all print the same line is a test that is not
 varying what it claims to vary.**
 
 **Retired WITHOUT a Qt counterpart, stated:** `ui_gui_solo` (two instances at
-once — a GTK single-instance concern); `ui_gui_new`'s two-process cold start (`qtview_reopen` covers a second launch
-over a used home, not New Project → close → reopen); `sessions_gui`'s
+once — a GTK single-instance concern); `ui_gui_new`'s second PROCESS (`qtview_cold` reaches a file from an empty home
+and `qtview_reopen` relaunches a used one, but no tier does both in a row); `sessions_gui`'s
 "no scratch files left behind" (the headless session tiers own scratch
 handling).
 

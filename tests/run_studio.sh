@@ -1020,6 +1020,7 @@ else
     printf 'SKIP qtview_cold (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_open (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_ctx (this gBASIC has no qt module)\n'
+    printf 'SKIP qtview_edit (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_reopen (this gBASIC has no qt module)\n'
 fi
 
@@ -1218,6 +1219,14 @@ fi
     printf 'x\n' > "$qa/alpha/src/a.bas"
     printf 'print "b"\n' > "$qa/beta/b.bas"
     qt_mode_tier qtview_ctx ctx "$qh" "$qa/alpha" "the browser menu acts on the row it was raised on" "$qa/beta"
+
+    # OPEN, SWITCH, TYPE, SAVE (the retired ui_gui and the rest of ui_gui_new):
+    # the tab widget's own switch, the unsaved marker on the caption, the
+    # toolbar's Save clearing it with the file changed on disk, Reload, and a
+    # New Folder landing in the selected directory.
+    qh="$tmproot/qtview_edit"; qp="$tmproot/qtview_edit_proj"
+    rm -rf "$qh" "$qp"; mkdir -p "$qh"; mkproj_ui "$qp"
+    qt_mode_tier qtview_edit edit "$qh" "$qp" "open, switch, type, save -- read back off the tabs"
 
     # A SECOND LAUNCH OVER A HOME THAT HAS BEEN USED.
     #

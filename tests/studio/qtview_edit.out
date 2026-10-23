@@ -1,0 +1,22 @@
+-- two files open, the second on top --
+  tabs: ["main.bas","a.bas"]  on top: 1
+switching to the first tab through the tab widget itself
+  action=select, active: main.bas
+typing into it
+  tabs: ["* main.bas","a.bas"]
+Save, from the toolbar
+  action=saved, tabs: ["main.bas","a.bas"]
+  on disk: print "edited"/
+Reload
+  action=refreshed, tabs: ["main.bas","a.bas"]
+New Folder, with the field empty
+  action=created
+  0 Workspace: workspace
+  0 ● qtview_edit_proj
+  1 ▸ docs
+  1 ▾ src
+  2 ▸ new-folder-1
+  2   a.bas
+  2   b.bas
+  1   README.md
+  1   main.bas
