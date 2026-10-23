@@ -1,0 +1,81 @@
+Open Samples: samples-opened, on top: 01_sections.bas
+  0 Workspace: workspace
+  0 ● Studio samples
+  1   .gstudio.json
+  1   01_sections.bas
+  1   02_tables.bas
+  1   03_errors.bas
+  1   04_records.bas
+  1   05_branches.bas
+  1   06_overlays.bas
+  1   07_sql.sql
+  1   README.md
+== 01_sections.bas
+  section: sec-1 statements
+  target: <hello from section one
+>
+  section: sec-3 statements
+  prefix: <hello from section one
+>
+  target: <HELLO FROM SECTION ONE!
+>
+== 02_tables.bas
+  the pane offers: sales: 1200 rows | summary: 4 rows
+  sales: 50 of 1200 rows (sampled — the run that made them has ended)
+  most units first: 50
+== 03_errors.bas
+  Errors (1): target [sec-3] 23:32  undefined function: count_of -- no function, library function or builtin of that name is in scope at this call (has_builtin("count_of") asks without raising)
+  the failing line in the file: 23
+  step 3, the then deleted: a syntax error is marked before anything runs
+  marked: [17] (the if is line 17)
+  Run Section: refused -- will not run it — the document does not parse; fix the errors first
+== 04_records.bas
+  Results — sec-1  (1 run(s))
+  latest: res-1  finished exit 0  at 1969-12-31 19:16:40  0s
+    output: <the oldest is The Art of Computer Programming (1968)
+  >
+    variables (4, 4 changed):
+      + b record[3]
+          field | value
+          title | Compilers
+          year | 1986
+          pages | 796
+      + book record[3]
+          field | value
+          title | Structure and Interpretation
+          year | 1985
+          pages | 657
+      + oldest record[3]
+          field | value
+          title | The Art of Computer Programming
+          year | 1968
+          pages | 672
+      + shelf array[3]
+          title | year | pages
+          Structure and Interpretation | 1985 | 657
+          The Art of Computer Programming | 1968 | 672
+          Compilers | 1986 | 796
+== 05_branches.bas
+  baseline: 4 of 5 pass at 0.5
+
+  branched -- branch: Strict
+  bound threshold = 0.9
+  on Strict: 1 of 5 pass at 0.9
+
+  baseline, and the file still says: true
+== 06_overlays.bas
+  branched
+  overlay-began
+  overlay-saved
+  on Squared: 1 scores 1 / 2 scores 4 / 3 scores 9 / 4 scores 16 / 
+  the file still says t * multiplier: true
+  Squared against the file:
+    sec-2:
+      1 line(s) unchanged above
+      -     return t * multiplier
+      +     return t * t
+      1 line(s) unchanged below
+== 07_sql.sql
+  Run All: ran
+  the pane offers: rows: 4 rows
+  Schema… finds: planets -- asked: pragma table_info("planets")

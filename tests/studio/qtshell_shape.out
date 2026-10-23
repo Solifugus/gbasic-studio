@@ -3,6 +3,7 @@ window studio
   menu "Project"
     item mi_new_project
     item mi_open_folder
+    item mi_open_samples
     separator
     item mi_project_file
     item mi_close_project
@@ -117,6 +118,7 @@ window studio
   /studio                                             height=800 title=gBASIC Studio — ws width=1200
   /studio/mi_new_project                              label=New Project… toolTip=Open the New Project window: name it, choose where it goes, and pick what to create.
   /studio/mi_open_folder                              label=Open Folder toolTip=Open a folder you already have as a project. Type its path in the name field first; ~/ and relative paths work.
+  /studio/mi_open_samples                             label=Open Samples toolTip=Open a project of small sample programs, each saying what to try. Your own copy, made the first time, so edit them freely.
   /studio/mi_project_file                             label=Add Project File toolTip=Write a .gstudio.json in this project: a stable id so its saved state survives the folder moving, plus a place to list what the browser should hide and pin which gBASIC it runs under. Studio never creates this on its own.
   /studio/mi_close_project                            label=Close Project toolTip=Take this project out of the workspace and close its tabs. The folder is untouched and Open Folder puts it back.
   /studio/mi_new_file                                 label=New File shortcut=Ctrl+N toolTip=Create a file named by the header field — in the selected folder, the folder holding the selected file, or the project root.
@@ -188,7 +190,7 @@ window studio
   /studio/book/page_welcome                           margin=12 spacing=6
   /studio/book/page_welcome/welcome                   label=Open a file from the browser, or File ▸ New File.
 == every name it declares ==
-  mi_new_project mi_open_folder mi_project_file mi_close_project mi_new_file mi_new_folder mi_rename mi_delete mi_reload mi_close_tab mi_theme_system mi_theme_dark mi_text_bigger mi_text_smaller mi_text_reset mi_restore_session nav_menu ctx_open ctx_new_file_here ctx_new_folder_here ctx_rename ctx_delete ctx_project_file ctx_close_project tab_menu tabm_tab_close tabm_tab_copy_path toolbar save tb_reload tb_open_folder tb_new_file tb_new_folder dock_files files text depth dock_console console run_strip run_btn run_all_btn stop_btn force_btn snippet_btn schema_btn run_section run_standing run_state run_branch prefix_head prefix_body target_head target_body err_head err_body dock_branch branch_list bind_btn ov_edit ov_save ov_compare ov_rebase ov_promote ov_discard ov_editor ov_diff dock_results results_body dock_tables table_list fetch_btn dock_git git_body dock_agent agent_head ask_btn agent_body status name_field book page_welcome welcome
+  mi_new_project mi_open_folder mi_open_samples mi_project_file mi_close_project mi_new_file mi_new_folder mi_rename mi_delete mi_reload mi_close_tab mi_theme_system mi_theme_dark mi_text_bigger mi_text_smaller mi_text_reset mi_restore_session nav_menu ctx_open ctx_new_file_here ctx_new_folder_here ctx_rename ctx_delete ctx_project_file ctx_close_project tab_menu tabm_tab_close tabm_tab_copy_path toolbar save tb_reload tb_open_folder tb_new_file tb_new_folder dock_files files text depth dock_console console run_strip run_btn run_all_btn stop_btn force_btn snippet_btn schema_btn run_section run_standing run_state run_branch prefix_head prefix_body target_head target_body err_head err_body dock_branch branch_list bind_btn ov_edit ov_save ov_compare ov_rebase ov_promote ov_discard ov_editor ov_diff dock_results results_body dock_tables table_list fetch_btn dock_git git_body dock_agent agent_head ask_btn agent_body status name_field book page_welcome welcome
 == the title carries the marker too, which is conventional ==
   cold: gBASIC Studio — ws
 == and where the record puts each dock, before any window exists ==

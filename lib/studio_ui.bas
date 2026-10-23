@@ -2722,7 +2722,7 @@ library studio_ui
     function menus()
         out = []
         out = append(out, { id: "project", label: "Project",
-                            items: ["new-project", "open-folder", "-",
+                            items: ["new-project", "open-folder", "open-samples", "-",
                                     "project-file", "close-project"] })
         out = append(out, { id: "file", label: "File",
                             items: ["new-file", "new-folder", "-",
@@ -2772,6 +2772,9 @@ library studio_ui
         end if
         if action = "open-folder" then
             return "Open Folder"
+        end if
+        if action = "open-samples" then
+            return "Open Samples"
         end if
         if action = "project-file" then
             return "Add Project File"
@@ -2904,6 +2907,9 @@ library studio_ui
         end if
         if action = "open-folder" then
             return "Open a folder you already have as a project. Type its path in the name field first; ~/ and relative paths work."
+        end if
+        if action = "open-samples" then
+            return "Open a project of small sample programs, each saying what to try. Your own copy, made the first time, so edit them freely."
         end if
         if action = "project-file" then
             return "Write a .gstudio.json in this project: a stable id so its saved state survives the folder moving, plus a place to list what the browser should hide and pin which gBASIC it runs under. Studio never creates this on its own."
@@ -3039,6 +3045,12 @@ library studio_ui
     ' tab switching, a keystroke landing — where a status line would just be
     ' noise over something the user can already see.
     function action_notice(action, detail)
+        if action = "samples-opened" then
+            return "opened the samples — start with 01_sections.bas"
+        end if
+        if action = "no-samples" then
+            return "the samples are not where Studio looks for them (" + detail + ")"
+        end if
         leaf = studio_ui._leaf(detail)
         if action = "created" then
             ' "<path> <doc-id>" — the status line wants the file, not the id.
@@ -3468,6 +3480,71 @@ library studio_ui
     '                 `~/development/gdash` blames the folder for a `~` nobody
     '                 expanded
     '   "no-path"   — an empty field, which is a question rather than a failure
+    ' ---- the samples ----------------------------------------------------------
+    '
+    ' A project of small programs that each teach one thing, SHIPPED in
+    ' `share/samples/` and OPENED AS A COPY in the home: the shipped set may be
+    ' an installed, read-only tree, and a sample is meant to be edited and
+    ' broken. The copy is made ONCE and never overwritten -- what someone did
+    ' to their samples is theirs.
+    '
+    ' The files are a CLOSED LIST, as the licences are: gBASIC has no
+    ' directory listing to walk, and a list makes the shipped set a visible
+    ' edit. `samples_listed` in the runner checks it against the directory.
+    function sample_files()
+        return [".gstudio.json", "README.md", "01_sections.bas", "02_tables.bas",
+                "03_errors.bas", "04_records.bas", "05_branches.bas",
+                "06_overlays.bas", "07_sql.sql"]
+    end function
+
+    function samples_dir()
+        v = env("GBASIC_STUDIO_SHARE")
+        if is_string(v) then
+            if v != "" then
+                return v + "/samples"
+            end if
+        end if
+        return ""
+    end function
+
+    ' Copy the samples into the home if they are not there yet, then open that
+    ' copy as a project (or switch to it). A shipped set with a file missing
+    ' is REFUSED, named, before anything is written -- half a samples project
+    ' would be a set of lessons with pieces missing and no word of it.
+    function open_samples(app)
+        src = studio_ui.samples_dir()
+        if src = "" then
+            return { app: app, action: "no-samples", detail: "GBASIC_STUDIO_SHARE is not set" }
+        end if
+        dst = app.paths.home + "/samples"
+        df{file} = dst
+        if not exists(df) then
+            texts = []
+            for each f in studio_ui.sample_files()
+                sf{file} = src + "/" + f
+                if not exists(sf) then
+                    return { app: app, action: "no-samples", detail: src + "/" + f }
+                end if
+                texts = append(texts, read(sf))
+            end for
+            persist.ensure_dir(dst)
+            i = 0
+            for each f in studio_ui.sample_files()
+                of{file} = dst + "/" + f
+                write(of, texts[i])
+                i += 1
+            end for
+        end if
+        a = studio_ui.adopt_folder(app, dst)
+        if a.action = "adopted" then
+            return { app: a.app, action: "samples-opened", detail: dst }
+        end if
+        if a.action = "activated" then
+            return { app: a.app, action: "samples-opened", detail: dst }
+        end if
+        return a
+    end function
+
     function adopt_folder(app, raw)
         if raw = "" then
             return { app: app, action: "no-path", detail: "" }
@@ -5375,10 +5452,21 @@ library studio_ui
         end if
         ov = studio_ui.overlays(app)
         existing = studio_overlays.edit_for(ov, ab.id, v.sid)
-        fp = studio_overlays.base_fp(v.st, v.sid)
-        if existing != nothing then
-            fp = existing.base_fp
+        ' SAVE ONLY WHAT OVERLAY BEGAN. `begin_overlay` stores the overlay, and it
+        ' is the one place that checks the section sits BELOW the branch point --
+        ' so a save with nothing begun is refused rather than creating an overlay
+        ' that check would have refused. Found by the samples tier: Save with the
+        ' overlay editor empty and nothing begun replaced a whole function, on a
+        ' branch, with nothing.
+        if existing = nothing then
+            return { app: app, action: "refused", detail: "there is no overlay on this section — press Overlay first" }
         end if
+        ' An EMPTY overlay would delete the section on this branch. That is what
+        ' Discard is for, said in its own word, so it is refused here.
+        if trim(text) = "" then
+            return { app: app, action: "refused", detail: "an empty overlay would delete this section on the branch — Discard removes the overlay instead" }
+        end if
+        fp = existing.base_fp
         ov = studio_overlays.put(ov, ab.id, v.sid, fp, text)
         app = studio_ui.set_overlays(app, ov)
         return { app: app, action: "overlay-saved", detail: v.sid }

@@ -1153,6 +1153,31 @@ theme's failure, one row down the Settings menu.
 - The caption is bold and a NOTE under it says what a sample means and where
   the rest is (`studio_table.caption_note`).
 
+#### The samples (Project ▸ Open Samples)
+
+- **Shipped in `share/samples/`, opened as a COPY in `<home>/samples`**, made
+  once and never overwritten: the shipped tree may be installed read-only, and
+  a sample is meant to be edited and broken. `studio_ui.open_samples` copies
+  then adopts; a shipped set with a file missing is refused by name BEFORE
+  anything is written.
+- **The files are a closed list** (`studio_ui.sample_files`), because gBASIC
+  has no directory listing; `samples_listed` in the runner checks the list is
+  exactly the directory.
+- **THE INSTRUCTIONS ARE TESTED LIKE CODE.** `qtview_samples` performs every
+  sample's "Try this" steps through the window. Writing it found four samples
+  that said something false: `03` claimed the margin marks a RUNTIME error (it
+  marks only syntax errors), and that the strip says a broken file does not
+  parse (when broken by typing, the old sections survive and the strip still
+  names one; Run Section is what refuses); `06`'s overlay was refused because
+  its function was the FIRST section and an overlay may only change what is
+  below the branch point; `07`'s database path pointed into a folder that did
+  not exist. **And one Studio bug:** Save overlay with nothing begun saved the
+  empty overlay editor over a whole function, skipping the branch-point check
+  `begin_overlay` makes. `save_overlay` now refuses without an overlay begun,
+  and refuses empty text (Discard is how an overlay is removed).
+- Lines are found by their TEXT (`qt_line_of`), so rewording a sample's
+  comments does not move what the tier checks.
+
 #### A Qt tier that SKIPPED was hiding a failure
 
 Three Qt tiers reported `SKIP (this gBASIC has no Qt backend)` on a build whose

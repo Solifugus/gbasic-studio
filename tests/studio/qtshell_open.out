@@ -15,7 +15,7 @@
     1 [  main.bas]
 == the menus are the toolkit's own now ==
   bar:     ["Project","File","Settings"]
-  Project: ["New Project…","Open Folder",unknown,"Add Project File","Close Project"]
+  Project: ["New Project…","Open Folder","Open Samples",unknown,"Add Project File","Close Project"]
   File: ["New File","New Folder",unknown,"Rename Selected","Delete Selected",unknown,"Reload Changed Files","Close Tab"]
   Settings: ["Follow the desktop","Dark",unknown,"Bigger editor text","Smaller editor text","Reset editor text size",unknown,"Reopen last session on start"]
   a separator has no caption, where an empty label would have one

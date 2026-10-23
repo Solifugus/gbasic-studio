@@ -60,6 +60,11 @@ Compare, Rebase, Promote, Discard) with the overlay's own editor. The assistant'
 the environment and saying which. The editor's text size follows Ctrl+= or
 Ctrl++, Ctrl+−, Ctrl+0 and Ctrl with the mouse wheel.
 
+**Project ▸ Open Samples** opens a project of small sample programs — sections,
+tables, errors, records, branches, overlays and a `.sql` notebook — each
+starting with a short *Try this* list. It is your own copy, made in your Studio
+home the first time, so edit and break them freely.
+
 Studio's dark look is a Qt style sheet for the whole application, and the
 editor's syntax colours follow the same setting, so a dark Studio never wraps a
 light editor. Picking Dark re-themes everything at once, open editors included;

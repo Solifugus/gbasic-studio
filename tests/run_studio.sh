@@ -1021,6 +1021,7 @@ else
     printf 'SKIP qtview_open (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_ctx (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_edit (this gBASIC has no qt module)\n'
+    printf 'SKIP qtview_samples (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_reopen (this gBASIC has no qt module)\n'
 fi
 
@@ -1228,6 +1229,15 @@ fi
     rm -rf "$qh" "$qp"; mkdir -p "$qh"; mkproj_ui "$qp"
     qt_mode_tier qtview_edit edit "$qh" "$qp" "open, switch, type, save -- read back off the tabs"
 
+    # THE SAMPLES, WALKED: Project ▸ Open Samples, then every sample's "Try
+    # this" steps performed through the window. A sample whose steps do not do
+    # what it says teaches the wrong thing with Studio's authority, and writing
+    # this tier found four that did not -- plus a Save overlay that would save
+    # an empty overlay over a whole function.
+    qh="$tmproot/qtview_samples"
+    rm -rf "$qh"; mkdir -p "$qh"
+    qt_mode_tier qtview_samples samples "$qh" "" "every sample's Try-this steps, performed"
+
     # A SECOND LAUNCH OVER A HOME THAT HAS BEEN USED.
     #
     # THIS IS THE TIER WHOSE ABSENCE LET A CRASH SHIP. Every other Qt tier
@@ -1277,6 +1287,20 @@ fi
             printf 'SKIP qtview_reopen (this gBASIC has no Qt backend)\n'
         fi
     fi
+
+# THE SAMPLES' CLOSED LIST IS THE DIRECTORY. `studio_ui.sample_files` names
+# what Open Samples copies, because gBASIC has no directory listing; a file
+# added to share/samples and not to the list would never reach anyone's copy,
+# and one listed and missing makes Open Samples refuse.
+printf 'program main(args)\n  load studio_ui\n  print join(sort(studio_ui.sample_files()), chr(10))\nend program\n' > "$tmproot/samples_list.bas"
+listed="$(GBASIC_PATH="lib:$GBASIC_STDLIB" timeout 60 "$GBASIC" "$tmproot/samples_list.bas" 2>/dev/null)"
+ondisk="$(cd share/samples && ls -A | LC_ALL=C sort)"
+if [ "$(printf '%s\n' "$listed" | LC_ALL=C sort)" = "$ondisk" ]; then
+    printf 'PASS samples_listed (studio_ui.sample_files is exactly share/samples)\n'
+else
+    printf 'listed:\n%s\non disk:\n%s\n' "$listed" "$ondisk"
+    fail "samples_listed (the closed list and the directory disagree)"
+fi
 
 # NO GTK ANYWHERE IN STUDIO.
 #

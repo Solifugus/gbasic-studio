@@ -1191,6 +1191,64 @@ function qt_choice_items(win, part)
     return out
 end function
 
+' OPEN SAMPLES: the copy, the project, and the first sample in a tab.
+function on_qt_open_samples()
+    r = studio_ui.open_samples(G.app)
+    if r.action = "samples-opened" then
+        qt_note("project_opened", r.detail, "samples")
+        rows = studio_ui.nav_rows(r.app)
+        at = studio_qt_row_index(rows, "file", "01_sections.bas")
+        if at >= 0 then
+            o = studio_ui.activate_row(r.app, rows, at)
+            r.app = o.app
+        end if
+    end if
+    return qt_took(r)
+end function
+
+' The `samples` mode's helpers.
+function qt_sample_open(name)
+    rows = studio_ui.nav_rows(G.app)
+    o = studio_ui.activate_row(G.app, rows, studio_qt_row_index(rows, "file", name))
+    G.app = o.app
+    z = qt_redraw()
+    return studio_shell_qt.part_editor(studio_docs.active_doc(G.app.dm).id)
+end function
+
+' The 1-based line of the first line that STARTS with `prefix`, or 0.
+function qt_line_of(ed, prefix)
+    n = 1
+    for each l in split(qt.read(G.win, ed, "plainText"), chr(10))
+        if starts_with(l, prefix) then
+            return n
+        end if
+        n += 1
+    end for
+    return 0
+end function
+
+function qt_sample_caret(ed, prefix)
+    z = qt.caret_to(G.win, ed, qt_line_of(ed, prefix), 1)
+    G.app = qt_sync_caret(G.app)
+    return nothing
+end function
+
+function qt_sample_run()
+    z = qt.invoke(G.win, "run_btn", "click")
+    G.polling = false
+    return qt_tables_wait()
+end function
+
+function qt_table_offers(win)
+    out = []
+    i = 0
+    for each r in studio_ui.table_rows(G.app).rows
+        out = append(out, qt.cell(win, studio_shell_qt.part_tables(), i, "label"))
+        i += 1
+    end for
+    return out
+end function
+
 ' ---- the header -----------------------------------------------------------
 
 function on_qt_save()
@@ -1628,6 +1686,7 @@ function qt_wire(win)
     ' silently ignores `activate()`, which cost STU-16 two rounds.
     win = qt_on(win, qt_item("new-project"), "triggered", on_qt_new_project)
     win = qt_on(win, qt_item("open-folder"), "triggered", on_qt_open_folder)
+    win = qt_on(win, qt_item("open-samples"), "triggered", on_qt_open_samples)
     win = qt_on(win, qt_item("project-file"), "triggered", on_qt_project_file)
     win = qt_on(win, qt_item("close-project"), "triggered", on_qt_close_project)
     win = qt_on(win, qt_item("new-file"), "triggered", on_qt_new_file)
@@ -2094,6 +2153,117 @@ program main(args)
         print "pointing at something that is not there"
         z = qt_point("run_panel", "highlight", "")
         print "  action=" + G.last_action + " — " + G.last_detail
+        return nothing
+    end if
+
+    if mode = "samples" then
+        ' THE SAMPLES, WALKED: every sample's "Try this" steps, performed through
+        ' the window. A sample whose steps do not do what it says teaches the
+        ' wrong thing with Studio's authority, so the instructions are tested
+        ' like code. Lines are found by their TEXT (`qt_line_of`), so rewording a
+        ' sample's comments does not move what the tier checks.
+        G.app.clock_fixed = 1000
+        z = qt.invoke(win, qt_item("open-samples"), "trigger")
+        print "Open Samples: " + G.last_action + ", on top: " + studio_docs.active_doc(G.app.dm).display_name
+        print qt_indent(join(qt_nav_cells(win), chr(10)))
+
+        print "== 01_sections.bas"
+        ed = qt_sample_open("01_sections.bas")
+        z = qt_sample_caret(ed, "greeting =")
+        print "  " + qt.read(win, "run_section", "text")
+        z = qt_sample_run()
+        print "  target: <" + qt.read(win, "target_body", "plainText") + ">"
+        z = qt_sample_caret(ed, "print shout")
+        print "  " + qt.read(win, "run_section", "text")
+        z = qt_sample_run()
+        print "  prefix: <" + qt.read(win, "prefix_body", "plainText") + ">"
+        print "  target: <" + qt.read(win, "target_body", "plainText") + ">"
+
+        print "== 02_tables.bas"
+        ed = qt_sample_open("02_tables.bas")
+        z = qt_sample_caret(ed, "sales = []")
+        z = qt_sample_run()
+        print "  the pane offers: " + join(qt_table_offers(win), " | ")
+        z = qt.select(win, studio_shell_qt.part_tables(), 0)
+        print "  " + qt.read(G.tablewin, "grid_caption", "text")
+        z = qt.set(G.tablewin, "grid_desc", "checked", true)
+        z = qt.write(G.tablewin, "grid_sort", "units")
+        print "  most units first: " + qt.cell(G.tablewin, studio_shell_qt.part_grid(), 0, "c3")
+        z = qt.close(G.tablewin)
+
+        print "== 03_errors.bas"
+        ed = qt_sample_open("03_errors.bas")
+        z = qt_sample_caret(ed, "print describe")
+        z = qt_sample_run()
+        print "  " + qt.read(win, "err_head", "text") + ": " + studio_qt_first_line(qt.read(win, "err_body", "plainText"))
+        print "  the failing line in the file: " + string(qt_line_of(ed, "print describe"))
+        print "  step 3, the then deleted: a syntax error is marked before anything runs"
+        z = qt.write(win, ed, replace(qt.read(win, ed, "plainText"), "count(list) > 2 then", "count(list) > 2"))
+        G.app = qt_sync_buffer(G.app)
+        z = qt_redraw()
+        print "  marked: " + string(qt.marks(win, ed, "error")) + " (the if is line " + string(qt_line_of(ed, "    if count(list)")) + ")"
+        z = qt_sample_caret(ed, "print describe")
+        z = qt.invoke(win, "run_btn", "click")
+        print "  Run Section: " + G.last_action + " -- " + qt.read(win, studio_shell_qt.part_status(), "text")
+
+        print "== 04_records.bas"
+        ed = qt_sample_open("04_records.bas")
+        z = qt_sample_caret(ed, "book =")
+        z = qt_sample_run()
+        print qt_indent(qt.read(win, "results_body", "plainText"))
+
+        print "== 05_branches.bas"
+        ed = qt_sample_open("05_branches.bas")
+        z = qt_sample_caret(ed, "print string(passing")
+        z = qt_sample_run()
+        print "  baseline: " + qt.read(win, "target_body", "plainText")
+        z = qt.write(win, studio_shell_qt.part_name_field(), "Strict")
+        z = qt.select(win, studio_shell_qt.part_branches(), count(qt_branch_cells(win)) - 1)
+        print "  " + G.last_action + " -- " + qt.read(win, "run_branch", "text")
+        z = qt.write(win, studio_shell_qt.part_name_field(), "threshold = 0.9")
+        z = qt.invoke(win, "bind_btn", "click")
+        print "  " + G.last_action + " " + G.last_detail
+        z = qt_sample_caret(ed, "print string(passing")
+        z = qt_sample_run()
+        print "  on Strict: " + qt.read(win, "target_body", "plainText")
+        z = qt.select(win, studio_shell_qt.part_branches(), 0)
+        print "  " + G.last_action + ", and the file still says: " + string(contains(qt.read(win, ed, "plainText"), "threshold = 0.5"))
+
+        print "== 06_overlays.bas"
+        ed = qt_sample_open("06_overlays.bas")
+        z = qt_sample_caret(ed, "multiplier = 2")
+        z = qt.write(win, studio_shell_qt.part_name_field(), "Squared")
+        z = qt.select(win, studio_shell_qt.part_branches(), count(qt_branch_cells(win)) - 1)
+        print "  " + G.last_action
+        z = qt_sample_caret(ed, "    return t * multiplier")
+        z = qt.invoke(win, "ov_edit", "click")
+        print "  " + G.last_action
+        z = qt.write(win, "ov_editor", replace(qt.read(win, "ov_editor", "plainText"), "t * multiplier", "t * t"))
+        z = qt.invoke(win, "ov_save", "click")
+        print "  " + G.last_action
+        z = qt_sample_caret(ed, "for each t")
+        z = qt_sample_run()
+        print "  on Squared: " + replace(qt.read(win, "target_body", "plainText"), chr(10), " / ")
+        print "  the file still says t * multiplier: " + string(contains(qt.read(win, ed, "plainText"), "t * multiplier"))
+        z = qt.invoke(win, "ov_compare", "click")
+        print qt_indent(qt.read(win, "ov_diff", "plainText"))
+
+        print "== 07_sql.sql"
+        ed = qt_sample_open("07_sql.sql")
+        z = qt.invoke(win, "run_all_btn", "click")
+        G.polling = false
+        went = qt_tables_wait()
+        print "  Run All: " + went
+        z = qt_sample_caret(ed, "select name")
+        z = qt_sample_run()
+        print "  the pane offers: " + join(qt_table_offers(win), " | ")
+        z = qt.invoke(win, "schema_btn", "click")
+        names = []
+        for each t in G.schema_tables
+            names = append(names, studio_schema.table_label(t))
+        end for
+        print "  Schema… finds: " + join(names, ", ") + " -- asked: " + qt.read(G.schemawin, "sc_asked", "text")
+        z = qt.close(G.schemawin)
         return nothing
     end if
 
