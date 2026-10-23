@@ -62,10 +62,10 @@
   four quarter-notches (a trackpad): 100% 100% 100% 115%
   and the editor followed: 115%
 -- the browser's own right-click menu, per row --
-  file    shown=true offers: open, rename, delete
-  dir     shown=true offers: open, rename, delete
-  project shown=true offers: open, rename, delete
-  info    shown=true offers: open, rename, delete
+  file    raised on row 4=true shown=true offers: open, rename, delete
+  dir     raised on row 2=true shown=true offers: new-file-here, new-folder-here, rename, delete
+  project raised on row 1=true shown=true offers: project-file, close-project
+  info    raised on row 0=true shown=false offers: (none)
   (an all-hidden menu is not shown, which is Qt refusing rather
    than us: an empty one reads as a control that failed)
 -- Rename from that menu FILLS the field and does not rename --

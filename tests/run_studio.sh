@@ -1019,6 +1019,7 @@ else
     printf 'SKIP qtview_run (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_cold (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_open (this gBASIC has no qt module)\n'
+    printf 'SKIP qtview_ctx (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_reopen (this gBASIC has no qt module)\n'
 fi
 
@@ -1204,6 +1205,19 @@ fi
     rm -rf "$qh" "$tmproot/qtview_open_at"; mkdir -p "$qh" "$qo/src"
     printf 'x\n' > "$qo/thing.bas"
     qt_mode_tier qtview_open open "$qh" "" "a folder opened by path, activated, given a project file" "$qo"
+
+    # THE BROWSER MENU ON PROJECT AND FILE ROWS, AND THE HEADER ACTS IT SHARES
+    # (the retired ui_gui_ctx, and the rest of ui_gui_name and
+    # ui_gui_settings): two projects, a project file added from the
+    # NON-active one's row without moving the active project, Delete arming
+    # from a file's menu, a header Rename, Close project from its row, and the
+    # session toggle. Folders are `alpha` and `beta` so the golden names them.
+    qh="$tmproot/qtview_ctx"; qa="$tmproot/qtview_ctx_at"
+    rm -rf "$qh" "$qa"; mkdir -p "$qh" "$qa/alpha/src" "$qa/beta"
+    printf 'print "main"\n' > "$qa/alpha/main.bas"
+    printf 'x\n' > "$qa/alpha/src/a.bas"
+    printf 'print "b"\n' > "$qa/beta/b.bas"
+    qt_mode_tier qtview_ctx ctx "$qh" "$qa/alpha" "the browser menu acts on the row it was raised on" "$qa/beta"
 
     # A SECOND LAUNCH OVER A HOME THAT HAS BEEN USED.
     #

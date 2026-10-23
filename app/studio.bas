@@ -2041,6 +2041,54 @@ program main(args)
         return nothing
     end if
 
+    if mode = "ctx" then
+        ' THE BROWSER'S MENU ON ITS PROJECT AND FILE ROWS, and the header acts
+        ' it shares -- the retired `ui_gui_ctx` and the rest of `ui_gui_name`
+        ' and `ui_gui_settings`. Two projects, because the claim worth the
+        ' most is that a right-click acts on the row it was RAISED on and does
+        ' not change which project you are in.
+        a = studio_ui.adopt_folder(G.app, args[3])
+        G.app = a.app
+        a = studio_ui.adopt_folder(G.app, args[2])
+        G.app = a.app
+        nav = studio_ui.nav_rows(G.app)
+        G.app = studio_view_qt.render(win, G.app, "")
+        print "-- two projects, alpha active --"
+        print qt_indent(join(qt_nav_cells(win), chr(10)))
+        active_before = G.app.model.workspace.active_project
+        print "Add project file, from the menu on BETA's row"
+        z = qt.right_click(win, studio_shell_qt.part_browser(), qt_row_of("project", "beta"))
+        z = qt.invoke(win, studio_shell_qt.part_nav_menu(), "hide")
+        z = qt.invoke(win, qt_ctx("project-file"), "trigger")
+        print "  action=" + G.last_action
+        bf{file} = args[3] + "/.gstudio.json"
+        print "  beta got the file=" + string(exists(bf))
+        print "  the active project did not move=" + string(G.app.model.workspace.active_project = active_before)
+        print "Delete, from the menu on main.bas -- it ARMS, as the header's does"
+        z = qt.right_click(win, studio_shell_qt.part_browser(), qt_row_of("file", "main.bas"))
+        z = qt.invoke(win, studio_shell_qt.part_nav_menu(), "hide")
+        z = qt.invoke(win, qt_ctx("delete"), "trigger")
+        mf{file} = args[2] + "/main.bas"
+        print "  action=" + G.last_action + ", main.bas is still there=" + string(exists(mf))
+        print "Rename from the header: select main.bas, type a name, Rename"
+        z = qt.select(win, studio_shell_qt.part_browser(), qt_row_of("file", "main.bas"))
+        z = qt.write(win, studio_shell_qt.part_name_field(), "start.bas")
+        z = qt.invoke(win, qt_item("rename"), "trigger")
+        sf{file} = args[2] + "/start.bas"
+        print "  action=" + G.last_action + ", start.bas exists=" + string(exists(sf)) + ", main.bas gone=" + string(not exists(mf))
+        print "Close project, from the menu on ALPHA's row"
+        z = qt.right_click(win, studio_shell_qt.part_browser(), qt_row_of("project", "alpha"))
+        z = qt.invoke(win, studio_shell_qt.part_nav_menu(), "hide")
+        z = qt.invoke(win, qt_ctx("close-project"), "trigger")
+        print "  action=" + G.last_action
+        print qt_indent(join(qt_nav_cells(win), chr(10)))
+        print "  alpha's folder is untouched=" + string(exists(sf))
+        print "the session toggle in Settings"
+        z = qt.invoke(win, qt_item("restore-session"), "trigger")
+        print "  action=" + G.last_action + ", checked=" + string(qt.read(win, qt_item("restore-session"), "checked"))
+        return nothing
+    end if
+
     if mode = "open" then
         ' OPEN FOLDER AND PROJECT FILE, pressed for real -- the retired
         ' `ui_gui_open`. Open Folder reads the name field as a PATH; opening
@@ -2709,19 +2757,29 @@ program main(args)
         z = qt.invoke(win, qt_item("text-reset"), "trigger")
 
         print "-- the browser's own right-click menu, per row --"
-        ' `qt.right_click` cannot aim at a TREE row (its third argument is a
-        ' table's), so the row is selected first and the click lands on the
-        ' part. In a real window the press itself moves the current item, which
-        ' is what §0.20 measured for a table -- so this drives the menu path
-        ' faithfully and only the aiming is simulated.
+        ' Each click is AIMED at its row (gBASIC §0.33), and the tier checks the
+        ' menu was raised on that row -- see the note inside the loop for what
+        ' the blind click before it was recording.
         for each want in ["file", "dir", "project", "info"]
             at = qt_row_of_kind(want)
             if at < 0 then
                 print "  " + padto_qt(want, 8) + "(no such row)"
             else
-                z = qt.select(win, studio_shell_qt.part_browser(), at)
-                z = qt.right_click(win, studio_shell_qt.part_browser())
-                print "  " + padto_qt(want, 8) + "shown=" + string(G.ctx_shown) + " offers: " + join(studio_ui.context_actions(studio_ui.nav_rows(G.app), G.ctx_index), ", ")
+                ' AIMED AT THE ROW (gBASIC §0.33). Until then the click landed at a
+                ' point in the widget and every case here hit the SAME row -- the
+                ' golden recorded four identical menus, file/dir/project/info all
+                ' offering open, rename, delete, and nobody noticed for a phase.
+                G.ctx_shown = false
+                G.ctx_index = 0 - 1
+                z = qt.right_click(win, studio_shell_qt.part_browser(), at)
+                offers = "(none)"
+                if G.ctx_index >= 0 then
+                    got = studio_ui.context_actions(studio_ui.nav_rows(G.app), G.ctx_index)
+                    if count(got) > 0 then
+                        offers = join(got, ", ")
+                    end if
+                end if
+                print "  " + padto_qt(want, 8) + "raised on row " + string(at) + "=" + string(G.ctx_index = at) + " shown=" + string(G.ctx_shown) + " offers: " + offers
                 z = qt.invoke(win, studio_shell_qt.part_nav_menu(), "hide")
             end if
         end for
@@ -2730,10 +2788,10 @@ program main(args)
 
         print "-- Rename from that menu FILLS the field and does not rename --"
         ' THE ASSERTION IS A RELATIONSHIP, NOT A FILENAME, and the first
-        ' version of it was neither. `qt.right_click` cannot aim at a tree row,
-        ' so the click lands at a point in the widget and whatever row is under
-        ' that point becomes the one the menu was raised on -- which means the
-        ' row depends on ROW HEIGHT. This golden held `README.md` for one
+        ' version of it was neither. Before §0.33 `qt.right_click` could not aim
+        ' at a tree row, so the click landed at a point in the widget and
+        ' whatever row was under it became the one the menu was raised on --
+        ' which made the row depend on ROW HEIGHT. This golden held `README.md` for one
         ' reason only: that was the row the point hit with Qt's default item
         ' metrics. Adding `QTreeView::item { padding: 2px; }` to Studio's dark
         ' sheet moved it to `b.bas`, and a tier whose expected value moves when
@@ -2744,8 +2802,7 @@ program main(args)
         ' claim ("Rename fills the field with the row you right-clicked") and
         ' is true at any row height.
         at = qt_row_of_kind("file")
-        z = qt.select(win, studio_shell_qt.part_browser(), at)
-        z = qt.right_click(win, studio_shell_qt.part_browser())
+        z = qt.right_click(win, studio_shell_qt.part_browser(), at)
         raised = qt_ctx_row()
         z = qt.invoke(win, qt_ctx("rename"), "trigger")
         filled = qt.read(win, studio_shell_qt.part_name_field(), "text")

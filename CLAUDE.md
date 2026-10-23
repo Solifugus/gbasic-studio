@@ -1302,7 +1302,18 @@ showed a retired tier can hide a render-side gap: `qtview_git` (ui_gui_git),
 `qtview_run` (ui_gui_run, ui_gui_cursor, results_gui — the strip, the four
 panes, the results pane following the caret, the stale mark), `qtview_cold`
 (ui_gui_cold), `qtview_open` (ui_gui_open), and a floated dock surviving a
-relaunch in `qtview_reopen` (ui_gui_layout's claim).
+relaunch in `qtview_reopen` (ui_gui_layout's claim), and `qtview_ctx`
+(ui_gui_ctx and the rest of ui_gui_name / ui_gui_settings).
+
+**AND ONE OF OUR OWN QT GOLDENS HAD BEEN ASSERTING NOTHING.** `qtview_press`'s
+per-row right-click section printed the SAME menu for a file, a directory, a
+project and the info row -- `open, rename, delete` four times -- because
+`qt.right_click` could not aim at a tree row and every click landed on the
+same point. The golden was rebaselined that way and read past for a phase.
+gBASIC §0.33 added tree-row aiming; the tier now aims, asserts the menu was
+raised on the row it aimed at, and shows four different menus (the info row
+none). **A golden whose cases all print the same line is a test that is not
+varying what it claims to vary.**
 
 **Retired WITHOUT a Qt counterpart, stated:** `ui_gui_solo` (two instances at
 once — a GTK single-instance concern); `ui_gui_new`'s two-process cold start (`qtview_reopen` covers a second launch

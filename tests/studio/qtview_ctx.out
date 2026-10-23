@@ -1,0 +1,23 @@
+-- two projects, alpha active --
+  0 Workspace: workspace
+  0 ● alpha
+  0 ○ beta
+  1 ▸ src
+  1   main.bas
+Add project file, from the menu on BETA's row
+  action=project-file
+  beta got the file=true
+  the active project did not move=true
+Delete, from the menu on main.bas -- it ARMS, as the header's does
+  action=armed, main.bas is still there=true
+Rename from the header: select main.bas, type a name, Rename
+  action=renamed, start.bas exists=true, main.bas gone=true
+Close project, from the menu on ALPHA's row
+  action=project-closed
+  0 Workspace: workspace
+  0 ● beta
+  1   .gstudio.json
+  1   b.bas
+  alpha's folder is untouched=true
+the session toggle in Settings
+  action=restore-off, checked=false
