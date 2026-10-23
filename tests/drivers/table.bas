@@ -165,6 +165,9 @@ program main(args)
     print "  and the source is left as it was: " + string(m.src.order = nothing)
     print "-- no such column"
     print "  " + studio_table.sort_rows(src, 7, false).why
+    print "-- which columns hold numbers, for the grid to right-align"
+    print "  people (id, name, score -- one score blank): " + string(studio_table.numeric_columns(src))
+    print "  the word column: " + string(studio_table.numeric_columns(words))
     print "-- the note under a sampled caption, and none under a whole table"
     big = studio_table.from_preview(cap("customers", "array", 48291, ["id", "name", "score"], sample_rows(50)))
     print "  sampled: " + studio_table.caption_note(big)

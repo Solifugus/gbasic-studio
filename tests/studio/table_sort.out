@@ -48,6 +48,9 @@
   and the source is left as it was: true
 -- no such column
   there is no such column
+-- which columns hold numbers, for the grid to right-align
+  people (id, name, score -- one score blank): [true,false,true]
+  the word column: [false,false,false]
 -- the note under a sampled caption, and none under a whole table
   sampled: Showing the 50 rows the run kept. Fetch all rows, in the Tables pane, runs the section again to show all 48291.
   whole:   []

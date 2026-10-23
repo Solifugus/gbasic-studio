@@ -9,6 +9,7 @@
   note:    [Showing the 50 rows the run kept. Fetch all rows, in the Tables pane, runs the section again to show all 1200.]
   rows:    50
   columns: id, name, score
+  aligned: right | left | right
   first:   0 | row 0 | 0
   last:    49 | row 49 | 73.5
 -- Fetch all rows, which RUNS THE SECTION AGAIN --
@@ -19,6 +20,7 @@
   note:    []
   rows:    1200
   columns: id, name, score
+  aligned: right | left | right
   first:   0 | row 0 | 0
   last:    1199 | row 1199 | 1798.5
 -- Sort by score, descending, through the window's own controls --
@@ -27,6 +29,7 @@
   note:    []
   rows:    1200
   columns: id, name, score
+  aligned: right | left | right
   first:   1199 | row 1199 | 1798.5
   last:    0 | row 0 | 0
 -- and back to the order the run made them --
@@ -34,6 +37,7 @@
   note:    []
   rows:    1200
   columns: id, name, score
+  aligned: right | left | right
   first:   0 | row 0 | 0
   last:    1199 | row 1199 | 1798.5
 -- the nothing-to-offer row opens nothing --

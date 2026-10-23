@@ -474,6 +474,47 @@ library studio_table
         return contains(["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"], c)
     end function
 
+    ' WHICH COLUMNS HOLD NUMBERS, for the grid to right-align them (gBASIC
+    ' §0.35's `align:`). The same rule the numeric sort uses -- every non-empty
+    ' cell reads as a number -- decided over the first `align_probe()` rows
+    ' rather than all of them: an export can be a million rows, and a wrong
+    ' guess costs where text sits in a cell, never what it says. A column with
+    ' nothing in it at all is left as text.
+    function align_probe()
+        return 200
+    end function
+
+    function numeric_columns(src)
+        out = []
+        n = src.known
+        if n > studio_table.align_probe() then
+            n = studio_table.align_probe()
+        end if
+        col = 0
+        while col < count(src.cols)
+            numeric = true
+            seen = 0
+            i = 0
+            while i < n
+                r = studio_table.cell(src, i, col)
+                src = r.src
+                if r.text != "" then
+                    seen += 1
+                    if not studio_table._is_number_text(r.text) then
+                        numeric = false
+                    end if
+                end if
+                i += 1
+            end while
+            if seen = 0 then
+                numeric = false
+            end if
+            out = append(out, numeric)
+            col += 1
+        end while
+        return out
+    end function
+
     ' Back to the order the run made them in.
     function unsorted(src)
         src.order = nothing

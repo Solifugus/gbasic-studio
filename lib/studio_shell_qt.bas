@@ -554,12 +554,21 @@ end function
 ' The caption is `studio_table.caption`, the same sentence the headless goldens
 ' assert, so the window cannot quietly say something kinder than the model --
 ' it is where a sample admits to being one.
-function table_window(caption, note, cols)
+function table_window(caption, note, cols, numeric)
     u = studio_style.unit()
     fields = []
     i = 0
     for each c in cols
-        fields = append(fields, column_of("c" + string(i), string(c)))
+        ' NUMBERS SIT RIGHT (gBASIC §0.35), so a column of them lines up on
+        ' the units; `numeric` is `studio_table.numeric_columns`, decided from
+        ' the data because a column's name says nothing about what is in it.
+        opts = { label: string(c) }
+        if i < count(numeric) then
+            if numeric[i] then
+                opts.align = "right"
+            end if
+        end if
+        fields = append(fields, part("field", "c" + string(i), opts))
         i = i + 1
     end for
     body = []

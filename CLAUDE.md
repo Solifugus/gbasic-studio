@@ -1148,8 +1148,14 @@ theme's failure, one row down the Settings menu.
 - **Columns are sized to their contents** (`qt.invoke(... "resizeColumnsToContents")`,
   which Qt measures over the rows in view, so it costs a screenful), and a
   table wider than the window scrolls sideways -- the asking table's scrollbar
-  policy is "as needed". **Numbers are NOT right-aligned yet**: the asking
-  model hands Qt text and sets no alignment role, so that needs gBASIC.
+  policy is "as needed".
+- **Numbers are RIGHT-ALIGNED** (gBASIC §0.35, cbbaae0: `align:` on a column,
+  read back with `qt.alignment`, which asks Qt rather than the declaration).
+  Which columns: `studio_table.numeric_columns`, the sort's rule (every
+  non-empty cell reads as a number) over the first `align_probe()` rows --
+  an export can be a million rows, and a wrong guess costs where text sits,
+  never what it says. A column's options are a CLOSED set upstream now
+  (label, type, depth, align), refused by name otherwise.
 - The caption is bold and a NOTE under it says what a sample means and where
   the rest is (`studio_table.caption_note`).
 
@@ -1190,8 +1196,9 @@ The skip path itself is not exercised: there is no Qt-less build here to run it
 against. `qtview_tables` additionally fails on any `runtime error` in stderr,
 because a raise inside a handler exits 0.
 
-**THE PINNED INTERPRETER MOVED to gBASIC `931bea2`** (§0.34: several shortcuts
-on an item, and `qt.key`). Before that `1963388`, which is what Ctrl+wheel
+**THE PINNED INTERPRETER MOVED to gBASIC `cbbaae0`** (§0.35: `align:` on a
+column, and `qt.alignment`). Before that `931bea2` (§0.34: several shortcuts on
+an item, and `qt.key`), and before that `1963388`, which is what Ctrl+wheel
 needed (3d3f7d9: `qt.refresh` connects the handlers of what it builds;
 1963388: `qt.wheel()` carries the unrounded `dy_exact`). Before
 that, `a9f1187` for `qt.caret` (§0.32) and the clipboard (§0.33), and `c4df516`

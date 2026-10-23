@@ -521,7 +521,8 @@ function qt_open_grid(caption, src)
         end if
     end if
     G.table_src = src
-    w = studio_shell_qt.table_window(caption, studio_table.caption_note(src), src.cols)
+    w = studio_shell_qt.table_window(caption, studio_table.caption_note(src), src.cols,
+                                     studio_table.numeric_columns(src))
     if count(src.cols) > 0 then
         w = qt_on(w, "grid_sort", "currentIndexChanged", qt_grid_sort)
         w = qt_on(w, "grid_desc", "toggled", qt_grid_sort)
@@ -633,6 +634,7 @@ function qt_tables_report()
     n = qt.rows(tw, g)
     print "  rows:    " + string(n)
     print "  columns: " + qt.heading(tw, g, 0) + ", " + qt.heading(tw, g, 1) + ", " + qt.heading(tw, g, 2)
+    print "  aligned: " + qt.alignment(tw, g, 0, "c0") + " | " + qt.alignment(tw, g, 0, "c1") + " | " + qt.alignment(tw, g, 0, "c2")
     print "  first:   " + qt.cell(tw, g, 0, "c0") + " | " + qt.cell(tw, g, 0, "c1") + " | " + qt.cell(tw, g, 0, "c2")
     print "  last:    " + qt.cell(tw, g, n - 1, "c0") + " | " + qt.cell(tw, g, n - 1, "c1") + " | " + qt.cell(tw, g, n - 1, "c2")
     return nothing
