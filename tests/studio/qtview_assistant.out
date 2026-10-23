@@ -1,0 +1,26 @@
+-- before anything is asked --
+  Press Where was I? — the answer appears here. It needs a provider key: Studio looks in its secret store first, then the environment, and says which it used.
+-- Where was I?, with no key anywhere --
+  (not configured — Anthropic has no key: store one as "anthropic" or set ANTHROPIC_API_KEY)
+-- every read tool the assistant is offered has a callable --
+  read tools 14, wrapped 14
+-- Where was I?, against a scripted provider that calls git_status first --
+  rounds: 2
+  You were in main.bas; nothing has run yet.
+-- every name the agent may point at resolves in THIS window --
+  unresolved: 0 
+  the registry and teachable() agree: true
+pointing at the Run button
+  its sheet: #run_btn { border: 2px solid #d08770; }
+pulsing the name field (the Run button's highlight comes off)
+  run button sheet: []
+  name field pulsing: true
+  and the pulse took itself off: true
+revealing the Tables pane raises its dock
+  action=point_at — reveal tables (pane)
+annotating line 1 of the editor
+  note marks: [1]
+pointing somewhere else takes the notes away
+  note marks: []
+pointing at something that is not there
+  action=point_at — no widget named "run_panel"; there is browser, tabs, editor, gutter, run_strip, output, results, branches, tables, assistant, name_field, run_button, save_button, project_menu, file_menu, overlay_strip

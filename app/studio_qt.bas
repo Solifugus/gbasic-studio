@@ -925,6 +925,214 @@ function qt_bar(text)
     return join(out, chr(10))
 end function
 
+' ---- STU-6: Where was I? ------------------------------------------------------
+'
+' THE PROVIDER COMES FROM `studio_providers.resolve`: the secret store first,
+' the environment second, and it says which -- where the GTK button read
+' ANTHROPIC_API_KEY itself. A missing key is a SENTENCE in the pane, never a
+' raise. `agent_handle` on the app is a test seam of the shape `secret_key`
+' already is: a handle with a scripted transport, so the tier presses the real
+' button with no network.
+function on_qt_ask()
+    h = G.app["agent_handle"]
+    if h = unknown then
+        r = studio_providers.resolve(G.app.paths.home, studio_ui._secret_key(G.app),
+                                     studio_providers.default_id(), "")
+    else
+        r = { ok: true, handle: h, why: "" }
+    end if
+    text = ""
+    if not r.ok then
+        text = "(not configured — " + r.why + ")"
+    else
+        z = qt.write(G.win, "agent_body", "(asking…)")
+        m = studio_agent.model(r.handle, qt_agent_tools())
+        a = studio_agent.ask(m, G.app, G.log, studio_agent.default_question())
+        if a.ok then
+            text = a.text
+        else
+            text = "(the assistant could not answer — " + a.why + ")"
+        end if
+    end if
+    G.app["agent_answer"] = text
+    return qt_redraw()
+end function
+
+' THE TOOLS, one wrapper per READ tool. They cannot be one shared function:
+' `llm` calls a tool's callable with its ARGUMENTS only, so the callable is the
+' only place the tool's own name can live. EVERY tool in `studio_tools.registry`
+' READ tool has one -- the GTK table covered eleven, and offered the whole
+' registry (acts included), so its button raised on the first tool it had no
+' wrapper for the moment it was pressed, and nothing tested it. `qt_tool_fn`
+' raises on a missing name, and the `assistant` tier builds the whole list, so
+' a fifteenth tool without a wrapper fails a test instead of a person.
+function qt_agent_tools()
+    out = []
+    for each t in studio_tools.registry()
+        ' READ TOOLS ONLY: this assistant is read-only, and the registry lists
+        ' the acts as well. `studio_tools.call` would refuse an act anyway; not
+        ' offering one is the stronger statement.
+        if not studio_tools.is_act(t.name) then
+            out = append(out, llm.tool(t.name, t.description, t.schema, qt_tool_fn(t.name)))
+        end if
+    end for
+    return out
+end function
+
+function qt_read_tool_count()
+    n = 0
+    for each t in studio_tools.registry()
+        if not studio_tools.is_act(t.name) then
+            n = n + 1
+        end if
+    end for
+    return n
+end function
+
+function qt_tool(name, a)
+    r = studio_tools.call(G.app, G.log, name, a)
+    if r.ok then
+        return r.value
+    end if
+    ' `error` is a keyword and cannot be a record key; the model sees `refused`.
+    return { refused: r.why }
+end function
+
+function qtt_current_project(a)
+    return qt_tool("current_project", a)
+end function
+function qtt_open_files(a)
+    return qt_tool("open_files", a)
+end function
+function qtt_active_file(a)
+    return qt_tool("active_file", a)
+end function
+function qtt_list_sections(a)
+    return qt_tool("list_sections", a)
+end function
+function qtt_section_at_cursor(a)
+    return qt_tool("section_at_cursor", a)
+end function
+function qtt_run_state(a)
+    return qt_tool("run_state", a)
+end function
+function qtt_section_results(a)
+    return qt_tool("section_results", a)
+end function
+function qtt_section_output(a)
+    return qt_tool("section_output", a)
+end function
+function qtt_section_variables(a)
+    return qt_tool("section_variables", a)
+end function
+function qtt_recent_actions(a)
+    return qt_tool("recent_actions", a)
+end function
+function qtt_where_was_i(a)
+    return qt_tool("where_was_i", a)
+end function
+function qtt_git_status(a)
+    return qt_tool("git_status", a)
+end function
+function qtt_git_history(a)
+    return qt_tool("git_history", a)
+end function
+function qtt_list_widgets(a)
+    return qt_tool("list_widgets", a)
+end function
+
+function qt_tool_fn(name)
+    if name = "current_project" then
+        return qtt_current_project
+    end if
+    if name = "open_files" then
+        return qtt_open_files
+    end if
+    if name = "active_file" then
+        return qtt_active_file
+    end if
+    if name = "list_sections" then
+        return qtt_list_sections
+    end if
+    if name = "section_at_cursor" then
+        return qtt_section_at_cursor
+    end if
+    if name = "run_state" then
+        return qtt_run_state
+    end if
+    if name = "section_results" then
+        return qtt_section_results
+    end if
+    if name = "section_output" then
+        return qtt_section_output
+    end if
+    if name = "section_variables" then
+        return qtt_section_variables
+    end if
+    if name = "recent_actions" then
+        return qtt_recent_actions
+    end if
+    if name = "where_was_i" then
+        return qtt_where_was_i
+    end if
+    if name = "git_status" then
+        return qtt_git_status
+    end if
+    if name = "git_history" then
+        return qtt_git_history
+    end if
+    if name = "list_widgets" then
+        return qtt_list_widgets
+    end if
+    error "the assistant has no callable for tool '" + name + "'"
+end function
+
+' Take a pulse off once its deadline has passed. `now` is a parameter so the
+' tier can say "later" without waiting for it.
+function qt_expire_pulse(app, now)
+    due = app["qt_pulse_until"]
+    if due = unknown then
+        return app
+    end if
+    if due = nothing then
+        return app
+    end if
+    if now > due then
+        app = studio_view_qt.clear_cue(G.win, app)
+    end if
+    return app
+end function
+
+' The `assistant` mode's helpers. A pointing request goes through the TOOL --
+' `studio_tools.invoke`, the permission gate -- and not by calling the renderer,
+' because what the tier is for is the path a model's request actually takes.
+function qt_point(widget, gesture, detail)
+    pol = studio_permissions.effective({ local: "auto" }, nothing, nothing)
+    r = studio_tools.invoke(G.app, G.log, pol, "point_at",
+                            { widget: widget, gesture: gesture, detail: detail }, "")
+    G.app = r.app
+    G.log = r.log
+    G.last_action = "point_at"
+    G.last_detail = r.why
+    if r.ok then
+        G.last_detail = studio_teaching.describe(r.value)
+    end if
+    return qt_redraw()
+end function
+
+' A scripted provider: asks for `git_status` once -- the tool the GTK wrapper
+' table never covered -- and then answers. The counter is a record FIELD, since
+' a function cannot rebind a top-level scalar.
+function qt_scripted_reply(m, req)
+    G.agent_round = G.agent_round + 1
+    if G.agent_round = 1 then
+        b = "{\"model\":\"c\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"git_status\",\"input\":{}}],\"usage\":{\"input_tokens\":1,\"output_tokens\":1},\"stop_reason\":\"tool_use\"}"
+        return { status: 200, headers: {}, body: b }
+    end if
+    b = "{\"model\":\"c\",\"content\":[{\"type\":\"text\",\"text\":\"You were in main.bas; nothing has run yet.\"}],\"usage\":{\"input_tokens\":1,\"output_tokens\":1},\"stop_reason\":\"end_turn\"}"
+    return { status: 200, headers: {}, body: b }
+end function
+
 ' ---- the header -----------------------------------------------------------
 
 function on_qt_save()
@@ -1349,6 +1557,7 @@ function qt_wire(win)
     win = qt_on(win, "snippet_btn", "clicked", on_qt_snippet)
     win = qt_on(win, "schema_btn", "clicked", on_qt_schema)
     win = qt_on(win, "bind_btn", "clicked", on_qt_bind)
+    win = qt_on(win, "ask_btn", "clicked", on_qt_ask)
     win = qt_on(win, "ov_edit", "clicked", on_qt_overlay_edit)
     win = qt_on(win, "ov_save", "clicked", on_qt_overlay_save)
     win = qt_on(win, "ov_compare", "clicked", on_qt_overlay_compare)
@@ -1422,6 +1631,12 @@ program main(args)
     load studio_style
     load studio_shell_qt
     load studio_view_qt
+    load studio_teaching
+    load studio_tools
+    load studio_agent
+    load studio_providers
+    load llm
+    load studio_permissions
 
     mode = "gui"
     if count(args) > 0 then
@@ -1483,6 +1698,8 @@ program main(args)
           schemawin: nothing, schema_tables: [], schema_columns: [],
           ' Wheel turn not yet spent as a zoom step -- see `on_qt_editor_wheel`.
           wheel_acc: 0,
+          ' The scripted provider's round counter, for the `assistant` mode.
+          agent_round: 0,
           ' The New Project window, which is a SECOND ordinary window rather
           ' than a modal one -- see `studio_shell_qt.new_project_window`.
           npwin: nothing,
@@ -1761,6 +1978,64 @@ program main(args)
         print qt.read(win, studio_shell_qt.part_editor(studio_docs.active_doc(G.app.dm).id), "plainText")
         print "-- and the strip names the statement just written --"
         print qt.read(win, "run_section", "text")
+        return nothing
+    end if
+
+    if mode = "assistant" then
+        ' THE ASSISTANT AND ITS TEACHING, pressed for real (STU-6, STU-10).
+        ' Run with no provider key in the environment and no secret-store key,
+        ' so "not configured" is deterministic; then a scripted transport.
+        rows = studio_ui.nav_rows(G.app)
+        ro = studio_ui.activate_row(G.app, rows, studio_qt_row_index(rows, "file", "main.bas"))
+        G.app = ro.app
+        nav = studio_ui.nav_rows(G.app)
+        G.app = studio_view_qt.render(win, G.app, "")
+        print "-- before anything is asked --"
+        print "  " + qt.read(win, "agent_body", "plainText")
+        print "-- Where was I?, with no key anywhere --"
+        z = qt.invoke(win, "ask_btn", "click")
+        print "  " + qt.read(win, "agent_body", "plainText")
+        print "-- every read tool the assistant is offered has a callable --"
+        print "  read tools " + string(qt_read_tool_count()) + ", wrapped " + string(count(qt_agent_tools()))
+        print "-- Where was I?, against a scripted provider that calls git_status first --"
+        G.agent_round = 0
+        h = llm.with_transport(llm.anthropic("claude-sonnet-4-6", "sk-offline"), qt_scripted_reply)
+        G.app["agent_handle"] = h
+        z = qt.invoke(win, "ask_btn", "click")
+        print "  rounds: " + string(G.agent_round)
+        print "  " + qt.read(win, "agent_body", "plainText")
+
+        print "-- every name the agent may point at resolves in THIS window --"
+        missing = []
+        for each nm in studio_teaching.names()
+            if studio_shell_qt.teach_target(G.app, nm).part = "" then
+                missing = append(missing, nm)
+            end if
+        end for
+        print "  unresolved: " + string(count(missing)) + " " + join(missing, ", ")
+        print "  the registry and teachable() agree: " + string(join(studio_teaching.names(), ",") = join(studio_shell_qt.teachable(), ","))
+        print "pointing at the Run button"
+        z = qt_point("run_button", "highlight", "")
+        print "  its sheet: " + qt.read(win, "run_btn", "styleSheet")
+        print "pulsing the name field (the Run button's highlight comes off)"
+        z = qt_point("name_field", "pulse", "")
+        print "  run button sheet: [" + qt.read(win, "run_btn", "styleSheet") + "]"
+        print "  name field pulsing: " + string(len(qt.read(win, studio_shell_qt.part_name_field(), "styleSheet")) > 0)
+        G.app = qt_expire_pulse(G.app, monotonic() + 60)
+        print "  and the pulse took itself off: " + string(qt.read(win, studio_shell_qt.part_name_field(), "styleSheet") = "")
+        print "revealing the Tables pane raises its dock"
+        z = qt_point("tables", "reveal", "")
+        print "  action=" + G.last_action + " — " + G.last_detail
+        ed = studio_shell_qt.part_editor(studio_docs.active_doc(G.app.dm).id)
+        print "annotating line 1 of the editor"
+        z = qt_point("editor", "annotate", "1")
+        print "  note marks: " + string(qt.marks(win, ed, "note"))
+        print "pointing somewhere else takes the notes away"
+        z = qt_point("branches", "highlight", "")
+        print "  note marks: " + string(qt.marks(win, ed, "note"))
+        print "pointing at something that is not there"
+        z = qt_point("run_panel", "highlight", "")
+        print "  action=" + G.last_action + " — " + G.last_detail
         return nothing
     end if
 
@@ -2463,6 +2738,10 @@ program main(args)
                 ' same reason the buffer is, and cheap: a read and two integer
                 ' comparisons when it has not moved.
                 G.app = qt_sync_caret(G.app)
+                ' A TEACHING PULSE ENDS BY ITSELF: the renderer left its
+                ' deadline on the app, and a renderer only runs when something
+                ' changes, so the tick is what notices the time has passed.
+                G.app = qt_expire_pulse(G.app, monotonic())
             end if
         end while
     end watch

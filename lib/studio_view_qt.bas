@@ -37,6 +37,7 @@ load studio_ui
 load studio_docs
 load studio_style
 load studio_shell_qt
+load studio_teaching
 
 library studio_view_qt
 
@@ -120,6 +121,17 @@ function render(win, app, notice)
     ' `git status` at that rate is a worse version of the mistake the two-entry
     ' split exists to avoid.
     z = qt.set(win, "git_body", "plainText", studio_ui.git_label(app))
+
+    ' THE ASSISTANT'S ANSWER, which lives on the app between redraws, or the
+    ' sentence saying what the button does when there is none yet.
+    answer = app["agent_answer"]
+    if answer = unknown then
+        answer = "Press Where was I? — the answer appears here. It needs a provider key: Studio looks in its secret store first, then the environment, and says which it used."
+    end if
+    z = qt.write(win, "agent_body", answer)
+
+    ' A TEACHING CUE the agent left, drawn and consumed.
+    app = studio_view_qt._cue(win, app)
 
     ' OVERLAY CONFLICTS ARE SURFACED on every full redraw and never acted on
     ' (design §9.3): a conflict that only appeared when you pressed Promote
@@ -402,6 +414,96 @@ function with_editor_handlers(app, node)
         node.items = out
     end if
     return node
+end function
+
+' DRAW A TEACHING CUE (STU-10) and CONSUME it: a cue left on the app would be
+' re-drawn by every later redraw, so the window would go on pointing at
+' something the agent said once. The previous cue is taken off first -- two
+' highlights at once would leave the first on a widget nothing will clear.
+'
+' A highlight or pulse is a style sheet on the part, scoped by an object name
+' set here for the purpose (`studio_teaching.qss`); a PULSE also leaves its
+' deadline on the app, and the entry point's poller takes it off when that
+' passes, since a renderer runs only when something changes. `reveal` raises
+' the dock the part is in; `focus` moves the keyboard; `annotate` puts `note`
+' marks in the editor's margin over the line range.
+function _cue(win, app)
+    c = app["teach"]
+    if c = unknown then
+        return app
+    end if
+    if c = nothing then
+        return app
+    end if
+    app["teach"] = nothing
+    if not c.ok then
+        return app
+    end if
+    app = studio_view_qt.clear_cue(win, app)
+    t = studio_shell_qt.teach_target(app, c.widget)
+    if t.part = "" then
+        return app
+    end if
+    if t.dock != "" then
+        z = qt.invoke(win, t.dock, "raise")
+    end if
+    if c.gesture = "annotate" then
+        r = studio_teaching.range_of(c.detail)
+        if r.ok then
+            lines = []
+            n = r.first
+            while n <= r.last
+                lines = append(lines, n)
+                n = n + 1
+            end while
+            z = qt.mark(win, t.part, "note", lines)
+            app["qt_teach_notes"] = t.part
+        end if
+        return app
+    end if
+    if c.gesture = "focus" then
+        z = qt.invoke(win, t.part, "setFocus")
+        return app
+    end if
+    if c.gesture = "reveal" then
+        if t.dock = "" then
+            z = qt.invoke(win, t.part, "setFocus")
+        end if
+        return app
+    end if
+    sheet = studio_teaching.qss(c.gesture, t.part)
+    if sheet = "" then
+        return app
+    end if
+    z = qt.set(win, t.part, "objectName", t.part)
+    z = qt.set(win, t.part, "styleSheet", sheet)
+    app["qt_teach_on"] = t.part
+    if c.gesture = "pulse" then
+        app["qt_pulse_until"] = monotonic() + studio_teaching.pulse_ms() / 1000
+    end if
+    return app
+end function
+
+' Take the last cue off: its style sheet, its pulse deadline, and any margin
+' notes an annotation left.
+function clear_cue(win, app)
+    ' `lit`, not `on`: ON is a reserved word.
+    lit = app["qt_teach_on"]
+    if lit != unknown then
+        if lit != nothing then
+            z = qt.set(win, lit, "styleSheet", "")
+        end if
+    end if
+    app["qt_teach_on"] = nothing
+    app["qt_pulse_until"] = nothing
+    notes = app["qt_teach_notes"]
+    if notes != unknown then
+        if notes != nothing then
+            z = qt.mark(win, notes, "note", [])
+        end if
+    end if
+    app["qt_teach_notes"] = nothing
+    return app
 end function
 
 function _tab_items(node)

@@ -935,6 +935,18 @@ function _branch_body(app)
         part("memo", "ov_diff", { readOnly: true }) ])
 end function
 
+' THE ASSISTANT PANE (STU-6): read-only, and it says so. One question --
+' "where was I?" -- because an assistant that can only look has one useful
+' thing to be asked; the answer lands in the box below.
+function _agent_body()
+    u = studio_style.unit()
+    return box("column", { margin: 0, spacing: u }, [
+        part("text", "agent_head",
+             { label: "Read-only: it can see your project, not change it." }),
+        part("button", "ask_btn", { label: "Where was I?" }),
+        part("memo", "agent_body", { readOnly: true }) ])
+end function
+
 function _side_docks(app)
     out = []
     for each p in studio_shell_qt.side_panes()
@@ -953,8 +965,12 @@ function _side_docks(app)
                     part("button", studio_shell_qt.part_fetch(),
                          { label: "Fetch all rows (runs the section again)" }) ])
             else
-                ' `results`, `git` and `agent` are prose and were never lists.
-                body = part("memo", p.id + "_body", {})
+                if p.id = "agent" then
+                    body = studio_shell_qt._agent_body()
+                else
+                    ' `results` and `git` are prose and were never lists.
+                    body = part("memo", p.id + "_body", {})
+                end if
             end if
         end if
         out = append(out, dock(studio_shell_qt.part_side_dock(p.id), p.label,
@@ -1111,7 +1127,9 @@ function _console(app)
     ' is a control whose parent can be destroyed under a live window, and under
     ' Qt it would additionally need a reconcile where `qt.set(… "visible" …)`
     ' does.
-    strip = box("row", { margin: 0, spacing: u }, [
+    ' NAMED, so the assistant can point at it (`teach_target`); a named row
+    ' carries no options, so it takes the default spacing.
+    strip = named("row", "run_strip", [
         part("button", "run_btn", { label: "Run Section" }),
         part("button", "run_all_btn", { label: "Run All" }),
         part("button", "stop_btn", { label: "Stop" }),
@@ -1143,6 +1161,75 @@ end function
 
 ' The right column's vocabulary, in the order STU-8/9/11/10 put them. A closed
 ' list, so a pane cannot be added by a renderer that happens to know a name.
+' ---- STU-10: what each teachable name IS in this window ----------------------
+'
+' `studio_teaching` decides whether a name and a gesture are allowed; this
+' answers WHERE: the part to mark, and the dock to raise first, since a cue on
+' a pane hidden behind another tab is a cue nobody sees.
+'
+' THREE NAMES POINT AT THE TOOLBAR, and that is a stated limit. `save_button`
+' is a QAction (a toolbar entry is not a widget), and `project_menu` and
+' `file_menu` are menu-bar menus, which gBASIC does not name at all -- and a
+' cue on an item inside a shut menu draws nothing and reports success, the
+' exact failure `agent_widgets` exists to stop. The toolbar holds Save, New
+' File, New Folder, Open Folder and Reload, so it is the honest nearest thing.
+function teach_target(app, name)
+    if name = "browser" then
+        return { part: studio_shell_qt.part_browser(), dock: studio_shell_qt.part_browser_dock() }
+    end if
+    if name = "tabs" then
+        return { part: studio_shell_qt.part_tabs(), dock: "" }
+    end if
+    if contains(["editor", "gutter"], name) then
+        doc = studio_docs.active_doc(app.dm)
+        if doc = nothing then
+            return { part: "", dock: "" }
+        end if
+        return { part: studio_shell_qt.part_editor(doc.id), dock: "" }
+    end if
+    if name = "run_strip" then
+        return { part: "run_strip", dock: studio_shell_qt.part_console_dock() }
+    end if
+    if name = "output" then
+        return { part: studio_shell_qt.part_console(), dock: studio_shell_qt.part_console_dock() }
+    end if
+    if name = "results" then
+        return { part: "results_body", dock: studio_shell_qt.part_side_dock("results") }
+    end if
+    if name = "branches" then
+        return { part: studio_shell_qt.part_branches(), dock: studio_shell_qt.part_side_dock("branch") }
+    end if
+    if name = "tables" then
+        return { part: studio_shell_qt.part_tables(), dock: studio_shell_qt.part_side_dock("tables") }
+    end if
+    if name = "assistant" then
+        return { part: "agent_body", dock: studio_shell_qt.part_side_dock("agent") }
+    end if
+    if name = "name_field" then
+        return { part: studio_shell_qt.part_name_field(), dock: "" }
+    end if
+    if name = "run_button" then
+        return { part: "run_btn", dock: studio_shell_qt.part_console_dock() }
+    end if
+    if name = "overlay_strip" then
+        return { part: "ov_edit", dock: studio_shell_qt.part_side_dock("branch") }
+    end if
+    if contains(["save_button", "project_menu", "file_menu"], name) then
+        return { part: studio_shell_qt.part_toolbar(), dock: "" }
+    end if
+    return { part: "", dock: "" }
+end function
+
+' Every name this window can resolve -- compared with `studio_teaching`'s
+' registry by `agent_widgets`, so a name the agent is told it may point at and
+' a name the window can find are the same set.
+function teachable()
+    return ["browser", "tabs", "editor", "gutter", "run_strip", "output",
+            "results", "branches", "tables", "assistant", "name_field",
+            "run_button", "save_button", "project_menu",
+            "file_menu", "overlay_strip"]
+end function
+
 function side_panes()
     out = []
     out = append(out, { id: "branch", label: "Branches" })

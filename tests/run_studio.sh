@@ -1119,6 +1119,7 @@ else
     printf 'SKIP qtview_schema (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_branch (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_overlay (this gBASIC has no qt module)\n'
+    printf 'SKIP qtview_assistant (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_reopen (this gBASIC has no qt module)\n'
 fi
 
@@ -1199,7 +1200,11 @@ fi
     qt_mode_tier() { # tier mode home proj description
         local tier="$1" mode="$2" home="$3" proj="$4" what="$5"
         : >"$stdout_file"; : >"$qt_err"
-        if QT_QPA_PLATFORM=offscreen \
+        # NO PROVIDER KEY reaches a Qt mode: the assistant's "not configured"
+        # sentence must not depend on who runs the suite, and nothing else here
+        # needs one.
+        if env -u ANTHROPIC_API_KEY -u OPENAI_API_KEY -u GBASIC_STUDIO_SECRET_KEY \
+                QT_QPA_PLATFORM=offscreen \
                 GBASIC_SYNTAX_PATH="${GBASIC_SYNTAX_PATH:-$(dirname "$GBASIC_STDLIB")/editors/kate}" \
                 timeout 120 "$GBASIC" app/studio_qt.bas "$mode" "$home" "$proj" \
                 >"$stdout_file" 2>"$qt_err"; then
@@ -1255,6 +1260,13 @@ fi
             > "$qp/branchy.bas"
         qt_mode_tier "qtview_$bm" "$bm" "$qh" "$qp" "the $bm controls pressed for real"
     done
+
+    # THE ASSISTANT AND ITS TEACHING under Qt (STU-6, STU-10): "not configured"
+    # with no key, a wrapper for every read tool, a scripted provider that
+    # calls a tool, every teachable name resolving, and all five gestures.
+    qh="$tmproot/qtview_assistant"; qp="$tmproot/qtview_assistant_proj"
+    rm -rf "$qh" "$qp"; mkdir -p "$qh"; mkproj_ui "$qp"
+    qt_mode_tier qtview_assistant assistant "$qh" "$qp" "Where was I? answered offline, and every cue drawn"
 
     # A SECOND LAUNCH OVER A HOME THAT HAS BEEN USED.
     #

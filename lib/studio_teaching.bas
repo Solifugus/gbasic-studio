@@ -195,6 +195,21 @@ library studio_teaching
         return join(lines, "\n") + "\n"
     end function
 
+    ' THE SAME TWO CUES FOR Qt, as a style sheet for ONE widget. Scoped by its
+    ' object name: a bare rule on a widget cascades to every child it has -- a
+    ' tree's header and scrollbars, a memo's viewport -- so `#name { … }` is
+    ' what makes the cue the widget's own. Same colour as the GTK sheet; a
+    ' border, because QSS has no `outline`.
+    function qss(gesture, name)
+        if gesture = "highlight" then
+            return "#" + name + " { border: 2px solid #d08770; }"
+        end if
+        if gesture = "pulse" then
+            return "#" + name + " { border: 3px solid #d08770; background-color: rgba(208, 135, 112, 38); }"
+        end if
+        return ""
+    end function
+
     ' What an annotation tints. A different colour from STU-5's section tint on
     ' purpose: one says "this is where you are" and the other says "look here",
     ' and if they matched, the second would be invisible inside the first.
