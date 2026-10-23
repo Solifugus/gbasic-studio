@@ -353,6 +353,7 @@ program main(args)
     ' rather than the string being written here and there.
     nav = studio_ui.nav_rows(app)
     branches = qt_branch_subject(app)
+    tables = studio_shell_qt.table_subject(studio_ui.table_rows(app).rows)
     print "  open:  " + string(qt.open(win))
 
     print "== what the window says about itself =="
@@ -444,6 +445,7 @@ program main(args)
     win = studio_shell_qt.window_for(app)
     nav = studio_ui.nav_rows(app)
     branches = qt_branch_subject(app)
+    tables = studio_shell_qt.table_subject(studio_ui.table_rows(app).rows)
     print "== one document, and something typed into it =="
     print "  open:  " + string(qt.open(win))
     print "  tabs:  " + string(qt.tabs(win, studio_shell_qt.part_tabs()))

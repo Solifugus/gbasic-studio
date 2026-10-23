@@ -193,11 +193,17 @@ function render_run(win, app)
     end for
     z = qt.refresh(win, studio_shell_qt.part_branches())
 
-    t = studio_view_qt._lines(win, "tables_body", studio_ui.table_rows(app),
-                              "(nothing tabular in the latest run)")
-    app = t
+    ' THE TABLES PANE IS A TABLE TOO, for the same reason: a row is clicked to
+    ' open the grid. The click dispatcher re-derives `table_rows` and indexes it
+    ' the way this list was built, and the "(nothing tabular...)" row sits past
+    ' the end of that array, so a click on it answers `no-table` by itself.
+    tr = studio_ui.table_rows(app)
+    app = tr.app
+    tables = studio_shell_qt.table_subject(tr.rows)
+    z = qt.refresh(win, studio_shell_qt.part_tables())
     return app
 end function
+
 
 ' THE GUTTER: a mark per line in the active editor's margin.
 '
@@ -242,26 +248,6 @@ function _one_based(lines)
         out = append(out, n + 1)
     end for
     return out
-end function
-
-' A pane whose model is a LIST OF ROWS, rendered as text.
-'
-' STATED AS A LIMIT RATHER THAN LEFT TO BE FOUND: under GTK these are listboxes
-' whose rows are CLICKABLE -- a branch is selected by clicking one, a table is
-' opened by clicking one -- and a memo of joined lines is not. Making them
-' tables (the one clickable list this vocabulary has) is the next increment;
-' the text is what keeps the pane honest in the meantime rather than empty.
-function _lines(win, part, model, empty)
-    out = []
-    for each r in model.rows
-        out = append(out, r.label)
-    end for
-    text = empty
-    if count(out) > 0 then
-        text = join(out, chr(10))
-    end if
-    z = qt.set(win, part, "plainText", text)
-    return model.app
 end function
 
 ' ---------------------------------------------------------------------------

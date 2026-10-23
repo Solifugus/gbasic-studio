@@ -1,0 +1,24 @@
+-- before any run --
+  the pane offers: (nothing tabular in the latest run)
+-- Run: running
+  finished: ran
+  the pane offers: rows: 1200 rows (DataGrid)
+-- selecting the offer opens the grid window --
+  action:  table
+  caption: rows: 50 of 1200 rows (sampled — the run that made them has ended)
+  rows:    50
+  columns: id, name, score
+  first:   0 | row 0 | 0
+  last:    49 | row 49 | 73.5
+-- Fetch all rows, which RUNS THE SECTION AGAIN --
+  action:  fetching (rows -> 1200 rows)
+  finished: ran
+  reopened: table
+  caption: rows: 1200 rows
+  rows:    1200
+  columns: id, name, score
+  first:   0 | row 0 | 0
+  last:    1199 | row 1199 | 1798.5
+-- the nothing-to-offer row opens nothing --
+  the pane offers: (nothing tabular in the latest run)
+  action:  no-table

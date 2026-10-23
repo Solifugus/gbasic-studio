@@ -556,11 +556,9 @@ toolkit-free. A rule written for testability bought a port.
   thing the reconcile exists to protect — so `_tabs` reads first. It is also
   why a new page's editor is filled by the renderer rather than at build time:
   the record carries shape, and text is state.
-- The branch and table panes are **memos of joined lines** for now, and that is
-  stated as a limit rather than left to be found: under GTK they are listboxes
-  whose rows are CLICKABLE (a branch is selected by clicking one, a table
-  opened by clicking one). Making them `table`s — the one clickable list this
-  vocabulary has — is the next increment.
+- The branch and Tables panes are `table`s, because their rows are CLICKABLE
+  (a branch is selected by clicking one, a table opened by clicking one) — see
+  the branch-pane entry below and the Tables-pane section.
 - **`timer.every` is the run poller**, at 0.0625s like the GTK `gi.timeout`,
   and only the FINAL tick of a run does a full redraw. It is guarded by
   `qt.is_open`, because a window can close without the program asking and every
@@ -747,11 +745,9 @@ toolkit-free. A rule written for testability bought a port.
   shell was composing that INLINE, which made it a rendering decision in a
   view. Both shells go through the one function now and the string is
   unchanged, which is why no GTK golden moved.
-- **The TABLES pane stays text, and the reason is scheduling rather than
-  taste**: its rows open a GRID WINDOW, which is the one area this conversion
-  leaves for last because a parallel session owns the data grid. A clickable row
-  there would have nowhere to go. `results`, `git` and `agent` are prose and
-  were never lists.
+- **The TABLES pane is a table too** — see "The Tables pane and the grid
+  window under Qt" below. `results`, `git` and `agent` are prose and were never
+  lists.
 - **EVERY SUBJECT THE RECORD DECLARES must exist in the frame that calls
   `qt.open`**, and there are two now. Adding the second broke both `qtshell`
   modes that open a window — `qt.open` refused the whole window — so the
@@ -1105,11 +1101,62 @@ theme's failure, one row down the Settings menu.
   wanted.
 - **The buffer and caret POLLS could now be `textChanged` handlers** by the
   same route. Not done here; the polls work and that is a separate change.
-- **No tier can press a key**, so whether `Ctrl++` matches the key a person
-  actually presses (Ctrl+= unshifted on a US layout is `Key_Equal`, not
-  `Key_Plus`) is a person's check.
+- **Zoom-in is TWO shortcuts, `Ctrl++` and `Ctrl+=`** (gBASIC §0.34,
+  `shortcut:` takes a list). Measured by the user on a US layout: with `Ctrl++`
+  alone, Ctrl+Shift+= zoomed and plain Ctrl+= did nothing, because it delivers
+  `Key_Equal`. **And keys ARE testable now**: `qt.key(win, part, combo)` sends a
+  real press through the shortcut map, and `qtview_press` presses both — with
+  the single shortcut put back, `Ctrl+=` reads `took=false`, the user's report.
+  `qt.key` presses the key Qt DELIVERS, not a physical one, so the layout is
+  not reproduced: Ctrl+Shift+= is pressed as `Ctrl++`.
 
-**THE PINNED INTERPRETER MOVED to gBASIC `1963388`**, which is what Ctrl+wheel
+#### The Tables pane and the grid window under Qt (STU-8)
+
+- **The pane is a `table` of offers and a Fetch button**; a row opens a SECOND
+  ordinary window (`studio_shell_qt.table_window`), New Project's shape. The
+  grid in it is a `table to ask` (gBASIC §0.25): the record carries
+  `direction: "ask"` and `subject:` the NAME of a function, resolved per cell
+  — `qt_table_cell(row, column)` in the entry point, which reads `G.table_src`
+  and writes it back so an export row is decoded once.
+- **ONE TIER, where GTK had two.** GTK drew a small table as labels and a large
+  one through `datagrid`, because a GtkColumnView cost something to stand up; a
+  Qt asking table costs the VIEWPORT (upstream measured ~27 cells for a hundred
+  rows or a million), so there is nothing to fork on. `studio_table`'s
+  `offer_line` still says "(DataGrid)" for the large tier, because the GTK
+  window still uses it; that wording goes when GTK does.
+- The columns are DATA, so the window is a function of the source. A field is
+  `c0`, `c1`… because a column is somebody's key and a part name cannot be any
+  string.
+- **ONE GRID WINDOW AT A TIME**, the GTK constraint kept for the GTK reason: the
+  cell function is handed (row, column) and cannot tell which grid asks.
+- **SELECTION OPENS, and the selection is then LET GO.** Measured: closing the
+  grid and selecting the same offer again did nothing, because a selection that
+  does not change fires nothing — a dead pane to a person clicking twice. The
+  handler clears it with `qt.select(..., unknown)` inside the re-entrancy guard,
+  since clearing is a selection change too. Fetch acts on the row last opened
+  (`G.table_index`), the GTK "selected row, or the first".
+- `table_subject` is in `studio_shell_qt`, not the renderer, because the entry
+  point, the renderer AND the Qt-free `qtshell` driver all bind the subject
+  before `qt.open` — and that driver must not load a Qt-calling library.
+- **`qtview_tables` reads CELLS back**, first and last row of every column, at
+  the sample (50 of 1,200) and after Fetch (1,200). A column shifted by one was
+  tried and goes red: plausible text under the wrong heading is exactly what a
+  grid gets wrong silently.
+
+#### A Qt tier that SKIPPED was hiding a failure
+
+Three Qt tiers reported `SKIP (this gBASIC has no Qt backend)` on a build whose
+other three Qt tiers PASSED. The rule skipped whenever `qt.` was absent from
+STDOUT, and a mode that raises does so on STDERR — here a stale read of the
+`tables_body` memo the Tables pane used to be. **Every Qt tier now keeps its
+stderr and skips only on gBASIC's own words for a Qt-less build** ("Qt support
+is not available in this build"), failing with stderr shown on anything else.
+The skip path itself is not exercised: there is no Qt-less build here to run it
+against. `qtview_tables` additionally fails on any `runtime error` in stderr,
+because a raise inside a handler exits 0.
+
+**THE PINNED INTERPRETER MOVED to gBASIC `931bea2`** (§0.34: several shortcuts
+on an item, and `qt.key`). Before that `1963388`, which is what Ctrl+wheel
 needed (3d3f7d9: `qt.refresh` connects the handlers of what it builds;
 1963388: `qt.wheel()` carries the unrounded `dy_exact`). Before
 that, `a9f1187` for `qt.caret` (§0.32) and the clipboard (§0.33), and `c4df516`

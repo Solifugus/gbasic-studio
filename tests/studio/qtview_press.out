@@ -48,7 +48,12 @@
   text-smaller  115% -> the editor is at 115%
   text-reset    100% -> the editor is at 100%
   a tab opened at 115%: zoomed.bas is at 115%
-  shortcuts: Ctrl++ / Ctrl+- / Ctrl+0
+  shortcuts: Ctrl++ or Ctrl+= / Ctrl+- / Ctrl+0
+  key Ctrl++ took=true, 115%
+  key Ctrl+= took=true, 130%
+  key Ctrl+- took=true, 115%
+  key Ctrl+- took=true, 100%
+  key Ctrl+0 took=true, 100%
 -- Ctrl+wheel, on editors a REFRESH built --
   plain wheel on zoomed.bas: claimed=false, 100%
   Ctrl+wheel away:   claimed=true, 115%

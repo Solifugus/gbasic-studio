@@ -279,6 +279,49 @@ function part_branches()
     return "branch_list"
 end function
 
+' THE TABLES PANE (STU-8), the same arrangement the branch pane has: a table
+' that shows a subject read out of the frame that calls `qt.open`/`qt.refresh`.
+function tables_subject()
+    return "tables"
+end function
+
+' What the Tables pane's table shows: one row per offer, or one row saying
+' there are none -- a blank table reads as a pane that failed to fill.
+function table_subject(rows)
+    out = []
+    for each r in rows
+        out = append(out, { label: r.label })
+    end for
+    if count(out) = 0 then
+        out = append(out, { label: "(nothing tabular in the latest run)" })
+    end if
+    return out
+end function
+
+function part_tables()
+    return "table_list"
+end function
+
+function part_fetch()
+    return "fetch_btn"
+end function
+
+' THE GRID WINDOW, and the name of the FUNCTION its table asks for cells.
+' Written once here because `qt.open` resolves it by NAME, per cell, out of
+' the program -- so it lives in `app/studio_qt.bas`, which is where a function
+' reading Studio's global can be.
+function table_window_name()
+    return "tablewin"
+end function
+
+function part_grid()
+    return "grid"
+end function
+
+function grid_cell_fn()
+    return "qt_table_cell"
+end function
+
 ' A DOCK'S NAME IS WHAT QT KEYS A SAVED LAYOUT BY, so every one is written here
 ' and nowhere else -- measured upstream, a dock with no `objectName` makes
 ' `saveState` WARN and omit it, so "restore my layout" would come back silently
@@ -495,6 +538,45 @@ end function
 ' The New Project window.
 ' ---------------------------------------------------------------------------
 
+' THE GRID WINDOW: one table, built from the columns the source HAS.
+'
+' ONE TIER, where GTK had two. The GTK window drew a modest table as a grid of
+' labels and a large one through `datagrid`, because a GtkColumnView cost
+' something to stand up; a Qt `table to ask` costs the VIEWPORT -- measured
+' upstream, about 27 cells whether the table has a hundred rows or a million
+' -- so there is nothing to fork on. The columns are DATA here and not a
+' declaration, which is why this is a function of the source.
+'
+' A field is named `c0`, `c1`... rather than after its column: a column is
+' somebody's key, which can be any string, and a part name cannot.
+'
+' The caption is `studio_table.caption`, the same sentence the headless goldens
+' assert, so the window cannot quietly say something kinder than the model --
+' it is where a sample admits to being one.
+function table_window(caption, cols)
+    u = studio_style.unit()
+    fields = []
+    i = 0
+    for each c in cols
+        fields = append(fields, column_of("c" + string(i), string(c)))
+        i = i + 1
+    end for
+    body = []
+    body = append(body, part("text", "grid_caption", { label: caption }))
+    if count(fields) > 0 then
+        body = append(body, { kind: "container", word: "table",
+                              name: studio_shell_qt.part_grid(),
+                              direction: "ask",
+                              subject: studio_shell_qt.grid_cell_fn(),
+                              items: fields })
+    else
+        body = append(body, part("text", "grid_empty", { label: "(nothing to show)" }))
+    end if
+    return { kind: "window", name: studio_shell_qt.table_window_name(),
+             options: { title: "gBASIC Studio — table", width: 900, height: 600 },
+             items: [ box("column", { margin: u, spacing: u }, body) ] }
+end function
+
 function new_project_name()
     return "newproj"
 end function
@@ -616,8 +698,13 @@ function _item_for(app, action)
         opts.checked = studio_ui.menu_checked(app, action)
     end if
     shortcut = studio_shell_qt.shortcut_for(action)
-    if shortcut != "" then
+    ' A LIST is several alternatives, a text one shortcut (gBASIC §0.34).
+    if is_array(shortcut) then
         opts.shortcut = shortcut
+    else
+        if shortcut != "" then
+            opts.shortcut = shortcut
+        end if
     end if
     return part("item", studio_shell_qt.part_item(action), opts)
 end function
@@ -632,8 +719,13 @@ end function
 ' So the exception closes: the accelerator is part of the record, which the
 ' headless tier reads.
 function shortcut_for(action)
+    ' TWO KEYS, because they are two keys. "+" is SHIFTED on most layouts, so
+    ' a person pressing Ctrl and the "=/+" key delivers Key_Equal, which
+    ' `Ctrl++` does not match: measured by the user on a US layout, Ctrl+Shift+=
+    ' zoomed and plain Ctrl+= did nothing. Kate binds both, and gBASIC's §0.34
+    ' made a list of alternatives possible (QAction::setShortcuts).
     if action = "text-bigger" then
-        return "Ctrl++"
+        return ["Ctrl++", "Ctrl+="]
     end if
     if action = "text-smaller" then
         return "Ctrl+-"
@@ -710,12 +802,21 @@ function _side_docks(app)
                               studio_shell_qt.branch_subject(),
                               [ column_of("line", "Branch") ])
         else
-            ' Still a memo, and the reason differs by pane. `tables`'s rows open
-            ' a GRID WINDOW, the one area this conversion leaves for last
-            ' because a parallel session owns the data grid, so a clickable row
-            ' would have nowhere to go. `results`, `git` and `agent` are prose
-            ' and were never lists.
-            body = part("memo", p.id + "_body", {})
+            if p.id = "tables" then
+                ' THE TABLE OFFERS, CLICKABLE: a row opens the grid window.
+                ' Fetch re-runs the section, and its label says so -- a button
+                ' that silently re-executed somebody's code would be a worse
+                ' surprise than a slow one.
+                body = box("column", { margin: 0, spacing: studio_style.unit() }, [
+                    show_table(studio_shell_qt.part_tables(),
+                               studio_shell_qt.tables_subject(),
+                               [ column_of("label", "Table") ]),
+                    part("button", studio_shell_qt.part_fetch(),
+                         { label: "Fetch all rows (runs the section again)" }) ])
+            else
+                ' `results`, `git` and `agent` are prose and were never lists.
+                body = part("memo", p.id + "_body", {})
+            end if
         end if
         out = append(out, dock(studio_shell_qt.part_side_dock(p.id), p.label,
                                [ body ]))

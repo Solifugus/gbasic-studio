@@ -1009,6 +1009,14 @@ if GBASIC_PATH="$GBASIC_STDLIB" timeout 60 "$GBASIC" "$qtprobe" >/dev/null 2>&1;
     # definition the user installed in their own home SHADOWS it and reports
     # the identical language name, which is why the golden holds the language
     # and never the file.
+    # EVERY Qt TIER KEEPS ITS STDERR, and SKIPS ONLY ON gBASIC'S OWN WORDS for
+    # a build without Qt. The old rule skipped whenever `qt.` was missing from
+    # STDOUT -- so a tier whose mode raised on stderr reported "this gBASIC has
+    # no Qt backend" about a build that plainly had one. Found when three tiers
+    # skipped beside three that passed on the same binary, hiding a stale
+    # `tables_body` read.
+    qt_err="$tmproot/qt_tier.err"
+    : >"$qt_err"
     qh="$tmproot/qtshell_open"; qp="$tmproot/qtshell_open_proj"
     rm -rf "$qh" "$qp"; mkdir -p "$qh"
     mkproj_ui "$qp"
@@ -1016,15 +1024,15 @@ if GBASIC_PATH="$GBASIC_STDLIB" timeout 60 "$GBASIC" "$qtprobe" >/dev/null 2>&1;
     if QT_QPA_PLATFORM=offscreen \
             GBASIC_SYNTAX_PATH="${GBASIC_SYNTAX_PATH:-$(dirname "$GBASIC_STDLIB")/editors/kate}" \
             timeout 120 "$GBASIC" "$QTSH" open "$qh" "$qp" \
-            >"$stdout_file" 2>/dev/null; then
+            >"$stdout_file" 2>"$qt_err"; then
         if diff -u tests/studio/qtshell_open.out "$stdout_file"; then
             printf 'PASS qtshell_open (the whole window built and read back, with no display)\n'
         else
             fail "qtshell_open (output diff)"
         fi
     else
-        if grep -q 'qt.open\|could not' "$stdout_file"; then
-            cat "$stdout_file"; fail "qtshell_open (nonzero exit)"
+        if ! grep -q 'Qt support is not available' "$qt_err"; then
+            cat "$stdout_file" "$qt_err"; fail "qtshell_open (nonzero exit)"
         else
             printf 'SKIP qtshell_open (this gBASIC has no Qt backend)\n'
         fi
@@ -1048,15 +1056,15 @@ if GBASIC_PATH="$GBASIC_STDLIB" timeout 60 "$GBASIC" "$qtprobe" >/dev/null 2>&1;
     if QT_QPA_PLATFORM=offscreen \
             GBASIC_SYNTAX_PATH="${GBASIC_SYNTAX_PATH:-$(dirname "$GBASIC_STDLIB")/editors/kate}" \
             timeout 120 "$GBASIC" "$QTSH" reconcile "$qh" "$qp" \
-            >"$stdout_file" 2>/dev/null; then
+            >"$stdout_file" 2>"$qt_err"; then
         if diff -u tests/studio/qtshell_reconcile.out "$stdout_file"; then
             printf 'PASS qtshell_reconcile (a tab set grew, a caption moved, and the editor kept its text)\n'
         else
             fail "qtshell_reconcile (output diff)"
         fi
     else
-        if grep -q 'qt.refresh\|qt.open' "$stdout_file"; then
-            cat "$stdout_file"; fail "qtshell_reconcile (nonzero exit)"
+        if ! grep -q 'Qt support is not available' "$qt_err"; then
+            cat "$stdout_file" "$qt_err"; fail "qtshell_reconcile (nonzero exit)"
         else
             printf 'SKIP qtshell_reconcile (this gBASIC has no Qt backend)\n'
         fi
@@ -1090,15 +1098,15 @@ if GBASIC_PATH="$GBASIC_STDLIB" timeout 60 "$GBASIC" "$qtprobe2" >/dev/null 2>&1
     if QT_QPA_PLATFORM=offscreen \
             GBASIC_SYNTAX_PATH="${GBASIC_SYNTAX_PATH:-$(dirname "$GBASIC_STDLIB")/editors/kate}" \
             timeout 120 "$GBASIC" app/studio_qt.bas probe "$qh" "$qp" \
-            >"$stdout_file" 2>/dev/null; then
+            >"$stdout_file" 2>"$qt_err"; then
         if diff -u tests/studio/qtview_probe.out "$stdout_file"; then
             printf 'PASS qtview_probe (the Qt application opened, rendered and reacted, with no display)\n'
         else
             fail "qtview_probe (output diff)"
         fi
     else
-        if grep -q 'qt\.' "$stdout_file"; then
-            cat "$stdout_file"; fail "qtview_probe (nonzero exit)"
+        if ! grep -q 'Qt support is not available' "$qt_err"; then
+            cat "$stdout_file" "$qt_err"; fail "qtview_probe (nonzero exit)"
         else
             printf 'SKIP qtview_probe (this gBASIC has no Qt backend)\n'
         fi
@@ -1106,6 +1114,7 @@ if GBASIC_PATH="$GBASIC_STDLIB" timeout 60 "$GBASIC" "$qtprobe2" >/dev/null 2>&1
 else
     printf 'SKIP qtview_probe (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_press (this gBASIC has no qt module)\n'
+    printf 'SKIP qtview_tables (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_reopen (this gBASIC has no qt module)\n'
 fi
 
@@ -1129,17 +1138,53 @@ fi
     if QT_QPA_PLATFORM=offscreen \
             GBASIC_SYNTAX_PATH="${GBASIC_SYNTAX_PATH:-$(dirname "$GBASIC_STDLIB")/editors/kate}" \
             timeout 120 "$GBASIC" app/studio_qt.bas press "$qh" "$qp" \
-            >"$stdout_file" 2>/dev/null; then
+            >"$stdout_file" 2>"$qt_err"; then
         if diff -u tests/studio/qtview_press.out "$stdout_file"; then
             printf 'PASS qtview_press (every control pressed for real, with no display)\n'
         else
             fail "qtview_press (output diff)"
         fi
     else
-        if grep -q 'qt\.' "$stdout_file"; then
-            cat "$stdout_file"; fail "qtview_press (nonzero exit)"
+        if ! grep -q 'Qt support is not available' "$qt_err"; then
+            cat "$stdout_file" "$qt_err"; fail "qtview_press (nonzero exit)"
         else
             printf 'SKIP qtview_press (this gBASIC has no Qt backend)\n'
+        fi
+    fi
+
+    # THE TABLES PANE AND THE GRID WINDOW (STU-8 under Qt).
+    #
+    # The run keeps a 50-row SAMPLE of 1,200 records, so the first open is a
+    # sample that says so; Fetch re-runs the section and the second open is the
+    # whole table. It reads CELLS back -- first and last row, every column --
+    # because a wrong column mapping or a row offset shows plausible text under
+    # the wrong heading, and the fixture's own numbering is what exposes that.
+    #
+    # STDERR IS CHECKED, not discarded: a raise inside a Qt handler abandons the
+    # handler and the process still exits 0 (CLAUDE.md, the tab menu), so a
+    # handler that died would otherwise read as a golden that merely moved.
+    qh="$tmproot/qtview_tables"; qp="$tmproot/qtview_tables_proj"
+    rm -rf "$qh" "$qp"; mkdir -p "$qh" "$qp"
+    printf 'rows = []\nn = 0\nwhile n < 1200\n  rows = append(rows, { id: n, name: "row " + n, score: n * 1.5 })\n  n = n + 1\nend while\nprint "built " + count(rows)\n' \
+        > "$qp/tabular.bas"
+    : >"$stdout_file"
+    if QT_QPA_PLATFORM=offscreen \
+            GBASIC_SYNTAX_PATH="${GBASIC_SYNTAX_PATH:-$(dirname "$GBASIC_STDLIB")/editors/kate}" \
+            timeout 120 "$GBASIC" app/studio_qt.bas tables "$qh" "$qp" \
+            >"$stdout_file" 2>"$qt_err"; then
+        if grep -q 'runtime error' "$qt_err"; then
+            grep 'runtime error' "$qt_err"; fail "qtview_tables (a handler raised)"
+        fi
+        if diff -u tests/studio/qtview_tables.out "$stdout_file"; then
+            printf 'PASS qtview_tables (the Tables pane opens a grid, sample then fetched)\n'
+        else
+            fail "qtview_tables (output diff)"
+        fi
+    else
+        if ! grep -q 'Qt support is not available' "$qt_err"; then
+            cat "$stdout_file" "$qt_err"; fail "qtview_tables (nonzero exit)"
+        else
+            printf 'SKIP qtview_tables (this gBASIC has no Qt backend)\n'
         fi
     fi
 
@@ -1168,12 +1213,13 @@ fi
     mkproj_ui "$qp"
     : >"$stdout_file"
     reopen_ok=yes
+    : >"$qt_err"
     for pass in 1 2; do
         printf -- '===== launch %s =====\n' "$pass" >>"$stdout_file"
         if ! QT_QPA_PLATFORM=offscreen \
                 GBASIC_SYNTAX_PATH="${GBASIC_SYNTAX_PATH:-$(dirname "$GBASIC_STDLIB")/editors/kate}" \
                 timeout 120 "$GBASIC" app/studio_qt.bas reopen "$qh" "$qp" \
-                >>"$stdout_file" 2>/dev/null; then
+                >>"$stdout_file" 2>>"$qt_err"; then
             reopen_ok=no
             break
         fi
@@ -1185,8 +1231,8 @@ fi
             fail "qtview_reopen (output diff)"
         fi
     else
-        if grep -q 'qt\.' "$stdout_file"; then
-            cat "$stdout_file"; fail "qtview_reopen (nonzero exit)"
+        if ! grep -q 'Qt support is not available' "$qt_err"; then
+            cat "$stdout_file" "$qt_err"; fail "qtview_reopen (nonzero exit)"
         else
             printf 'SKIP qtview_reopen (this gBASIC has no Qt backend)\n'
         fi

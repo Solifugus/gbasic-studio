@@ -73,9 +73,14 @@ A tab's own right-click menu works there too — Close and Copy file path, actin
 on the tab you clicked rather than the one you are looking at, so closing a
 background tab does not first switch you to it.
 
-It is not the default yet. One thing is still missing, and it says so rather
-than being silently wrong: the Tables pane is text where it should be a list,
-which waits on the data grid. One limit is worth naming: *Follow the desktop* there
+The Tables pane works there now: a result that looks like a table is offered
+in it, clicking the offer opens the rows in a window of their own — the
+sample the run kept, labelled as a sample — and *Fetch all rows* re-runs the
+section to show the whole table. The editor's text size follows Ctrl+= or
+Ctrl++, Ctrl+−, Ctrl+0 and Ctrl with the mouse wheel.
+
+It is not the default yet; nothing the GTK window does is missing from it any
+more, and the switch is the next step. One limit is worth naming: *Follow the desktop* there
 means Studio applies no sheet of its own, because Qt gives it no way to ask
 whether your desktop is dark — so on a dark desktop, choose Dark. Everything else Studio asked of the language got built
 — a notebook whose set of tabs can change, a tree, a margin with marks, and the

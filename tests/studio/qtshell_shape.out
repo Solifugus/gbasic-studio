@@ -78,7 +78,10 @@ window studio
     dock dock_results "For the section at the cursor"
       memo results_body
     dock dock_tables "Tables"
-      memo tables_body
+      column
+        table table_list to show tables
+          field label
+        button fetch_btn
     dock dock_git "Git"
       memo git_body
     dock dock_agent "Assistant"
@@ -108,7 +111,7 @@ window studio
   /studio/mi_close_tab                                label=Close Tab shortcut=Ctrl+W toolTip=Close the active document's tab. Unsaved text is discarded, so press it twice — the first press arms it.
   /studio/mi_theme_system                             checkable=true checked=true label=Follow the desktop toolTip=Follow your desktop: Studio adds nothing and looks like the rest of your system.
   /studio/mi_theme_dark                               checkable=true checked=false label=Dark toolTip=Studio's own dark look — the whole window, not just the editor — whatever your desktop is set to. Takes effect at once.
-  /studio/mi_text_bigger                              label=Bigger editor text shortcut=Ctrl++ toolTip=Enlarge the code, and only the code. Ctrl and the mouse wheel do the same. The rest of the window follows your desktop's font setting.
+  /studio/mi_text_bigger                              label=Bigger editor text shortcut=["Ctrl++","Ctrl+="] toolTip=Enlarge the code, and only the code. Ctrl and the mouse wheel do the same. The rest of the window follows your desktop's font setting.
   /studio/mi_text_smaller                             label=Smaller editor text shortcut=Ctrl+- toolTip=Shrink the code, and only the code. Ctrl and the mouse wheel do the same.
   /studio/mi_text_reset                               label=Reset editor text size shortcut=Ctrl+0 toolTip=Back to the size your desktop's font setting gives.
   /studio/mi_restore_session                          checkable=true checked=true label=Reopen last session on start toolTip=Whether Studio reopens the projects and files you had open. Read when Studio starts, so it takes effect on the next launch.
@@ -143,6 +146,9 @@ window studio
   /studio/bottom/dock_console/console/target_head     label=Target output — the section you ran
   /studio/bottom/dock_console/console/err_head        label=Errors
   /studio/right/dock_branch/branch_list/line          label=Branch
+  /studio/right/dock_tables                           margin=0 spacing=6
+  /studio/right/dock_tables/table_list/label          label=Table
+  /studio/right/dock_tables/fetch_btn                 label=Fetch all rows (runs the section again)
   /studio/status                                      label=ready — ws — 1 project(s) — 0 open
   /studio                                             margin=0 spacing=0
   /studio                                             margin=6 spacing=6
@@ -150,7 +156,7 @@ window studio
   /studio/book/page_welcome                           margin=12 spacing=6
   /studio/book/page_welcome/welcome                   label=Open a file from the browser, or File ▸ New File.
 == every name it declares ==
-  mi_new_project mi_open_folder mi_project_file mi_close_project mi_new_file mi_new_folder mi_rename mi_delete mi_reload mi_close_tab mi_theme_system mi_theme_dark mi_text_bigger mi_text_smaller mi_text_reset mi_restore_session nav_menu ctx_open ctx_new_file_here ctx_new_folder_here ctx_rename ctx_delete ctx_project_file ctx_close_project tab_menu tabm_tab_close tabm_tab_copy_path toolbar save tb_reload tb_open_folder tb_new_file tb_new_folder dock_files files text depth dock_console console run_btn run_all_btn stop_btn snippet_btn schema_btn run_section run_standing run_state run_branch prefix_head prefix_body target_head target_body err_head err_body dock_branch branch_list dock_results results_body dock_tables tables_body dock_git git_body dock_agent agent_body status name_field book page_welcome welcome
+  mi_new_project mi_open_folder mi_project_file mi_close_project mi_new_file mi_new_folder mi_rename mi_delete mi_reload mi_close_tab mi_theme_system mi_theme_dark mi_text_bigger mi_text_smaller mi_text_reset mi_restore_session nav_menu ctx_open ctx_new_file_here ctx_new_folder_here ctx_rename ctx_delete ctx_project_file ctx_close_project tab_menu tabm_tab_close tabm_tab_copy_path toolbar save tb_reload tb_open_folder tb_new_file tb_new_folder dock_files files text depth dock_console console run_btn run_all_btn stop_btn snippet_btn schema_btn run_section run_standing run_state run_branch prefix_head prefix_body target_head target_body err_head err_body dock_branch branch_list dock_results results_body dock_tables table_list fetch_btn dock_git git_body dock_agent agent_body status name_field book page_welcome welcome
 == the title carries the marker too, which is conventional ==
   cold: gBASIC Studio — ws
 == and where the record puts each dock, before any window exists ==

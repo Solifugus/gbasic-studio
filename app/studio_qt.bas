@@ -481,6 +481,130 @@ function on_qt_editor_wheel()
     return qt_took(r)
 end function
 
+' ---- the Tables pane and the grid window (STU-8) ---------------------------
+'
+' A row of the Tables pane was selected: open it. `open_table` decides what is
+' on screen -- an export when one matches, the capture's sample otherwise, and
+' the caption saying which -- and this is the adapter around it.
+'
+' ONE GRID WINDOW AT A TIME, the GTK constraint kept for the same reason: the
+' cell function is handed (row, column) and nothing else, so it cannot tell
+' which grid is asking, and every grid would read the one `G.table_src`. A
+' second open window would repaint itself with the newest table's rows the
+' moment it scrolled. Replacing the window keeps the invariant the callback has.
+'
+' SELECTION OPENS, as it selects a branch: `qt.select` fires
+' `itemSelectionChanged` and nothing can synthesise a click. The pane's rows are
+' few, and the one remembered (`G.table_index`) is what Fetch acts on.
+function on_qt_table_row()
+    if G.redrawing then
+        return nothing
+    end if
+    idx = qt.selected(G.win, studio_shell_qt.part_tables())
+    if is_unknown(idx) then
+        return nothing
+    end if
+    tr = studio_ui.table_rows(G.app)
+    G.app = tr.app
+    r = studio_ui.open_table(G.app, tr.rows, idx)
+    if r.action = "table" then
+        G.table_index = idx
+        z = qt_open_grid(r.caption, r.src)
+    end if
+    z = qt_took(r)
+    ' AND THE SELECTION IS LET GO, or the row cannot be opened twice: a click
+    ' on the row already selected changes nothing, fires nothing, and reads as
+    ' a dead pane -- found by the tier, which closed the grid and selected the
+    ' same offer again. Inside the guard, because clearing it is a selection
+    ' change too and echoes straight back here.
+    G.redrawing = true
+    z = qt.select(G.win, studio_shell_qt.part_tables(), unknown)
+    G.redrawing = false
+    return nothing
+end function
+
+function qt_open_grid(caption, src)
+    if G.tablewin != nothing then
+        if qt.is_open(G.tablewin) then
+            z = qt.close(G.tablewin)
+        end if
+    end if
+    G.table_src = src
+    G.tablewin = studio_shell_qt.table_window(caption, src.cols)
+    z = qt.open(G.tablewin)
+    ' HOW MANY ROWS, which is the one thing a `to ask` table is told rather than
+    ' asks: `known` is what the source can actually show -- the sample's rows,
+    ' or an export's lines -- and never the run's total, which the caption
+    ' states beside it.
+    if count(src.cols) > 0 then
+        z = qt.rows(G.tablewin, studio_shell_qt.part_grid(), src.known)
+    end if
+    return nothing
+end function
+
+' THE GRID'S CELL FUNCTION, resolved BY NAME (`studio_shell_qt.grid_cell_fn`)
+' and called per VISIBLE cell -- so it cannot close over a source and reads the
+' global, exactly like the GTK `table_cell`. It WRITES the source back because
+' decoding an export row is what fills its cache; dropping it would re-decode
+' the same row on every paint.
+function qt_table_cell(row, column)
+    if G.table_src = nothing then
+        return ""
+    end if
+    r = studio_table.cell(G.table_src, row, column)
+    G.table_src = r.src
+    return r.text
+end function
+
+' FETCH re-runs the section with one extra epilogue writing the variable out,
+' and polls like Run, because it IS a run. It acts on the row last opened --
+' the GTK shell's "selected row, or the first" -- since a refresh between the
+' click and the press can clear the table's own selection.
+function on_qt_fetch()
+    tr = studio_ui.table_rows(G.app)
+    G.app = tr.app
+    r = studio_ui.fetch_table(G.app, tr.rows, G.table_index)
+    G.polling = r.active
+    return qt_took(r)
+end function
+
+' The `tables` mode's two helpers. A run is waited for on a CLOCK, never a
+' tick count -- `acts_task` drove one with `while n < 400` and read an empty
+' result whenever the child had not been scheduled yet -- and the backstop SAYS
+' it timed out rather than reporting an empty pane as the answer.
+function qt_tables_wait()
+    deadline = monotonic() + 60
+    active = true
+    while active
+        t = studio_ui.tick_run(G.app)
+        G.app = t.app
+        active = t.active
+        if active then
+            if monotonic() > deadline then
+                return "TIMED OUT"
+            end if
+            sleep(0.0625)
+        else
+            G.last_action = t.action
+            G.last_detail = t.detail
+        end if
+    end while
+    z = qt_redraw()
+    return G.last_action
+end function
+
+function qt_tables_report()
+    tw = G.tablewin
+    g = studio_shell_qt.part_grid()
+    print "  caption: " + qt.read(tw, "grid_caption", "text")
+    n = qt.rows(tw, g)
+    print "  rows:    " + string(n)
+    print "  columns: " + qt.heading(tw, g, 0) + ", " + qt.heading(tw, g, 1) + ", " + qt.heading(tw, g, 2)
+    print "  first:   " + qt.cell(tw, g, 0, "c0") + " | " + qt.cell(tw, g, 0, "c1") + " | " + qt.cell(tw, g, 0, "c2")
+    print "  last:    " + qt.cell(tw, g, n - 1, "c0") + " | " + qt.cell(tw, g, n - 1, "c1") + " | " + qt.cell(tw, g, n - 1, "c2")
+    return nothing
+end function
+
 ' ---- the header -----------------------------------------------------------
 
 function on_qt_save()
@@ -835,6 +959,14 @@ function on_qt_closed()
     if not qt.is_open(G.win) then
         return nothing
     end if
+    ' The grid window goes with the main one: it shows a result of THIS
+    ' window's run, and left open it would keep the loop alive after the
+    ' window the user closed -- with the session not yet written.
+    if G.tablewin != nothing then
+        if qt.is_open(G.tablewin) then
+            z = qt.close(G.tablewin)
+        end if
+    end if
     w = qt.read(G.win, studio_shell_qt.window_name(), "width")
     h = qt.read(G.win, studio_shell_qt.window_name(), "height")
     session = G.app.model.session
@@ -869,6 +1001,8 @@ function qt_wire(win)
     win = qt_on(win, files, "itemClicked", on_qt_nav_clicked)
     win = qt_on(win, files, "customContextMenuRequested", on_qt_nav_context)
     win = qt_on(win, studio_shell_qt.part_branches(), "itemSelectionChanged", on_qt_branch_row)
+    win = qt_on(win, studio_shell_qt.part_tables(), "itemSelectionChanged", on_qt_table_row)
+    win = qt_on(win, studio_shell_qt.part_fetch(), "clicked", on_qt_fetch)
     win = qt_on(win, studio_shell_qt.part_tabs(), "currentChanged", on_qt_tab_changed)
     ' Naming the handler is what asks for the context-menu policy, as for the
     ' browser.
@@ -1006,6 +1140,9 @@ program main(args)
           ' The DOCUMENT a tab's right-click menu was raised on, and whether
           ' it appeared -- see `on_qt_tab_context`.
           tab_ctx_doc: "", tab_ctx_shown: false,
+          ' The grid window, the source its cells are read from, and the Tables
+          ' row it was opened from -- see `on_qt_table_row`.
+          tablewin: nothing, table_src: nothing, table_index: 0,
           ' Wheel turn not yet spent as a zoom step -- see `on_qt_editor_wheel`.
           wheel_acc: 0,
           ' The New Project window, which is a SECOND ordinary window rather
@@ -1058,6 +1195,8 @@ program main(args)
     for each br in studio_ui.branch_rows(G.app).rows
         branches = append(branches, { line: studio_ui.branch_line(br) })
     end for
+    ' And the Tables pane's, for the same reason.
+    tables = studio_shell_qt.table_subject(studio_ui.table_rows(G.app).rows)
     ' THEMED BEFORE IT OPENS. `qt.theme` needs no display and is remembered
     ' until there is a QApplication to put it on, which is upstream's stated
     ' reason for that design: refusing until a window existed would make the
@@ -1098,6 +1237,58 @@ program main(args)
         end if
     end if
 
+    if mode = "tables" then
+        ' THE TABLES PANE AND THE GRID WINDOW, driven end to end (STU-8). The
+        ' fixture's `tabular.bas` builds 1,200 records; the run keeps a SAMPLE
+        ' of them, so the first open is a sample that says so, and Fetch
+        ' re-runs the section to put the whole table on disk.
+        '
+        ' What it asserts is what the GTK tier asserted plus what that one
+        ' could not see: the CELLS. A grid whose column mapping or row offset
+        ' was wrong would show plausible text under the wrong heading, and the
+        ' row numbers in the fixture's own data are what make that visible.
+        rows = studio_ui.nav_rows(G.app)
+        at = studio_qt_row_index(rows, "file", "tabular.bas")
+        ro = studio_ui.activate_row(G.app, rows, at)
+        G.app = ro.app
+        nav = studio_ui.nav_rows(G.app)
+        G.app = studio_view_qt.render(win, G.app, "")
+        print "-- before any run --"
+        print "  the pane offers: " + qt.cell(win, studio_shell_qt.part_tables(), 0, "label")
+        r = studio_ui.run_section(G.app, 0, 0)
+        G.app = r.app
+        print "-- Run: " + r.action
+        went = qt_tables_wait()
+        print "  finished: " + went
+        print "  the pane offers: " + qt.cell(win, studio_shell_qt.part_tables(), 0, "label")
+
+        print "-- selecting the offer opens the grid window --"
+        z = qt.select(win, studio_shell_qt.part_tables(), 0)
+        print "  action:  " + G.last_action
+        z = qt_tables_report()
+
+        print "-- Fetch all rows, which RUNS THE SECTION AGAIN --"
+        z = qt.invoke(win, studio_shell_qt.part_fetch(), "click")
+        print "  action:  " + G.last_action + " (" + G.last_detail + ")"
+        went = qt_tables_wait()
+        print "  finished: " + went
+        z = qt.select(win, studio_shell_qt.part_tables(), 0)
+        print "  reopened: " + G.last_action
+        z = qt_tables_report()
+
+        print "-- the nothing-to-offer row opens nothing --"
+        G.app.dm = studio_docs.edit(G.app.dm, studio_docs.active_doc(G.app.dm).id, "x = 1" + chr(10))
+        G.app = studio_view_qt.render(win, G.app, "")
+        r = studio_ui.run_section(G.app, 0, 0)
+        G.app = r.app
+        went = qt_tables_wait()
+        print "  the pane offers: " + qt.cell(win, studio_shell_qt.part_tables(), 0, "label")
+        z = qt.select(win, studio_shell_qt.part_tables(), 0)
+        print "  action:  " + G.last_action
+        z = qt.close(G.tablewin)
+        return nothing
+    end if
+
     if mode = "probe" then
         ' A headless tier's mode: everything above has happened for real,
         ' offscreen, so print what the window is holding and stop. No loop,
@@ -1132,7 +1323,9 @@ program main(args)
         ' THE BRANCH PANE IS A TABLE now, so there is no body to read: its
         ' rows are what it holds, and a row is `studio_ui.branch_line`.
         print "  branches: " + string(qt_branch_cells(win))
-        print "  tables:   [" + studio_qt_first_line(qt.read(win, "tables_body", "plainText")) + "]"
+        ' A TABLE now as well; its first row is the offer, or the sentence saying
+        ' there is none.
+        print "  tables:   [" + qt.cell(win, studio_shell_qt.part_tables(), 0, "label") + "]"
         print "  git:      [" + qt.read(win, "git_body", "plainText") + "]"
         print "  dark is checked: " + string(qt.read(win, studio_shell_qt.part_item("theme-dark"), "checked"))
 
@@ -1551,7 +1744,16 @@ program main(args)
         nsize = number(split(qt.read(win, studio_shell_qt.part_editor(ndoc.id), "font"), ",")[1])
         print "  a tab opened at " + zlabel + ": " + ndoc.display_name + " is at " + string(round(nsize / zbase * 20) * 5) + "%"
         z = qt.invoke(win, qt_item("text-reset"), "trigger")
-        print "  shortcuts: " + qt.read(win, qt_item("text-bigger"), "shortcut") + " / " + qt.read(win, qt_item("text-smaller"), "shortcut") + " / " + qt.read(win, qt_item("text-reset"), "shortcut")
+        print "  shortcuts: " + join(qt.shortcuts(win, qt_item("text-bigger")), " or ") + " / " + join(qt.shortcuts(win, qt_item("text-smaller")), " or ") + " / " + join(qt.shortcuts(win, qt_item("text-reset")), " or ")
+        ' AND PRESSED, with the editor focused, which is where a person's hands
+        ' are. `qt.key` delivers the key Qt would deliver, not a physical one:
+        ' a real Ctrl+Shift+= arrives as "Ctrl++" through the layout, and a
+        ' plain Ctrl+= as "Ctrl+=", so those are the two pressed. Before the
+        ' list, the second of them reached nothing -- the user's report.
+        for each k in ["Ctrl++", "Ctrl+=", "Ctrl+-", "Ctrl+-", "Ctrl+0"]
+            took = qt.key(win, zed, k)
+            print "  key " + padto_qt(k, 7) + "took=" + string(took) + ", " + studio_ui.zoom_label(studio_ui.editor_zoom(G.app))
+        end for
 
         print "-- Ctrl+wheel, on editors a REFRESH built --"
         ' Both editors here were built by `qt.refresh` and not by `qt.open`,
