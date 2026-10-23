@@ -79,8 +79,10 @@ sample the run kept, labelled as a sample — and *Fetch all rows* re-runs the
 section to show the whole table. The editor's text size follows Ctrl+= or
 Ctrl++, Ctrl+−, Ctrl+0 and Ctrl with the mouse wheel.
 
-It is not the default yet; nothing the GTK window does is missing from it any
-more, and the switch is the next step. One limit is worth naming: *Follow the desktop* there
+It is not the default yet, because some of the GTK window has no Qt
+counterpart: *Insert SQL…* and *Schema…* (both buttons are on the run strip and
+do nothing yet), Force Stop, the assistant's *Where was I?*, binding a value on a
+branch, and the overlay editor's six buttons. One limit is worth naming: *Follow the desktop* there
 means Studio applies no sheet of its own, because Qt gives it no way to ask
 whether your desktop is dark — so on a dark desktop, choose Dark. Everything else Studio asked of the language got built
 — a notebook whose set of tabs can change, a tree, a margin with marks, and the
