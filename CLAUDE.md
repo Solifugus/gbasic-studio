@@ -2766,6 +2766,13 @@ not, and neither do ours).
   measure, don't assume; report what you could not verify. Never mark anything
   "verified".
 
+- **A local function must not take the name of a function in a library it
+  loads.** The local wins and nothing misbehaves, but the interpreter warns at
+  load — and several golden tiers capture that output — so one shadowed name
+  fails the suite at once. It happened with `tool_call` (when gBASIC's `llm`
+  grew one), `read` and `state`; a stdlib that gains a name is a normal event,
+  so keep Studio's globals distinct enough to survive it.
+
 ### gBASIC CAN catch a raise, and this file said otherwise five times
 
 **`on error goto next` exists, is frame-scoped, and works.** Measured

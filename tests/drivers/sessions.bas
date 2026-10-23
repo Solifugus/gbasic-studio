@@ -46,6 +46,12 @@ end function
 function signal_src()
   ' Kills its own interpreter from a grandchild, so the child dies BY SIGNAL with
   ' no diagnostic of any kind -- the case a status-only path must still handle.
+  ' `exit_code=-1 signal=15` is what gBASIC promises (docs/reference.md, process
+  ' result record) and what its own goldens assert; do NOT rebaseline this onto
+  ' `143`/`0`. That was a real gBASIC bug -- a child that had ever taken a `lock`
+  ' exited 128+signo instead of dying of the signal, so Studio would have said
+  ' "exited 143" about a program it killed -- DOGFOOD item 20, resolved
+  ' 2026-09-23. A golden moving to 143 here means it has come back.
   return "print \"before\"\n\nprocess.run({ command: \"sh\", args: [\"-c\", \"kill -TERM $PPID\"] })\n"
 end function
 
