@@ -1088,6 +1088,38 @@ end function
 ' An empty document set gets ONE tab with a welcome note in it, because `tabs`
 ' with no `tab` is a book with no pages and Studio's cold start is the one path
 ' that must not break.
+' One editor's construction options.
+'
+' THE LANGUAGE IS THE FILE'S (`studio_ui.highlight_language`): gBASIC for
+' Studio's own suffixes, a named definition for the files Studio knows, and
+' NONE for the rest -- a plain editor. Every editor used to be declared
+' gBASIC, so a README was highlighted as code.
+'
+' THE MARGIN (gBASIC §0.29): `marks` is the gutter -- a `section` glyph at
+' every runnable section's start, which is the whole notebook affordance, and
+' an `error` glyph at a parse diagnostic's line. `line_numbers` because
+' gBASIC's diagnostics are `line:column` and a reader needs something to count
+' against.
+'
+' THE COLOURS are DECLARED from the setting, because `theme` is construction-
+' only and a stylesheet does not move Qt's palette: a dark Studio would
+' otherwise wrap a light editor. gBASIC refuses a `theme` with no `language`
+' (the theme is applied WITH the definition), so a plain editor has neither --
+' and in Dark it is light. Stated rather than hidden; asked of gBASIC.
+function _editor_options(app, doc_id)
+    opts = { line_numbers: true, marks: true }
+    doc = studio_docs.doc_by_id(app.dm, doc_id)
+    lang = ""
+    if doc != nothing then
+        lang = studio_ui.highlight_language(doc.path)
+    end if
+    if lang != "" then
+        opts.language = lang
+        opts.theme = studio_style.qt_source_theme(app.model.settings.theme)
+    end if
+    return opts
+end function
+
 function _editors(app)
     rows = studio_ui.tab_rows(app)
     pages = []
@@ -1103,30 +1135,7 @@ function _editors(app)
                 studio_style.qt_source_theme(app.model.settings.theme)), [
             box("column", { margin: 0, spacing: 0 }, [
                 part("source", studio_shell_qt.part_editor(r.doc_id),
-                     { language: "gBASIC",
-                       ' THE MARGIN (gBASIC §0.29, the second ask built for
-                       ' Studio by name). `marks` is the gutter Studio has had
-                       ' since STU-5: a `section` glyph at every runnable
-                       ' section's start line, which is the whole notebook
-                       ' affordance, and an `error` glyph at the parse
-                       ' diagnostic's line, which is the only thing in the
-                       ' window that says WHERE a syntax error is.
-                       '
-                       ' `line_numbers` is new to Studio and should have been
-                       ' there all along: gBASIC's own diagnostics are
-                       ' `line:column` and a reader had nothing to count
-                       ' against. The GTK editor never called
-                       ' `set_show_line_numbers`.
-                       line_numbers: true, marks: true,
-                       ' AND ITS COLOURS, which `qt.theme` cannot reach:
-                       ' measured, a stylesheet does not move Qt's palette and
-                       ' `theme` is construction-only -- `qt.read` and `qt.set`
-                       ' both refuse it ("a QPlainTextEdit has no `theme`
-                       ' property"). So it is DECLARED from the setting, or a
-                       ' dark Studio would wrap a light editor: the exact fault
-                       ' STU-19 removed from the GTK window, re-entering
-                       ' through a new door.
-                       theme: studio_style.qt_source_theme(app.model.settings.theme) }) ]) ]))
+                     studio_shell_qt._editor_options(app, r.doc_id)) ]) ]))
     end for
     if count(pages) = 0 then
         pages = append(pages, captioned_named("tab", "(no document)", "page_welcome", [

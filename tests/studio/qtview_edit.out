@@ -20,3 +20,6 @@ New Folder, with the field empty
   2   b.bas
   1   README.md
   1   main.bas
+each editor highlights as its OWN language
+  main.bas: gBASIC
+  README.md: Markdown

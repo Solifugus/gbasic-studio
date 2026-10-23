@@ -2308,6 +2308,19 @@ program main(args)
         z = qt.invoke(win, qt_item("new-folder"), "trigger")
         print "  action=" + G.last_action
         print qt_indent(join(qt_nav_cells(win), chr(10)))
+        print "each editor highlights as its OWN language"
+        for each f in ["main.bas", "README.md"]
+            rr = studio_ui.nav_rows(G.app)
+            o = studio_ui.activate_row(G.app, rr, studio_qt_row_index(rr, "file", f))
+            G.app = o.app
+            z = qt_redraw()
+            hl = qt.highlighting(win, studio_shell_qt.part_editor(studio_docs.active_doc(G.app.dm).id))
+            hname = "(plain)"
+            if not is_unknown(hl) then
+                hname = hl.language
+            end if
+            print "  " + f + ": " + hname
+        end for
         return nothing
     end if
 

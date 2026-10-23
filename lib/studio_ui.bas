@@ -210,6 +210,51 @@ library studio_ui
         return [".bas", ".gb"]
     end function
 
+    ' WHICH SYNTAX DEFINITION AN EDITOR HIGHLIGHTS WITH, by NAME -- a Qt
+    ' `source` takes a definition name and never an extension, deliberately:
+    ' by extension `*.bas` resolves to FreeBASIC. So gBASIC is Studio's own
+    ' suffix rule (`is_gbasic`), and everything else is this table of
+    ' KSyntaxHighlighting names, each measured to resolve on this machine.
+    ' "" means NO definition: a plain editor, which is right for a `.txt` and
+    ' for anything this table does not know.
+    '
+    ' A REGRESSION FROM GTK, found while pruning CLAUDE.md: the Qt shell built
+    ' every editor as `language: "gBASIC"`, so a README, a `.sql` file and a
+    ' Python script were all highlighted as gBASIC. The GTK editor asked the
+    ' toolkit to guess per file; Qt deliberately offers no guess, so the
+    ' table is Studio's, and small on purpose.
+    function highlight_language(path)
+        if studio_ui.is_gbasic(path) then
+            return "gBASIC"
+        end if
+        leaf = lower(studio_ui._leaf(path))
+        if leaf = "makefile" then
+            return "Makefile"
+        end if
+        for each e in studio_ui._highlight_table()
+            if ends_with(leaf, e.suffix) then
+                return e.name
+            end if
+        end for
+        return ""
+    end function
+
+    function _highlight_table()
+        return [ { suffix: ".md", name: "Markdown" }, { suffix: ".markdown", name: "Markdown" },
+                 { suffix: ".sql", name: "SQL" }, { suffix: ".json", name: "JSON" },
+                 { suffix: ".py", name: "Python" }, { suffix: ".sh", name: "Bash" },
+                 { suffix: ".bash", name: "Bash" }, { suffix: ".c", name: "C" },
+                 { suffix: ".h", name: "C" }, { suffix: ".cpp", name: "C++" },
+                 { suffix: ".hpp", name: "C++" }, { suffix: ".cc", name: "C++" },
+                 { suffix: ".js", name: "JavaScript" }, { suffix: ".ts", name: "TypeScript" },
+                 { suffix: ".html", name: "HTML" }, { suffix: ".htm", name: "HTML" },
+                 { suffix: ".css", name: "CSS" }, { suffix: ".xml", name: "XML" },
+                 { suffix: ".yaml", name: "YAML" }, { suffix: ".yml", name: "YAML" },
+                 { suffix: ".toml", name: "TOML" }, { suffix: ".ini", name: "INI Files" },
+                 { suffix: ".cfg", name: "INI Files" }, { suffix: ".rs", name: "Rust" },
+                 { suffix: ".go", name: "Go" } ]
+    end function
+
     ' Case-insensitively, because a file named README.BAS is still gBASIC and
     ' the only thing a case-sensitive check would change is whether Studio can
     ' run it.
