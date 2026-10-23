@@ -896,13 +896,50 @@ end function
 ' complaint that the last of five stacked panes sits below the fold, a heading
 ' reading "Errors" over a pane you cannot see being indistinguishable from one
 ' reading "Errors" over "(none)".
+' THE BRANCH PANE (STU-7, STU-9): the selector, Bind, and the overlay strip.
+'
+' The overlay buttons are FIXED acts, not data -- the set never changes, only
+' whether each is allowed, and every refusal reaches the status bar by name --
+' so they are buttons in two rows of three, the GTK layout and its reason: six
+' in one row would not fit a side pane. "Save overlay", not "Save": the
+' toolbar's Save writes the FILE, and one word doing two things to one document
+' is worse than a longer label.
+'
+' THE OVERLAY HAS ITS OWN EDITOR, because the source editor shows the canonical
+' document and a window displaying non-canonical text as the file is the one
+' thing design §2.1 forbids. Hidden until there is an overlay to edit -- under
+' GTK it was an empty box with a lone "1" in it for every user who had never
+' made one. Its theme is fixed when the window is built (`theme` is
+' construction-only), so a theme change reaches it at the next launch.
+function _branch_body(app)
+    u = studio_style.unit()
+    return box("column", { margin: 0, spacing: u }, [
+        show_table(studio_shell_qt.part_branches(),
+                   studio_shell_qt.branch_subject(),
+                   [ column_of("line", "Branch") ]),
+        part("button", "bind_btn",
+             { label: "Bind name = value",
+               toolTip: "Give the selected branch a value: type name = value in the name field first. The source is the same in every branch; only its bindings differ." }),
+        box("row", { margin: 0, spacing: u }, [
+            part("button", "ov_edit", { label: "Overlay" }),
+            part("button", "ov_save", { label: "Save overlay" }),
+            part("button", "ov_compare", { label: "Compare" }) ]),
+        box("row", { margin: 0, spacing: u }, [
+            part("button", "ov_rebase", { label: "Rebase" }),
+            part("button", "ov_promote", { label: "Promote" }),
+            part("button", "ov_discard", { label: "Discard" }) ]),
+        part("source", "ov_editor",
+             { language: "gBASIC", line_numbers: true, visible: false,
+               theme: studio_style.qt_source_theme(app.model.settings.theme) }),
+        ' Where Compare prints and a conflict is spelled out.
+        part("memo", "ov_diff", { readOnly: true }) ])
+end function
+
 function _side_docks(app)
     out = []
     for each p in studio_shell_qt.side_panes()
         if p.id = "branch" then
-            body = show_table(studio_shell_qt.part_branches(),
-                              studio_shell_qt.branch_subject(),
-                              [ column_of("line", "Branch") ])
+            body = studio_shell_qt._branch_body(app)
         else
             if p.id = "tables" then
                 ' THE TABLE OFFERS, CLICKABLE: a row opens the grid window.

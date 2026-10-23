@@ -1117,6 +1117,8 @@ else
     printf 'SKIP qtview_tables (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_snippet (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_schema (this gBASIC has no qt module)\n'
+    printf 'SKIP qtview_branch (this gBASIC has no qt module)\n'
+    printf 'SKIP qtview_overlay (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_reopen (this gBASIC has no qt module)\n'
 fi
 
@@ -1241,6 +1243,18 @@ fi
     else
         printf 'SKIP qtview_schema (this gBASIC has no sqlite module)\n'
     fi
+
+    # BRANCHES, BIND AND THE OVERLAY STRIP under Qt (STU-7, STU-9): the GTK
+    # `ui_gui_branch` and `ui_gui_overlay` scripts against their fixture. The
+    # overlay tier's load-bearing pair is the source editor showing the FILE
+    # while the branch runs the overlay, and the overlay only once promoted.
+    for bm in branch overlay; do
+        qh="$tmproot/qtview_$bm"; qp="$tmproot/qtview_${bm}_proj"
+        rm -rf "$qh" "$qp"; mkdir -p "$qh" "$qp"
+        printf 'threshold = 0.5\n\nfunction score(t)\n  return t * 100\nend function\n\nprint "score is " + score(threshold)\n' \
+            > "$qp/branchy.bas"
+        qt_mode_tier "qtview_$bm" "$bm" "$qh" "$qp" "the $bm controls pressed for real"
+    done
 
     # A SECOND LAUNCH OVER A HOME THAT HAS BEEN USED.
     #

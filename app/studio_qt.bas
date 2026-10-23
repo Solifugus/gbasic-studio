@@ -848,6 +848,83 @@ function qt_indent(text)
     return join(out, chr(10))
 end function
 
+' ---- STU-7 / STU-9: Bind, and the overlay acts --------------------------------
+'
+' Adapters, all seven. The DECISIONS -- may this branch carry an overlay, does
+' this section sit below the point, does anything conflict, may this be
+' promoted -- live in studio_ui, where the headless suite presses them.
+
+' BIND reads `name = value` from the header's name field, which is where a
+' typed value comes from everywhere else in this window.
+function on_qt_bind()
+    return qt_took(studio_ui.bind_selected(G.app, qt_typed_name()))
+end function
+
+function on_qt_overlay_edit()
+    r = studio_ui.begin_overlay(G.app)
+    opened = false
+    if r.action = "overlay-began" then
+        opened = true
+    end if
+    if r.action = "overlay-open" then
+        opened = true
+    end if
+    if opened then
+        z = qt.write(G.win, "ov_editor", r.text)
+        z = qt.set(G.win, "ov_editor", "visible", true)
+    end if
+    return qt_took(r)
+end function
+
+' Save what the OVERLAY editor holds -- never the source editor's text.
+function on_qt_overlay_save()
+    return qt_took(studio_ui.save_overlay(G.app, qt.read(G.win, "ov_editor", "plainText")))
+end function
+
+function on_qt_overlay_compare()
+    d = studio_ui.overlay_diff(G.app)
+    G.app = d.app
+    z = qt.write(G.win, "ov_diff", join(d.lines, chr(10)))
+    G.last_action = "overlay-compared"
+    G.last_detail = string(count(d.lines)) + " line(s)"
+    return qt_redraw()
+end function
+
+function on_qt_overlay_rebase()
+    return qt_took(studio_ui.rebase_overlay(G.app))
+end function
+
+' PROMOTE writes the overlay into the document as an unsaved edit; the source
+' editor follows on the redraw because the renderer writes what the model holds.
+function on_qt_overlay_promote()
+    r = studio_ui.promote_overlay(G.app)
+    ' PROMOTE CONSUMES THE BRANCH'S OVERLAYS (`drop_branch`), so the overlay
+    ' editor would be left showing an overlay that no longer exists -- which
+    ' the GTK window does, and which reads as one still waiting to be saved.
+    if r.action = "overlay-promoted" then
+        z = qt.set(G.win, "ov_editor", "visible", false)
+    end if
+    return qt_took(r)
+end function
+
+function on_qt_overlay_discard()
+    r = studio_ui.discard_overlay(G.app)
+    if r.action = "overlay-discarded" then
+        z = qt.set(G.win, "ov_editor", "visible", false)
+    end if
+    return qt_took(r)
+end function
+
+' Every line of a block behind a bar, so blank lines and trailing spaces in an
+' editor's text show in a golden rather than vanishing.
+function qt_bar(text)
+    out = []
+    for each l in split(text, chr(10))
+        out = append(out, "    |" + l)
+    end for
+    return join(out, chr(10))
+end function
+
 ' ---- the header -----------------------------------------------------------
 
 function on_qt_save()
@@ -1271,6 +1348,13 @@ function qt_wire(win)
     win = qt_on(win, "force_btn", "clicked", on_qt_force_stop)
     win = qt_on(win, "snippet_btn", "clicked", on_qt_snippet)
     win = qt_on(win, "schema_btn", "clicked", on_qt_schema)
+    win = qt_on(win, "bind_btn", "clicked", on_qt_bind)
+    win = qt_on(win, "ov_edit", "clicked", on_qt_overlay_edit)
+    win = qt_on(win, "ov_save", "clicked", on_qt_overlay_save)
+    win = qt_on(win, "ov_compare", "clicked", on_qt_overlay_compare)
+    win = qt_on(win, "ov_rebase", "clicked", on_qt_overlay_rebase)
+    win = qt_on(win, "ov_promote", "clicked", on_qt_overlay_promote)
+    win = qt_on(win, "ov_discard", "clicked", on_qt_overlay_discard)
 
     ' A QAction's signal is `triggered`, and `qt.invoke(win, item, "trigger")`
     ' is a REAL PRESS -- where an unmapped `Gtk.Button` inside a popover
@@ -1489,6 +1573,106 @@ program main(args)
         if not took then
             print to error "Studio (Qt): the saved window layout was not recognised — starting from the declaration"
         end if
+    end if
+
+    bo = false
+    if mode = "branch" then
+        bo = true
+    end if
+    if mode = "overlay" then
+        bo = true
+    end if
+    if bo then
+        rows = studio_ui.nav_rows(G.app)
+        ro = studio_ui.activate_row(G.app, rows, studio_qt_row_index(rows, "file", "branchy.bas"))
+        G.app = ro.app
+        G.app.clock_fixed = 1000
+        nav = studio_ui.nav_rows(G.app)
+        G.app = studio_view_qt.render(win, G.app, "")
+    end if
+
+    if mode = "branch" then
+        ' BRANCHES AND BIND, pressed for real: the GTK `ui_gui_branch` script.
+        ' The rows are read off the WIDGET -- the selection mark is part of
+        ' `studio_ui.branch_line` -- so a pane that drew the wrong rows fails.
+        bl = studio_shell_qt.part_branches()
+        print "rows as drawn:"
+        print qt_indent(join(qt_branch_cells(win), chr(10)))
+        print "typing a name and clicking +"
+        z = qt.write(win, studio_shell_qt.part_name_field(), "Low")
+        z = qt.select(win, bl, count(qt_branch_cells(win)) - 1)
+        print "action=" + G.last_action + " status=" + qt.read(win, studio_shell_qt.part_status(), "text")
+        print "  " + qt.read(win, "run_branch", "text")
+        print "binding a value onto it"
+        z = qt.write(win, studio_shell_qt.part_name_field(), "threshold = 0.25")
+        z = qt.invoke(win, "bind_btn", "click")
+        print "action=" + G.last_action + " status=" + qt.read(win, studio_shell_qt.part_status(), "text")
+        print "rows now:"
+        print qt_indent(join(qt_branch_cells(win), chr(10)))
+        print "clicking Baseline"
+        z = qt.select(win, bl, 0)
+        print "action=" + G.last_action + " status=" + qt.read(win, studio_shell_qt.part_status(), "text")
+        print "  " + qt.read(win, "run_branch", "text")
+        return nothing
+    end if
+
+    if mode = "overlay" then
+        ' THE OVERLAY STRIP, pressed for real: the GTK `ui_gui_overlay` script.
+        ' The claim worth the most is the last pair -- the SOURCE editor shows
+        ' the file while the branch runs the overlay, and shows the overlay
+        ' only once it is promoted, as an unsaved edit.
+        ed = studio_shell_qt.part_editor(studio_docs.active_doc(G.app.dm).id)
+        print "an overlay needs a branch: the baseline is the file"
+        z = qt.invoke(win, "ov_edit", "click")
+        print "  action=" + G.last_action + " — " + G.last_detail
+        print "  the overlay editor is hidden=" + string(not qt.read(win, "ov_editor", "visible"))
+        print "making a branch, then overlaying the section below it"
+        z = qt.write(win, studio_shell_qt.part_name_field(), "Robust")
+        z = qt.select(win, studio_shell_qt.part_branches(), count(qt_branch_cells(win)) - 1)
+        print "  action=" + G.last_action
+        z = qt.caret_to(win, ed, 3, 1)
+        G.app = qt_sync_caret(G.app)
+        z = qt.invoke(win, "ov_edit", "click")
+        print "  action=" + G.last_action + " on " + G.last_detail
+        print "the overlay editor opened, visible=" + string(qt.read(win, "ov_editor", "visible")) + ", with the canonical text:"
+        print qt_bar(qt.read(win, "ov_editor", "plainText"))
+        print "typing into it, for real"
+        z = qt.write(win, "ov_editor", "function score(t)" + chr(10) + "  return t * 1000" + chr(10) + "end function")
+        z = qt.invoke(win, "ov_save", "click")
+        print "  action=" + G.last_action
+        print "the selector marks it experimental:"
+        z = qt.caret_to(win, ed, 1, 1)
+        G.app = qt_sync_caret(G.app)
+        z = qt_redraw()
+        print qt_indent(join(qt_branch_cells(win), chr(10)))
+        print "comparing"
+        z = qt.invoke(win, "ov_compare", "click")
+        print qt_bar(qt.read(win, "ov_diff", "plainText"))
+        print "running the branch"
+        z = qt.caret_to(win, ed, 7, 1)
+        G.app = qt_sync_caret(G.app)
+        z = qt.invoke(win, "run_btn", "click")
+        went = qt_tables_wait()
+        print "  target=<" + qt.read(win, "target_body", "plainText") + ">"
+        print "the source editor still shows the FILE:"
+        print qt_bar(qt.read(win, ed, "plainText"))
+        print "promoting"
+        z = qt.invoke(win, "ov_promote", "click")
+        print "  action=" + G.last_action + " — " + G.last_detail
+        print "and NOW the source editor shows it, as an unsaved edit:"
+        print qt_bar(qt.read(win, ed, "plainText"))
+        print "  the title says unsaved=" + string(starts_with(qt.read(win, studio_shell_qt.window_name(), "windowTitle"), "* "))
+        print "  promoting consumed the overlay, so its editor is hidden=" + string(not qt.read(win, "ov_editor", "visible"))
+        ' DISCARD acts on the section UNDER THE CARET, so the caret goes back
+        ' into score() and a fresh overlay is begun there to throw away.
+        print "a fresh overlay on score(), then Discard"
+        z = qt.caret_to(win, ed, 3, 1)
+        G.app = qt_sync_caret(G.app)
+        z = qt.invoke(win, "ov_edit", "click")
+        print "  action=" + G.last_action + ", visible=" + string(qt.read(win, "ov_editor", "visible"))
+        z = qt.invoke(win, "ov_discard", "click")
+        print "  action=" + G.last_action + ", hidden=" + string(not qt.read(win, "ov_editor", "visible"))
+        return nothing
     end if
 
     if mode = "schema" then

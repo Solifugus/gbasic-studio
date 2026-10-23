@@ -74,8 +74,20 @@ window studio
           memo err_body
   docks right
     dock dock_branch "Branches"
-      table branch_list to show branches
-        field line
+      column
+        table branch_list to show branches
+          field line
+        button bind_btn
+        row
+          button ov_edit
+          button ov_save
+          button ov_compare
+        row
+          button ov_rebase
+          button ov_promote
+          button ov_discard
+        source ov_editor
+        memo ov_diff
     dock dock_results "For the section at the cursor"
       memo results_body
     dock dock_tables "Tables"
@@ -147,7 +159,19 @@ window studio
   /studio/bottom/dock_console/console/prefix_head     label=Prefix output — sections replayed before the target
   /studio/bottom/dock_console/console/target_head     label=Target output — the section you ran
   /studio/bottom/dock_console/console/err_head        label=Errors
+  /studio/right/dock_branch                           margin=0 spacing=6
   /studio/right/dock_branch/branch_list/line          label=Branch
+  /studio/right/dock_branch/bind_btn                  label=Bind name = value toolTip=Give the selected branch a value: type name = value in the name field first. The source is the same in every branch; only its bindings differ.
+  /studio/right/dock_branch                           margin=0 spacing=6
+  /studio/right/dock_branch/ov_edit                   label=Overlay
+  /studio/right/dock_branch/ov_save                   label=Save overlay
+  /studio/right/dock_branch/ov_compare                label=Compare
+  /studio/right/dock_branch                           margin=0 spacing=6
+  /studio/right/dock_branch/ov_rebase                 label=Rebase
+  /studio/right/dock_branch/ov_promote                label=Promote
+  /studio/right/dock_branch/ov_discard                label=Discard
+  /studio/right/dock_branch/ov_editor                 language=gBASIC line_numbers=true theme=light visible=false
+  /studio/right/dock_branch/ov_diff                   readOnly=true
   /studio/right/dock_tables                           margin=0 spacing=6
   /studio/right/dock_tables/table_list/label          label=Table
   /studio/right/dock_tables/fetch_btn                 label=Fetch all rows (runs the section again)
@@ -158,7 +182,7 @@ window studio
   /studio/book/page_welcome                           margin=12 spacing=6
   /studio/book/page_welcome/welcome                   label=Open a file from the browser, or File ▸ New File.
 == every name it declares ==
-  mi_new_project mi_open_folder mi_project_file mi_close_project mi_new_file mi_new_folder mi_rename mi_delete mi_reload mi_close_tab mi_theme_system mi_theme_dark mi_text_bigger mi_text_smaller mi_text_reset mi_restore_session nav_menu ctx_open ctx_new_file_here ctx_new_folder_here ctx_rename ctx_delete ctx_project_file ctx_close_project tab_menu tabm_tab_close tabm_tab_copy_path toolbar save tb_reload tb_open_folder tb_new_file tb_new_folder dock_files files text depth dock_console console run_btn run_all_btn stop_btn force_btn snippet_btn schema_btn run_section run_standing run_state run_branch prefix_head prefix_body target_head target_body err_head err_body dock_branch branch_list dock_results results_body dock_tables table_list fetch_btn dock_git git_body dock_agent agent_body status name_field book page_welcome welcome
+  mi_new_project mi_open_folder mi_project_file mi_close_project mi_new_file mi_new_folder mi_rename mi_delete mi_reload mi_close_tab mi_theme_system mi_theme_dark mi_text_bigger mi_text_smaller mi_text_reset mi_restore_session nav_menu ctx_open ctx_new_file_here ctx_new_folder_here ctx_rename ctx_delete ctx_project_file ctx_close_project tab_menu tabm_tab_close tabm_tab_copy_path toolbar save tb_reload tb_open_folder tb_new_file tb_new_folder dock_files files text depth dock_console console run_btn run_all_btn stop_btn force_btn snippet_btn schema_btn run_section run_standing run_state run_branch prefix_head prefix_body target_head target_body err_head err_body dock_branch branch_list bind_btn ov_edit ov_save ov_compare ov_rebase ov_promote ov_discard ov_editor ov_diff dock_results results_body dock_tables table_list fetch_btn dock_git git_body dock_agent agent_body status name_field book page_welcome welcome
 == the title carries the marker too, which is conventional ==
   cold: gBASIC Studio — ws
 == and where the record puts each dock, before any window exists ==

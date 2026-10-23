@@ -121,6 +121,20 @@ function render(win, app, notice)
     ' split exists to avoid.
     z = qt.set(win, "git_body", "plainText", studio_ui.git_label(app))
 
+    ' OVERLAY CONFLICTS ARE SURFACED on every full redraw and never acted on
+    ' (design §9.3): a conflict that only appeared when you pressed Promote
+    ' would be one you found by trying to lose work. Written only when there IS
+    ' one, so a Compare's output stays until something conflicts.
+    c = studio_ui.overlay_conflicts(app)
+    app = c.app
+    if count(c.problems) > 0 then
+        lines = []
+        for each pr in c.problems
+            lines = append(lines, pr.name + " / " + pr.section_id + ": " + pr.detail)
+        end for
+        z = qt.write(win, "ov_diff", join(lines, chr(10)))
+    end if
+
     ' THE MENU MARKS, which are the toolkit's own now. Under GTK a popover of
     ' plain buttons cannot draw a radio mark, so the glyph went in the label;
     ' a QAction is checkable and this is one `qt.set` per state item. Not in
