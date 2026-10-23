@@ -1,0 +1,9 @@
+a project that is NOT a repository:
+  pane visible: false
+opening a repository as a second project, the way the header field does it
+  action=adopted
+  pane visible: true
+what the pane says:
+  git: main — 2 change(s)
+    modified: tracked.bas
+    untracked: untracked.bas

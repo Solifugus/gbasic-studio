@@ -28,7 +28,7 @@ if [ ! -x "$GBASIC" ]; then
 fi
 if [ ! -d "$GBASIC_STDLIB" ]; then
     printf 'FAIL run_studio: no gBASIC stdlib at %s\n' "$GBASIC_STDLIB"
-    printf '  Studio needs persist, filetree, gtk, sourceeditor and gi from it\n'
+    printf '  Studio needs persist and filetree from it, and the qt module for the window\n'
     exit 1
 fi
 
@@ -1015,6 +1015,7 @@ else
     printf 'SKIP qtview_branch (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_overlay (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_assistant (this gBASIC has no qt module)\n'
+    printf 'SKIP qtview_git (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_reopen (this gBASIC has no qt module)\n'
 fi
 
@@ -1092,8 +1093,9 @@ fi
     # caller built, the mode run once under offscreen, STDERR KEPT -- a raise in
     # a handler exits 0, so `runtime error` there fails the tier -- and a skip
     # only on gBASIC's own words for a build without Qt.
-    qt_mode_tier() { # tier mode home proj description
+    qt_mode_tier() { # tier mode home proj description [more args for the mode]
         local tier="$1" mode="$2" home="$3" proj="$4" what="$5"
+        shift 5
         : >"$stdout_file"; : >"$qt_err"
         # NO PROVIDER KEY reaches a Qt mode: the assistant's "not configured"
         # sentence must not depend on who runs the suite, and nothing else here
@@ -1101,7 +1103,7 @@ fi
         if env -u ANTHROPIC_API_KEY -u OPENAI_API_KEY -u GBASIC_STUDIO_SECRET_KEY \
                 QT_QPA_PLATFORM=offscreen \
                 GBASIC_SYNTAX_PATH="${GBASIC_SYNTAX_PATH:-$(dirname "$GBASIC_STDLIB")/editors/kate}" \
-                timeout 120 "$GBASIC" app/studio.bas "$mode" "$home" "$proj" \
+                timeout 120 "$GBASIC" app/studio.bas "$mode" "$home" "$proj" "$@" \
                 >"$stdout_file" 2>"$qt_err"; then
             if grep -q 'runtime error' "$qt_err"; then
                 grep 'runtime error' "$qt_err"; fail "$tier (a handler raised)"
@@ -1162,6 +1164,19 @@ fi
     qh="$tmproot/qtview_assistant"; qp="$tmproot/qtview_assistant_proj"
     rm -rf "$qh" "$qp"; mkdir -p "$qh"; mkproj_ui "$qp"
     qt_mode_tier qtview_assistant assistant "$qh" "$qp" "Where was I? answered offline, and every cue drawn"
+
+    # GIT under Qt (STU-11): the pane hidden outside a repository and the
+    # summary inside one -- the retired `ui_gui_git` script, which was retired
+    # with no Qt counterpart and found the Qt pane wrong when it was written.
+    if command -v git >/dev/null 2>&1; then
+        qh="$tmproot/qtview_git"; qp="$tmproot/qtview_git_proj"; qr="$tmproot/qtview_git_repo"
+        rm -rf "$qh" "$qp" "$qr"; mkdir -p "$qh" "$qp"
+        printf 'print "plain"\n' > "$qp/plain.bas"
+        mkgitrepo "$qr"
+        qt_mode_tier qtview_git git "$qh" "$qp" "quiet outside a repository, present inside one" "$qr"
+    else
+        printf 'SKIP qtview_git (git is not installed)\n'
+    fi
 
     # A SECOND LAUNCH OVER A HOME THAT HAS BEEN USED.
     #

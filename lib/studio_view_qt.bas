@@ -120,7 +120,22 @@ function render(win, app, notice)
     ' spawns a process, and the poller runs sixteen times a second -- forking
     ' `git status` at that rate is a worse version of the mistake the two-entry
     ' split exists to avoid.
-    z = qt.set(win, "git_body", "plainText", studio_ui.git_label(app))
+    '
+    ' QUIET OUTSIDE A REPOSITORY (§18): the pane is HIDDEN there, so someone
+    ' who does not use git never sees it mentioned -- and inside one it holds
+    ' the summary (branch, each change), which is what the GTK pane showed. The
+    ' first Qt version wrote the one-line `git_label` into a pane that was
+    ' always visible; found after the GTK window was gone, because the wiring
+    ' diff that guarded the switch compares SIGNALS, and this is what a redraw
+    ' writes.
+    e = studio_ui.git_engaged(app)
+    app = e.app
+    z = qt.set(win, studio_shell_qt.part_side_dock("git"), "visible", e.engaged)
+    if e.engaged then
+        g = studio_ui.git_lines(app)
+        app = g.app
+        z = qt.set(win, "git_body", "plainText", join(g.lines, chr(10)))
+    end if
 
     ' THE ASSISTANT'S ANSWER, which lives on the app between redraws, or the
     ' sentence saying what the button does when there is none yet.

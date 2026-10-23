@@ -2030,6 +2030,24 @@ program main(args)
         return nothing
     end if
 
+    if mode = "git" then
+        ' GIT, QUIET AND ENGAGED (STU-11), the retired `ui_gui_git` script: a
+        ' project that is not a repository, then one that is, adopted the way
+        ' the name field does it. The claim is about ABSENCE -- someone who does
+        ' not use git never sees it -- and that is only checkable in a window.
+        gd = studio_shell_qt.part_side_dock("git")
+        print "a project that is NOT a repository:"
+        print "  pane visible: " + string(qt.read(win, gd, "visible"))
+        print "opening a repository as a second project, the way the header field does it"
+        z = qt.write(win, studio_shell_qt.part_name_field(), args[3])
+        z = qt.invoke(win, qt_item("open-folder"), "trigger")
+        print "  action=" + G.last_action
+        print "  pane visible: " + string(qt.read(win, gd, "visible"))
+        print "what the pane says:"
+        print qt_indent(qt.read(win, "git_body", "plainText"))
+        return nothing
+    end if
+
     if mode = "tables" then
         ' THE TABLES PANE AND THE GRID WINDOW, driven end to end (STU-8). The
         ' fixture's `tabular.bas` builds 1,200 records; the run keeps a SAMPLE

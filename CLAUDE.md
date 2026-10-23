@@ -1298,13 +1298,20 @@ why none of their goldens moved; `ui_settings` moved by three deliberate lines
 (the theme and zoom decisions printed as Qt's).
 
 **Retired WITHOUT a Qt counterpart, stated:** `ui_gui_solo` (two instances at
-once — a GTK single-instance concern); `ui_gui_git` (the git pane's line; Qt
-writes `git_body` on the full redraw but no Qt tier runs inside a repository);
-`ui_gui_new`'s two-process cold start (`qtview_reopen` covers a second launch
+once — a GTK single-instance concern); `ui_gui_new`'s two-process cold start (`qtview_reopen` covers a second launch
 over a used home, not New Project → close → reopen); `sessions_gui`'s
 "no scratch files left behind" (the headless session tiers own scratch
 handling); `ui_gui_layout`'s dragged divider (Qt saves `qt.layout` whole and
 `qtview_reopen` restores it, but nothing drags first).
+
+**AND THE WIRING DIFF HAD A BLIND SPOT, found the same day.** It compares
+SIGNALS, so it cannot see what a redraw WRITES: the Qt git pane put the
+one-line `git_label` into a pane that was always visible, where the GTK pane
+was hidden outside a repository and held the full summary. `ui_gui_git` had
+been retired "without a Qt counterpart"; writing that counterpart
+(`qtview_git`, same script) is what found it. So the rule is both halves:
+**diff the wiring, AND give every retired tier a successor before calling a
+feature ported** — the successors are what read the window back.
 
 **What the ports found that GTK had wrong:** the GTK Where was I? offered the
 whole tool registry, acts included, through a wrapper table covering eleven
