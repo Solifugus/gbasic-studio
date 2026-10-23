@@ -554,7 +554,7 @@ end function
 ' The caption is `studio_table.caption`, the same sentence the headless goldens
 ' assert, so the window cannot quietly say something kinder than the model --
 ' it is where a sample admits to being one.
-function table_window(caption, cols)
+function table_window(caption, note, cols)
     u = studio_style.unit()
     fields = []
     i = 0
@@ -563,8 +563,21 @@ function table_window(caption, cols)
         i = i + 1
     end for
     body = []
-    body = append(body, part("text", "grid_caption", { label: caption }))
+    ' THE CAPTION READS AS A TITLE: bold, and a style sheet on a label has no
+    ' children for it to cascade into.
+    body = append(body, part("text", "grid_caption",
+                             { label: caption, styleSheet: "font-weight: bold;" }))
+    ' What a SAMPLE means and where the rest is -- empty for a whole table.
+    body = append(body, part("text", "grid_note", { label: note, wordWrap: true }))
     if count(fields) > 0 then
+        ' SORTING IS STUDIO'S (see `studio_table.sort_rows`): gBASIC turns
+        ' header-click sorting off on an asking table, so the order is chosen
+        ' here and the grid is told the data changed.
+        body = append(body, box("row", { margin: 0, spacing: u }, [
+            part("text", "grid_sort_label", { label: "Sort by" }),
+            part("choice", "grid_sort", {}),
+            part("check", "grid_desc", { label: "Descending" }),
+            bare("stretch") ]))
         body = append(body, { kind: "container", word: "table",
                               name: studio_shell_qt.part_grid(),
                               direction: "ask",
@@ -576,6 +589,15 @@ function table_window(caption, cols)
     return { kind: "window", name: studio_shell_qt.table_window_name(),
              options: { title: "gBASIC Studio — table", width: 900, height: 600 },
              items: [ box("column", { margin: u, spacing: u }, body) ] }
+end function
+
+' What the Sort by choice offers: the run's own order first, then every column.
+function sort_choices(cols)
+    out = [ "(the order the run made them)" ]
+    for each c in cols
+        out = append(out, string(c))
+    end for
+    return out
 end function
 
 ' ---- STU-15: the snippet window ---------------------------------------------

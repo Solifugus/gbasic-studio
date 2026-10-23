@@ -6,6 +6,7 @@
 -- selecting the offer opens the grid window --
   action:  table
   caption: rows: 50 of 1200 rows (sampled — the run that made them has ended)
+  note:    [Showing the 50 rows the run kept. Fetch all rows, in the Tables pane, runs the section again to show all 1200.]
   rows:    50
   columns: id, name, score
   first:   0 | row 0 | 0
@@ -15,6 +16,22 @@
   finished: ran
   reopened: table
   caption: rows: 1200 rows
+  note:    []
+  rows:    1200
+  columns: id, name, score
+  first:   0 | row 0 | 0
+  last:    1199 | row 1199 | 1798.5
+-- Sort by score, descending, through the window's own controls --
+  offered: (the order the run made them) | id | name | score
+  caption: rows: 1200 rows
+  note:    []
+  rows:    1200
+  columns: id, name, score
+  first:   1199 | row 1199 | 1798.5
+  last:    0 | row 0 | 0
+-- and back to the order the run made them --
+  caption: rows: 1200 rows
+  note:    []
   rows:    1200
   columns: id, name, score
   first:   0 | row 0 | 0

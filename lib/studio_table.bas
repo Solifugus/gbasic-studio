@@ -160,9 +160,12 @@ library studio_table
         return fingerprint + "|" + branch
     end function
 
+    ' `order` is the row a grid position shows, or `nothing` for the order the
+    ' run made them in -- see `sort_rows`.
     function _empty_source()
         return { kind: "none", cols: [], n: 0, known: 0, sampled: false,
-                 lines: [], rows: [], cache: {}, decodes: 0, path: "", stamp: "" }
+                 lines: [], rows: [], cache: {}, decodes: 0, path: "", stamp: "",
+                 order: nothing }
     end function
 
     ' The rows Studio already has, straight off the capture. No file, no re-run,
@@ -248,6 +251,12 @@ library studio_table
         if i >= src.known then
             return { src: src, row: [] }
         end if
+        ' A SORTED source answers position i with the row the order puts there;
+        ' the cache stays keyed by the row's own index, so sorting twice decodes
+        ' nothing again.
+        if src.order != nothing then
+            i = src.order[i]
+        end if
         if src.kind = "preview" then
             return { src: src, row: src.rows[i] }
         end if
@@ -287,7 +296,204 @@ library studio_table
         return { src: r.src, text: string(r.row[col]) }
     end function
 
+    ' ---- sorting (STU-8, under Qt) ---------------------------------------
+    '
+    ' THE GRID CANNOT SORT ITSELF, deliberately: gBASIC turns header-click
+    ' sorting off on an asking table, because a sorted VIEW would make a row
+    ' index mean a different record than the data has. So the ORDER is Studio's
+    ' -- a permutation on the source, which `row_at` reads through -- and the
+    ' grid is simply told the data changed.
+    '
+    ' gBASIC's own `sort(rows, { by, descending })` does the work: native and
+    ' STABLE, so rows with equal keys keep the order the run made them in. A
+    ' column mixing kinds of value (a number in one row, text in the next) has
+    ' no order, and the sort's gate refuses it in its own words; that is caught
+    ' HERE and named, because a half-sorted grid would be the plausible wrong
+    ' answer this module exists not to give.
+
+    ' Past this, sorting would decode and hold every row of an export at once.
+    function sort_limit()
+        return 100000
+    end function
+
+    ' Sort by column `col` (an index into `cols`). Returns { ok, src, why }.
+    function sort_rows(src, col, descending)
+        if src.kind = "none" then
+            return { ok: false, src: src, why: "there is nothing to sort" }
+        end if
+        if col < 0 then
+            return { ok: false, src: src, why: "there is no such column" }
+        end if
+        if col >= count(src.cols) then
+            return { ok: false, src: src, why: "there is no such column" }
+        end if
+        if src.known > studio_table.sort_limit() then
+            return { ok: false, src: src,
+                     why: string(src.known) + " rows is more than Studio sorts (" + string(studio_table.sort_limit()) + ")" }
+        end if
+        ' The KEYS come from the rows in their own order, never through an
+        ' earlier sort's permutation -- `order` is cleared first.
+        src.order = nothing
+        keys = []
+        i = 0
+        while i < src.known
+            r = studio_table.row_at(src, i)
+            src = r.src
+            k = nothing
+            if col < count(r.row) then
+                k = r.row[col]
+            end if
+            keys = append(keys, { k: k, i: i })
+            i = i + 1
+        end while
+        nk = studio_table._numeric_keys(keys)
+        on error goto next
+        sorted = sort(nk.keys, { by: "k", descending: descending })
+        if error then
+            ' The gate's own words name OUR key field, which means nothing to
+            ' the person looking at the grid -- so the column and the reason.
+            error.clear()
+            return { ok: false, src: src,
+                     why: quote(string(src.cols[col])) + " mixes kinds of value (numbers with text, say), so it has no order to sort by" }
+        end if
+        on error stop
+        order = []
+        for each e in sorted
+            order = append(order, e.i)
+        end for
+        for each e in nk.blanks
+            order = append(order, e.i)
+        end for
+        src.order = order
+        return { ok: true, src: src, why: "" }
+    end function
+
+    ' NUMBERS SORT AS NUMBERS, even though they arrive as TEXT. A capture and
+    ' an export both carry every cell as its display string -- bounded, which
+    ' is the point of them -- so "999" and "1798.5" would sort as words, and
+    ' measured, descending by score put 999 first. If EVERY non-empty key in
+    ' the column reads as a number, the column sorts numerically; otherwise it
+    ' sorts as text. One stray word keeps the whole column text, rather than a
+    ' column of numbers with a word wedged somewhere arbitrary.
+    '
+    ' EMPTY CELLS SORT LAST, in both directions, and in the order the run
+    ' made them -- an empty cell is an absence, not a smallest value.
+    function _numeric_keys(keys)
+        all_numbers = true
+        for each e in keys
+            if is_string(e.k) then
+                if e.k != "" then
+                    if not studio_table._is_number_text(e.k) then
+                        all_numbers = false
+                    end if
+                end if
+            end if
+        end for
+        out = []
+        blanks = []
+        for each e in keys
+            k = e.k
+            if is_string(k) then
+                if k = "" then
+                    blanks = append(blanks, e)
+                else
+                    if all_numbers then
+                        k = number(k)
+                    end if
+                    out = append(out, { k: k, i: e.i })
+                end if
+            else
+                out = append(out, { k: k, i: e.i })
+            end if
+        end for
+        return { keys: out, blanks: blanks }
+    end function
+
+    ' Whether text is a plain decimal number: an optional sign, digits with at
+    ' most one point, and an optional exponent. CHECKED, not caught -- `number`
+    ' would raise on anything else, and a probe written as a raise is a probe
+    ' that hides a different raise.
+    function _is_number_text(t)
+        u = trim(t)
+        n = len(u)
+        if n = 0 then
+            return false
+        end if
+        i = 0
+        c = mid(u, 0, 1)
+        if contains(["-", "+"], c) then
+            i = 1
+        end if
+        digits = 0
+        point = false
+        while i < n
+            c = mid(u, i, 1)
+            if studio_table._is_digit(c) then
+                digits = digits + 1
+            else
+                if c = "." then
+                    if point then
+                        return false
+                    end if
+                    point = true
+                else
+                    if lower(c) = "e" then
+                        if digits = 0 then
+                            return false
+                        end if
+                        return studio_table._is_exponent(u, i + 1)
+                    end if
+                    return false
+                end if
+            end if
+            i = i + 1
+        end while
+        return digits > 0
+    end function
+
+    function _is_exponent(u, at)
+        n = len(u)
+        i = at
+        if i < n then
+            if contains(["-", "+"], mid(u, i, 1)) then
+                i = i + 1
+            end if
+        end if
+        seen = 0
+        while i < n
+            if not studio_table._is_digit(mid(u, i, 1)) then
+                return false
+            end if
+            seen = seen + 1
+            i = i + 1
+        end while
+        return seen > 0
+    end function
+
+    function _is_digit(c)
+        return contains(["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"], c)
+    end function
+
+    ' Back to the order the run made them in.
+    function unsorted(src)
+        src.order = nothing
+        return src
+    end function
+
     ' ---- what the window says about a source -------------------------------
+
+    ' The second line of the grid window: what a SAMPLE means and what to do
+    ' about it, or "" for a whole table. The caption states the shortfall;
+    ' this says why there is one and where the rest is.
+    function caption_note(src)
+        if src.kind = "none" then
+            return ""
+        end if
+        if not src.sampled then
+            return ""
+        end if
+        return "Showing the " + string(src.known) + " rows the run kept. Fetch all rows, in the Tables pane, runs the section again to show all " + string(src.n) + "."
+    end function
 
     ' The grid's title line. A sampled source states the shortfall in the same
     ' breath as the total: a grid captioned "48,291 rows" that can only show fifty

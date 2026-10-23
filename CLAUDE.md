@@ -1132,6 +1132,27 @@ theme's failure, one row down the Settings menu.
   tried and goes red: plausible text under the wrong heading is exactly what a
   grid gets wrong silently.
 
+- **SORTING IS STUDIO'S, and the grid is told the data changed.** gBASIC turns
+  header-click sorting off on an asking table (a sorted VIEW would make a row
+  index mean another record), so the window has a Sort by choice and a
+  Descending check; `studio_table.sort_rows` builds a permutation on the source
+  that `row_at` reads through, using gBASIC's native, STABLE `sort(rows, { by,
+  descending })`, and `qt.rows` resets the model. Capped at `sort_limit()`
+  (100,000 rows) and refused by name past it.
+- **CELLS ARE TEXT, SO NUMBERS HAD TO BE RECOVERED.** A capture and an export
+  both carry each cell as its bounded display string, and the first sort put
+  999 above 1798.5 -- measured in the tier, descending by score. A column whose
+  every non-empty cell reads as a number now sorts numerically
+  (`_is_number_text`, a checked parse rather than a caught `number()`); one
+  stray word keeps the whole column text; empty cells sort LAST either way.
+- **Columns are sized to their contents** (`qt.invoke(... "resizeColumnsToContents")`,
+  which Qt measures over the rows in view, so it costs a screenful), and a
+  table wider than the window scrolls sideways -- the asking table's scrollbar
+  policy is "as needed". **Numbers are NOT right-aligned yet**: the asking
+  model hands Qt text and sets no alignment role, so that needs gBASIC.
+- The caption is bold and a NOTE under it says what a sample means and where
+  the rest is (`studio_table.caption_note`).
+
 #### A Qt tier that SKIPPED was hiding a failure
 
 Three Qt tiers reported `SKIP (this gBASIC has no Qt backend)` on a build whose

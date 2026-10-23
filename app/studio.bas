@@ -521,16 +521,57 @@ function qt_open_grid(caption, src)
         end if
     end if
     G.table_src = src
-    G.tablewin = studio_shell_qt.table_window(caption, src.cols)
-    z = qt.open(G.tablewin)
-    ' HOW MANY ROWS, which is the one thing a `to ask` table is told rather than
-    ' asks: `known` is what the source can actually show -- the sample's rows,
-    ' or an export's lines -- and never the run's total, which the caption
-    ' states beside it.
+    w = studio_shell_qt.table_window(caption, studio_table.caption_note(src), src.cols)
     if count(src.cols) > 0 then
+        w = qt_on(w, "grid_sort", "currentIndexChanged", qt_grid_sort)
+        w = qt_on(w, "grid_desc", "toggled", qt_grid_sort)
+    end if
+    G.tablewin = w
+    z = qt.open(G.tablewin)
+    if count(src.cols) > 0 then
+        ' The choice's list is DATA (the columns), so it is filled after the
+        ' open -- and inside the guard, because filling it is a change too.
+        G.redrawing = true
+        z = qt.options(G.tablewin, "grid_sort", studio_shell_qt.sort_choices(src.cols))
+        G.redrawing = false
+        ' HOW MANY ROWS, which is the one thing a `to ask` table is told rather
+        ' than asks: `known` is what the source can actually show -- the
+        ' sample's rows, or an export's lines -- and never the run's total,
+        ' which the caption states beside it.
         z = qt.rows(G.tablewin, studio_shell_qt.part_grid(), src.known)
+        ' COLUMNS SIZED TO WHAT THEY HOLD. Qt measures the rows in view rather
+        ' than the whole table, so this costs a screenful whatever the size;
+        ' a table wider than the window scrolls sideways (the asking table's
+        ' scrollbars are "as needed").
+        z = qt.invoke(G.tablewin, studio_shell_qt.part_grid(), "resizeColumnsToContents")
     end if
     return nothing
+end function
+
+' SORT BY a column, or back to the run's order. `studio_table.sort_rows`
+' decides; a refusal is written in the note rather than leaving a half-sorted
+' grid, and the order is left as it was.
+function qt_grid_sort()
+    if G.redrawing then
+        return nothing
+    end if
+    pick = qt.read(G.tablewin, "grid_sort", "currentIndex")
+    desc = qt.read(G.tablewin, "grid_desc", "checked")
+    if pick <= 0 then
+        G.table_src = studio_table.unsorted(G.table_src)
+        z = qt.set(G.tablewin, "grid_note", "text", studio_table.caption_note(G.table_src))
+    else
+        r = studio_table.sort_rows(G.table_src, pick - 1, desc)
+        G.table_src = r.src
+        if not r.ok then
+            z = qt.set(G.tablewin, "grid_note", "text", r.why)
+            return nothing
+        end if
+        z = qt.set(G.tablewin, "grid_note", "text", studio_table.caption_note(G.table_src))
+    end if
+    ' "The data changed": resetting the count is how an asking table is told,
+    ' and Qt asks again for what is in view.
+    return qt.rows(G.tablewin, studio_shell_qt.part_grid(), G.table_src.known)
 end function
 
 ' THE GRID'S CELL FUNCTION, resolved BY NAME (`studio_shell_qt.grid_cell_fn`)
@@ -588,6 +629,7 @@ function qt_tables_report()
     tw = G.tablewin
     g = studio_shell_qt.part_grid()
     print "  caption: " + qt.read(tw, "grid_caption", "text")
+    print "  note:    [" + qt.read(tw, "grid_note", "text") + "]"
     n = qt.rows(tw, g)
     print "  rows:    " + string(n)
     print "  columns: " + qt.heading(tw, g, 0) + ", " + qt.heading(tw, g, 1) + ", " + qt.heading(tw, g, 2)
@@ -1132,6 +1174,20 @@ function qt_nav_cells(win)
         out = append(out, string(qt.depth(win, studio_shell_qt.part_browser(), i)) + " " + qt.cell(win, studio_shell_qt.part_browser(), i, "text"))
         i = i + 1
     end for
+    return out
+end function
+
+' A choice's items, read back off the widget.
+function qt_choice_items(win, part)
+    out = []
+    n = qt.read(win, part, "count")
+    i = 0
+    while i < n
+        z = qt.set(win, part, "currentIndex", i)
+        out = append(out, qt.read(win, part))
+        i = i + 1
+    end while
+    z = qt.set(win, part, "currentIndex", 0)
     return out
 end function
 
@@ -2281,6 +2337,16 @@ program main(args)
         print "  finished: " + went
         z = qt.select(win, studio_shell_qt.part_tables(), 0)
         print "  reopened: " + G.last_action
+        z = qt_tables_report()
+
+        print "-- Sort by score, descending, through the window's own controls --"
+        tw = G.tablewin
+        print "  offered: " + join(qt_choice_items(tw, "grid_sort"), " | ")
+        z = qt.set(tw, "grid_desc", "checked", true)
+        z = qt.write(tw, "grid_sort", "score")
+        z = qt_tables_report()
+        print "-- and back to the order the run made them --"
+        z = qt.write(tw, "grid_sort", studio_shell_qt.sort_choices([])[0])
         z = qt_tables_report()
 
         print "-- the nothing-to-offer row opens nothing --"

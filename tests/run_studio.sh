@@ -343,7 +343,7 @@ run_table() { # mode
         fail "table_$mode (output diff)"
     fi
 }
-for m in tier preview export; do
+for m in tier preview export sort; do
     run_table "$m"
 done
 if timeout 30 "$GBASIC" tests/drivers/have_rowmodel.bas >/dev/null 2>&1; then
