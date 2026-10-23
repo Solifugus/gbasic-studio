@@ -358,10 +358,6 @@ program main(args)
   if mode = "show" then
     fixture = false
   end if
-  ' `layout` reads a home the GUI just wrote, so it must not build one.
-  if mode = "layout" then
-    fixture = false
-  end if
   if mode = "panes" then
     fixture = false
   end if
@@ -1716,22 +1712,6 @@ program main(args)
     print "is the Apache licence=" + (find(txt, "Apache License") != nothing)
   end if
 
-  ' ---- layout: what a reopened home remembers about the window -------------
-  if mode = "layout" then
-    app = studio.launch(home)
-    sess = app.model.session
-    ' Booleans, not the numbers: see stu13_step. What is asserted is that all
-    ' three came back and that none of them is the built-in default any more.
-    print "browser remembered=" + (studio_model.pane_at(sess, "browser", -1) > 0)
-    print "console remembered=" + (studio_model.pane_at(sess, "console", -1) > 0)
-    print "right remembered=" + (studio_model.pane_at(sess, "right", -1) > 0)
-    print "not the built-in browser default=" + (studio_model.pane_at(sess, "browser", -1) != 260)
-    ' The SIZE is recorded as a boolean. Under Wayland the compositor decides
-    ' how big a window actually is, so the number that comes back is the
-    ' desktop's and not something a golden can hold; that it was written at all
-    ' is the assertable part.
-    print "window recorded=" + (sess.window.width > 0 and sess.window.height > 0)
-  end if
 
   ' ---- panes: the divider arithmetic, and what a bad stored value does -----
   if mode = "panes" then

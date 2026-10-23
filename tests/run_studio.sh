@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# gBASIC Studio — STU-0 backbone suite (docs/gbasic_studio_plan.md, STU-0).
+# gBASIC Studio — the suite.
 #
-# Exercises the persistent BACKBONE only (project/session/settings model +
-# versioned atomic persistence + startup/shutdown lifecycle). It is entirely
-# headless and GI-independent: the studio_* stdlib libraries are pure gBASIC over
-# the filesystem/JSON builtins, so this suite must run and be verified even on
-# hosts without a display or GTK typelibs. The GTK shell (display-only) is covered
-# by run_gui_parse.sh (parse) and a manual checklist in docs/harness_notes.md.
+# Started as the STU-0 backbone suite (project/session/settings model,
+# versioned atomic persistence, the startup/shutdown lifecycle) and grew a tier
+# per phase since. It is entirely HEADLESS: the libraries are toolkit-free
+# gBASIC, and the window's tiers build it under QT_QPA_PLATFORM=offscreen, so
+# nothing here needs a display -- and a gBASIC built without Qt skips the
+# window tiers by its own words rather than failing them.
 #
 # Determinism: the app's summary output is PATH-FREE (ids are counter-minted, no
 # timestamps, temp home never printed), so stdout is byte-stable against goldens
@@ -781,14 +781,12 @@ fi
 #   ui_*      — headless, GI-independent, path-free. Every interaction's MEANING,
 #               decided by a studio_ui function the driver calls directly. This is
 #               the primary evidence and it runs everywhere.
-#   ui_gui*   — display-only, SKIPs without GTK 4 or a display. The two inches a
-#               headless test cannot reach: that the handler is connected, that
-#               the index it reads off the widget is the row the user hit, and
-#               that rebuilding a pane from inside that pane's own handler is
-#               safe. Real signals are synthesised (GtkListBoxRow.activate,
-#               GtkNotebook.set_current_page, GtkTextBuffer.set_text,
-#               GtkButton.activate) — there is no gi.emit, but those methods emit
-#               the signal we want as their documented effect.
+#   qtview_*  — the window, built for real under QT_QPA_PLATFORM=offscreen. The
+#               inches a headless test cannot reach: that the handler is
+#               connected, that the value it reads off the widget is the one the
+#               user chose, and that redrawing from inside a handler is safe.
+#               Controls are pressed for real (qt.invoke, qt.select, qt.key,
+#               qt.scroll, qt.right_click). They are further down this file.
 UI=tests/drivers/ui.bas
 run_ui() { # mode
     local mode="$1" home proj
@@ -833,10 +831,9 @@ done
 # THE QT SHELL, AS DATA -- and the first tier in this suite that asserts the
 # window's STRUCTURE rather than its text.
 #
-# Under GTK that was impossible: `studio_shell.build` decides what the window is
-# while it makes a hundred widgets, so the layout could only be asserted by
-# opening one -- which is why every `ui_gui*` tier skips without a display, and
-# why not one of them can see a pane in the wrong place. `studio_shell_qt`
+# Under GTK that was impossible: the shell decided what the window was while it
+# made a hundred widgets, so the layout could only be asserted by opening one,
+# and no display tier could see a pane in the wrong place. `studio_shell_qt`
 # returns a record instead, so the whole shape is a string and these two tiers
 # need no display, no Qt and no toolkit of any kind.
 QTSH=tests/drivers/qtshell.bas
@@ -885,11 +882,9 @@ if GBASIC_PATH="$GBASIC_STDLIB" timeout 60 "$GBASIC" "$qtprobe" >/dev/null 2>&1;
 
     # AND THE WINDOW REALLY OPENS, with nothing on the screen.
     #
-    # This is what retires the `ui_gui*` tiers, and it is strictly better than
-    # what it replaces. Those need GTK 4 AND a display, and they assert TEXT --
-    # they cannot see a pane in the wrong place, which is why every defect in
-    # CLAUDE.md's browser and run-strip sections was found by taking a
-    # screenshot. `QT_QPA_PLATFORM=offscreen` needs no display and no
+    # This is what retired the GTK display tiers, and it is strictly better
+    # than what it replaced. Those needed GTK 4 AND a display, and asserted TEXT
+    # -- they could not see a pane in the wrong place. `QT_QPA_PLATFORM=offscreen` needs no display and no
     # compositor, so the window is built for real and asked about its own
     # LAYOUT: the three splits report their nesting from the widget tree,
     # walking up from a part, which is the one check a remembered position
@@ -977,8 +972,8 @@ fi
 # it from the model, then a browser row activated through the same
 # `studio_ui.activate_row` a click calls, then an edit in the model. So it
 # asserts the RENDERER -- every pane holding what studio_ui says it should --
-# and the row model reaching the window, which between them is what the
-# `ui_gui*` tiers need a display for.
+# and the row model reaching the window, which between them is what the GTK
+# display tiers needed a display for.
 #
 # One tier and not two, because the cold window and the one-document window are
 # the same code path with different data, and a tier that only ever sees an
@@ -1027,12 +1022,10 @@ fi
 
     # EVERY CONTROL PRESSED, FOR REAL, WITH NO DISPLAY.
     #
-    # This is what retires `ui_gui_menus` and `ui_gui_name`, and it is better
-    # than what it replaces in one specific way: `qt.invoke(win, item,
-    # "trigger")` fires a QAction the way a person does, where a `Gtk.Button`
-    # inside a popover that has never been shown silently ignores `activate()`
-    # -- which cost STU-16 two rounds and is why the GTK tier has to pop each
-    # menu up first.
+    # This retired two GTK display tiers, and it is better than them in one
+    # specific way: `qt.invoke(win, item, "trigger")` fires a QAction the way a
+    # person does, where a GTK button inside a popover never shown silently
+    # ignored `activate()` -- which cost STU-16 two rounds.
     #
     # It presses sixteen menu items, the Save button and the run strip, selects
     # browser rows, arms and confirms a Delete, walks the zoom ladder, and

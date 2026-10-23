@@ -178,7 +178,7 @@ lib/studio_session.bas  replay-first execution in a child interpreter, 8 states.
                         is the same code for both
 lib/studio_results.bas  durable per-run results, retention, truncation, standing
 lib/studio_ui.bas       what an interaction MEANS — the browser/tab row models and
-                        one function per interaction, over plain data, no GTK
+                        one function per interaction, over plain data, no toolkit
 lib/studio_branches.bas STU-7 state-only branches: a tree of alternate
                         continuations, each a set of BINDINGS replayed over
                         identical source; anchored to its shared ancestry
@@ -224,7 +224,7 @@ lib/studio_permissions.bas STU-10 tiers (read/local/external), policies
                         (auto/confirm/deny), and scope composition. Scopes
                         NARROW; they never widen
 lib/studio_teaching.bas STU-10 pointing at the window by stable widget name —
-                        cues over plain data, rendered with generic GTK
+                        cues over plain data, drawn by the renderer
 lib/studio_secrets.bas  STU-10 credential storage: AES-GCM, key from the
                         environment and NEVER written to disk. STU-14 made it
                         the first place a `.sql` run looks for a database
@@ -378,37 +378,28 @@ Two consequences worth knowing before you touch the shell:
 
 ### The Qt window (STU-22)
 
-**gBASIC grew a Qt GUI system and Studio is switching to it, GTK being thrown
-out.** The decision is the user's (2026-10-19) and the whole of why it is
-affordable is **the interaction rule**: a signal handler is an adapter, every
-decision lives in `studio_ui` over plain data, and `gi.connect` appears in one
-file. So the toolkit-touching code is **three files and 333 of 26,300 lines —
-1.3%**: `lib/studio_shell.bas` (215 lines), `app/studio.bas` (114),
-`lib/studio_style.bas` (4). Twenty-five of twenty-seven libraries are
-toolkit-free. A rule written for testability bought a port.
+**gBASIC grew a Qt GUI system and Studio moved to it; GTK was removed on
+2026-10-22.** The decision was the user's (2026-10-19), and the whole of why it
+was affordable is **the interaction rule**: a signal handler is an adapter,
+every decision lives in `studio_ui` over plain data, and handlers were attached
+in one file. So the toolkit-touching code was **three files and 333 of 26,300
+lines — 1.3%** when the port began. Twenty-five of twenty-seven libraries were
+toolkit-free. A rule written for testability bought a port. The entries below
+were written as the port went; "under GTK" in them is history.
 
 - **THE SURFACE IS A RECORD, which is the whole difference.** `qt.open` reads
   `{ kind, word, name, options, items }` and asks only that `kind` is
   `"window"` (gBASIC §0.9), so `studio_shell_qt.window_for(app)` is an
   ordinary pure function and the window's shape is DATA. Under GTK the layout
-  could only be asserted by opening a window, which is why every `ui_gui*`
-  tier skips without a display and why every defect in the browser, run-strip
-  and output-pane sections below was found by taking a SCREENSHOT. Those
-  tiers assert text; nothing asserted structure.
+  could only be asserted by opening a window — the display tiers skipped
+  without one, asserted text and never structure, and every layout defect was
+  found by taking a SCREENSHOT.
 - A container carries a **name or options, never both** (§0.8: `tabs
   settings( movable: true )` costs four reduce/reduce conflicts), and a
-  `split`'s one slot is its **direction** — so a split cannot be named, and
-  pane sizes are addressed by walking up from a part inside one.
-- **`qt.resize_panes` is addressed by a part that IS one of that split's own
-  panes**, because the walk stops at the nearest region. Asking with the
-  browser TABLE finds the scroll it sits in; asking with a part in the console
-  finds the vertical split. So `pane_sizes` names `files_scroll`, `beside` and
-  `book`, one per split, and the arithmetic is per-split — the right split's
-  own width is what the outer split left it, which is also what GTK's
-  `rsplit.position` has always meant.
+  `split`'s or a `docks`' one slot is its direction or edge — so neither can be
+  named.
 - **No pixel is asserted.** Measured upstream: 260/540 of an 800-wide splitter
-  comes back 252/522, and a resize re-proportions. What a session stores is a
-  ratio in effect.
+  comes back 252/522, and a resize re-proportions.
 - **A CONTAINER'S SET OF CHILDREN WAS FIXED AT OPEN, AND THAT WAS THE ONE
   BLOCKING GAP.** `qt.refresh` covered a `table`'s rows and a form's subject
   and nothing else, and `qt.invoke` passes **no arguments**, so
@@ -473,17 +464,14 @@ toolkit-free. A rule written for testability bought a port.
   where `headerVisible` is not, which corrected Studio's own ask — and
   `studio_view_qt.dress` sets seven of them ONCE, none of them changing while
   Studio runs. `showGrid` does not exist on a tree at all.
-- **No `scroll` around it.** A tree scrolls itself, like a table and a memo, so
-  a scroller would be a second region for the pane walk to stop at — and the
-  walk is how `qt.resize_panes` and `qt.pane` find a split. The tree is the
-  pane now and addresses the outer split directly.
+- **No `scroll` around it.** A tree scrolls itself, like a table and a memo; a
+  scroller around it would be a second region for nothing.
 - **A tree's or table's `items` are its COLUMNS and a column is not a part.**
   Its `name` is the row FIELD each cell reads.
 - **The menus come out BETTER than the GTK original, not equal to it.** Real
-  `QAction`s: `shortcut:` retires the `Gtk.EventControllerKey` that is the one
-  control in this window with no test at all (there is no way to synthesise a
-  key press through the bridge, so STU-20 shipped it as a sanctioned
-  exception), and `checkable:` retires the `●`/`○` glyphs — which were always
+  `QAction`s: `shortcut:` replaced a key controller that had no test at all
+  (and `qt.key` now presses one for real — see the zoom section), and
+  `checkable:` retires the `●`/`○` glyphs — which were always
   a trade for a pressable menu rather than a limitation. `studio_ui` gained
   `menu_checkable` and `menu_checked`, and `menu_mark` is DERIVED from them,
   so the glyph is a GTK rendering of one decision rather than a second copy of
@@ -499,19 +487,12 @@ toolkit-free. A rule written for testability bought a port.
   has two callers sharing it (§0.4). **But `qt.run()` must be called from the
   TOP LEVEL of the `program` block**: from inside a function every
   loop-delivered source is silently starved and the program hangs with no
-  output (gBASIC's DOGFOOD, 2026-10-19 — the one item in its open ledger).
-  Studio already calls GTK's equivalent from the top level.
-- **`studio_ui.status_text` moved out of `studio_shell`**, where it was
-  written and never belonged: it holds no widget and makes no toolkit call,
-  and the Qt shell cannot reach it from a library that loads GTK.
-  `studio_shell.status_text` is a delegate, the arrangement `run_line` /
-  `prefix_text` / `target_text` already have. The string is unchanged, which
-  is why no golden moved.
+  output (gBASIC's DOGFOOD, 2026-10-19).
 - **A library needs `library <name>` at the top or `load` cannot find it.**
   Costs one puzzled minute; the error is `library not found`, which reads as a
   path problem.
-- `qt.check` **RAISES** rather than answering false, so it is a test gate and
-  not a runtime guard. `qt.open` runs it too, for the reason upstream states:
+- `qt.check` **RAISES** rather than answering false — a test gate, and, caught,
+  a runtime guard (see "gBASIC CAN catch a raise"). `qt.open` runs it too, for the reason upstream states:
   a validator nobody is obliged to call is necessary and not sufficient.
 - **The shadowing was real and it was on this machine.** `qt.highlighting`
   reports the definition FILE, and it was
@@ -548,15 +529,15 @@ toolkit-free. A rule written for testability bought a port.
 - The branch and Tables panes are `table`s, because their rows are CLICKABLE
   (a branch is selected by clicking one, a table opened by clicking one) — see
   the branch-pane entry below and the Tables-pane section.
-- **`timer.every` is the run poller**, at 0.0625s like the GTK `gi.timeout`,
+- **`timer.every` is the run poller**, at 0.0625s,
   and only the FINAL tick of a run does a full redraw. It is guarded by
   `qt.is_open`, because a window can close without the program asking and every
   other verb then refuses for a reason that is nobody's mistake.
 - **A HANDLER IS A RECORD, NOT A CALL.** `{ kind: "handler", target, signal,
   handler }` in the window's own `items`, carrying a FUNCTION VALUE — so
-  `app/studio_qt.bas` wires and `studio_shell_qt` does not, which is what keeps
+  `app/studio.bas` wires and `studio_shell_qt` does not, which is what keeps
   the shell callable from a machine with no Qt. The wiring is one readable list
-  (`qt_wire`), the same arrangement `connect_signals` has.
+  (`qt_wire`).
 - **THE RE-ENTRANCY GUARD IS NOT OPTIONAL, and leaving it out SEGFAULTED.** Our
   own writes echo back as signals: a redraw rewrites the tree, which changes its
   selection, which fires `itemSelectionChanged`, whose handler redraws —
@@ -582,13 +563,12 @@ toolkit-free. A rule written for testability bought a port.
   `qt.right_click` for exactly this argument, so a left-click helper is asked
   for upstream. What keeps it honest meanwhile is that it is an adapter over
   `activate_row`, which four tiers cover: the logic is tested and only the
-  wiring is not, which is the Ctrl+wheel exception again.
-- **THE BUFFER SYNC IS A POLL**, because a per-editor `textChanged` cannot be
-  connected — gBASIC's reconcile builds a new child's widget through the same
-  door `qt.open` uses and does NOT connect its handler records (measured,
-  reported). So the ACTIVE editor's text is read on the tick and folded back
-  through `studio_ui.sync_buffers`, the same function the GTK buffer handler
-  calls. Only the active one: reading every open document sixteen times a
+  wiring is not.
+- **THE BUFFER SYNC IS A POLL.** It was built when a per-editor `textChanged`
+  could NOT be connected — the reconcile built a new child's widget without
+  connecting its handler records. gBASIC fixed that (3d3f7d9; Ctrl+wheel uses
+  it), so the poll is now a choice that could be revisited. The ACTIVE editor's
+  text is read on the tick and folded back through `studio_ui.sync_buffers`. Only the active one: reading every open document sixteen times a
   second is a string copy per document per tick for nothing. A full redraw
   follows only when `moved` is true — the dirty state is the one thing typing
   changes that the tab caption shows.
@@ -597,19 +577,6 @@ toolkit-free. A rule written for testability bought a port.
   has no such function either — its timer returns `active` and removes itself —
   so the Qt poller carries a `G.polling` flag, a `timer.every` having nothing
   to remove.
-- **RUN REFUSES BY NAME until a `source`'s caret can be read**, and that is the
-  one sentence in the Qt shell `studio_ui` does not compose. The panes are
-  caret-keyed (STU-5A′): the strip answers which section the caret is in and
-  Run runs that one. `run_section(app, 0, 0)` resolves through `section_for`'s
-  fall-through to the FIRST section — a plausible wrong answer, far worse than
-  a refusal. Measured: none of `cursorPosition`, `textCursor`, `currentLine` or
-  `caretPosition` is a `Q_PROPERTY` of a `QPlainTextEdit`, which is right — a
-  `QTextCursor` is an object, the same shape as the highlighter. Asked upstream
-  as request 1. "No caret under Qt" is a fact about a toolkit mid-migration and
-  not a thing Studio's model knows, which is why it does not earn a place in
-  that vocabulary.
-- **New Project says it has no window yet** rather than doing nothing, for the
-  reason every other refusal here is named.
 - **NEW PROJECT IS A SECOND ORDINARY WINDOW, NOT A MODAL ONE**, and that is
   deliberate twice over. gBASIC's §0.18 shows a modal CAN be driven — a timer
   keeps running while `qt.open_modal` blocks, so a program answers its own
@@ -665,9 +632,9 @@ toolkit-free. A rule written for testability bought a port.
   could offer one number per divider and nothing about arrangement, so a
   dragged pane was never something Studio could remember. Base64 because the
   blob is NOT valid UTF-8 (95 of 143 bytes NUL) and `session.json` is JSON.
-  `studio_model.qt_layout_of` guards it like every other stored value, and
-  `studio_model.pane_at` stays for the GTK shell — a home written by one shell
-  opens in the other, each ignoring what it cannot use.
+  `studio_model.qt_layout_of` guards it like every other stored value. (The
+  GTK divider numbers, `studio_model.pane_at`, are still read by `ui_panes` and
+  nothing else.)
 - **An unrecognised layout is REPORTED, not raised.** `qt.restore_layout`
   answers false, which is exactly what a launch meets after the window's own
   declaration changed; losing a saved arrangement is not worth stopping a
@@ -750,13 +717,10 @@ toolkit-free. A rule written for testability bought a port.
   output, and on a fixture difference, and PRINTS THE LINE DELTA (`151 -> 153`)
   so a shrink cannot pass unnoticed. Restore from git rather than patching
   forward from a damaged golden.
-- **`qt.right_click` CANNOT aim at a tree row** — its third argument is a
-  table's (`"files` is not a table, so it has no row to click"). The tier
-  selects the row first and clicks the part, which drives the whole menu path
-  and leaves only the aiming simulated. Stated in the tier rather than hidden,
-  and asked for upstream: §0.20's justification for the table form is "what
-  makes `right-click the third file` writable", and the third file is now a tree
-  row.
+- **`qt.right_click` aims at a tree row** since gBASIC §0.33. Before that it
+  could not, the tier clicked a point, every case hit the same row, and the
+  golden recorded four identical menus — see "One of our own Qt goldens had been
+  asserting nothing" in the switch section.
 - **THE GUTTER IS BACK, and it is better than the GTK one** (gBASIC §0.29,
   the second ask built for Studio by name — and the user widened it on reading
   the note: *"I was only thinking line numbers and forgot about break points."*
@@ -768,7 +732,7 @@ toolkit-free. A rule written for testability bought a port.
 - **It also has LINE NUMBERS now, which it should have had all along.** The GTK
   editor never called `set_show_line_numbers`, and gBASIC's own diagnostics are
   `line:column`, so a reader had nothing to count against.
-- **NO MARK CACHE, and that is the API shape paying off.** The GTK shell keeps
+- **NO MARK CACHE, and that is the API shape paying off.** The GTK shell kept
   `shell.marked` and `shell.errmarked`, gated on the outline's revision and on
   the error lines' signature, because GTK's marks are add/remove per line and
   redrawing them is widget churn at caret-move rate. `qt.mark` REPLACES a whole
@@ -776,7 +740,7 @@ toolkit-free. A rule written for testability bought a port.
   list on every redraw and a cache is a thing to get wrong — so writing it
   unconditionally is idempotent and cheap. Two fewer caches than the GTK path.
 - **LINES ARE 1-BASED THERE AND 0-BASED HERE.** `studio_ui.section_marks`
-  subtracts one for a `Gtk.TextBuffer`; `qt.mark` refuses a 0 by name. The +1
+  answers 0-based lines (a GTK-era convention); `qt.mark` refuses a 0 by name. The +1
   goes at the ONE call site in `studio_view_qt._gutter` rather than `studio_ui`
   growing a second answer — the parser's own numbering is 1-based and this is
   putting it back.
@@ -1278,7 +1242,7 @@ measurements made it cheap:
 
 So `share/icons/toolbar/` holds five light-stroke SVGs,
 `studio_style.toolbar_icon(part, theme)` is the one decision, and
-`app/studio_qt.bas`'s `qt_apply_toolbar` applies them. Dark is back to
+`app/studio.bas`'s `qt_apply_toolbar` applies them. Dark is back to
 `IconOnly`.
 
 **SVG, and measured rather than assumed.** A valid one sets and reads back as
@@ -1394,7 +1358,7 @@ overlay editor stayed on screen showing an overlay that no longer existed.
 
 #### A tripwire that did not check what it claimed (FIXED by the switch)
 
-**`qt_no_gtk` greps `lib/studio_view_qt.bas` and `app/studio_qt.bas` for a
+**`qt_no_gtk` grepped `lib/studio_view_qt.bas` and `app/studio_qt.bas` for a
 direct `gi.`/`gtk.` and nothing else — so it passes while the Qt process loads
 `gi` TRANSITIVELY.** `lib/studio_shell_qt.bas` loads `studio_style` (for
 `indent()`, and now for the QSS), and `studio_style` has `load gi` at library
@@ -1415,17 +1379,15 @@ since a file that cannot mention GTK cannot load it for anyone.
 - **New Project OPENS A WINDOW now; it no longer creates a project outright.**
   `studio_ui.new_project` (mint a name, make a directory) is still there and
   still tested, because the cold-start path is the one thing in this
-  application that cannot be allowed to break. But the button goes through
-  `studio_shell.new_project_window`, which is a window Studio BUILDS — not a
-  `GtkAlertDialog`, for the same reason names come from a header field and
-  confirmations are two clicks: an async surface is one no test can press.
-  Every control in it is an ordinary widget whose value can be SET, so
-  `ui_gui_newproj` fills the form and clicks Create for real.
-- The window holds NO decisions. It reads an options record in
-  (`studio_ui.default_options`) and hands one back out
-  (`studio_shell.new_project_options`, which is the whole of the
-  widget-to-value read). What those options MEAN is `studio_ui.project_plan`,
-  headless, and `ui_newproj2` asserts every box with no widget in sight.
+  application that cannot be allowed to break. But the menu item opens
+  `studio_shell_qt.new_project_window`, a second ordinary window Studio BUILDS
+  rather than a system dialog — chosen so a test can fill it and press Create
+  for real, which `qtview_press` does.
+- The window holds NO decisions. A `form to edit` is bound to the options
+  record (`studio_ui.default_options`) and `qt.subject` hands it back — one verb
+  is the whole widget-to-value read. What those options MEAN is
+  `studio_ui.project_plan`, headless, and `ui_newproj2` asserts every box with
+  no widget in sight.
 - **`project_plan` decides, `create_project` acts, and a refused plan has
   touched nothing.** The refusals are named — `no-name`, `invalid`, `no-path`,
   `exists`, `no-author`, `no-license` — and each reaches the status line by
@@ -1469,122 +1431,49 @@ since a file that cannot mention GTK cannot load it for anyone.
   `share/` somewhere else and Studio's own working directory is never the
   answer. Without it the licence cases would exercise the "no text shipped"
   refusal instead of the licence.
-- `Gtk.DropDown` over a `Gtk.StringList`, both reachable through `gi.new` and
-  both driven by ordinary instance methods (`set_selected`, `get_selected`).
-  `Gtk.DropDown.new_from_strings` is a class static the bridge cannot call —
-  the same gap as `Gtk.Settings.get_default`. Measured before the window was
-  written, not assumed.
 - **`on` is a reserved word.** `function _check(label, on)` is a parse error,
-  and a parse error in `studio_shell.bas` is a window that will not open at
-  all. The parameter is `ticked`.
-- The window is built ONCE and kept on `G.newproj_win`; a second click on New
-  Project presents the one that is already open. Minting a second set of
-  widgets over the same handlers is the doubling `ui_gui_solo` exists to catch
-  one level up.
-- Three display tiers got a project from one click and now need two
-  (`click_create_project`). `stu2c_step` keeps its ORIGINAL phase numbering
-  against a `ph = G.phase - 1`, rather than renumbering a flow whose phase
-  numbers appear nowhere in its golden.
+  and a parse error in a library the window loads is a window that will not
+  open at all.
+- A second press of New Project while its window is open does nothing rather
+  than opening another (`qt_np_is_open`): two windows over one set of handlers
+  is a doubling nobody asked for.
 
 ### The browser pane (STU-13)
 
-- **A deep tree CLIPPED a file name mid-word, with no ellipsis and no
-  horizontal scrollbar.** Measured: five levels in a 260px pane cut
-  `interpolated_string_expression_parser_regression_tests.bas` off at
-  `interpolated_string_expression_pa` — nothing said the name was truncated
-  and nothing could reach the rest of it. Found by taking a screenshot, like
-  every other defect in this section; no golden can see it, because the
-  asserted label is the whole string either way.
-- The rows ellipsize **MIDDLE**, not END. END would signal the truncation and
-  still eat `.bas`, which is the part that says what the file IS.
-- **`_fill`, not `_left`, on a browser row.** `halign = START` hands a label
-  its NATURAL width, and a label allowed its natural width never ellipsizes —
-  it runs off the edge, which is the bug. The label has to be GIVEN a width for
-  Pango to have anything to elide against. The nav scroller is `_vscroll` for
-  the same reason: a horizontal policy of AUTOMATIC lets a child take its
-  natural width instead of the width it is given.
-- **Indentation is a MARGIN now, not spaces in the label.** `studio_ui._row`
-  carries `name`, `depth` and `glyph`, and `studio_ui.row_label` derives the
-  flat string from them — in ONE place, because the goldens address rows by
-  that string and two independent renderings of one thing is the
-  `projects[].documents` mistake. Nothing moved: 172 cases passed unchanged
-  across that refactor, which is the evidence that `row_label` reproduces what
-  it replaced.
-- `studio_style.indent()` is **8**, not `unit() * 2`. Measured: twelve pixels
-  is visibly wider than the old two-spaces-in-a-proportional-font, wide enough
-  that two names started ellipsizing which had fitted before. Making the
-  indentation exact must not cost the names the width it was meant to save
-  them.
-- Every row carries its full path as a TOOLTIP, which is where an elided name
-  can be read in full.
-- **The layout you set is now remembered.** `session.window` had been READ at
-  startup since STU-0 and never written back, and the three divider positions
-  were literals in `studio_shell.build` — so a resized window and a dragged
-  divider were both forgotten on every launch. `studio_model.pane_at` guards
-  every stored value (missing key, not a record, not a number, absurdly small)
-  because this is JSON a user can edit and a crash can truncate, and a divider
-  read as 0 is a pane collapsed to its floor on startup with nothing saying why.
-- **Geometry is captured on `close-request`, not after the loop returns.** The
-  GTK loop returns only once the window is GONE, so the exit path cannot ask it
-  how big it was — which is why that field was never written. Returning false
-  from the handler lets the close proceed. `stu2c_step` now calls
-  `window.close()` rather than `app_ref.quit()`, because that tier's whole
-  claim is that closing the window saves the session and `quit()` skips
-  `close-request` entirely.
-- The exact divider numbers are NOT in a golden. A GtkPaned clamps its position
-  against the allocation and under Wayland the compositor decides that —
-  measured, `rsplit = 700` came back 572 on this desktop. `ui_panes` asserts the
-  arithmetic headlessly where it is pure; `ui_gui_layout` asserts only what
-  needs a real window: that closing it writes the layout down at all.
+- **A row's text is derived in ONE place.** `studio_ui._row` carries `name`,
+  `depth` and `glyph`; `row_label` derives the flat string the goldens address
+  rows by, and `row_text` the tree's cell (the tree draws the indentation from
+  `depth`). Two independent renderings of one row is the
+  `projects[].documents` mistake.
+- **The layout you set is remembered.** `session.window` had been READ at
+  startup since STU-0 and never written back, so a resized window was
+  forgotten on every launch. It is captured as the window closes (in its
+  `closed` handler, the last moment it can still be asked), along with the
+  whole dock arrangement (`qt.layout`, guarded by `studio_model.qt_layout_of`
+  like every value read from a file a user can edit).
 
 ### The browser's right-click menu (STU-13)
 
-- A `Gtk.Popover` holding a box of ordinary `Gtk.Button`s, **not** a
-  `Gtk.PopoverMenu`. ONE reason, and it is testability: plain buttons are what
-  `ui_gui_ctx` can press. (This entry used to give a second reason — that a
-  `GMenuModel` needs class statics the bridge cannot reach — and that is
-  FALSE; see the menus section below for the measurement.) `gi.new("Gdk.Rectangle")` fails
-  like `Gdk.RGBA`, so `set_pointing_to` is out and the popover parents to the
-  ROW, which points at the thing it is about anyway.
-- Built ONCE holding every item there is; `studio_shell.context_for` shows the
-  ones `studio_ui.context_actions` names and hides the rest. An empty list means
-  NO menu: a popover with nothing in it reads as a control that failed.
-- **Every item dispatches to the same `studio_ui` function the toolbar calls.**
-  That is what keeps Delete ARMED from the menu — a second implementation would
-  quietly undo the two-click rule on the same file, from a different control.
+- Built ONCE holding every item there is; `studio_ui.context_actions` decides
+  which a row shows and the rest are hidden. An empty list means NO menu: a
+  menu with nothing in it reads as a control that failed.
+- **Every item dispatches to the same `studio_ui` function the header item
+  calls.** That is what keeps Delete ARMED from the menu — a second
+  implementation would quietly undo the two-click rule on the same file, from a
+  different control.
 - **Rename does not rename.** It fills the header name field and focuses it,
-  because that field is where a name comes from and a second route to one is two
-  places to get naming rules wrong. The item says "Rename…" for that reason.
-- Right-click SELECTS (`studio_ui.select_row`) and does not activate: on a file
-  `activate_row` would OPEN it, which is a menu acting before it was asked.
-  Project rows are the exception and DO activate, because both of their items
-  are about a project and the one just pointed at is the one meant.
-- **`redraw` takes the popover down first.** It is parented to a browser row and
-  a redraw rebuilds those; a popover whose parent is destroyed is a GTK critical,
-  which `G_DEBUG=fatal-criticals` turns into a nonzero exit.
+  because that field is where a name comes from and a second route to one is
+  two places to get naming rules wrong. The item says "Rename…" for that reason.
+- Right-click SELECTS and does not activate: on a file `activate_row` would
+  OPEN it, which is a menu acting before it was asked.
 - `close_project` is NOT armed, unlike Delete and Close: nothing is lost. The
   directory is untouched, the state file stays on disk under its own key, and
   Open Folder puts it back with its anchors. It REFUSES while a document under
-  it is dirty, naming the file — closing the project closes those tabs and
-  Studio keeps no drafts. It writes the project's anchors before the project
-  stops being findable, or `project_path_for` would answer "" and the cache
-  would flush to nowhere. Nothing is logged: `studio_history.kinds()` is a
-  closed vocabulary and this is not in it.
-- **The gesture is held on `G` as well as passed to `add_controller`.** A
-  controller nothing else holds is one more object that can go away under a live
-  window — the same reason `_STUDIO_STYLE` is a global.
-- **`row.get_allocation()` RAISES through the bridge**, so a display tier cannot
-  ask a row where it is. `ui_gui_ctx` finds the y by scanning `get_row_at_y`
-  until it answers the wanted index, which also exercises that lookup for real.
-  Pixel arithmetic is not a substitute: `get_height()` reported 19 against an
-  actual pitch of ~20, so `idx * h` opened the menu on the wrong file.
-- Menu items are `set_has_frame(false)` with `xalign = 0` on their labels.
-  Studio's own `flat` class is prefixed and means something else (it stops a
-  listbox painting a view background); without the GTK 4 call the menu was a
-  column of framed, centred buttons — looked at, and that is what it was.
-- A `Gtk.Popover` autohides, so it DISMISSES when a screenshot tool takes focus,
-  and on Wayland it is a separate surface that a window-only capture does not
-  include at all. Both are why looking at this one needed a full-screen grab.
+  it is dirty, naming the file — closing the project closes those tabs. It
+  writes the project's anchors before the project stops being findable, or
+  `project_path_for` would answer "" and the cache would flush to nowhere.
+  Nothing is logged: `studio_history.kinds()` is a closed vocabulary and this
+  is not in it.
 
 ### What the browser LOOKS like, and which project you are in
 
@@ -1592,16 +1481,8 @@ since a file that cannot mention GTK cannot load it for anyone.
   collapsed, and a space for a file — `studio_ui.glyph_*`, one answer each.
   Filled and hollow for the active project rather than an asterisk and two
   blanks: "which of these am I in" is answered by a shape being solid, and a
-  blank is not a shape. They are geometric shapes from the Unicode block every
-  mainstream UI font carries; this is NOT the `dialog-error` situation, where an
-  icon THEME can simply lack a name.
-- Each glyph is ONE character and the gap after it is LAYOUT: box spacing in the
-  widget, a space in `row_label`. Two characters of a proportional font is a
-  column nobody measured, and it cost ~8px of name width for nothing.
-- A browser row is a BOX of two labels, not one: a glyph label pinned to one
-  character (`width_chars` and `max_width_chars` together) and the ellipsizing
-  name. Inside one label the glyph was proportional, so a directory's name and
-  a file's name beside it began at different places.
+  blank is not a shape. They are geometric shapes every mainstream UI font
+  carries, not icon-theme names that a theme can lack.
 - **The notebook follows the browser.** The browser shows one project at a time
   and the tab row did not, so switching projects changed the tree and left you
   looking at the previous project's files, with nothing in the tab row saying
@@ -1624,9 +1505,9 @@ since a file that cannot mention GTK cannot load it for anyone.
   on exit is about documents the user has no memory of leaving open.
 - **A right-click does NOT change the active project.** Both project items name
   the row they came from — `add_project_file(app, project_id)` with "" meaning
-  the active one, for the toolbar button. The first version activated the row
+  the active one, for the header item. The first version activated the row
   first, which switched projects silently and only became visible when something
-  else redrew and the tree jumped.
+  else redrew and the tree jumped. `qtview_ctx` asserts it with two projects.
 - `studio_projfile.create` answers `project-no-folder`, not `no-project`, for a
   project with no directory. `no-project` made the status line say "open a
   project first" about a project that was plainly open — a refusal whose
@@ -1635,9 +1516,6 @@ since a file that cannot mention GTK cannot load it for anyone.
 - `close_project` answers `project-dirty`, not the `dirty` Delete uses. That one
   says "save main.bas first", which is true and reads as a remark about the file
   rather than as the reason a project would not close; this one names both.
-- **A row added and redrawn in the SAME callback has no allocation yet**, so
-  `get_row_at_y` cannot find it — the loop has to be given back for GTK to lay
-  it out. Cost an hour of looking for a product bug that was a test artefact.
 - **An expanded directory with nothing to show SAYS SO.** Opening an empty
   folder changed the arrow and nothing else, and the rows below it — its
   SIBLINGS, which sort after it because directories come first — stayed
@@ -1649,11 +1527,8 @@ since a file that cannot mention GTK cannot load it for anyone.
   purpose: "(empty)" about a folder holding six dotfiles would be a statement
   Studio cannot support. `hidden_entry` and the project's ignore list are the
   two ways a child can exist and not show.
-- The note is an `info` row — not clickable (`activate_row` answers "none"), no
-  context menu (`context_actions` answers []), and `dim` in the shell so it
-  reads as a remark rather than as one more thing to try clicking. That styling
-  is keyed on kind AND depth, because the workspace header is an info row too
-  and keeps its weight.
+- The note is an `info` row — not clickable (`activate_row` answers "none") and
+  no context menu (`context_actions` answers []).
 
 ### Templates (STU-15)
 
@@ -1774,11 +1649,12 @@ since a file that cannot mention GTK cannot load it for anyone.
   here already refuses BY NAME into the status line. `Delete` with no selection
   says "select a file first", which is the sentence a grey button would have
   left the user to guess. It also keeps every item pressable, which is what
-  makes the smoke modes able to press one.
+  lets a test press one.
 - **Save is the one verb that stays a button, and it is NOT also in a menu.**
   It is pressed constantly, it is the only header control with a state of its
-  own (the conflict arm), and a second route would be a second widget for the
-  teaching registry and the smoke modes to tell apart.
+  own (the conflict arm), and a second route would be a second control for the
+  teaching registry and the tests to tell apart. Under Qt it is the toolbar's
+  first entry.
 - `Close Project` is in the Project menu and had no toolbar button at all —
   it was reachable only by right-clicking a project row. The menu item acts on
   the ACTIVE project, read from `ws.active_project` in the handler;
@@ -1786,94 +1662,15 @@ since a file that cannot mention GTK cannot load it for anyone.
   so the empty string was NOT given a second meaning inside studio_ui. The
   context menu's item still names the row it came from, because a right-click
   must not change which project you are in.
-- A `Gtk.MenuButton` with a `Gtk.Popover` of ordinary `Gtk.Button`s — the SAME
-  construction as the browser's right-click menu, and for ONE reason: **a test
-  can press a button and cannot press a menu item.** Measured before it was
-  written: `set_popover`, `get_popover`, `set_always_show_arrow`, `popup` and
-  `popdown` are all ordinary instance methods that work through `gi`.
-- **GTK 4's REAL MENUS ARE REACHABLE, and this file said otherwise for two
-  phases.** It claimed a `GMenuModel` is built through class statics the bridge
-  cannot reach. Measured, every step works: `gi.new("Gio.Menu")` constructs,
-  `menu.append(label, action)` works, `MenuButton.set_menu_model` works,
-  `gi.new("Gio.SimpleAction", "name", …)` constructs, `window.add_action`
-  registers it, connecting `activate` works, and firing the action reaches the
-  handler. The claim originated in STU-13 and was REPEATED in STU-16 without
-  being re-tested — a "cannot" that was designed around rather than checked.
-- **What actually rules a `GMenuModel` out is that no test can press an item.**
-  The model is `{label, action-name}` DATA, not widgets; `GtkPopoverMenu`
-  builds its own internal widget tree from it and does not expose it. A test
-  could fire the `GAction` directly — that works — but it would then pass with
-  the menu unwired, mislabelled, or never displayed at all, which is precisely
-  the "reports success and draws nothing" failure `agent_widgets` exists to
-  stop. That reason was always sufficient on its own.
-- **The cost is real and is the radio mark.** `GMenuModel` gives proper radio
-  and check items, which is exactly what the Settings menu wanted and faked
-  with `●`/`○`. Whether a STATEFUL action is reachable is UNMEASURED: the
-  probe needed a `GVariant` for the state and hung rather than answering, and
-  one inconclusive run is not a finding. Anyone reconsidering this should start
-  there.
-- **THE ARROW IS A CHARACTER IN THE LABEL, not `always-show-arrow`.** Looked
-  at: with the property set, the two menus rendered as plain rectangles reading
-  "Project" and "File", indistinguishable from the Save button beside them —
-  the complaint this phase exists to answer, reproduced by the fix for it. Then
-  measured in a four-button probe (label-then-property, property-then-label,
-  property-then-`set_label`, neither): the property reads back TRUE in three of
-  them and NONE of the four draws an arrow on GTK 4.22 here, so it is not an
-  ordering mistake. `▾` is already the browser's glyph for an expanded
-  directory, so it already means "this opens" — Geometric Shapes, the same
-  ground the browser glyphs stand on, and the opposite of the `dialog-error`
-  case where an icon THEME could lack the name.
-- **A `Gtk.Button` inside a popover that has NEVER been shown does not respond
-  to `activate()`.** Not an error — a press that does nothing. It cost two
-  rounds: Close Project silently did nothing until its own menu was opened, and
-  then `ui_gui` failed because `G.shell.refresh_btn.activate()` and
-  `new_btn.activate()` had been going through the header since STU-2B and now
-  reached an unmapped widget. So every smoke-mode press goes through
-  `app/studio.bas`'s `menu_click(action)`, which pops the owning menu up,
-  presses, and pops it down — the gesture a user makes. `ui_gui_ctx` never met
-  this because a right-click opens the popover before anything is pressed.
-  `menu_click` PRINTS on an action no menu holds, for the same reason: the
-  alternative is a phase that quietly does nothing and a golden that records
-  the absence as normal.
-- **The teaching names moved, because a cue on an item inside a shut popover
-  resolves and draws NOTHING** — which is exactly the failure `agent_widgets`
-  exists to stop, arriving through a door it does not watch (the entry resolves;
-  it is the drawing that is invisible). `new_file_button` and
-  `new_folder_button` are now `project_menu` and `file_menu`, pointing at the
-  MenuButtons, which is also the honest answer to "where is New File".
-- The shell keeps the OLD record keys (`new_btn`, `file_btn`, `refresh_btn`, …)
-  pointing at the menu items, so `app/studio.bas`'s connects did not change and
-  no `studio_ui` function moved. `menubar.items` is the same widgets keyed by
-  action. That is why the whole redesign moved only display goldens and the two
-  teaching ones: nothing about what an action MEANS changed.
-- **`.destructive-action` DOES NOT SURVIVE HOVER on a menu item, and Delete
-  wears Studio's own `danger` class instead.** That stock class paints a
-  BACKGROUND, and the theme's own `button:hover` background beats it — looked
-  at, with the hover state forced on through
-  `set_state_flags(gi.enum("Gtk.StateFlags.PRELIGHT"), false)`: the tint
-  vanished and Delete rendered identically to Close Tab. Keeping the frame on
-  that one item did not help; measured both ways. So the warning was
-  disappearing at the one moment it is being read, the instant before the
-  click. `.studio-danger` colours the TEXT — `@error_color`, one of the three
-  GTK defines as a text colour, and Studio's provider goes on at 500 where the
-  theme is at 200, so the hover background changes underneath and the label
-  stays red. No golden can see any of this: the label is the same string in
-  every one of those states.
-- **Forcing a state flag is how a pointer-driven look gets measured at all.**
-  `set_state_flags` is an ordinary instance method, and a `get_state_flags`
-  readout is what identified the two blue outlines in the first screenshot as
-  ordinary focus and ordinary hover (`new-file flags=16544 focus=true`,
-  `close-tab flags=130` = DIR_LTR|PRELIGHT — the pointer happened to be there)
-  rather than a defect. A screenshot alone could not have told those apart.
-- A popover is a separate Wayland surface, so a window-only capture does not
-  include it and a full-screen grab captures the user's desktop. Ask first, and
-  `window.fullscreen()` before the grab so the frame is Studio rather than
-  whatever was behind it.
+- **Delete Selected is NOT coloured as a warning under Qt.** The GTK menu
+  painted it red (a `danger` class colouring the TEXT, because the stock
+  destructive style was a background that vanished on hover — the instant
+  before the click). That class went with GTK; the two-click arm still guards
+  it, but the colour is a loss, stated here so it is not mistaken for a choice.
 - `ui_menus` asserts the vocabulary headlessly — every item has a label and a
   hint, no two items share a label, an undeclared action falls through to its
-  own id and an empty hint. `ui_gui_menus` asserts what only a window can show:
-  that the popover opens, and that an item press arms, refuses and acts exactly
-  as its button did.
+  own id and an empty hint. `qtview_press` presses the items for real; see
+  the Qt section for why a QAction made that better than the GTK popovers.
 
 ### The SQL builders (STU-15)
 
@@ -1886,7 +1683,7 @@ since a file that cannot mention GTK cannot load it for anyone.
   learn the engine's syntax from it.
 - It also costs Studio almost nothing. There is no new execution path and no
   new result path: the inserted text becomes an ordinary cell with a stable id,
-  and everything STU-14 built applies unchanged. `ui_gui_snippet` needs no
+  and everything STU-14 built applies unchanged. `qtview_snippet` needs no
   database and no probe, which is the design showing through the test — there
   is nothing to connect to.
 - **The form is built from the template's own `fields`**, so adding a builder
@@ -1924,83 +1721,39 @@ since a file that cannot mention GTK cannot load it for anyone.
   written. Mid-line would splice text into the middle of whatever statement the
   caret was inside.
 - **Every field of every snippet is built once and shown or hidden**, exactly
-  like the browser's context menu. Minting widgets inside a selection handler
-  is the doubling `ui_gui_solo` exists to catch one level up, and a grid
-  rebuilt under a live window destroys the parent of whatever had focus.
-  `notify::selected` drives it — the same detailed signal shape the editor's
-  caret already uses, measured before the window was written.
+  like the browser's context menu: a window whose parts are rebuilt under a
+  selection handler destroys the parent of whatever had focus.
+  `studio_shell_qt.snippet_fields` is the ONE mapping from template fields to
+  part names, read by the record and the handlers alike.
 - The button is on the RUN STRIP and not the toolbar, and hidden for anything
-  that is not `.sql` (`shows_snippets`, the same rule as Run All). The toolbar
-  is nine buttons that want redesigning; a tenth would be making that worse on
-  purpose.
-- **`gi.new("Gtk.<Widget>")` SEGFAULTS before GTK is initialized**, rather than
-  raising — found probing `notify::selected` in a standalone file, logged in
-  gBASIC's DOGFOOD. Studio is never exposed because it builds everything inside
-  `activate`. Two things made it cost more than it should: the crash takes the
-  process down before stdout flushes, so a `print`-traced program produces NO
-  output and looks like it failed at line 1 (`print to error` located it), and
-  in a pipeline the exit status is the pipe's, so it reads as a clean exit 0.
-- gBASIC warning 2107 ("writes to a COPY of the element") fires on
-  `e.entry.text = x` inside a `for each`, where `e.entry` is a gobject HANDLE
-  and the write really does reach the widget. Bind it out first
-  (`ent = e.entry`); several golden tiers capture stderr. Also in DOGFOOD.
-
+  that is not `.sql` (`shows_snippets`, the same rule as Run All): it is about
+  the document, so it sits beside the document's run controls.
 ### A tab's own right-click menu (STU-21)
 
 - Two items, `Close` and `Copy file path`, and both act on the tab that was
   CLICKED rather than the active one — right-clicking a background tab to close
   it must not first switch you to it, which is the rule the browser's context
-  menu already follows.
-- `close_active` now DELEGATES to `close_doc(app, doc_id, armed)`, rather than
-  the other way round, so the two-click arming has one implementation. Both
-  routes share `G.armed_doc`: two arming slots would let a document be armed
-  from the menu and closed from the button with no second click anywhere.
-- **The tab label carries its document id in its widget `name`.** That is how
-  the handler knows which tab it is on: the gesture hands back the widget it is
-  attached to, and reading a string property off it is the whole of the
-  widget-to-value read. Comparing gobject handles for identity is the
-  alternative, and nothing in this codebase has ever needed to.
-- **The tab label is REUSED across reconciles now.** `_reconcile_tabs` used to
-  hand the notebook a fresh `gtk.label` every redraw, which was invisible while
-  nothing was attached to one — a gesture is attached now, and a label replaced
-  on every redraw takes its controller with it. The menu would have worked
-  until the first time anything else moved.
-- `show_tab_menu_for` is split out of the handler so a display tier can go in
-  the same way the gesture does. `Gtk.GestureClick` has no emit, so this is the
-  join point — exactly as `show_context_for` is for the browser's menu.
-- **`clipboard.set_text` HANGS**, and never returns. The working route is a
-  scratch `Gtk.TextBuffer`: set the text, select it, `copy_clipboard`. Logged
-  in gBASIC's DOGFOOD.
-- **THE CLIPBOARD IS NOT ASSERTED, and the reason is not laziness.** A round
-  trip (copy, then paste into a second buffer and read it back) succeeds when
-  both happen in ONE function and fails across callback boundaries —
-  reproduced in a twenty-line program outside Studio, with the buffer held on a
-  global so it is not a lifetime problem. The likeliest cause is that Wayland
-  requires a recent input-event serial to take clipboard ownership, which a
-  tier driving the menu from timers never has. So a failing round trip here
-  says nothing about the same press made with a real mouse, and asserting it
-  would pin a golden to an artefact of how the test drives the window.
-  `ui_gui_tabmenu` asserts the action, the status line and that the path
-  offered is absolute and names the file; **the clipboard itself is confirmed
-  by a person, or not at all.**
-- **CONFIRMED by the user, 2026-09-27: a real right-click copies the path and
-  it pastes.** So the theory holds — the write needs a genuine input-event
-  serial, and the failing round trip was an artefact of driving the menu from
-  timers. Recorded because the alternative reading was that Studio shipped a
-  silently broken feature, and the difference between those two is not
-  something the suite can ever tell you. It also means the rule generalises:
-  **anything that takes clipboard ownership cannot be tested from a tier**,
-  and should be asserted up to the point of the call and no further.
+  menu already follows. Under Qt, which tab is `qt.which_tab()` (see the Qt
+  section for why `currentIndex` is the wrong question).
+- `close_active` DELEGATES to `close_doc(app, doc_id, armed)`, rather than the
+  other way round, so the two-click arming has one implementation. Both routes
+  share `G.armed_doc`: two arming slots would let a document be armed from the
+  menu and closed from the header with no second click anywhere.
+- **The clipboard.** Under GTK it could not be asserted from a tier at all —
+  taking clipboard ownership needed a genuine input-event serial, which a tier
+  driving the window from timers never had — and was confirmed by the user by
+  hand (2026-09-27). Under Qt `qt.copy` copies eagerly and `qt.clipboard()`
+  reads it back, so `qtview_press` asserts it; the user confirmed a real paste
+  into Kate (2026-10-22). Whether a desktop paste sees it is still a person's
+  check.
 
 ### The editor's text size (STU-20)
 
-- **A MULTIPLIER, not a point size** — `textview { font-size: <n>em; }`. Every
-  size in `css()` is relative so the window follows the desktop's interface
-  font; an absolute size here would opt the editor out of exactly that, which
-  is the opposite of what somebody who enlarged their system font wants. The
-  zoom says how much FURTHER the code goes.
-- **Studio does not offer a UI font size, deliberately.** There is nothing to
-  build: no absolute size exists anywhere in `css()`, so the desktop's own font
+- **A MULTIPLIER, not a point size.** The editor's font is the desktop's own
+  fixed-width size times the zoom (`studio_view_qt._zoom`, from the first
+  editor's font), so somebody who enlarged their system font still gets a
+  larger editor, and the zoom says how much FURTHER the code goes.
+- **Studio does not offer a UI font size, deliberately.** The desktop's own font
   setting already scales the toolbar, panes, labels and status bar — one place,
   obeyed by every application. A Studio-specific control would duplicate a
   system setting and could fight it. The EDITOR is the exception because code
@@ -2010,105 +1763,32 @@ since a file that cannot mention GTK cannot load it for anyone.
   an obvious meaning, and a stored value is SNAPPED onto it. `editor_zoom`
   guards like `theme_of` does — a hand-edited `47`, `-3` or `"big"` reads as
   the nearest step or the default rather than making the editor unusable.
-- Its own provider at 810, separate from the dark sheet at 800: the two are
-  independent (size applies in either theme) and one provider would mean
-  rebuilding the whole dark sheet to change a font.
-- **`apply_zoom` REMOVES before it adds.** A provider does not supersede an
-  earlier one, it joins it, so eight presses of Bigger would leave eight sheets
-  arguing over one property.
-- **Ctrl+wheel and Ctrl+=/-/0 are the FIRST controls here with no display-tier
-  test, and that is a sanctioned exception.** There is no way to synthesise a
-  scroll or a key press: `Gtk.EventControllerScroll` has no emit, and there is
-  no setter equivalent to the `set_cursor` trick `ui_gui_cursor` uses to fake a
-  caret move. What keeps it honest is that they are adapters over the SAME
-  functions the menu items call, and the menu items are tested — so the logic
-  has coverage and only the wiring does not.
-- **These handlers take ARGUMENTS, which is also a first.** Every other handler
-  is zero-arg because none needed a signal parameter, not because they are
-  unavailable: `gi.connect` passes the emitter then the signal's own
-  parameters, which the reference states and a probe confirmed
-  (`inserted-text` delivered `pos=0 chars=hello n=5`).
-- **A CONTROLLER MUST BE HELD, or the window segfaults.** `G.ed_controllers`
-  keeps every editor's scroll and key controller alive — the rule
-  `G.ctx_gesture` already follows, walked past anyway. Measured: exit 139, and
-  because the crash takes the process down before stdout flushes, the display
-  tier produced NO OUTPUT AT ALL and read as a failure at line 1. Third time
-  that signature has appeared in this file.
+- **The keys and the wheel ARE tested now** — `qt.key` and `qt.scroll` drive
+  them in `qtview_press` (see the Qt section). Under GTK they were the one
+  sanctioned exception: nothing could synthesise a key press or a scroll.
 - **`step` is a reserved word** (it belongs to `for`), so `zoom_by` takes
-  `delta`. Third this phase after `program` and `on`, and all three were
-  already recorded here before being walked into.
+  `delta`.
 - **Generating a golden needs a PRISTINE fixture.** The runner does
   `rm -rf` + `mkproj_ui` for every tier; a fixture reused across two
   generations carries the first tier's saved file into the second, and the
   diff that follows looks like a real behavioural change. Cost two rebaseline
   rounds.
 
-- **The section tint hugged the text instead of filling the line, and a dark
-  editor is what made it visible.** `sourceeditor.highlight` documents itself
-  as applying a highlight "over whole lines" and set `Gtk.TextTag`'s
-  `background`, which paints behind the CHARACTERS only — so the tint drew a
-  ragged staircase around the code rather than a band. Invisible for two years
-  on a light editor, where `#eaf1fb` against white is a few percent; obvious
-  the moment `#2f3b4d` sat on `#141516`. Fixed UPSTREAM in
-  `stdlib/sourceeditor.bas` (`paragraph-background`), not worked around here —
-  the function was not doing what its own first sentence promised, and the
-  platform rule says a thing that is not about Studio belongs in the stdlib.
-  **Reported by the user from a screenshot**; no golden can see it, because
-  the asserted text is identical either way.
-- `ui_gui_overlay` flaked once during this work — `(this section has not run)`
-  where the output belonged, i.e. the tier printed before the run finished.
-  Three direct re-runs were clean. Intermittent under suite load, unrelated to
-  the tag change, and noted here so the next person to see it knows it has
-  happened before.
-
 ### Studio's own dark sheet (STU-19)
 
-- **Studio owns ONE look — dark — and otherwise defers entirely.** Every colour
-  in `css()` is a GTK named colour so the window follows the desktop, and that
-  rule left Studio no way to BE dark: the editor's scheme is Studio's to choose,
-  the chrome around it is the theme's, so Dark produced a black editor inside a
-  light window. `studio_style.dark_css()` is the answer, and it is honestly a
-  small app-scoped GTK theme.
+- **Studio owns ONE look — dark — and otherwise defers entirely.** Following
+  the desktop left Studio no way to BE dark: Dark once produced a black editor
+  inside a light window, "two applications sharing a frame". Under Qt the
+  answer is one style sheet for the application plus each editor DECLARED dark
+  (see "Theming under Qt" above).
 - **There is no "light" any more, and its absence is the design.** On a light
   desktop it was what "follow the desktop" already does; on a dark desktop it
   meant a light editor inside a dark window, which is the defect this phase
   removes. A setting whose only distinct behaviour is a known defect is not a
   setting. A stored `theme: "light"` reads as `system` through the same guard
   that catches a hand-edited `"nonsense"`.
-- **The sheet is DISPLAY-WIDE, which is the one thing in this codebase that is
-  not per-widget** — it has to be, because it restyles nodes Studio never
-  touches: scrollbars, paned handles, notebook tabs, popover contents. The call
-  was believed unreachable for three phases; measured, `gi.invoke` resolves
-  `Gtk.StyleContext.add_provider_for_display` and `widget.get_display()`
-  supplies the display.
-- **Two measurements shaped it, and the second is why `css()` did not change.**
-  (1) `@define-color` of the conventional tokens does NOTHING on its own —
-  Breeze-gtk does not draw with `@theme_bg_color`, so redefining it at priority
-  800 left the window untouched; only direct RULES override the theme. (2) But
-  the tokens DO cross providers: a `@define-color` in the display-wide sheet
-  (800) is visible to the rules in `css()` (per widget, 500), proven with a
-  label that went red. So the sheet has two halves — tokens for Studio's own
-  rules, node rules for what the theme drew — and every existing `.studio-*`
-  rule followed for free.
-- `@error_color`, `@warning_color` and `@success_color` are REDEFINED brighter.
-  The light-theme red is unreadable on `#1f2022`, and those three are the ones
-  GTK defines as text colours, which `.studio-state-error` already relies on.
-- **A WRONG NODE NAME FAILS SILENTLY, and that is the whole risk.** `listbox`
-  is not the node — it is `list` — and a row's background is on `row`, not on
-  the list, which is the same fact `_fill_nav` already works around. Two silent
-  misses in a five-minute probe. A bare `label` needs saying too: with no rule
-  it keeps the theme's foreground and renders nearly invisible. Nothing errors,
-  no golden can see it, and the only check is to LOOK.
-- `apply_dark` is cached on `shell.dark_on` and runs on the FULL redraw only.
-  Re-adding a provider STACKS another for the life of the process — the same
-  mistake `install_teaching_css` avoids by installing once at build time — and
-  `remove_provider_for_display` (also reachable) is what makes the toggle work
-  both ways.
-- The provider is built ONCE on first use and kept. Parsing the sheet on every
-  toggle is work for nothing, and add/remove take the same object either way.
-- The editor's own colours are still the STYLE SCHEME's, not CSS. The dark sheet
-  only reaches the margin around it; `scheme_for` picks `classic-dark`, and the
-  two are decided from the same `theme_of` so they cannot disagree.
+- **A wrong selector fails silently, in either toolkit, and that is the whole
+  risk.** Nothing errors and no golden can see it; the only check is to LOOK.
 
 ### The settings menu (STU-18)
 
@@ -2123,49 +1803,22 @@ since a file that cannot mention GTK cannot load it for anyone.
   gates nothing. A control for it would be a dead button with a number in it,
   which is worse than no control. That `recent` is unmaintained is a separate
   gap and is not fixed here.
-- **A THEME CHANGE HAS TO REACH THE PAGES THAT ALREADY EXIST.** The scheme was
-  derived on every redraw from the first day and applied only to pages being
-  CREATED — which was invisible while nothing could change the setting, because
-  the only way to change it was to hand-edit and restart. With a menu, picking
-  Dark would have left every open editor light until you closed and reopened
-  its tab, one tab at a time. `_reconcile_tabs` now re-applies to
-  `shell.pages`, gated on `shell.scheme_id` so it does not hand every buffer a
-  scheme at cursor-move rate; the cache is primed to `"-"`, unreachable as a
-  real id, exactly like the two mark caches.
-- **The setting governs the EDITOR and the section tint, not the chrome, and
-  the obvious fix was tried and does not work.** Setting
-  `gtk-application-prefer-dark-theme` on the same GtkSettings object the scheme
-  is decided from is how an application is supposed to ask GTK for its dark
-  variant; looked at, the window stayed light under Breeze — which agrees with
-  what `toolkit_is_dark` already records about that property reading FALSE on a
-  plainly dark window here. GTK 4 deprecated it in favour of libadwaita's style
-  manager, which the bridge cannot reach. The line is NOT shipped, because a
-  call that does nothing on the theme the user actually runs is the dead button
-  this project keeps refusing — and all three `menu_hint`s say what the setting
-  reaches instead of leaving it to be discovered. Studio's own chrome is drawn
-  in GTK's named colours and follows the desktop, which is the behaviour
-  `studio_style`'s header already describes.
-- **The state is a CHARACTER in the label, not a radio button.** A menu of
-  plain `Gtk.Button`s cannot draw one; a `GMenuModel` can, and IS reachable
-  (see above — the old claim that it was not is false). What rules it out is
-  that no test could press an item. So the glyphs are the price of a pressable
-  menu, which is a trade rather than a limitation. `●` and `○` are the same two shapes the
-  browser uses for the active project, so the window is not learning a second
-  vocabulary for "this is the one".
-- `studio_ui.menu_text` is the ONE place mark and label are joined, because the
-  goldens address these items by the whole string — the same rule `row_label`
-  establishes.
-- The labels are refreshed on the FULL redraw, never in `refresh_run`. That is
+- **A THEME CHANGE HAS TO REACH THE PAGES THAT ALREADY EXIST.** The editor's
+  colours were applied only to pages being CREATED — invisible while nothing
+  could change the setting. With a menu, picking Dark would have left every
+  open editor light until its tab was closed and reopened. Under Qt the theme
+  is construction-only, so it goes in the PAGE's name and a change rebuilds
+  the open editors (see "What the user saw" above).
+- **The state is a CHECKMARK on the item** — a checkable QAction, whose state
+  `studio_ui.menu_checkable` / `menu_checked` decide. (Under GTK it was a `●`/`○`
+  in the label, the price of a menu a test could press; `menu_mark` still
+  derives that glyph from the same decision.)
+- The marks are refreshed on the FULL redraw, never in `render_run`. That is
   the run poller at sixteen ticks a second and none of this changes while a
   program runs.
-- **`refresh_menu_marks` returns `nothing`.** Every widget it touches is a
-  gobject handle, so setting a label reaches the real button and there is no
-  updated record to hand back — and returning `shell` and discarding it earns
-  warning 2101 on STDERR at every redraw, which several golden tiers capture.
-  `sections_gui` caught it on the first run.
 - `theme_of` and `restores_session` GUARD the stored value: this is a file a
   user can hand-edit, and `"DARK"` or `"nonsense"` must read as `system`
-  rather than leaving the editor's scheme undefined. The closed set is
+  rather than leaving the editor's theme undefined. The closed set is
   `studio_ui.themes()`.
 - **Pressing the theme already in force answers `theme-same`, not `theme-set`.**
   It is not a failure and not a change, and a status line that said
@@ -2174,9 +1827,7 @@ since a file that cannot mention GTK cannot load it for anyone.
 - The restore toggle's notice SAYS it takes effect next launch. `studio.startup`
   reads it, so a setting whose effect is invisible until tomorrow is one a user
   presses twice wondering whether it worked.
-- **`on` is a reserved word**, so the mark helper takes `chosen`. Second
-  reserved word this phase after `program` — both were already recorded in this
-  file, and both were walked into anyway.
+- **`on` is a reserved word**, so the mark helper takes `chosen`.
 
 ### The schema browser (STU-17)
 
@@ -2269,17 +1920,11 @@ since a file that cannot mention GTK cannot load it for anyone.
   walked into it anyway; the failure is a parse error in a library, so nothing
   that loads it can run.
 - `app/studio.bas` LOADS `studio_schema` itself. A namespace another library
-  happens to load is not one this file may reach, and `stu17_step` calls it by
-  name.
-- **`_fill` ON TOP of `_mono`, inside a `_vscroll`.** Looked at without it:
-  `_mono` composes `_wrapped`, which wraps at the label's NATURAL width, and
-  inside a scroller whose horizontal policy is NEVER the label is handed its
-  minimum — so the column list rendered ONE CHARACTER WIDE and hyphenated,
-  `id / IN- / TE- / GER / PK`. The identical string passes the golden either
-  way. Same trap the run strip and the output panes each met once.
-- And `valign = START` on it, because a label given more height than it needs
-  CENTRES in it — the three-column table floated in the middle of the pane with
-  a gap above and below and nothing saying why.
+  happens to load is not one this file may reach.
+- The columns are a read-only memo of aligned lines in the Qt schema window.
+  Under GTK the same list was a label that, given the wrong width rules,
+  rendered ONE CHARACTER WIDE (`id / IN- / TE- / GER`) while its golden passed
+  — the identical string either way. Look at it.
 - **The PostgreSQL introspection is the one part with no test against a live
   server.** `ui_schema` covers sqlite natively and `ui_sqlodbc` covers the whole
   catalog path against a real driver — including `odbc.primary_keys` — but the
@@ -2287,7 +1932,7 @@ since a file that cannot mention GTK cannot load it for anyone.
   `ui_sqlpg` is opt-in and Studio does not connect to somebody's server because
   it found a socket open. They are short and standard; they are not measured.
 
-### SQL as a document type (STU-14, in progress)
+### SQL as a document type (STU-14)
 
 - **`byte_slice(s, at, count)` takes a COUNT, not an end offset.** Documented,
   and `source_outline_design.md` shows the idiom
@@ -2366,7 +2011,7 @@ since a file that cannot mention GTK cannot load it for anyone.
   gets.** That one decision is why a query's rows reach the existing grid with
   no second mechanism: `rows` is an ordinary captured variable, so
   `studio_results.vars_of`, `studio_table.tier`, the table offer, the caption
-  and the DataGrid have never heard of SQL and did not change. The epilogue
+  and the grid have never heard of SQL and did not change. The epilogue
   must go INSIDE the program block for the reason it always must — code after
   `end program` does not execute, so an epilogue past it would report nothing,
   silently — which is why `cell_program` does not write the closing line.
@@ -2487,7 +2132,7 @@ since a file that cannot mention GTK cannot load it for anyone.
   "stopped at line 7 — put the caret there to see why". `finished sec-3` was a
   true sentence about an id that appears nowhere on screen.
 - **Run All is HIDDEN for anything that is not `.sql`**
-  (`studio_ui.shows_run_all`, applied by `refresh_run`). A gBASIC document
+  (`studio_ui.shows_run_all`, applied by the renderer). A gBASIC document
   already replays everything above the caret when you press Run Section, so the
   button would mean nearly the same thing there and be one more control to tell
   apart — the same §18 rule that keeps `git_label` empty outside a repository.
@@ -2681,19 +2326,14 @@ since a file that cannot mention GTK cannot load it for anyone.
   reported 0; as of gBASIC f6840d3 sqlite agrees. That moved `ui_sqlrun.out`,
   and so did 954dc53, which made the sqlite prepare error quote its statement.
   Both are language-side changes, not Studio ones.
-- **`ctx_open_on` in `ui_gui_ctx` goes by INDEX, not by scanning for a y.** The
-  scan is the faithful path and is used once, where it is the thing being
-  tested; everywhere else it is a race and it lost one — a phase that redraws
-  rebuilds the nav rows and the next tick can arrive before GTK has allocated
-  them, so no y maps to any row and the menu silently does not open. Same
-  allocation-timing trap as before, found as an intermittent failure.
+### Decisions across the model, runs, viewers, overlays, the agent and git
+
+These accumulated under the SQL heading above while it was the newest phase;
+none of them is about SQL.
+
 - **`persist.read_status` answers "loaded", not "ok".** Testing for the wrong
   one silently yields an empty store on every read — the round trip appears to
   write and then return nothing.
-- A smoke mode that reaches past `studio_ui` fails in the least legible way
-  there is: `stu3_smoke` mutated `ws.sections` after that field was removed, and
-  because it runs inside a GTK timer callback the raise took the callback down
-  and left the main loop spinning. A HANG, not a failure.
 - **PERSISTED PER-DOCUMENT STATE IS KEYED BY PATH, NEVER BY `doc-N`.**
   `studio_ui.doc_key(doc)` is the one answer, used for section anchors AND
   branches. A document id is a live-session handle: closing a tab throws it
@@ -2709,10 +2349,10 @@ since a file that cannot mention GTK cannot load it for anyone.
   was written to fail first.
 - `studio_sections` and `studio_branches` never interpret that key — they only
   compare it — so the whole fix is in what `studio_ui` hands them. That is also
-  why it moved no goldens: `ui_branch` and `sections_gui` pass unchanged.
+  why it moved no goldens.
 - **Anything that builds section or branch state outside `studio_ui` must use
   `studio_ui.doc_key` too.** Two places did — `tests/drivers/ui.bas`'s branch
-  fixture and `stu3_smoke` — and both broke the moment the key changed: the
+  fixture and a GTK-era smoke mode — and both broke the moment the key changed: the
   first built a tree the window could not find, the second persisted a SECOND
   record for a document already filed under its path. The layering rule earning
   its keep: the only two places that skipped `studio_ui` are the only two that
@@ -2746,7 +2386,7 @@ since a file that cannot mention GTK cannot load it for anyone.
   `app.dm.docs`. Two lists of the same thing, one never written, is how a reader
   ends up unable to say what a project is — which is exactly what happened.
   **A project is now a name and a path.**
-- **Open Folder reads the name field as a PATH, and a GtkEntry is not a shell.**
+- **Open Folder reads the name field as a PATH, and a text field is not a shell.**
   `studio_ui.expand_path` does the two expansions everybody assumes: a leading
   `~`, and a relative path against `GBASIC_STUDIO_CWD` — the directory
   `./studio` was invoked from, which it exports for exactly this, because the
@@ -2759,17 +2399,18 @@ since a file that cannot mention GTK cannot load it for anyone.
   `missing` is about a browser row, where the leaf is the thing the user
   clicked; a typed path needs the WHOLE expanded string, because the part that
   is wrong is usually the part the leaf hides. `no-path` (an empty field) is a
-  question rather than a failure and says what to type. The display tier
-  reduces the path itself (`path_free` in `app/studio.bas`) rather than the
-  window saying less than it should — a golden's need to be path-free is not a
-  reason to give a user a worse sentence.
+  question rather than a failure and says what to type. A tier reduces the
+  path itself rather than the window saying less than it should — a golden's
+  need to be path-free is not a reason to give a user a worse sentence.
 - The empty-workspace browser names BOTH ways in, because neither is guessable
   from a row of buttons and a field whose placeholder said "name". That field is
   the only route to an existing project, and nothing in the window said so —
   which is how someone with a dozen projects concluded Studio could not open
   them. The placeholder is "name or path" and both it and Open Folder carry
-  tooltips. Still no GtkFileDialog: it is async with no synthesisable signal, so
-  it would be the one control here no test could press.
+  tooltips. Still no file-chooser dialog, chosen when a dialog was an async
+  surface no test could press. gBASIC's Qt dialogs CAN now be answered by a
+  program (`qt.answer`), so that reason is worth re-testing before it is
+  repeated.
 - Anything that creates in the browser goes through `studio_ui.target_dir`, which
   is the *whole* of "where does it land" — selected directory, the directory
   holding the selected file, or the project root. Creating in a collapsed
@@ -2783,7 +2424,7 @@ since a file that cannot mention GTK cannot load it for anyone.
   Delete, a document id for the other two) rather than to a flag, so moving the
   selection between the two clicks re-arms on the new row instead of deleting
   it.
-  `redraw` expires an arm the last action did not renew (`studio_ui.arm_kind`),
+  The redraw expires an arm the last action did not renew (`studio_ui.arm_kind`),
   which stops one outliving an unrelated click. Do not reintroduce a confirmation
   dialog: it would be an async surface no test can press, which is the same
   reason names come from a header field.
@@ -2817,11 +2458,11 @@ since a file that cannot mention GTK cannot load it for anyone.
   restore into. The section and the SOURCE are fixed when Run is pressed and kept
   for the whole run: a result is a statement about the text that ran, not about
   what has been typed since.
-- Polling calls `studio_shell.refresh_run`, not `refresh`. A full redraw rebuilds
-  the browser pane, and doing that sixteen times a second would fight the user
-  for their own file tree; only the FINAL tick does a full redraw, because that
-  is when the status line and the results pane change. `on_run_poll` returns the
-  `active` flag, so the timer removes itself the moment the run ends.
+- The poller redraws the RUN only (`studio_view_qt.render_run`), never the
+  whole window: a full redraw rebuilds the browser, and doing that sixteen times
+  a second would fight the user for their own file tree. Only the FINAL tick
+  does a full redraw, because that is when the status line and the results
+  pane change.
 - `view_for` RESTORES a document's section state from the workspace
   (`studio_sections.restore_from`) rather than creating one, and folds it back on
   every change. Section ids are minted from a per-document counter that advances
@@ -2830,17 +2471,12 @@ since a file that cannot mention GTK cannot load it for anyone.
   belongs to no section that exists. STU-3 built the anchors for exactly this and
   nothing was calling them.
 - The panes read through `studio_ui.view_for`, which CACHES the section outline on
-  `app.view` — so `refresh_run` and `refresh` return the app, and a caller that
+  `app.view` — so `render_run` and `render` return the app, and a caller that
   drops it re-parses the document on every render, at cursor-move rate. Cache
   invalidation is on document id AND content, checked separately: blanking the
   cached source to mark it stale silently fails for an empty document.
-- Typing and caret moves take `pane_redraw`, not `redraw`. `sync_buffers` returns
-  `moved`, which is true only when a document's dirty state actually changed —
-  the one thing typing alters that needs a full redraw (the tab marker).
 - `studio_ui.run_line` / `prefix_text` / `target_text` live in studio_ui, not the
-  shell, so the headless suite can assert what a run reports. `studio_shell`
-  keeps the old names as delegates only because the STU-4/5A display goldens
-  print through them.
+  shell, so the headless suite can assert what a run reports.
 - `materialize_text` splices a LIST of insertions in offset order — the boundary
   marker, the before-scope dump, and any branch bindings — and the line map falls
   out of the same pass. A section's `end_offset` stops at its last statement, not
@@ -2867,14 +2503,6 @@ since a file that cannot mention GTK cannot load it for anyone.
 - Fetch goes through `studio_ui.run_section`, the same function the Run button
   uses, with one extra insertion. Do not add a second run path: an export taken
   by a differently-bound run would be a table of numbers that never coexisted.
-- The DataGrid virtualization test runs the SAME interaction at two table sizes
-  and requires byte-identical output. "Few cells bound" is not a claim; "the
-  number does not move when the table grows tenfold" is. Reset
-  `datagrid.accesses()` BEFORE building the widget tree — GtkColumnView binds
-  when the view is first given a size, not at `present()`.
-- `_DATAGRID` and `_STUDIO_TABLE` are program globals assigned AFTER the display
-  loads in `app/studio.bas`. `load` is not hoisted, and `datagrid` pulls in `gi`,
-  which the headless modes must never touch.
 - An overlay is a SECTION-SCOPED FULL-TEXT REPLACEMENT (design Q5, decided in
   STU-9), not a textual diff and not an AST patch. That choice is what makes
   conflict a hash comparison (`base_fp` vs the section's fingerprint now) instead
@@ -2924,7 +2552,7 @@ since a file that cannot mention GTK cannot load it for anyone.
 - The secret store's key comes from the environment and is NEVER written to disk;
   `secrets_no_key_file` greps for that. Without libcrypto the store REFUSES
   rather than falling back to plaintext.
-- `agent_widgets` keeps `studio_teaching.registry()` and `studio_shell.teachable()`
+- `agent_widgets` keeps `studio_teaching.registry()` and `studio_shell_qt.teachable()`
   the same set. A registry entry the shell cannot resolve is a teaching request
   that reports success and draws nothing.
 - Git is found by `process.which`, NEVER by running it. **The reason this file
@@ -2936,14 +2564,14 @@ since a file that cannot mention GTK cannot load it for anyone.
   0.1.0-rc3**: `which` cannot be probed around on older builds (they lack
   `has_builtin` too; you cannot probe for the prober), so the floor is stated
   rather than worked around.
-- Git reads happen on the FULL redraw, never in `refresh_run`. That is the run
+- Git reads happen on the FULL redraw, never in `render_run`. That is the run
   poller at sixteen ticks a second, and forking `git status` at that rate is a
-  worse version of the mistake refresh_run exists to avoid. Detection is cached
+  worse version of the mistake `render_run` exists to avoid. Detection is cached
   on the app (`gitstate`), keyed on the project path: whether a directory is a
   repository does not change while someone types.
-- Outside a repository `git_label` is the EMPTY STRING, not "git: none".
-  Mentioning git to someone who does not use it, on every click, is what §18
-  asks Studio not to do.
+- Outside a repository the git pane is HIDDEN and `git_label` is the EMPTY
+  STRING, not "git: none". Mentioning git to someone who does not use it, on
+  every click, is what §18 asks Studio not to do.
 - `git_not_branches` asserts that `studio_branches` and `studio_overlays` never
   spawn a process. Stated that way on purpose: the first version grepped for the
   word "branch" beside a comma and fired on the overlay's own list of record
@@ -2966,34 +2594,14 @@ since a file that cannot mention GTK cannot load it for anyone.
   read path (`call`) refuses an act outright. `run_studio_agent.sh` greps for all
   of it.
 - A tool's callable cannot close over the app (gBASIC functions do not close over
-  state), so `app/studio.bas` carries one two-line wrapper per tool that reads
+  state), so `app/studio.bas` carries one two-line wrapper per READ tool that reads
   the global and calls the dispatcher — the same adapter rule as a signal
   handler, for the same reason.
-- **The gutter marks the parse error, and the icon is one Studio SHIPS.** A
-  `GtkSource.MarkAttributes` draws from an icon NAME, and `dialog-error` and
-  `dialog-error-symbolic` are both standard freedesktop names that did not
-  resolve — measured, not assumed: this machine's Breeze has the first and not
-  the second, its Adwaita has the second and not the first, and what the gutter
-  drew was GTK's missing-icon fallback, a grey disc wide enough to sit on top of
-  the code. A marker that lands on the wrong icon is worse than no marker, so
-  the name is `gbasic-studio-error` and the file is in
-  `share/icons/hicolor/<size>/status/`, which every theme inherits and
-  `./studio` already puts on XDG_DATA_DIRS for the window icon.
-  `MarkAttributes.set_background` would have skipped icons entirely, but it
-  takes a `Gdk.RGBA` and `gi.new` refuses it ("not an instantiable object
-  type") — the same class of gap as the unreachable class statics.
-- Error marks are gated on `studio_ui.mark_signature` (the LINES, joined), not
-  on the outline's `revision` that `section_marks` uses. `studio_sections._apply`
-  advances `revision` only on a SUCCESSFUL parse, so a revision-gated redraw
-  would pin the marker to wherever it first appeared and leave it there however
-  the error moved. A count will not do either: two different one-line errors
-  share one, and the marker would sit on the line just fixed.
-- Both mark caches are primed when a PAGE is created (`marked` to -1,
-  `errmarked` to "-", neither reachable as a real value). They are keyed by
-  document id, which a closed-and-reopened file keeps, while the buffer behind
-  it is brand new and has no marks — so without this the cache says "already
-  drawn" about a buffer two lines old and the gutter stays empty until something
-  unrelated moves.
+- **The gutter marks the parse error** (`studio_ui.error_marks`, the LINES of
+  the parse diagnostics), and only a PARSE error: a runtime error is reported
+  in the Errors pane at its line, with no margin mark — `qtview_samples`
+  checks both, because a sample said otherwise. Qt's `qt.mark` replaces a whole
+  category per call, so there is no mark cache to keep in step.
 - **ONLY gBASIC is parsed.** A project is not only its `.bas` files — a README,
   a Makefile, a JSON fixture are part of it — but `view_for` used to hand every
   document to `source_outline`, and a markdown file does not parse to nothing,
@@ -3002,24 +2610,20 @@ since a file that cannot mention GTK cannot load it for anyone.
   the gutter. `studio_ui.is_gbasic` gates the refresh; an unrefreshed state is
   valid and empty, which is the truth. `run_section` refuses first, by NAME
   (`not-gbasic`), before deriving anything.
-- `studio_ui.gbasic_suffixes` is `.bas` / `.gb` — the `globs` of `gbasic.lang`,
-  which is the file the EDITOR highlights from, so "is this gBASIC" has one
-  answer and not two that drift. Suffix and case-insensitive: `notes.bas.txt`
+- `studio_ui.gbasic_suffixes` is `.bas` / `.gb` — the extensions gBASIC's own
+  syntax definition claims, so "is this gBASIC" has one answer and not two
+  that drift. Suffix and case-insensitive: `notes.bas.txt`
   and `dialect.basic` are the two ways a looser check goes wrong, and
   `README.BAS` is still gBASIC.
-- **Studio decides what is gBASIC; the TOOLKIT decides everything else.**
-  `studio_shell._set_language_for` forces `gbasic` for Studio's own suffixes and
-  otherwise asks `guess_language`, which already knows markdown, json, yaml,
-  html, css, python, sh, C, XML, TOML, SQL, Rust and Go. Studio does not keep a
-  table of extensions; that is the stdlib's job, and a table here would be one
-  more thing to go stale. Through the editor's OWN manager (`ed._lm`) — a
-  buffer's highlight engine calls back into the manager that produced its
-  language, and a transient one finalizing on return is a documented
-  GtkSourceView critical. `ed.set_language(id)` RAISES on an unknown id and
-  and this file used to say that raise could not be caught, which is false --
-  so everything but gBASIC goes through the object `guess_language` returns
-  because that is simpler, not because it had to; `nothing` just means no highlighting, which is right
-  for a `.txt` and for a Makefile, which it does not recognise.
+- **Studio decides every editor's language** (`studio_ui.highlight_language`):
+  gBASIC by its own suffix rule, then a small table of KSyntaxHighlighting
+  definition NAMES, and a plain editor for anything else. A table because
+  gBASIC's Qt takes a definition name and never an extension — by extension
+  `*.bas` resolves to FreeBASIC. The GTK editor asked its toolkit to guess;
+  the Qt shell first declared EVERY editor gBASIC, highlighting a README as
+  code, found while pruning this file. A plain editor cannot carry a theme
+  (gBASIC refuses `theme:` without `language:`), so in Dark it is light —
+  asked upstream.
 - `studio_tools._is_refusal` must list every way `run_section` declines —
   `execute_section` is an agent act over the same function, and an action
   missing from that list is reported to the model as a SUCCESS. The agent would
@@ -3049,19 +2653,14 @@ since a file that cannot mention GTK cannot load it for anyone.
   that the NEXT failed parse has no cached state to retain sections from, so
   `view_for` rebuilds from the workspace and comes back with none. That is the
   difference between a typed-in syntax error reaching `refused` (what the window
-  does, because `refresh_run` threads the app back) and reaching `no-parse`.
+  does, because the renderer threads the app back) and reaching `no-parse`.
   `tests/drivers/ui.bas`'s `badsyntax` case threads it deliberately for this
   reason.
-- **The run strip is TWO ROWS, and the state line owns the second.** A refusal
-  or a materialization failure carries a whole SENTENCE ("that section is
-  ambiguous after the last edit; disambiguate it first"), and a horizontal row
-  of three buttons plus two labels has a hard width budget — so it arrived
-  ellipsized after its first few words and the rest of it was nowhere on screen.
-  Buttons and the two SHORT labels (`section:`, `standing`) keep the top row;
-  the state label gets the console's full width below them and WRAPS. Wrapping
-  also answers the minimum-width problem the ellipsis was originally for: a
-  wrapping label reports its longest WORD as its minimum, which is smaller than
-  the ellipsized version ever was.
+- **The run state gets a row of its own, under the buttons.** A refusal or a
+  materialization failure carries a whole SENTENCE ("that section is ambiguous
+  after the last edit; disambiguate it first"), and a row of buttons has a
+  width budget — sharing it, the sentence arrived cut off after its first few
+  words.
 - **A refused or failed run records NO result, so the Errors pane has to be told
   by the session.** Both states return from `studio_ui.run_section` with
   `active` false, so `tick_run` is never polled and `add_result` is never
@@ -3074,161 +2673,31 @@ since a file that cannot mention GTK cannot load it for anyone.
   showing an EARLIER run's output beside "refused:", which would read as output
   of the run that was refused.
 - The Errors heading is REFRESHED, not fixed: `studio_ui.error_heading` counts
-  non-empty lines and `refresh_run` moves the heading into `state-error` when
-  there are any. The pane is the third of three stacked in the console scroller,
-  so on a short window it is the one below the fold — and a heading reading
+  non-empty lines, so it reads `Errors (1)` rather than `Errors`. The pane is
+  the third of three stacked in the console, so on a short window it is the one
+  below the fold — and a heading reading
   "Errors" over a pane you cannot see is indistinguishable from one reading
   "Errors" over "(none)". Counted in NON-EMPTY lines because a raw stderr
   capture ends in a newline and a blank trailing line is not an error.
-- `studio_style.clear_state` exists because "no state" is not `state-idle`.
-  `set_state` always ADDS one, and a widget with a look of its own (a heading)
-  should get its own look back rather than the idle colour.
-- **`_left` + `_wrapped` fold a label at its NATURAL width, which is a number
-  chosen for the right-hand column.** `halign: START` hands a label its natural
-  width and `max_width_chars` caps that at 44 — right beside the results pane,
-  wrong in the console, which is roughly twice as wide and ended up folding
-  program output into a narrow ribbon with half the pane empty next to it.
-  `studio_shell._fill` (xalign 0 + halign FILL + hexpand) is what makes a label
-  span the width it is GIVEN; it is safe only inside `_vscroll`, whose
-  horizontal policy of NEVER makes the viewport impose that width, and
-  `max_width_chars` still caps the natural request so the window's minimum does
-  not move. Same blind spot as every other entry here: a golden asserts the
-  text, which is identical either way.
-- **`wrap = true` DOES NOT MAKE A LABEL WRAP.** A wrapping label still reports
-  its natural width as the whole text on one line, and a GtkScrolledWindow asks
-  for natural size — so it hands the label that width and the text runs off the
-  edge. `_wrapped` therefore also sets `max_width_chars`, which caps the NATURAL
-  width and nothing else (given more room the label still uses it). Every heading
-  in the right-hand pane was cut off mid-word for three phases because of this,
-  and no golden could see it: the asserted text is identical whether the widget
-  wrapped it or clipped it.
-- The right-hand and output scrollers are `studio_shell._vscroll` — vertical
-  policy only. A horizontal policy of AUTOMATIC is what lets a child take its
-  natural width and overflow.
-- A horizontal row of buttons has a hard width budget: the right column is about
-  320px. Six buttons do not fit; the overlay strip is two rows of three. And a
+- A horizontal row of buttons has a hard width budget in a side pane. Six
+  buttons do not fit; the overlay strip is two rows of three. And a
   button label must not collide with an existing one — shortening "Save overlay"
   to "Save" gave the window two Saves doing different things to the same
   document.
 - The browser hides dotfiles (`studio_ui.hidden_entry`). `.git` is not merely
   noise: it is expandable, and `filetree` scans an expanded directory eagerly, so
   one click would walk every loose object in a real repository.
-- **A STARVED PANE CLIPS FROM THE LEFT; IT DOES NOT REFLOW.** GTK 4's
-  `shrink-start-child`/`shrink-end-child` default to TRUE, so a GtkPaned will hand
-  a child LESS than its minimum — down to nothing — and `_vscroll`'s horizontal
-  policy of NEVER does not scroll but does hold the child at its own minimum
-  width. Underfed, the pane therefore clips, from the LEFT, with no scrollbar to
-  drag back. Measured on master: `rsplit` at 330 left the console reading
-  ": finished [sec-6] — exit 1" and "able: undefned_name" and blanked the editor
-  page entirely; `vsplit` at 0 left the source view 38px tall with the code gone.
-  Home does not help — the caret is off-screen in a direction the view will not
-  follow. All three paneds now have `shrink` OFF, and the notebook, browser,
-  console and right column carry `set_size_request` floors, because a scroller's
-  own minimum is near zero and "stops at the minimum" has to stop somewhere
-  usable. A run is what tips it: the run-state label's text grows, and a label
-  that neither wraps nor ellipsizes reports its whole sentence as its MINIMUM
-  width — so the run strip is ellipsized now, and the text it reports is
-  unchanged.
-- **A GtkSourceView's colours are a STYLE SCHEME, not the GTK theme, and the
-  stylesheet cannot reach them.** Nothing ever set one, so the editor sat on the
-  light default inside a dark window and Studio looked like two applications
-  sharing a frame. A scheme is a `GtkSourceStyleScheme` object, not CSS, so
-  `studio_style.css()` has nothing to say about it. `light_scheme` is `classic`
-  — measured, by asking a fresh buffer for `get_style_scheme` before anything
-  set one — so the light editor is exactly what it always was, and
-  `classic-dark` is that scheme's own dark counterpart. Naming both is the
-  point: otherwise one is a choice and the other is an accident.
-- **No ONE signal says the toolkit is dark.** Measured on a plainly dark window
-  on this machine: `gtk-application-prefer-dark-theme` was FALSE, `gtk-theme-name`
-  said "Breeze", and only `GTK_THEME=Adwaita:dark` carried it. So
-  `studio_style.toolkit_is_dark` takes all three and any one of them wins.
-  `Gtk.Settings.get_default` is a class static the bridge cannot reach, but
-  `widget.get_settings()` is an ordinary instance method and answers the same
-  object — the same shape of workaround as the per-widget CSS providers.
-- `settings.theme` had been persisted since STU-0 with NOTHING reading it.
-  `studio_style.dark_for` is where it finally lands: "light"/"dark" overrule the
-  toolkit, "system" defers to it. One decision, read by both the editor's scheme
-  and the section tint — asking the toolkit separately would give a user who set
-  `theme: "dark"` on a light desktop a dark editor with a light tint smeared
-  across it.
-- The section tint is a GtkTextTag background, so it cannot be an `@theme`
-  reference either: `studio_style.section_tint(dark)` is two literals and a
-  boolean. The hardcoded `#eaf1fb` was a highlight on a light editor and a smear
-  over unreadable text on a dark one.
-- `env` answers `unknown` for an unset variable and `lower` RAISES on one, so
-  `_names_dark` guards with `is_string` before touching it. A theme probe that
-  crashed the window of everyone who has not set GTK_THEME would be a poor trade
-  for a colour.
-- **A CSS class without its provider renders nothing**, and Studio attaches
-  providers ONE WIDGET AT A TIME.
-- **That is not because a display-wide provider is impossible — MEASURED, it
-  works.** This file said `Gtk.StyleContext.add_provider_for_display` was out of
-  reach because `gi` cannot call class statics. It is reachable:
-  `gi.invoke("Gtk.StyleContext.add_provider_for_display", w.get_display(), prov,
-  800)` returns cleanly and the provider takes effect. `Gdk.Display.get_default`
-  is indeed a static, but `widget.get_display()` is an ordinary instance method
-  and answers the same object — the same workaround `get_settings()` already is
-  for `Gtk.Settings.get_default`. This was the SECOND inherited "the bridge
-  cannot reach it" claim found false in one sitting, after `GMenuModel`.
-- The per-widget architecture is therefore a CHOICE that could be revisited,
-  not a constraint. It still earns its keep — a provider scoped to the widgets
-  that need it cannot leak into another window — but nothing forces it.
-- **A display-wide provider is what a whole-window dark theme would need, and
-  it is proven to work.** Measured, in order: redefining the conventional tokens
-  (`@define-color theme_bg_color …`) changes NOTHING under Breeze-gtk, because
-  that theme does not draw with them. Direct RULES at priority 800 override the
-  theme completely — window, buttons, entry, notebook, paned all went dark.
-  The cost is that it is a real stylesheet, one rule per CSS node, and **a wrong
-  node name fails silently**: `listbox` is not the node (it is `list`), and the
-  row background is on `row` rather than on the list, which is the same gotcha
-  `_fill_nav` already works around. Two silent misses in a five-minute probe is
-  the honest measure of what shipping this would cost. That is why
-  `studio_style.apply(widget, class)` does both halves and why nothing calls
-  `add_css_class` directly for a Studio class — a call site that remembers only
-  the class writes a name nothing renders. The provider is the program global
-  `_STUDIO_STYLE`, assigned in `app/studio.bas` beside `_DATAGRID` for the same
-  no-closures reason; reading an unassigned global RAISES, so it is assigned
-  unconditionally in the display block rather than lazily.
-- **`letter-spacing` breaks a wrapping label the way `wrap = true` does.** A
-  label with letter-spacing reports a natural width that does NOT include the
-  spacing, so a wrapping label given its own natural width wraps inside it:
-  measured, "Errors" came back 38px and rendered as "Error-/s", and all three
-  output-pane headings folded the moment the heading class went on. `.studio-head`
-  therefore has no letter-spacing. Same blind spot as every other entry here —
-  the asserted text is identical whether the widget folded it or not.
-- **`_left` gives a label its NATURAL width**, because `halign: START` does. That
-  is right for a row and wrong for a bar: the status bar styled as a bar was a
-  grey tab the width of its current sentence. `xalign = 0` keeps the text left;
-  `halign = FILL` is what makes it span.
-- **An empty GtkListBox still paints a list.** The background is on the ROW, not
-  on the list, so flattening the listbox alone leaves a white strip with one
-  centred sentence in it — which reads as a control. `_fill_nav` flattens the row
-  it just appended as well.
-- The `GtkGizmo (slider) reported min width/height -2` warnings are NOT ours and
-  are not fixable here. A GtkWindow holding one GtkScrolledWindow around one
-  GtkLabel prints the same pair on this GTK 4 — no paned, no policy, no margin
-  involved. Studio has four scrolled windows, hence eight lines. Taking the
-  paneds off `shrink` changed nothing, so it is not a starved allocation either.
-- **LOOK AT THE WINDOW.** Every defect in this section was found by taking a
-  screenshot and reading it, in about a minute, with 163 tests passing. Display
-  goldens assert TEXT; they cannot see alignment, wrapping, clipping, visibility,
-  or a control that is off-screen.
-- Labels: `studio_shell._left` aligns, `_wrapped` also wraps, `_mono` also
-  selects and monospaces. `gtk.label` CENTRES, which is right for a title and
-  wrong for a browser row whose indentation encodes depth, for program output,
-  and for a table. Wrapping belongs only on labels that own a whole row — the run
-  strip is a horizontal box, and wrapping its labels turned each into a narrow
-  column of syllables. NONE of this is visible to a golden: the text is identical
-  either way, which is how it survived five phases.
-- The GtkApplication is built with `NON_UNIQUE` flags in `app/studio.bas` rather
-  than via `gtk.application`, which defaults to single-instance. Reverting that
-  does not just stop a second window opening — the *running* instance gets an
-  extra `activate`, builds a second shell over the same globals and doubles every
-  handler. `ui_gui_solo` is the regression test.
-- Redraw REBUILDS the nav pane but RECONCILES the notebook by document id. A
-  notebook page holds a live buffer with unsaved text; rebuilding it would
-  destroy what the user is typing. `app/studio.bas`'s `G.redrawing` guard exists
-  because our own `set_current_page`/`set_text` echo back as signals.
+- **LOOK AT THE WINDOW.** Under GTK a whole run of layout defects — labels
+  clipped mid-word, panes clipped from the left, invisible text — was found by
+  taking a screenshot and reading it, in about a minute, with 163 tests
+  passing. Goldens assert TEXT and structure; they cannot see alignment,
+  wrapping, clipping, colour, or a control that is off-screen. The Qt dark
+  sheet that hid the file tree is the same lesson in the other toolkit.
+- The redraw REBUILDS the browser's rows but RECONCILES the notebook by
+  document id (`qt.refresh` keeps a page whose name is unchanged). A notebook
+  page holds a live editor with unsaved text; rebuilding it would destroy what
+  the user is typing. `G.redrawing` exists because our own writes echo back as
+  signals.
 
 Libraries resolve through `GBASIC_PATH="lib:$GBASIC_STDLIB"`. **The entry point
 lives in `app/` on purpose**: gBASIC searches the importing file's directory
@@ -3242,8 +2711,9 @@ it. Keep it that way.
 
 Studio drove much of the platform work and consumes it rather than
 reimplementing it: `source_outline`, `try_decode`, `process.start`/`poll`/`read`/
-`stop`, `--line-buffered`, `print to error`, `atomic_replace`, and the `persist`,
-`filetree`, `gtk`, `sourceeditor` and `gi` libraries. If something here wants a
+`stop`, `--line-buffered`, `print to error`, `atomic_replace`, the `persist`,
+`filetree` and `llm` libraries, and the `qt` module — the window, built on
+requests Studio made by name (§0.27 onward in gBASIC's `qt_gui_design.md`). If something here wants a
 capability that is not about Studio, it belongs in gBASIC's stdlib, not here.
 
 One coupling to know: gBASIC's `tests/run_pre_registration.sh` is a tripwire on
@@ -3328,11 +2798,9 @@ each for a reason that was always sufficient on its own:
 - A SQL run that stops at its failing statement — because a rebuild whose third
   statement fails has no business running the fourth. It is now a CHOICE,
   which is a better thing for it to be.
-- `ed.set_language` reached through the object `guess_language` returns —
-  because that is simpler, and it is GTK-side code about to be deleted anyway.
 
 **What it opens.** `qt.check` RAISES rather than answering, which made it a test
-gate; caught, it is a runtime guard too, and `app/studio_qt.bas` uses it as one
+gate; caught, it is a runtime guard too, and `app/studio.bas` uses it as one
 — a window that will not validate says why and exits cleanly instead of dumping
 a runtime error at a user. Anything that relies on `on error` moves the stated
 floor from **0.1.0-rc3 to 0.1.0-rc5**, which is where `on error resume next` was
@@ -3343,10 +2811,11 @@ is a bug in the record, and catching it is how a window renders half of itself
 and says nothing. The rule this file already states for a wrong node name in
 CSS — *fails silently, and that is the whole risk* — is the same rule.
 
-## Known live issue
+## A former live issue: unqualified library calls in a comparison
 
-`if lib_fn(x) = "..."` misfires when `lib_fn` is an unqualified call to a
-`load`ed library's function with an identifier argument — it parses, then fails
-at run time with `compare modifier not found: x`. Call it qualified
-(`lib.fn(x)`) or bind the result first. Not fixable at token delivery; see
+`if lib_fn(x) = "..."`, where `lib_fn` is an unqualified call to a `load`ed
+library's function with an identifier argument, used to parse and then fail at
+run time with `compare modifier not found: x`. Since gBASIC 0.1.0 it is an
+error that names the library and spells the qualified form (`lib.fn(x)`), per
+gBASIC's `docs/ai/UNLEARN.md` — which is the spelling Studio uses anyway. See
 `docs/gbasic_clause_recognition.md` §9 in the gBASIC project.
