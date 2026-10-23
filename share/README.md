@@ -8,7 +8,6 @@ repository told a desktop environment what Studio was.
 ```
 share/applications/org.gbasic.Studio.desktop   the desktop entry
 share/icons/hicolor/<size>/apps/org.gbasic.Studio.png   the icon, 16 … 256
-share/icons/hicolor/<size>/status/gbasic-studio-error.png   the gutter's error mark, 16/24/32
 share/icons/toolbar/*.svg                      the Qt toolbar's icons for the DARK theme
 share/licenses/<spdx-id>.txt                   the licence texts New Project can write
 share/templates/project.templates              the boilerplate New Project renders
@@ -37,36 +36,22 @@ choosealicense.com ships them — and `licenses/README.md` exists to say that
 each text is verbatim. Reformatting them would be editing the provenance to
 suit our placeholder syntax.
 
-The name is the application id `app/studio.bas` already registers with GTK,
-`org.gbasic.Studio`, so the entry, the icon and the window agree without anyone
-having to keep three spellings in step.
+The name is the application id, `org.gbasic.Studio`, so the entry and the icon
+agree without anyone having to keep two spellings in step.
 
-**Why the gutter mark is here and not a stock name.** The editor marks the line
-a parse failed on, and a `GtkSource.MarkAttributes` draws that mark from an icon
-NAME. `dialog-error` and `dialog-error-symbolic` are both standard freedesktop
-names and neither one resolved: this machine's Breeze ships the first and not
-the second, its Adwaita ships the second and not the first, and what the gutter
-actually drew was GTK's missing-icon fallback — a grey disc wide enough to sit
-on top of the code. A marker that lands on the wrong icon is worse than no
-marker, so the name is Studio's own and the file ships here, in `hicolor`, which
-every icon theme inherits.
-
-(`MarkAttributes.set_background` would have avoided icons altogether, but it
-takes a `Gdk.RGBA` and `gi.new` refuses that type: "not an instantiable object
-type". Same class of gap as the class statics below.)
+(The GTK window shipped a gutter error icon here too, because a
+`GtkSource.MarkAttributes` drew from an icon NAME and neither freedesktop name
+resolved on every theme. The Qt editor's margin draws its own marks, so that
+file went with GTK.)
 
 The application icon is the gBASIC mascot from `~/development/gbasic/docs/assets/mascot.png`,
 squared to the beaver and resampled to each hicolor size. It is a raster and not
 an SVG because the mascot is a raster; a real release should draw a vector
 version, since 16px of a 1629px illustration is a smudge no downsampler can save.
 
-**How the window finds it without a display-wide call.** Registering an extra
-icon directory at run time needs `Gtk.IconTheme.get_for_display`, a class static
-the `gi` bridge cannot resolve — the same limitation that keeps Studio's CSS
-providers per-widget (see `lib/studio_style.bas`). So the path is supplied from
-outside the process instead: `./studio` prepends this directory to
-`XDG_DATA_DIRS`, which is where GTK looks for icon themes at startup. Installed
-the ordinary way — these two trees copied into `/usr/local/share` or
+**How a desktop finds it.** `./studio` prepends this directory to
+`XDG_DATA_DIRS`, where desktop environments look for entries and icon themes.
+Installed the ordinary way — these two trees copied into `/usr/local/share` or
 `~/.local/share` — the same name resolves with nothing set at all.
 
 ## The Qt toolbar's dark icons
@@ -100,7 +85,7 @@ weight identical across the five is what makes them look like a set.
 both handled: `qt.set` refuses a path that is not there, so `studio_style`
 checks the directory first; and it refuses a file **Qt cannot read**, which a
 build without the SVG plugin would make of all five — that one cannot be
-answered from the filesystem, so `app/studio_qt.bas`'s `qt_apply_toolbar`
+answered from the filesystem, so `app/studio.bas`'s `qt_apply_toolbar`
 catches the refusal and switches the toolbar to text. Both paths are exercised:
 a corrupt `save.svg` and a missing `share/` each produce a toolbar of words and
 a line on stderr, not a window that will not open.

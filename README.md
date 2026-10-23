@@ -31,62 +31,43 @@ replaced ten toolbar buttons with two menus that can say what they act on;
 editor; **STU-20** made the code's text size the editor's own; and **STU-21**
 gave a tab its own right-click menu.
 
-**STU-22 is under way: gBASIC grew a Qt GUI system and Studio is moving to
-it.** Nothing a user sees has changed yet, because `gui` is still GTK. What makes it affordable is a rule
-written for a different reason — a signal handler here is an adapter and every
-decision lives in a toolkit-free library — so the GTK-touching code is three
-files and about 1.3% of the source. Two pieces have landed:
-`lib/studio_shell_qt.bas` describes the same window as *data*, which means the
-window's shape is now in the headless test suite for the first time; and
-`./studio qt` opens that window for real, renders your workspace into it, and
-responds to its menus, its browser, Save and the tab row — all of it testable
-with **no display at all**, which the GTK window never was. It is a proper main window
-now: the file tree docks on the left, the console along the bottom, and the five
-side panes are tabs down the right edge — each one closable, floatable and
-draggable to another edge, with the whole arrangement remembered between
-launches. There is a real toolbar and a real status bar. The editor there has a
-margin with line numbers — which the GTK one never had — and the same marks
-beside it: one at the start of every runnable section, one on the line a syntax
-error is. New Project opens its own window there
-too, and filling it in is one record rather than eight widgets.
+**STU-22 moved the window to gBASIC's Qt GUI system, and GTK is gone.**
+`./studio` opens the Qt window. What made the move affordable is a rule written
+for a different reason — a signal handler here is an adapter and every decision
+lives in a toolkit-free library — so the window was three files to replace, not
+an application to rewrite. The window is described as *data*
+(`lib/studio_shell_qt.bas`), which puts its shape in the headless test suite,
+and every control is pressed for real by tests that need **no display at all**.
 
-It also has Studio's dark look now, as a Qt style sheet — one sheet for the
-whole application, built from the same palette the GTK one uses, and the
-editor's own syntax colours come from the same setting so a dark Studio cannot
-end up wrapping a light editor. Picking Dark re-themes everything at once,
-open editors included; the cost is that those tabs are rebuilt to do it, so
-their undo history starts again, and the status line says so. The toolbar keeps its
-icons while dark, because Studio ships a light-stroke SVG set of its own for it:
-the stock ones are drawn by Qt's own style from a palette a stylesheet cannot
-move, so on a dark strip they were invisible. Under *Follow the desktop* the
-platform's own icons come back. If the shipped set is missing, the toolbar
-falls back to labels rather than to blank buttons.
+It is a proper main window: the file tree docks on the left, the console along
+the bottom, and the side panes — branches, results, tables, git, the assistant —
+are tabs down the right edge, each closable, floatable and draggable to another
+edge, with the whole arrangement remembered between launches. There is a real
+toolbar and status bar. The editor has a margin with line numbers and marks: one
+at the start of every runnable section, one on the line a syntax error is.
 
-**Run works there now.** The caret decides which section runs, exactly as it
-does under GTK: put the cursor in a function and the strip names that section
-before you press anything. A whole-file `.sql` run that stops part way moves
-the caret to the line it stopped at, rather than telling you to go there
-yourself — the output panes follow the caret, so the failure is on screen by
-the time the status line names it.
-
-A tab's own right-click menu works there too — Close and Copy file path, acting
-on the tab you clicked rather than the one you are looking at, so closing a
-background tab does not first switch you to it.
-
-The Tables pane works there now: a result that looks like a table is offered
-in it, clicking the offer opens the rows in a window of their own — the
-sample the run kept, labelled as a sample — and *Fetch all rows* re-runs the
-section to show the whole table. The editor's text size follows Ctrl+= or
+**Run** runs the section the caret is in, and the strip names it before you
+press anything; a whole-file `.sql` run that stops part way moves the caret to
+the line it stopped at. **Force Stop** is there for a program that ignores a
+polite one. A tab has its own right-click menu (Close, Copy file path) acting on
+the tab you clicked. The **Tables** pane offers any result that looks like a
+table and opens it in a window of its own — the sample the run kept, labelled as
+one — and *Fetch all rows* re-runs the section for the whole table. **Insert
+SQL…** and **Schema…** open their own windows on a `.sql` file. The branch pane
+has **Bind name = value** and the overlay strip (Overlay, Save overlay,
+Compare, Rebase, Promote, Discard) with the overlay's own editor. The assistant's
+**Where was I?** answers in its pane, using a key from Studio's secret store or
+the environment and saying which. The editor's text size follows Ctrl+= or
 Ctrl++, Ctrl+−, Ctrl+0 and Ctrl with the mouse wheel.
 
-It is not the default yet, because some of the GTK window has no Qt
-counterpart: *Insert SQL…* and *Schema…* (both buttons are on the run strip and
-do nothing yet), Force Stop, the assistant's *Where was I?*, binding a value on a
-branch, and the overlay editor's six buttons. One limit is worth naming: *Follow the desktop* there
-means Studio applies no sheet of its own, because Qt gives it no way to ask
-whether your desktop is dark — so on a dark desktop, choose Dark. Everything else Studio asked of the language got built
-— a notebook whose set of tabs can change, a tree, a margin with marks, and the
-window's own furniture — mostly within hours of being asked for.
+Studio's dark look is a Qt style sheet for the whole application, and the
+editor's syntax colours follow the same setting, so a dark Studio never wraps a
+light editor. Picking Dark re-themes everything at once, open editors included;
+those tabs are rebuilt to do it, so their undo history starts again, and the
+status line says so. The toolbar keeps its icons while dark because Studio
+ships a light-stroke SVG set for it. One limit is worth naming: *Follow the
+desktop* means Studio applies no sheet of its own, because Qt gives it no way
+to ask whether your desktop is dark — so on a dark desktop, choose Dark.
 
 What works when you click it: a browser row (a file opens into a tab, a
 directory expands, a project becomes active), a notebook tab, typing in the
@@ -115,9 +96,9 @@ it becomes a project in the workspace and stays there. The empty browser says
 so, and the field and the button both carry tooltips, because a field labelled
 only "name" hid the one route to an existing project. Leave it empty
 and creation mints `untitled-N.bas` / `new-folder-N`; type into it and that is
-the name. It is a field rather than a dialog on purpose: a GtkEntry's text can be
-set programmatically, so the display tier types into it and clicks Rename for
-real, which no test could do to a modal dialog.
+the name. It is a field rather than a dialog on purpose: a field's text can be
+set programmatically, so the tests type into it and press Rename for real,
+which no test could do to a modal dialog.
 
 Creation lands in whatever the browser has selected: a directory, the directory
 holding the selected file, or the project root.
@@ -157,17 +138,12 @@ A run Studio *declines* records no result, correctly, since nothing executed;
 the message reaches the pane from the session instead, and the output panes say
 `(the run did not start)` rather than showing an earlier run's output beside it.
 
-**The editor follows the theme.** A GtkSourceView paints from a *style scheme*,
-which is its own thing and not the GTK theme — and nothing set one, so the
-source area stayed white inside a dark window and Studio looked like two
-applications sharing a frame. It now picks `classic` or `classic-dark` (the
-light one is what a buffer chose on its own, so nothing about the light editor
-moved), and the tint over the section at the caret follows the same decision.
-`settings.theme` is what decides: `light` and `dark` overrule the desktop,
-`system` reads it — and since no single toolkit signal is reliable, all three of
-`gtk-application-prefer-dark-theme`, `gtk-theme-name` and `GTK_THEME` are
-consulted. That setting has been saved in every home since the first release
-with nothing reading it.
+**The editor follows the theme.** The editor's syntax colours are fixed when it
+is built, so `settings.theme` decides them at construction and a theme change
+rebuilds the open editors — otherwise a dark Studio would wrap a light editor,
+the "two applications sharing a frame" look this setting exists to stop. That
+setting had been saved in every home since the first release with nothing
+reading it.
 
 **Each project keeps its own state file.** Section anchors, the branch tree and
 the overlays live in `<home>/state/<key>.json`, one per project, instead of all
@@ -232,8 +208,7 @@ active project.
 
 **Dark is Studio's own**, and it is the whole window — toolbar, browser, tabs,
 panes, menus and editor — not just the editor. Studio ships a small stylesheet
-for it, because asking GTK for its dark variant does nothing on a good many
-themes. It takes effect at once, including in editors already open, and is
+for it, built from one palette. It takes effect at once, including in editors already open, and is
 written when Studio exits.
 
 **Bigger editor text / Smaller / Reset** are in the same menu, and so is
@@ -252,8 +227,8 @@ generally rather than in Studio specifically.
 There is no "Light", deliberately. On a light desktop it would be what *Follow
 the desktop* already does; on a dark desktop it would mean a light editor
 inside a dark window, which is the one thing this is here to stop. Everything
-that is not Dark follows your system, in GTK's own named colours, which is what
-keeps Studio looking like the rest of your desktop. (`recent_limit` is in the
+that is not Dark follows your system's own style, which is what keeps Studio
+looking like the rest of your desktop. (`recent_limit` is in the
 settings file and is deliberately *not* offered — nothing in the running
 application reads it, and a control that changes nothing is a dead button.)
 
@@ -318,8 +293,8 @@ state. A project is a name and a path; the two document lists it used to carry
 **A project is not only its `.bas` files.** Open a README, a Makefile, a JSON
 fixture — they are part of the project, and Studio now treats them as what they
 are. Each is highlighted as its own language (markdown, JSON, YAML, HTML, CSS,
-Python, shell, C and the rest come from GtkSourceView, so the list is not one
-Studio has to maintain), and none of them is parsed as gBASIC. That last part
+Python, shell, C and the rest come from the KDE syntax-highlighting definitions
+gBASIC's editor uses, so the list is not one Studio has to maintain), and none of them is parsed as gBASIC. That last part
 was the bug: every document used to go through `source_outline`, so opening
 README.md reported *"this file does not parse — error 1:1 unexpected token"* and
 marked line 1 in the gutter. Now the strip says `section: (not a gBASIC file)`,
@@ -469,12 +444,9 @@ easy.
 
 **Fetch all rows** re-runs the section with an export epilogue, through the same
 function the Run button uses, so an export can never come from a run that differs
-from the one you are reading results from. Past a few hundred rows the grid is
-the general `DataGrid` (a virtualized `GtkColumnView`), and rows are decoded only
-when a cell of them is bound. Both halves are measured rather than asserted: the
-display tier runs the same interaction over a 1,200-row table and a 12,000-row
-one and requires byte-identical output — the bind count is a function of the
-window, not of the table.
+from the one you are reading results from. The grid asks for each cell as it
+comes into view (gBASIC's `table to ask`), so its cost is the window rather than
+the table, and an exported row is decoded only when a cell of it is shown.
 
 **Git, when you use it and invisible when you don't (STU-11).** Status, diff,
 history, branches and commit, all over `process.run` invoking `git` — no bespoke
@@ -634,9 +606,8 @@ ahead.
 Interaction is covered by tests rather than by hand. The rule STU-2B established
 is that a signal handler is an *adapter* — read one value off the widget, call
 one `studio_ui` function, redraw — so what a click MEANS lives in `lib/studio_ui.bas`
-and is asserted headlessly. The display tier then synthesises real GTK signals
-(there is no `gi.emit`; `GtkListBoxRow.activate`, `GtkNotebook.set_current_page`,
-`GtkTextBuffer`'s text setter and `GtkButton.activate` emit what is needed) to
+and is asserted headlessly. The Qt tiers then build the real window offscreen
+and press its controls — menu items, buttons, keys, the wheel, right-clicks — to
 prove the handlers are actually connected.
 
 **The SQL builders write the code instead of running it (STU-15).** Press
@@ -702,27 +673,27 @@ workspace instead:
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 213 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 193 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 29 cases, headless AND offline — no network, no key
 ```
 
 Golden-file based: a driver plus a `.out` holding expected stdout, compared
 byte-for-byte. The suite builds the sibling gBASIC first if `GBASIC` points into
 a source tree, so an interpreter change is what gets tested rather than a stale
-binary. Display tiers (`sections_gui`, `sessions_gui`, `results_gui`, `ui_gui`,
-`ui_gui_cold`, `ui_gui_new`, `ui_gui_name`, `ui_gui_solo`, `ui_gui_run`,
-`ui_gui_cursor`) SKIP cleanly without GTK 4 or a display.
+binary. No tier needs a display: the window tiers run under
+`QT_QPA_PLATFORM=offscreen`, and they SKIP cleanly on a gBASIC built without Qt.
 
 ## Layout
 
 ```
-app/studio.bas     entry point; dispatches modes (gui + the headless lifecycle)
+app/studio.bas     the window (Qt), and its own test modes
+app/studio_cli.bas the headless lifecycle and navigation modes
 lib/*.bas          the libraries — model, docs, sections, session, results, shell
 tests/run_studio.sh
 tests/drivers/     harness programs for the STU-2B/3/4/5A tiers
 tests/studio/      goldens
 tests/helpers/     a shell helper for the signal-escalation case
-docs/              design, phase records, and the GTK requirements survey
+docs/              design and phase records
 ```
 
 Libraries resolve through `GBASIC_PATH="lib:$GBASIC_STDLIB"`. The entry point
@@ -738,8 +709,8 @@ JSON that may be corrupt without raising), `process.start`/`poll`/`read`/`stop`
 (running a section in a child), `--line-buffered` and `print to error` (getting
 that child's output promptly and separably), `atomic_replace` (crash-safe
 writes), `process.which` (finding an optional tool without risking the raise
-that running a missing one causes), and the `persist`, `filetree`, `gtk`,
-`sourceeditor` and `gi` libraries.
+that running a missing one causes), the `persist` and `filetree` libraries, and
+the `qt` module for the window.
 
 **Studio requires gBASIC 0.1.0-rc3 or later.** The floor is `process.which`,
 and it cannot be probed around: an older interpreter also lacks `has_builtin`,

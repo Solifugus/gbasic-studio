@@ -1805,14 +1805,15 @@ program main(args)
     for each t in ["system", "dark"]
       r = studio_ui.set_theme(app, t)
       app = r.app
-      ' The toolkit says light here (no GTK_THEME, no prefer-dark), so
-      ' "system" and "light" agree and "dark" overrules.
-      d = studio_style.dark_for(studio_ui.theme_of(app), "Adwaita", false, "unknown")
-      print "  " + padto(t, 8) + "dark=" + padto(string(d), 6) + "scheme=" + studio_style.scheme_for(studio_ui.theme_of(app), "Adwaita", false, "unknown")
+      ' Under Qt "system" sets no sheet of Studio's own and builds a light
+      ' editor -- Qt gives Studio no way to ask whether the desktop is dark --
+      ' and "dark" is Studio's sheet with a dark editor.
+      d = studio_style.qt_dark_for(studio_ui.theme_of(app))
+      print "  " + padto(t, 8) + "dark=" + padto(string(d), 6) + "editor=" + studio_style.qt_source_theme(studio_ui.theme_of(app))
     end for
 
     banner("the editor's text size")
-    print "  starts at " + studio_ui.zoom_label(studio_ui.editor_zoom(app)) + "   css: " + studio_style.zoom_css(studio_ui.editor_zoom(app))
+    print "  starts at " + studio_ui.zoom_label(studio_ui.editor_zoom(app)) + "   a 10pt editor is " + string(studio_style.qt_zoomed_size("monospace,10", studio_ui.editor_zoom(app))) + "pt"
     for each d in [1, 1, 1]
       r = studio_ui.zoom_by(app, d)
       app = r.app

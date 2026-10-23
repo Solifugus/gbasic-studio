@@ -24,10 +24,10 @@
   <nonsense> reads as system
   <light> reads as system
 == and what the editor and the tint do with each of the two ==
-  system  dark=false scheme=classic
-  dark    dark=true  scheme=classic-dark
+  system  dark=false editor=light
+  dark    dark=true  editor=dark
 == the editor's text size ==
-  starts at 100%   css: textview { font-size: 1em; }
+  starts at 100%   a 10pt editor is 10pt
   bigger -> zoom-set   editor text: 115%
   bigger -> zoom-set   editor text: 130%
   bigger -> zoom-set   editor text: 150%

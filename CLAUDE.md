@@ -20,6 +20,15 @@ cold start that reaches a file you can type in, 2D the name field and the
 two-click Delete/Close, 2E the run strip and results), and STU-5A' pointed the
 panes at the CARET rather than at the last run.
 
+**THE WINDOW IS Qt, AND GTK IS GONE (2026-10-22).** Studio's window runs on
+gBASIC's Qt GUI system (STU-22); the GTK shell, its entry point, its display
+tiers and the GTK half of `studio_style` were deleted once every GTK feature
+had a Qt counterpart with a tier — see "The switch" under the Qt section. The
+older per-phase sections further down were written while Studio ran on GTK:
+their decisions about `studio_ui`, the model and the SQL path STAND; their
+notes on GtkListBox, popovers, CSS providers and `gi` are history, kept for
+the measurements in them.
+
 The gutter and the variable inspector DO exist — this paragraph said they did
 not for several phases after they were built, which is why the sections below
 are the authority and this one is a summary. The gutter marks the parse error
@@ -33,9 +42,9 @@ and gBASIC's standard library, both overridable and both defaulting to a sibling
 checkout:
 
 ```sh
-./studio                       # gui mode, home at ~/.gbasic-studio
-./studio gui /tmp/demo-home    # explicit mode + home
-./studio gui /tmp/demo-home ~/src/proj   # gui + an existing folder as a project
+./studio                       # the window (Qt), home at ~/.gbasic-studio
+./studio gui /tmp/demo-home    # explicit mode + home (`qt` means the same)
+./studio gui /tmp/demo-home ~/src/proj   # + an existing folder as a project
 ./studio startup /tmp/probe    # a headless mode; prints the model summary
 GBASIC=/usr/local/bin/gbasic GBASIC_STDLIB=/usr/local/share/gbasic/stdlib ./studio
 ```
@@ -44,68 +53,56 @@ An empty home renders `(no workspace open)`; **New Project** opens a window that
 asks for a name, a location and which of `main.bas` / `README.md` /
 `.gstudio.json` / a git repository to make (only `main.bas` is ticked), and
 Create builds the project directory — under `<home>/projects/` unless the
-Location says otherwise. **New File** adds more. Closing the gui window runs `studio.persist`, so the home is written on
-exit — unsaved *buffers* are not (there is no draft store; the exit path warns on
-stderr). `./studio build <home>` still writes a canned workspace headlessly if
+Location says otherwise. **New File** adds more. Closing the window runs
+`studio.persist`, which writes the home and captures unsaved buffers as
+DRAFTS. `./studio build <home>` still writes a canned workspace headlessly if
 you want content without clicking.
+
+TWO ENTRY POINTS: `app/studio.bas` is the window (plus its own test modes —
+`probe`, `press`, `reopen`, `tables`, `snippet`, `schema`, `branch`,
+`overlay`, `assistant`), and `app/studio_cli.bas` holds the headless
+lifecycle and navigation modes (`startup`, `build`, `roundtrip`, `stress`,
+`cycles`, `stu1_*`, `stu2_*`), loading no toolkit at all. `./studio` routes by
+mode.
 
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 213 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 193 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 29 cases, headless AND offline (scripted transport)
 ```
 
-**Fourteen of those are the Qt tiers, and `qtshell_shape` is the first case in
-this suite that asserts the window's STRUCTURE rather than its text.**
-`qtshell_shape` and `qtshell_docs` need no toolkit at all — the window is a
-record, so its shape is a string. `qtshell_check` runs gBASIC's own validator
-(`qt.check`, which upstream keeps outside the `#if HAVE_QT` guard for exactly
-this) behind a probe for the `qt` module, the same shape as the sqlite probe.
-`qtshell_open` BUILDS the window for real under `QT_QPA_PLATFORM=offscreen`
-and reads it back — **no display and no compositor**, which is strictly better
-than the `ui_gui*` tiers it will retire. `qtshell_reconcile` grows the tab set,
-moves a caption and closes a tab, and its load-bearing check is that **a kept
-editor still holds what was typed into it** — everything else in it passes on a
-reconcile that is a rebuild dressed up. `qtview_probe` drives the actual
-application through its own entry point: startup over a real home, the window
-opened, one render filling it from the model, a browser row activated through
-the same `studio_ui.activate_row` a click calls, then an edit — so it asserts
-the RENDERER and the row model reaching the window, which is what the `ui_gui*`
-tiers need a display for. `qtview_press` then **presses every control for
-real** — sixteen menu items, Save, the run strip, a browser selection, Delete
-armed and confirmed, the zoom ladder — which is what retires `ui_gui_menus` and
-`ui_gui_name`, and is better than them in one way: `qt.invoke(win, item,
-"trigger")` fires a QAction the way a person does, where an unmapped
-`Gtk.Button` in a popover silently ignores `activate()`. `qt_shell_pure` and
-`qt_no_gtk` are the tripwires.
+**No tier needs a display.** The window is a RECORD, so `qtshell_shape` and
+`qtshell_docs` assert its STRUCTURE with no toolkit at all, and `qtshell_check`
+runs gBASIC's own validator over it. Every other Qt tier BUILDS the window for
+real under `QT_QPA_PLATFORM=offscreen` and drives it through its own entry
+point: `qtshell_open` and `qtshell_reconcile` (a kept editor still holds what
+was typed into it), `qtview_probe` (startup, render, a row activated, an edit),
+`qtview_press` (every menu item, Save, the run strip, Force Stop, the tab menu,
+the zoom ladder AND its keys through `qt.key`, Ctrl+wheel through `qt.scroll`),
+`qtview_reopen` (a second launch over a used home — the difference IS the
+assertion), and one tier per feature window: `qtview_tables`,
+`qtview_snippet`, `qtview_schema`, `qtview_branch`, `qtview_overlay`,
+`qtview_assistant`. `qt_shell_pure` and `qt_no_gtk` are the tripwires.
+
+`qt_mode_tier` in the runner is the shape every new one should take: STDERR
+KEPT, a `runtime error` there fails the tier (a raise inside a handler exits
+0), provider keys stripped from the environment, and a SKIP only on gBASIC's
+own "Qt support is not available in this build".
 
 Golden-file based: a driver plus a `.out` of expected stdout, compared
 byte-for-byte, so update the `.out` when output changes *intentionally* and say
 so. The suite builds the sibling gBASIC first when `GBASIC` points into a source
 tree, so an interpreter change is what gets tested rather than a stale binary.
-Display tiers (`sections_gui`, `sessions_gui`, `results_gui`, `ui_gui`,
-`ui_gui_cold`, `ui_gui_new`, `ui_gui_name`, `ui_gui_solo`, `ui_gui_run`,
-`ui_gui_cursor`, `ui_gui_open`, `ui_gui_newproj`, `ui_gui_layout`,
-`ui_gui_ctx`, `ui_gui_branch`, `ui_gui_table`, `ui_gui_overlay`, `ui_gui_teach`,
-`ui_gui_git`, `ui_gui_snippet`, `ui_gui_menus`, `ui_gui_schema`,
-`ui_gui_settings`) SKIP cleanly
-without GTK 4 or a display.
-`ui_gui_new` is the only case that spans two processes: the GUI builds a project
-from nothing and closes, and a second interpreter run reopens the same home —
-because a process asserting its own memory cannot show that anything reached
-disk. Valgrind tiers SKIP if
-valgrind is absent. The `ui_gui*` tiers discard stderr like the other
-loop-running tiers: GTK's allocation warnings vary by version and theme, and
-`G_DEBUG=fatal-criticals` turns a real GTK critical into a nonzero exit anyway.
+Valgrind tiers SKIP if valgrind is absent.
 
 **PIN THE INTERPRETER WHEN THE LANGUAGE IS BEING WORKED ON IN PARALLEL.**
 Studio's suite builds and runs the SIBLING checkout, so a session rebuilding
 `~/development/gbasic/gbasic` replaces the binary *under a run in progress* —
 and the failures that produces are unattributable. Measured on 2026-10-19:
 
-- `ui_gui_menus` failed once on a Wayland *"Tried to map a grabbing popup with
-  a non-top most parent"* while my own Qt probes ran alongside;
+- a GTK display tier failed once on a Wayland *"Tried to map a grabbing
+  popup with a non-top most parent"* while my own Qt probes ran alongside;
 - a run died outright with `no gbasic interpreter at ...`;
 - `sessions_clean` failed with `timeout: failed to execute process: Permission
   denied`, which is the binary being swapped mid-exec;
@@ -159,14 +156,10 @@ GBASIC=/usr/local/bin/gbasic GBASIC_STDLIB=/usr/local/share/gbasic/stdlib tests/
 ## Architecture
 
 ```
-app/studio.bas   entry point; dispatches modes, owns the GTK application object
-                 and the callback-scope global, and is the ONLY place with
-                 gi.connect
-app/studio_qt.bas STU-22 the Qt entry point — `./studio qt`. A SECOND entry
-                 during the migration rather than a mode in the first, because
-                 this process must load no `gi`, `gtk`, `datagrid` or
-                 `sourceeditor` at all, and because it is deletable: when GTK
-                 goes, this becomes `app/studio.bas`
+app/studio.bas   the window: wires handler records (`qt_wire`), owns the
+                 callback-scope global `G`, runs the poller, and holds the
+                 window's own test modes. The ONLY place a handler is attached
+app/studio_cli.bas the headless lifecycle/navigation modes; loads no toolkit
 lib/studio.bas          app lifecycle over the model (launch/create/open/shutdown)
 lib/studio_model.bas    workspace / project / session / settings schema
 lib/studio_docs.bas     document manager: open, dirty, save, close, external change
@@ -241,21 +234,17 @@ lib/studio_providers.bas STU-10 selectable providers; credential from the secret
 lib/studio_agent.bas    the agent over llm.bas — orientation (STU-6) and acting
                         (STU-10); transport injectable, so the whole path is
                         testable with no network
-lib/studio_shell.bas    the GTK view — renders model state and reconciles on
-                        redraw; holds no decisions
-lib/studio_shell_qt.bas STU-22 the SAME window as DATA, for the Qt
-                        conversion: `window_for(app)` is a pure function from
-                        the model to the record `qt.open` reads, so the
-                        window's SHAPE is in the headless suite for the first
-                        time. No `qt.`, no `gi.`, no `gtk.` — tripwired
-lib/studio_view_qt.bas  STU-22 and what is IN it right now — the Qt
-                        counterpart of `studio_shell.refresh`/`refresh_run`,
-                        every line a `qt.` call and not one a decision.
-                        Separate from the shell because the shell has to stay
-                        reachable from a machine with no Qt
-lib/studio_style.bas    the ONE stylesheet, the shared CSS provider, and the
-                        spacing unit. Classes go on through `style.apply`, which
-                        attaches the provider at the same time
+lib/studio_shell_qt.bas the window as DATA: `window_for(app)` is a pure
+                        function from the model to the record `qt.open` reads,
+                        plus the second windows (New Project, the grid,
+                        snippets, schema) and the teaching map. No `qt.` call
+                        — tripwired — so its shape is testable with no Qt
+lib/studio_view_qt.bas  what is IN the window right now: `render` and
+                        `render_run`, every line a `qt.` call and not one a
+                        decision. Separate from the shell because the shell
+                        has to stay reachable from a machine with no Qt
+lib/studio_style.bas    the spacing unit, the dark palette and its Qt sheet,
+                        and the decisions that follow the theme. Toolkit-free
 share/                  the .desktop entry, the hicolor icons, and the licence
                         texts New Project can write (see share/README and
                         share/licenses/README)
@@ -266,7 +255,7 @@ handler is an ADAPTER: read one plain value off the widget, call one
 `studio_ui` function, ask for a redraw. Nothing else. Every decision lives in
 `studio_ui` as an ordinary function over plain data that `tests/drivers/ui.bas`
 calls directly, so the untestable surface is only the widget-to-value read —
-which the `ui_gui` display tier covers by synthesising real signals. **Logic in a
+which the Qt tiers cover by driving real signals offscreen. **Logic in a
 handler is a design failure, not a testing inconvenience.**
 
 Two consequences worth knowing before you touch the shell:
@@ -387,7 +376,7 @@ Two consequences worth knowing before you touch the shell:
   golden tiers capture stderr, so that is eleven failing tests and not a style
   question — which is exactly how `tool_call` was found.
 
-### The Qt conversion (STU-22, in progress)
+### The Qt window (STU-22)
 
 **gBASIC grew a Qt GUI system and Studio is switching to it, GTK being thrown
 out.** The decision is the user's (2026-10-19) and the whole of why it is
@@ -1287,7 +1276,43 @@ missing `share/` each give a toolbar of labels and a line on stderr.
   `dark_bg` and again at their shipped 24px is what these were reviewed
   against. Local file, no network.
 
-#### A tripwire that does not check what it claims
+#### The switch: GTK deleted (2026-10-22)
+
+**The first attempt was stopped by an inventory, and that is the lesson.** I
+told the user nothing the GTK window did was missing from the Qt one, on the
+strength of the README's list of gaps; they said go ahead; and diffing every
+`gi.connect` in the GTK entry against `qt_wire` found SIX features with no Qt
+counterpart — Insert SQL… and Schema… (whose buttons were on the Qt run strip,
+wired to nothing), Force Stop, the assistant's Where was I?, branch Bind, and
+the overlay strip — plus the teaching cues. Nothing had been changed; the
+README was corrected; the six were ported with a tier each; and the diff was
+run again over EVERY connection, timeout and controller before anything was
+deleted. **Diff the wiring, never a list of what is missing.**
+
+What went: `app/studio.bas` (GTK; the Qt entry took its name),
+`lib/studio_shell.bas`, the GTK half of `studio_style` (and its `load gi`),
+`tests/drivers/style.bas`, and 25 tiers — `sections_gui`, `sessions_gui`,
+`results_gui`, every `ui_gui*` and `style_scheme`. 218 → 193, accounted for
+exactly. The headless modes moved to `app/studio_cli.bas` verbatim, which is
+why none of their goldens moved; `ui_settings` moved by three deliberate lines
+(the theme and zoom decisions printed as Qt's).
+
+**Retired WITHOUT a Qt counterpart, stated:** `ui_gui_solo` (two instances at
+once — a GTK single-instance concern); `ui_gui_git` (the git pane's line; Qt
+writes `git_body` on the full redraw but no Qt tier runs inside a repository);
+`ui_gui_new`'s two-process cold start (`qtview_reopen` covers a second launch
+over a used home, not New Project → close → reopen); `sessions_gui`'s
+"no scratch files left behind" (the headless session tiers own scratch
+handling); `ui_gui_layout`'s dragged divider (Qt saves `qt.layout` whole and
+`qtview_reopen` restores it, but nothing drags first).
+
+**What the ports found that GTK had wrong:** the GTK Where was I? offered the
+whole tool registry, acts included, through a wrapper table covering eleven
+read tools, so it raised on the first tool it lacked (read from the code; the
+Qt port reproduced the shape before it was fixed). And after Promote the GTK
+overlay editor stayed on screen showing an overlay that no longer existed.
+
+#### A tripwire that did not check what it claimed (FIXED by the switch)
 
 **`qt_no_gtk` greps `lib/studio_view_qt.bas` and `app/studio_qt.bas` for a
 direct `gi.`/`gtk.` and nothing else — so it passes while the Qt process loads
@@ -1300,9 +1325,10 @@ GTK-touching half of `studio_style` (`new_provider`, `apply`, `attach`) into
 its own library so the pure half (colours, the spacing unit, the decisions) is
 reachable from either toolkit. **Not done, deliberately:** it is pre-existing,
 it demonstrably works, and a dependency refactor stacked on four other changes
-is how something that was fine gets broken. Whoever does it should strengthen
-the tripwire to walk the `load` graph at the same time, since a transitive
-check would fail today and that failure is the point.
+is how something that was fine gets broken. **Resolved by the switch:** the GTK
+half of `studio_style` is gone, and `qt_no_gtk` now scans EVERY library and
+entry file for a GTK call or `load` — stronger than walking the load graph,
+since a file that cannot mention GTK cannot load it for anyone.
 
 ### The New Project window
 

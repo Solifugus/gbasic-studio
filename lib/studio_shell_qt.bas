@@ -309,7 +309,7 @@ end function
 
 ' THE GRID WINDOW, and the name of the FUNCTION its table asks for cells.
 ' Written once here because `qt.open` resolves it by NAME, per cell, out of
-' the program -- so it lives in `app/studio_qt.bas`, which is where a function
+' the program -- so it lives in `app/studio.bas`, which is where a function
 ' reading Studio's global can be.
 function table_window_name()
     return "tablewin"

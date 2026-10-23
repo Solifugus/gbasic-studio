@@ -9,15 +9,15 @@
 ' teaching can least afford.
 program main(args)
   load studio_teaching
-  load studio_shell
+  load studio_shell_qt
   bad = 0
   for each name in studio_teaching.names()
-    if not contains(studio_shell.teachable(), name) then
+    if not contains(studio_shell_qt.teachable(), name) then
       print "the agent is offered " + name + ", but the shell cannot resolve it"
       bad = bad + 1
     end if
   end for
-  for each name in studio_shell.teachable()
+  for each name in studio_shell_qt.teachable()
     if not contains(studio_teaching.names(), name) then
       print "the shell can resolve " + name + ", but no agent is told about it"
       bad = bad + 1

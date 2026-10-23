@@ -8,19 +8,13 @@
 #   GBASIC=/usr/local/bin/gbasic GBASIC_STDLIB=/usr/local/share/gbasic/stdlib ./studio
 #
 # Usage:  ./studio [mode] [home] [folder]
-#   mode    defaults to `gui` (opens a window; needs GTK 4 and a display)
+#   mode    defaults to `gui`, which opens the window (gBASIC's Qt GUI system;
+#           needs a gBASIC built with Qt, and a display). `qt` means the same.
+#           `startup`, `build` and the other headless modes run without one.
 #   home    where Studio keeps its workspace, session and settings
 #           (defaults to ~/.gbasic-studio, created on first run)
-#   folder  gui mode only: an existing directory to open as a project, e.g.
+#   folder  window only: an existing directory to open as a project, e.g.
 #             ./studio gui ~/.gbasic-studio ~/development/myproject
-#
-# STU-22: `qt` runs the window under gBASIC's Qt GUI system instead of GTK,
-# through a second entry point (app/studio_qt.bas). It is the migration target
-# and not yet the default -- some panes are still read-only there -- so the GTK
-# window is what `gui` gives you until the conversion is finished.
-#
-#   ./studio qt                       the Qt window, same home
-#   ./studio qt ~/.gbasic-studio ~/development/myproject
 set -u
 # Remembered before the cd, because a folder argument the user typed is relative
 # to where THEY are, not to where Studio lives.
@@ -37,8 +31,7 @@ if [ ! -x "$GBASIC" ]; then
 fi
 if [ ! -d "$GBASIC_STDLIB" ]; then
     printf 'no gBASIC stdlib at %s\n' "$GBASIC_STDLIB" >&2
-    printf 'Studio needs persist and filetree from it, plus gtk/sourceeditor/gi\n' >&2
-    printf 'for the GTK window (the Qt window needs neither -- qt is a module)\n' >&2
+    printf 'Studio needs persist and filetree from it (the window itself is the qt module)\n' >&2
     exit 1
 fi
 
@@ -58,11 +51,9 @@ export GBASIC
 # this treatment; the field needs the same referent.
 export GBASIC_STUDIO_CWD="$orig_pwd"
 export GBASIC_PATH="lib:$GBASIC_STDLIB"
-# The window asks for its icon by name (org.gbasic.Studio). Adding an icon
-# directory at run time would need Gtk.IconTheme.get_for_display, a class static
-# the gi bridge cannot resolve, so the path is supplied from out here instead:
-# GTK reads XDG_DATA_DIRS for icon themes at startup, and share/ holds both the
-# hicolor icon and the .desktop entry. An installed copy needs none of this.
+# share/ holds the hicolor icon and the .desktop entry, found through
+# XDG_DATA_DIRS like any installed application's. An installed copy needs none
+# of this.
 export XDG_DATA_DIRS="$PWD/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
 # STU-8: a library ships viewer metadata for its own types beside itself, so the
 # registry has to know where the stdlib is -- and where Studio's bundled copies
@@ -74,18 +65,24 @@ export GBASIC_STUDIO_VIEWERS="$PWD/viewers"
 # somewhere else, and Studio's own working directory is never the answer, so the
 # location is supplied from out here like the viewer registry above.
 export GBASIC_STUDIO_SHARE="$PWD/share"
-# STU-22: the Qt window is a SECOND ENTRY POINT, not a mode inside the first.
-# app/studio.bas loads gi, gtk, datagrid and sourceeditor in its display block,
-# and this process must load none of them -- `gi.new("Gtk.<Widget>")` segfaults
-# before GTK is initialized rather than raising, so one stray load is a crash
-# with no output. The syntax definition comes from the gBASIC checkout beside
-# the stdlib, which is where the Kate file it highlights from lives.
-entry=app/studio.bas
-if [ "$mode" = "qt" ]; then
-    entry=app/studio_qt.bas
-    mode=gui
-    export GBASIC_SYNTAX_PATH="${GBASIC_SYNTAX_PATH:-$(dirname "$GBASIC_STDLIB")/editors/kate}"
-fi
+# TWO ENTRY POINTS. The window is app/studio.bas; the headless lifecycle and
+# navigation modes are app/studio_cli.bas, which loads no toolkit at all, so
+# they keep running on a machine with no display. Anything that is not a
+# headless mode is the window's -- including its own test modes.
+case "$mode" in
+    startup|build|roundtrip|stress|cycles|stu1_*|stu2_*)
+        entry=app/studio_cli.bas
+        ;;
+    *)
+        entry=app/studio.bas
+        if [ "$mode" = "qt" ]; then
+            mode=gui
+        fi
+        # The syntax definition comes from the gBASIC checkout beside the
+        # stdlib, which is where the Kate file the editor highlights from lives.
+        export GBASIC_SYNTAX_PATH="${GBASIC_SYNTAX_PATH:-$(dirname "$GBASIC_STDLIB")/editors/kate}"
+        ;;
+esac
 
 # Only pass a third argument when there is one: several modes read args[2] as
 # their own parameter, and handing them an empty string is not the same as

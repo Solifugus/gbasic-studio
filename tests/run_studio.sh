@@ -48,7 +48,7 @@ export GBASIC_PATH="lib:$GBASIC_STDLIB"
 # and finds that directory the way ./studio tells it to. Without this the licence
 # cases would exercise the "no text shipped" refusal instead of the licence.
 export GBASIC_STUDIO_SHARE="$PWD/share"
-APP=app/studio.bas
+APP=app/studio_cli.bas
 
 tmproot="$(mktemp -d)"
 stdout_file="$(mktemp)"
@@ -546,19 +546,6 @@ fi
 # edits (blank-insert/internal/rename/sibling/duplicate/delete), invalid-source
 # retention+recovery, persistence round-trip, multi-document isolation, Unicode byte
 # offsets, and repeated-refresh determinism.
-# The editor's style scheme: a pure decision over four plain values the shell
-# reads off GtkSettings. The READING is what no headless test can do; the
-# DECIDING is all of it, so all of it is here. No display needed — studio_style
-# loads `gi` but this path never calls `gi.require`.
-: >"$stdout_file"
-if ! timeout 60 "$GBASIC" tests/drivers/style.bas >"$stdout_file" 2>&1; then
-    cat "$stdout_file"; fail "style_scheme (nonzero exit)"
-fi
-if diff -u tests/studio/style_scheme.out "$stdout_file"; then
-    printf 'PASS style_scheme (which scheme, from what the toolkit says)\n'
-else
-    fail "style_scheme (output diff)"
-fi
 
 SEC=tests/drivers/sections.bas
 run_sections() { # mode
@@ -629,35 +616,6 @@ else
     printf 'SKIP sections_memory (valgrind not installed)\n'
 fi
 
-# STU-3 display tier (OPTIONAL — this suite stays headless-everywhere; the tier
-# SKIPs, never fails, without GTK 4 or a display). STU-3 draws no widgets of its
-# own (boundary rendering is STU-5), so what is verified here is the INTEGRATION:
-# with the real GTK shell built and a real editor tab open, the live document
-# buffer derives sections and the document's own line/column cursor resolves to a
-# section id. Output is path-free like the rest (the doc lives under $tmproot and
-# only its basename is ever printed).
-if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
-    sec_home="$tmproot/sec_gui"
-    rm -rf "$sec_home"
-    mkdir -p "$sec_home"
-    : >"$stdout_file"
-    if timeout 120 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
-            "$GBASIC" "$APP" stu3_smoke "$sec_home" "$sec_home/live.bas" >"$stdout_file" 2>&1; then
-        if diff -u tests/studio/sections_gui.out "$stdout_file"; then
-            printf 'PASS sections_gui (GTK shell + live editor cursor)\n'
-        else
-            fail "sections_gui (output diff)"
-        fi
-    else
-        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
-            printf 'SKIP sections_gui (GTK 4 typelib not available)\n'
-        else
-            cat "$stdout_file"; fail "sections_gui (nonzero exit)"
-        fi
-    fi
-else
-    printf 'SKIP sections_gui (no display)\n'
-fi
 
 # ---- STU-4: execution sessions (studio_session) -----------------------------
 # Headless, GI-independent, path-free. The sessions driver takes a mode and a
@@ -812,70 +770,7 @@ else
     printf 'SKIP sessions_memory (valgrind not installed)\n'
 fi
 
-# STU-4 display tier (OPTIONAL; SKIPs, never fails, without GTK 4 or a display).
-# Proves the UI integration: the real GTK shell builds, the section under the
-# document's cursor is resolved and run, and a GTK TIMEOUT -- not an actor, not a
-# mailbox -- drives the session to completion while the loop stays live.
-if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
-    sess_home="$tmproot/sess_gui"
-    rm -rf "$sess_home"
-    mkdir -p "$sess_home"
-    : >"$stdout_file"
-    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
-            "$GBASIC" "$APP" stu4_smoke "$sess_home" "$sess_home/live.bas" \
-            >"$stdout_file" 2>/dev/null; then
-        if diff -u tests/studio/sessions_gui.out "$stdout_file"; then
-            printf 'PASS sessions_gui (GTK shell + timeout-driven run)\n'
-        else
-            fail "sessions_gui (output diff)"
-        fi
-    else
-        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
-            printf 'SKIP sessions_gui (GTK 4 typelib not available)\n'
-        else
-            cat "$stdout_file"; fail "sessions_gui (nonzero exit)"
-        fi
-    fi
-    if [ -n "$(ls -A "$sess_home/scratch" 2>/dev/null)" ]; then
-        printf 'FAIL sessions_gui (scratch files left behind)\n'
-        exit 1
-    fi
-else
-    printf 'SKIP sessions_gui (no display)\n'
-fi
 
-# STU-5A display tier (OPTIONAL; SKIPs, never fails, without GTK 4 or a display).
-# The results pane over a REAL run: rendered before the run, again after the result
-# has been written and READ BACK FROM DISK, and once more after the section is
-# edited -- which is where the stale-content mark has to appear. The clock is
-# pinned exactly as the headless cases pin it, so the golden is byte-stable.
-if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
-    res_home="$tmproot/res_gui"
-    rm -rf "$res_home"
-    mkdir -p "$res_home"
-    : >"$stdout_file"
-    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
-            "$GBASIC" "$APP" stu5_smoke "$res_home" "$res_home/live.bas" \
-            >"$stdout_file" 2>/dev/null; then
-        if diff -u tests/studio/results_gui.out "$stdout_file"; then
-            printf 'PASS results_gui (GTK shell + persisted result + stale mark)\n'
-        else
-            fail "results_gui (output diff)"
-        fi
-    else
-        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
-            printf 'SKIP results_gui (GTK 4 typelib not available)\n'
-        else
-            cat "$stdout_file"; fail "results_gui (nonzero exit)"
-        fi
-    fi
-    if [ -n "$(ls -A "$res_home/scratch" 2>/dev/null)" ]; then
-        printf 'FAIL results_gui (scratch files left behind)\n'
-        exit 1
-    fi
-else
-    printf 'SKIP results_gui (no display)\n'
-fi
 
 # ---- STU-2B: interaction (studio_ui + the wired shell) ----------------------
 #
@@ -1097,7 +992,7 @@ if GBASIC_PATH="$GBASIC_STDLIB" timeout 60 "$GBASIC" "$qtprobe2" >/dev/null 2>&1
     : >"$stdout_file"
     if QT_QPA_PLATFORM=offscreen \
             GBASIC_SYNTAX_PATH="${GBASIC_SYNTAX_PATH:-$(dirname "$GBASIC_STDLIB")/editors/kate}" \
-            timeout 120 "$GBASIC" app/studio_qt.bas probe "$qh" "$qp" \
+            timeout 120 "$GBASIC" app/studio.bas probe "$qh" "$qp" \
             >"$stdout_file" 2>"$qt_err"; then
         if diff -u tests/studio/qtview_probe.out "$stdout_file"; then
             printf 'PASS qtview_probe (the Qt application opened, rendered and reacted, with no display)\n'
@@ -1142,7 +1037,7 @@ fi
     : >"$stdout_file"
     if QT_QPA_PLATFORM=offscreen \
             GBASIC_SYNTAX_PATH="${GBASIC_SYNTAX_PATH:-$(dirname "$GBASIC_STDLIB")/editors/kate}" \
-            timeout 120 "$GBASIC" app/studio_qt.bas press "$qh" "$qp" \
+            timeout 120 "$GBASIC" app/studio.bas press "$qh" "$qp" \
             >"$stdout_file" 2>"$qt_err"; then
         if diff -u tests/studio/qtview_press.out "$stdout_file"; then
             printf 'PASS qtview_press (every control pressed for real, with no display)\n'
@@ -1175,7 +1070,7 @@ fi
     : >"$stdout_file"
     if QT_QPA_PLATFORM=offscreen \
             GBASIC_SYNTAX_PATH="${GBASIC_SYNTAX_PATH:-$(dirname "$GBASIC_STDLIB")/editors/kate}" \
-            timeout 120 "$GBASIC" app/studio_qt.bas tables "$qh" "$qp" \
+            timeout 120 "$GBASIC" app/studio.bas tables "$qh" "$qp" \
             >"$stdout_file" 2>"$qt_err"; then
         if grep -q 'runtime error' "$qt_err"; then
             grep 'runtime error' "$qt_err"; fail "qtview_tables (a handler raised)"
@@ -1206,7 +1101,7 @@ fi
         if env -u ANTHROPIC_API_KEY -u OPENAI_API_KEY -u GBASIC_STUDIO_SECRET_KEY \
                 QT_QPA_PLATFORM=offscreen \
                 GBASIC_SYNTAX_PATH="${GBASIC_SYNTAX_PATH:-$(dirname "$GBASIC_STDLIB")/editors/kate}" \
-                timeout 120 "$GBASIC" app/studio_qt.bas "$mode" "$home" "$proj" \
+                timeout 120 "$GBASIC" app/studio.bas "$mode" "$home" "$proj" \
                 >"$stdout_file" 2>"$qt_err"; then
             if grep -q 'runtime error' "$qt_err"; then
                 grep 'runtime error' "$qt_err"; fail "$tier (a handler raised)"
@@ -1272,7 +1167,7 @@ fi
     #
     # THIS IS THE TIER WHOSE ABSENCE LET A CRASH SHIP. Every other Qt tier
     # above does `rm -rf "$qh"` first, so all of them were testing a FIRST
-    # launch -- and `app.dm` was reaching `app/studio_qt.bas` only as a side
+    # launch -- and `app.dm` was reaching `app/studio.bas` only as a side
     # effect of `create_registered_workspace`, which runs only when a home has
     # no workspace yet. So an empty home got a document manager by accident and
     # a used one got none: `./studio qt` died with `unknown record field: dm`
@@ -1298,7 +1193,7 @@ fi
         printf -- '===== launch %s =====\n' "$pass" >>"$stdout_file"
         if ! QT_QPA_PLATFORM=offscreen \
                 GBASIC_SYNTAX_PATH="${GBASIC_SYNTAX_PATH:-$(dirname "$GBASIC_STDLIB")/editors/kate}" \
-                timeout 120 "$GBASIC" app/studio_qt.bas reopen "$qh" "$qp" \
+                timeout 120 "$GBASIC" app/studio.bas reopen "$qh" "$qp" \
                 >>"$stdout_file" 2>>"$qt_err"; then
             reopen_ok=no
             break
@@ -1318,24 +1213,25 @@ fi
         fi
     fi
 
-# NO GTK ANYWHERE ON THE QT PATH.
+# NO GTK ANYWHERE IN STUDIO.
 #
-# The two Qt libraries and the Qt entry must never reach `gi`, `gtk`,
-# `sourceeditor` or `datagrid`. It is not a style point: `gi.new("Gtk.<Widget>")`
-# SEGFAULTS before GTK is initialized rather than raising, and `datagrid` pulls
-# in `gi` -- so one stray load turns a window that has no use for GTK into a
-# crash with no output, which is the signature this repository has met three
-# times. Comments stripped, because these files explain the rule by naming the
-# libraries it forbids.
+# GTK is gone, and nothing may bring it back: not a call into `gi`, `gtk`,
+# `sourceeditor` or `datagrid`, and not a `load` of one. EVERY library and
+# entry file is scanned, which is stronger than walking the load graph -- a
+# file that cannot mention GTK cannot load it transitively for anyone. It was
+# two files until GTK went, and that let `studio_style`'s `load gi` reach the
+# Qt process through the shell. Not a style point: `gi.new("Gtk.<Widget>")`
+# SEGFAULTS before GTK is initialized rather than raising. Comments stripped,
+# because these files explain the rule by naming what it forbids.
 qtgtk="$tmproot/qt_no_gtk.txt"
-sed -e "s/'.*//" lib/studio_view_qt.bas app/studio_qt.bas > "$qtgtk"
-if grep -nE '(^|[^a-z_])(gi|gtk|sourceeditor|datagrid)\.' "$qtgtk"; then
-    fail "qt_no_gtk (the Qt path reaches GTK)"
+for f in lib/*.bas app/*.bas; do sed -e "s/'.*//" "$f" | sed "s#^#$f: #"; done > "$qtgtk"
+if grep -nE '(^|[^a-z_])(gi|gtk|sourceeditor|datagrid)\.|load +(gi|gtk|sourceeditor|datagrid)( |$)' "$qtgtk"; then
+    fail "qt_no_gtk (Studio reaches GTK)"
 fi
 if ! grep -q 'studio_view_qt.render' "$qtgtk"; then
     fail "qt_no_gtk (the scanner read nothing)"
 fi
-printf 'PASS qt_no_gtk (no GTK on the Qt path)\n'
+printf 'PASS qt_no_gtk (no GTK anywhere in Studio)\n'
 
 # NOTHING IN THE QT SHELL TOUCHES A TOOLKIT, and that is a tripwire rather than
 # an intention. One `qt.read` in there would take the two tiers above down on a
@@ -1445,629 +1341,5 @@ else
     printf 'SKIP ui_memory (valgrind not installed)\n'
 fi
 
-# A NOTE ON THESE DISPLAY TIERS, recorded because establishing it cost time.
-#
-# Every tier below now starts from a CLEAN home. Several did not: they relied on
-# $tmproot being fresh, which it is per suite run -- so this changes nothing about
-# a normal run, and everything about re-running one tier by hand, where a stale
-# home reads as a defect in the code.
-#
-# It is NOT a fix for a known bug, and must not be read as one. `ui_gui_name`
-# failed here exactly once, showing the wrong project active and a collapsed tree
-# after a delete. It did not reproduce in a second full suite run, nor in eight
-# standalone runs under CPU load. The ordering hypothesis is ruled out: it runs
-# before the tiers added that day. No mechanism has been established.
-#
-# What every tier here has in common is that it steps on fixed gi.timeout
-# intervals rather than waiting on state. That pattern has produced three
-# confirmed flakes in this suite already (ui_gui_table, ui_gui_teach, and a
-# fetch_table report that depended on how fast a run finished), and it is the
-# first thing to change if this recurs.
-
-# STU-2B display tier (OPTIONAL; SKIPs, never fails, without GTK 4 or a display).
-# stderr is discarded like the other loop-running tiers: GTK emits allocation
-# warnings that vary by version and theme, and baking those into a byte-exact
-# golden would make the suite fail on someone else's desktop. G_DEBUG makes a real
-# GTK CRITICAL abort instead, which surfaces as a nonzero exit.
-if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
-    ui_home="$tmproot/ui_gui"; ui_proj="$tmproot/ui_gui_proj"
-    rm -rf "$ui_home" "$ui_proj"
-    mkdir -p "$ui_home"; mkproj_ui "$ui_proj"
-    : >"$stdout_file"
-    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
-            "$GBASIC" "$APP" stu2b_smoke "$ui_home" "$ui_proj" \
-            >"$stdout_file" 2>/dev/null; then
-        if diff -u tests/studio/ui_gui.out "$stdout_file"; then
-            printf 'PASS ui_gui (synthesised clicks through the real handlers)\n'
-        else
-            fail "ui_gui (output diff)"
-        fi
-    else
-        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
-            printf 'SKIP ui_gui (GTK 4 typelib not available)\n'
-        else
-            cat "$stdout_file"; fail "ui_gui (nonzero exit)"
-        fi
-    fi
-
-    # The cold-home path: an empty home is what a new user actually starts with,
-    # and New Project is the only control that can move it. If this one button is
-    # not wired there is no way into Studio at all.
-    cold_home="$tmproot/ui_gui_cold"
-    rm -rf "$cold_home"
-    mkdir -p "$cold_home"
-    : >"$stdout_file"
-    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
-            "$GBASIC" "$APP" stu2b_cold "$cold_home" \
-            >"$stdout_file" 2>/dev/null; then
-        if diff -u tests/studio/ui_gui_cold.out "$stdout_file"; then
-            printf 'PASS ui_gui_cold (New Project on an empty home)\n'
-        else
-            fail "ui_gui_cold (output diff)"
-        fi
-    else
-        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
-            printf 'SKIP ui_gui_cold (GTK 4 typelib not available)\n'
-        else
-            cat "$stdout_file"; fail "ui_gui_cold (nonzero exit)"
-        fi
-    fi
-
-    # STU-2C, the whole complaint end to end: from an empty home, build a
-    # project, a file, its contents and a folder using nothing but the window,
-    # then CLOSE it — and reopen the same home in a second process to prove that
-    # closing saved it. The reopen is a separate interpreter run on purpose: a
-    # process asserting its own in-memory state cannot show anything reached disk.
-    c2_home="$tmproot/ui_gui_new"
-    rm -rf "$c2_home"
-    mkdir -p "$c2_home"
-    : >"$stdout_file"
-    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
-            "$GBASIC" "$APP" stu2c_smoke "$c2_home" \
-            >"$stdout_file" 2>/dev/null; then
-        printf -- '-- reopening the home in a new process --\n' >>"$stdout_file"
-        if ! timeout 60 "$GBASIC" "$UI" show "$c2_home" >>"$stdout_file" 2>&1; then
-            cat "$stdout_file"; fail "ui_gui_new (reopen exited nonzero)"
-        fi
-        if diff -u tests/studio/ui_gui_new.out "$stdout_file"; then
-            printf 'PASS ui_gui_new (cold home to a saved project, all from the window)\n'
-        else
-            fail "ui_gui_new (output diff)"
-        fi
-    else
-        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
-            printf 'SKIP ui_gui_new (GTK 4 typelib not available)\n'
-        else
-            cat "$stdout_file"; fail "ui_gui_new (nonzero exit)"
-        fi
-    fi
-    # STU-2D: the name FIELD, which no headless test can reach — that Rename and
-    # New File read what was typed into a GtkEntry, that the field empties once
-    # consumed, and that Delete's arm survives exactly one redraw. GtkEntry text
-    # is an ordinary property, which is why the name is a field and not a dialog:
-    # a test can type into it.
-    d2_home="$tmproot/ui_gui_name"; d2_proj="$tmproot/ui_gui_name_proj"
-    rm -rf "$d2_home" "$d2_proj"
-    mkdir -p "$d2_home"; mkproj_ui "$d2_proj"
-    : >"$stdout_file"
-    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
-            "$GBASIC" "$APP" stu2d_smoke "$d2_home" "$d2_proj" \
-            >"$stdout_file" 2>/dev/null; then
-        if diff -u tests/studio/ui_gui_name.out "$stdout_file"; then
-            printf 'PASS ui_gui_name (typed names, rename, and delete confirmed twice)\n'
-        else
-            fail "ui_gui_name (output diff)"
-        fi
-    else
-        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
-            printf 'SKIP ui_gui_name (GTK 4 typelib not available)\n'
-        else
-            cat "$stdout_file"; fail "ui_gui_name (nonzero exit)"
-        fi
-    fi
-    # STU-2E: Run Section, clicked for real. Nothing in the test advances the
-    # run — the button's handler starts a child interpreter and installs a GTK
-    # timer, and the case waits for the window to drive itself to a finished
-    # state. That the poll is installed and that it STOPS is the part no headless
-    # loop can show.
-    e5_home="$tmproot/ui_gui_run"; e5_proj="$tmproot/ui_gui_run_proj"
-    rm -rf "$e5_home" "$e5_proj"
-    mkdir -p "$e5_home" "$e5_proj"
-    printf 'print "one"\n\nfunction add(a, b)\n  return a + b\nend function\n\nprint add(2, 3)\n' \
-        > "$e5_proj/runme.bas"
-    : >"$stdout_file"
-    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
-            "$GBASIC" "$APP" stu2e_smoke "$e5_home" "$e5_proj" \
-            >"$stdout_file" 2>/dev/null; then
-        if diff -u tests/studio/ui_gui_run.out "$stdout_file"; then
-            printf 'PASS ui_gui_run (a section run from a click, polled by the window)\n'
-        else
-            fail "ui_gui_run (output diff)"
-        fi
-    else
-        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
-            printf 'SKIP ui_gui_run (GTK 4 typelib not available)\n'
-        else
-            cat "$stdout_file"; fail "ui_gui_run (nonzero exit)"
-        fi
-    fi
-
-    # STU-5A': the caret drives the panes. Moving a caret is not a click, so no
-    # other tier would notice a disconnected cursor handler; `set_cursor` moves
-    # the real caret and GTK emits the real "notify::cursor-position".
-    f5_home="$tmproot/ui_gui_cursor"; f5_proj="$tmproot/ui_gui_cursor_proj"
-    rm -rf "$f5_home" "$f5_proj"
-    mkdir -p "$f5_home" "$f5_proj"
-    printf 'print "one"\n\nfunction add(a, b)\n  return a + b\nend function\n\nprint add(2, 3)\n' \
-        > "$f5_proj/runme.bas"
-    : >"$stdout_file"
-    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
-            "$GBASIC" "$APP" stu2f_smoke "$f5_home" "$f5_proj" \
-            >"$stdout_file" 2>/dev/null; then
-        if diff -u tests/studio/ui_gui_cursor.out "$stdout_file"; then
-            printf 'PASS ui_gui_cursor (the panes follow the real caret)\n'
-        else
-            fail "ui_gui_cursor (output diff)"
-        fi
-    else
-        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
-            printf 'SKIP ui_gui_cursor (GTK 4 typelib not available)\n'
-        else
-            cat "$stdout_file"; fail "ui_gui_cursor (nonzero exit)"
-        fi
-    fi
-
-    # STU-13: the browser's right-click menu. It is a Gtk.Popover of ordinary
-    # buttons rather than a Gtk.PopoverMenu, and that is what makes this case
-    # possible: a menu-model item is not something a test can press.
-    cx_home="$tmproot/ui_gui_ctx"; cx_proj="$tmproot/ui_gui_ctx_proj"
-    # A SECOND project directory: the tier adds it part-way through so "Add
-    # project file" can be pressed on a project that is not the active one.
-    cx_beta="$tmproot/ui_gui_ctx_beta"
-    rm -rf "$cx_home" "$cx_proj" "$cx_beta"
-    mkdir -p "$cx_home" "$cx_beta"; mkproj_ui "$cx_proj"
-    printf 'print "beta"\n' > "$cx_beta/b.bas"
-    : >"$stdout_file"
-    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
-            "$GBASIC" "$APP" stu14_smoke "$cx_home" "$cx_proj" "$cx_beta" \
-            >"$stdout_file" 2>/dev/null; then
-        if diff -u tests/studio/ui_gui_ctx.out "$stdout_file"; then
-            printf 'PASS ui_gui_ctx (a right-click menu opened and its items pressed)\n'
-        else
-            fail "ui_gui_ctx (output diff)"
-        fi
-    else
-        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
-            printf 'SKIP ui_gui_ctx (GTK 4 typelib not available)\n'
-        else
-            cat "$stdout_file"; fail "ui_gui_ctx (nonzero exit)"
-        fi
-    fi
-
-    # STU-17: the schema browser, through real signals. Needs a database, so
-    # it is behind the same sqlite probe as ui_sqlrun -- and the database is
-    # built here rather than by the tier, because what this case is about is
-    # the WINDOW: the drop-down populated from a catalog read, a selection
-    # running a second read, and Insert writing the columns it just showed.
-    if GBASIC_PATH="$GBASIC_STDLIB" timeout 60 "$GBASIC" "$sqlprobe" >/dev/null 2>&1; then
-        sc_home="$tmproot/ui_gui_schema"; sc_proj="$tmproot/ui_gui_schema_proj"
-        rm -rf "$sc_home" "$sc_proj"
-        mkdir -p "$sc_home" "$sc_proj/data"
-        printf '{"schema_version":1,"id":"gsp-1-1","databases":{"app":{"driver":"sqlite","path":"data/app.db"}}}' > "$sc_proj/.gstudio.json"
-        printf -- '-- @database app\n\nselect 1;\n' > "$sc_proj/work.sql"
-        mkdb="$tmproot/mkdb.bas"
-        printf 'load sqlite\nprogram main(args)\n  db = sqlite.connect(args[0])\n  r = sqlite.exec(db, "create table customers (id integer primary key, name text not null, note text)", [])\n  r = sqlite.exec(db, "create table orders (id integer primary key, customer_id integer, total real)", [])\n  r = sqlite.exec(db, "create view big_orders as select * from orders where total > 100", [])\n  sqlite.close(db)\nend program\n' > "$mkdb"
-        if ! GBASIC_PATH="$GBASIC_STDLIB" timeout 60 "$GBASIC" "$mkdb" "$sc_proj/data/app.db" >/dev/null 2>&1; then
-            fail "ui_gui_schema (could not build the fixture database)"
-        fi
-        : >"$stdout_file"
-        if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
-                "$GBASIC" "$APP" stu17_smoke "$sc_home" "$sc_proj" \
-                >"$stdout_file" 2>/dev/null; then
-            if diff -u tests/studio/ui_gui_schema.out "$stdout_file"; then
-                printf 'PASS ui_gui_schema (a catalog read shown, picked and inserted)\n'
-            else
-                fail "ui_gui_schema (output diff)"
-            fi
-        else
-            if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
-                printf 'SKIP ui_gui_schema (GTK 4 typelib not available)\n'
-            else
-                cat "$stdout_file"; fail "ui_gui_schema (nonzero exit)"
-            fi
-        fi
-    else
-        printf 'SKIP ui_gui_schema (this gBASIC has no sqlite module)\n'
-    fi
-
-    # STU-21: a tab's own right-click menu. What only a window can show is that
-    # the gesture sits on a tab label that SURVIVES a reconcile, and that the
-    # menu acts on the tab it was raised on rather than the active one. It does
-    # NOT assert the clipboard -- see the tier for why.
-    tb_home="$tmproot/ui_gui_tabmenu"; tb_proj="$tmproot/ui_gui_tabmenu_proj"
-    rm -rf "$tb_home" "$tb_proj"
-    mkdir -p "$tb_home"; mkproj_ui "$tb_proj"
-    : >"$stdout_file"
-    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
-            "$GBASIC" "$APP" stu21_smoke "$tb_home" "$tb_proj" \
-            >"$stdout_file" 2>/dev/null; then
-        if diff -u tests/studio/ui_gui_tabmenu.out "$stdout_file"; then
-            printf 'PASS ui_gui_tabmenu (a tab right-clicked, copied and closed)\n'
-        else
-            fail "ui_gui_tabmenu (output diff)"
-        fi
-    else
-        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
-            printf 'SKIP ui_gui_tabmenu (GTK 4 typelib not available)\n'
-        else
-            cat "$stdout_file"; fail "ui_gui_tabmenu (nonzero exit)"
-        fi
-    fi
-
-    # STU-18: the settings menu. What only a window can show is that picking a
-    # theme reaches an editor that is ALREADY OPEN -- the scheme was applied
-    # only to pages being created, which was invisible while nothing could
-    # change the setting.
-    se_home="$tmproot/ui_gui_settings"; se_proj="$tmproot/ui_gui_settings_proj"
-    rm -rf "$se_home" "$se_proj"
-    mkdir -p "$se_home"; mkproj_ui "$se_proj"
-    : >"$stdout_file"
-    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
-            "$GBASIC" "$APP" stu18_smoke "$se_home" "$se_proj" \
-            >"$stdout_file" 2>/dev/null; then
-        if diff -u tests/studio/ui_gui_settings.out "$stdout_file"; then
-            printf 'PASS ui_gui_settings (a theme picked, reaching editors already open)\n'
-        else
-            fail "ui_gui_settings (output diff)"
-        fi
-    else
-        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
-            printf 'SKIP ui_gui_settings (GTK 4 typelib not available)\n'
-        else
-            cat "$stdout_file"; fail "ui_gui_settings (nonzero exit)"
-        fi
-    fi
-
-    # STU-16: the header menus. What only a window can show -- that a
-    # Gtk.MenuButton's popover really opens, and that pressing an item inside it
-    # reaches the same handler its toolbar button did, arming and refusing
-    # included. The wording and the grouping are `ui_menus`, headless.
-    mn_home="$tmproot/ui_gui_menus"; mn_proj="$tmproot/ui_gui_menus_proj"
-    rm -rf "$mn_home" "$mn_proj"
-    mkdir -p "$mn_home"; mkproj_ui "$mn_proj"
-    : >"$stdout_file"
-    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
-            "$GBASIC" "$APP" stu16_smoke "$mn_home" "$mn_proj" \
-            >"$stdout_file" 2>/dev/null; then
-        if diff -u tests/studio/ui_gui_menus.out "$stdout_file"; then
-            printf 'PASS ui_gui_menus (a header menu opened and its items pressed)\n'
-        else
-            fail "ui_gui_menus (output diff)"
-        fi
-    else
-        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
-            printf 'SKIP ui_gui_menus (GTK 4 typelib not available)\n'
-        else
-            cat "$stdout_file"; fail "ui_gui_menus (nonzero exit)"
-        fi
-    fi
-
-    # STU-13: the layout you set stays set. Two processes, like ui_gui_new and
-    # for the same reason -- a process asserting its own memory cannot show that
-    # anything reached disk. No numbers: a GtkPaned clamps against the allocation
-    # and the compositor decides that, so the arithmetic is asserted headlessly
-    # by ui_panes and what only a window can show is asserted here.
-    ly_home="$tmproot/ui_gui_layout"
-    rm -rf "$ly_home"; mkdir -p "$ly_home"
-    : >"$stdout_file"
-    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
-            "$GBASIC" "$APP" stu13_smoke "$ly_home" \
-            >"$stdout_file" 2>/dev/null; then
-        printf -- '-- reopening the home in a new process --\n' >>"$stdout_file"
-        if ! timeout 60 "$GBASIC" "$UI" layout "$ly_home" >>"$stdout_file" 2>&1; then
-            cat "$stdout_file"; fail "ui_gui_layout (reopen exited nonzero)"
-        fi
-        if diff -u tests/studio/ui_gui_layout.out "$stdout_file"; then
-            printf 'PASS ui_gui_layout (a dragged divider survives the window closing)\n'
-        else
-            fail "ui_gui_layout (output diff)"
-        fi
-    else
-        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
-            printf 'SKIP ui_gui_layout (GTK 4 typelib not available)\n'
-        else
-            cat "$stdout_file"; fail "ui_gui_layout (nonzero exit)"
-        fi
-    fi
-
-    # STU-15: the snippet window. A builder that WRITES the statement into the
-    # file and never runs it, so this tier needs no database at all -- which is
-    # the design showing through the test: there is no connection to make,
-    # because nothing is executed.
-    sn_home="$tmproot/ui_gui_snip"; sn_proj="$tmproot/ui_gui_snip_proj"
-    rm -rf "$sn_home" "$sn_proj"
-    mkdir -p "$sn_home"; mkproj_ui "$sn_proj"
-    printf -- '-- @database prod\n\nselect 1;\n' > "$sn_proj/work.sql"
-    printf '{"schema_version":1,"id":"gsp-1-1","databases":{"prod":{"driver":"pg","host":"db.example","database":"acme","user":"matthew"}}}\n' > "$sn_proj/.gstudio.json"
-    : >"$stdout_file"
-    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
-            "$GBASIC" "$APP" stu15_smoke "$sn_home" "$sn_proj" \
-            >"$stdout_file" 2>/dev/null; then
-        if diff -u tests/studio/ui_gui_snippet.out "$stdout_file"; then
-            printf 'PASS ui_gui_snippet (a snippet picked, filled and inserted for real)\n'
-        else
-            fail "ui_gui_snippet (output diff)"
-        fi
-    else
-        rc=$?
-        if grep -q 'Typelib file for namespace' "$stdout_file" 2>/dev/null; then
-            printf 'SKIP ui_gui_snippet (GTK 4 typelib not available)\n'
-        else
-            cat "$stdout_file"; fail "ui_gui_snippet (exit $rc)"
-        fi
-    fi
-
-    # STU-12: New Project with the questions asked. The window is one Studio
-    # BUILDS, so the form can be filled and Create pressed for real — a
-    # GtkAlertDialog would have made this case impossible to write.
-    np_home="$tmproot/ui_gui_newproj"; np_at="$tmproot/ui_gui_newproj_at"
-    rm -rf "$np_home" "$np_at"
-    mkdir -p "$np_home" "$np_at"
-    : >"$stdout_file"
-    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
-            "$GBASIC" "$APP" stu12_smoke "$np_home" "$np_at" \
-            >"$stdout_file" 2>/dev/null; then
-        if diff -u tests/studio/ui_gui_newproj.out "$stdout_file"; then
-            printf 'PASS ui_gui_newproj (the form filled and Create pressed for real)\n'
-        else
-            fail "ui_gui_newproj (output diff)"
-        fi
-    else
-        rc=$?
-        if grep -q 'Typelib file for namespace' "$stdout_file" 2>/dev/null; then
-            printf 'SKIP ui_gui_newproj (GTK 4 typelib not available)\n'
-        else
-            cat "$stdout_file"; fail "ui_gui_newproj (nonzero exit)"
-        fi
-    fi
-
-    # STU-2C': Open Folder reads the header field as a path. The point of it
-    # being a field is that this case can exist at all — a GtkFileDialog is async
-    # with no synthesisable signal, so the same button behind a chooser would be
-    # the one control in this window no test could press.
-    og_home="$tmproot/ui_gui_open"; og_proj="$tmproot/ui_gui_open_proj"
-    rm -rf "$og_home" "$og_proj"
-    mkdir -p "$og_home" "$og_proj/src"
-    printf 'print "in the opened folder"\n' > "$og_proj/thing.bas"
-    printf 'y\n' > "$og_proj/src/b.bas"
-    : >"$stdout_file"
-    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
-            "$GBASIC" "$APP" stu2g_smoke "$og_home" "$og_proj" \
-            >"$stdout_file" 2>/dev/null; then
-        if diff -u tests/studio/ui_gui_open.out "$stdout_file"; then
-            printf 'PASS ui_gui_open (a folder path typed into the field, opened for real)\n'
-        else
-            fail "ui_gui_open (output diff)"
-        fi
-    else
-        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
-            printf 'SKIP ui_gui_open (GTK 4 typelib not available)\n'
-        else
-            cat "$stdout_file"; fail "ui_gui_open (nonzero exit)"
-        fi
-    fi
-
-    # STU-7: the inline branch selector, clicked for real. The rows are DATA in a
-    # listbox, so a click reports an index the dispatcher resolves against the
-    # array that produced the widgets — the same property the file browser has,
-    # and the reason the selector is not a row of per-branch buttons.
-    b7_home="$tmproot/ui_gui_branch"; b7_proj="$tmproot/ui_gui_branch_proj"
-    rm -rf "$b7_home" "$b7_proj"
-    mkdir -p "$b7_home" "$b7_proj"
-    printf 'threshold = 0.5\n\nfunction score(t)\n  return t * 100\nend function\n\nprint "score is " + score(threshold)\n' \
-        > "$b7_proj/branchy.bas"
-    : >"$stdout_file"
-    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
-            "$GBASIC" "$APP" stu7_smoke "$b7_home" "$b7_proj" \
-            >"$stdout_file" 2>/dev/null; then
-        if diff -u tests/studio/ui_gui_branch.out "$stdout_file"; then
-            printf 'PASS ui_gui_branch (the selector clicked through real signals)\n'
-        else
-            fail "ui_gui_branch (output diff)"
-        fi
-    else
-        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
-            printf 'SKIP ui_gui_branch (GTK 4 typelib not available)\n'
-        else
-            cat "$stdout_file"; fail "ui_gui_branch (nonzero exit)"
-        fi
-    fi
-
-    # STU-11: git, quiet and engaged, in one window. The claim §18 makes is about
-    # ABSENCE -- that someone who does not use git never sees it -- and absence
-    # is the one thing a headless test cannot check. This opens a project that is
-    # not a repository, looks at the pane, then adopts one that is.
-    if command -v git >/dev/null 2>&1; then
-        g11_home="$tmproot/ui_gui_git"; g11_proj="$tmproot/ui_gui_git_proj"
-        g11_repo="$tmproot/ui_gui_git_repo"
-        rm -rf "$g11_home" "$g11_proj"; mkdir -p "$g11_home" "$g11_proj"
-        printf 'print "plain"\n' > "$g11_proj/plain.bas"
-        mkgitrepo "$g11_repo"
-        : >"$stdout_file"
-        if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
-                "$GBASIC" "$APP" stu11_smoke "$g11_home" "$g11_proj" "$g11_repo" \
-                >"$stdout_file" 2>/dev/null; then
-            if diff -u tests/studio/ui_gui_git.out "$stdout_file"; then
-                printf 'PASS ui_gui_git (quiet outside a repo, present inside one)\n'
-            else
-                fail "ui_gui_git (output diff)"
-            fi
-        else
-            if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
-                printf 'SKIP ui_gui_git (GTK 4 typelib not available)\n'
-            else
-                cat "$stdout_file"; fail "ui_gui_git (nonzero exit)"
-            fi
-        fi
-    else
-        printf 'SKIP ui_gui_git (git is not installed)\n'
-    fi
-
-    # STU-10: teaching, drawn for real. The headless tier proves what a cue
-    # MEANS; nothing below the widget boundary can prove it was DRAWN — that the
-    # name resolved to a widget the shell holds, that the class landed on it, and
-    # that a pulse takes itself off again.
-    #
-    # The driver waits on the PULSE rather than on a timer, for the reason
-    # ui_gui_table waits on its run: a check that races a timeout passes on a
-    # fast machine and reports a defect on a slow one.
-    t10_home="$tmproot/ui_gui_teach"; t10_proj="$tmproot/ui_gui_teach_proj"
-    rm -rf "$t10_home" "$t10_proj"; mkdir -p "$t10_home" "$t10_proj"
-    printf 'threshold = 0.5\n\nfunction score(t)\n  return t * 100\nend function\n\nprint "score is " + score(threshold)\n' \
-        > "$t10_proj/branchy.bas"
-    : >"$stdout_file"
-    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
-            "$GBASIC" "$APP" stu10_smoke "$t10_home" "$t10_proj" \
-            >"$stdout_file" 2>/dev/null; then
-        if diff -u tests/studio/ui_gui_teach.out "$stdout_file"; then
-            printf 'PASS ui_gui_teach (a cue reaches a real widget and clears itself)\n'
-        else
-            fail "ui_gui_teach (output diff)"
-        fi
-    else
-        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
-            printf 'SKIP ui_gui_teach (GTK 4 typelib not available)\n'
-        else
-            cat "$stdout_file"; fail "ui_gui_teach (nonzero exit)"
-        fi
-    fi
-
-    # STU-9: the whole overlay cycle, clicked for real. What only this tier can
-    # reach: that the overlay editor is a REAL editable buffer (text typed into it
-    # comes back out), that all six acts are connected, and that a promote reaches
-    # the source editor through the ordinary redraw rather than a path of its own.
-    b9_home="$tmproot/ui_gui_overlay"; b9_proj="$tmproot/ui_gui_overlay_proj"
-    rm -rf "$b9_home" "$b9_proj"; mkdir -p "$b9_home" "$b9_proj"
-    printf 'threshold = 0.5\n\nfunction score(t)\n  return t * 100\nend function\n\nprint "score is " + score(threshold)\n' \
-        > "$b9_proj/branchy.bas"
-    : >"$stdout_file"
-    if timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
-            "$GBASIC" "$APP" stu9_smoke "$b9_home" "$b9_proj" \
-            >"$stdout_file" 2>/dev/null; then
-        if diff -u tests/studio/ui_gui_overlay.out "$stdout_file"; then
-            printf 'PASS ui_gui_overlay (an overlay typed, run, compared and promoted)\n'
-        else
-            fail "ui_gui_overlay (output diff)"
-        fi
-    else
-        if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
-            printf 'SKIP ui_gui_overlay (GTK 4 typelib not available)\n'
-        else
-            cat "$stdout_file"; fail "ui_gui_overlay (nonzero exit)"
-        fi
-    fi
-
-    # STU-8: the tabular tier, clicked for real -- and the virtualization
-    # assertion, which is the reason this tier runs TWICE.
-    #
-    # "The grid bound few cells" is not a claim about anything: few compared to
-    # what? The claim that means something is that the number DOES NOT MOVE when
-    # the table grows. So the same interaction runs over a 1,200-row table and a
-    # 12,000-row one, and both must produce byte-identical output. A grid that
-    # materialized its rows could not do that. (Checked by hand at 60,000 too;
-    # two sizes is what the suite pays for.)
-    #
-    # The driver waits on the RUN rather than on a timer. The first version
-    # stepped on a fixed interval and passed twice before a bigger table made a
-    # run outlast it -- after which every later phase read a window still mid-run,
-    # where the offers pane is empty because a live session is not a stored
-    # result. A display tier that depends on machine speed does not test what it
-    # claims to.
-    #
-    # The counters are reset BEFORE the widget tree is built, never after:
-    # GtkColumnView binds its visible rows when the view is first given a size,
-    # not at present(). Resetting after present zeroes work already done and makes
-    # a healthy grid look like it never bound -- the documented DataGrid
-    # measurement artifact, not to be repeated.
-    t8_ok=1
-    for t8_n in 1200 12000; do
-        t8_home="$tmproot/ui_gui_table_$t8_n"; t8_proj="$tmproot/ui_gui_table_${t8_n}_proj"
-        rm -rf "$t8_home" "$t8_proj"; mkdir -p "$t8_home" "$t8_proj"
-        printf 'rows = []\nn = 0\nwhile n < %s\n  rows = append(rows, { id: n, name: "row " + n, score: n * 1.5 })\n  n = n + 1\nend while\nprint "built " + count(rows)\n' \
-            "$t8_n" > "$t8_proj/tabular.bas"
-        : >"$stdout_file"
-        if timeout 240 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
-                "$GBASIC" "$APP" stu8_smoke "$t8_home" "$t8_proj" \
-                >"$stdout_file" 2>/dev/null; then
-            if ! diff -u tests/studio/ui_gui_table.out "$stdout_file"; then
-                t8_ok=0
-                printf '    (above diff is the %s-row run)\n' "$t8_n"
-            fi
-        else
-            if grep -q 'gi.require: could not load namespace' "$stdout_file"; then
-                printf 'SKIP ui_gui_table (GTK 4 typelib not available)\n'
-                t8_ok=2
-                break
-            fi
-            cat "$stdout_file"; fail "ui_gui_table (nonzero exit at $t8_n rows)"
-        fi
-    done
-    if [ "$t8_ok" = 1 ]; then
-        printf 'PASS ui_gui_table (a virtualized grid, identical at 1,200 and 12,000 rows)\n'
-    elif [ "$t8_ok" = 0 ]; then
-        fail "ui_gui_table (output diff)"
-    fi
-
-    # Two Studio windows at once. This is a regression test for a real defect,
-    # not a stress test: `gtk.application(id)` defaults to SINGLE-INSTANCE, so a
-    # second Studio used to print nothing and quietly hand its "activate" to the
-    # first — which then built a second shell over the same globals and wired
-    # every handler twice. It showed up here as a display tier that occasionally
-    # saw one click land twice. Both processes must now produce, byte for byte,
-    # what one alone produces.
-    solo_a="$tmproot/ui_gui_solo_a"; solo_b="$tmproot/ui_gui_solo_b"
-    mkdir -p "$solo_a" "$solo_b"
-    solo_out_a="$tmproot/solo_a.out"; solo_out_b="$tmproot/solo_b.out"
-    timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
-            "$GBASIC" "$APP" stu2b_cold "$solo_a" >"$solo_out_a" 2>/dev/null &
-    solo_pid=$!
-    timeout 180 env G_DEBUG="${G_DEBUG:+$G_DEBUG,}fatal-criticals" \
-            "$GBASIC" "$APP" stu2b_cold "$solo_b" >"$solo_out_b" 2>/dev/null
-    solo_rc_b=$?
-    wait "$solo_pid"; solo_rc_a=$?
-    if [ "$solo_rc_a" -ne 0 ] || [ "$solo_rc_b" -ne 0 ]; then
-        if grep -q 'gi.require: could not load namespace' "$solo_out_a" "$solo_out_b"; then
-            printf 'SKIP ui_gui_solo (GTK 4 typelib not available)\n'
-        else
-            cat "$solo_out_a" "$solo_out_b"; fail "ui_gui_solo (nonzero exit)"
-        fi
-    elif diff -u tests/studio/ui_gui_cold.out "$solo_out_a" \
-         && diff -u tests/studio/ui_gui_cold.out "$solo_out_b"; then
-        printf 'PASS ui_gui_solo (two instances at once, neither disturbing the other)\n'
-    else
-        fail "ui_gui_solo (a concurrent instance changed what the other did)"
-    fi
-else
-    printf 'SKIP ui_gui (no display)\n'
-    printf 'SKIP ui_gui_cold (no display)\n'
-    printf 'SKIP ui_gui_new (no display)\n'
-    printf 'SKIP ui_gui_name (no display)\n'
-    printf 'SKIP ui_gui_solo (no display)\n'
-    printf 'SKIP ui_gui_run (no display)\n'
-    printf 'SKIP ui_gui_cursor (no display)\n'
-    printf 'SKIP ui_gui_open (no display)\n'
-    printf 'SKIP ui_gui_newproj (no display)\n'
-    printf 'SKIP ui_gui_layout (no display)\n'
-    printf 'SKIP ui_gui_ctx (no display)\n'
-    printf 'SKIP ui_gui_menus (no display)\n'
-    printf 'SKIP ui_gui_schema (no display)\n'
-    printf 'SKIP ui_gui_settings (no display)\n'
-    printf 'SKIP ui_gui_tabmenu (no display)\n'
-    printf 'SKIP ui_gui_branch (no display)\n'
-    printf 'SKIP ui_gui_table (no display)\n'
-    printf 'SKIP ui_gui_overlay (no display)\n'
-    printf 'SKIP ui_gui_teach (no display)\n'
-    printf 'SKIP ui_gui_git (no display)\n'
-fi
 
 printf 'run_studio: all cases passed\n'
