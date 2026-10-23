@@ -22,7 +22,7 @@
 -> Run at line 7 (section: sec-3 select)
    action=running active=true
    exec: run: finished [sec-3] — exit 0
-  offer: rows: 1 rows (table)
+  offer: rows: 1 row
   grid: rows: 1 rows
   columns: id | name
   row 0: 1 | Acme

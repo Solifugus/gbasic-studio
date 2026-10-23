@@ -2,7 +2,7 @@
   the pane offers: (nothing tabular in the latest run)
 -- Run: running
   finished: ran
-  the pane offers: rows: 1200 rows (DataGrid)
+  the pane offers: rows: 1200 rows
 -- selecting the offer opens the grid window --
   action:  table
   caption: rows: 50 of 1200 rows (sampled — the run that made them has ended)

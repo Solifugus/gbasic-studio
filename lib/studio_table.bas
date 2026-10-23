@@ -9,10 +9,9 @@
 ' answers two questions and keeps them apart.
 '
 '   1. WHAT IS TABULAR, AND HOW BIG. `tier` reads a captured variable's shape and
-'      says none / modest / large. `modest` is a grid of labels' worth of cells
-'      and needs no native component; `large` is the DataGrid (NAP-12), which is
-'      the one justified native piece and a general gBASIC component, not a
-'      Studio grid.
+'      says none / modest / large. The fork was a WIDGET under GTK (labels
+'      below `modest_rows`, the DataGrid above); under Qt every grid is a
+'      `table to ask`, so only `none` versus the rest decides anything now.
 '
 '   2. WHERE THE ROWS ARE. This is the honest part, and it is forced by the
 '      replay model. A finished run's capture holds a bounded SAMPLE — fifty rows
@@ -44,15 +43,17 @@ library studio_table
         return 1
     end function
 
-    ' Above this many rows, the DataGrid. Below it, a grid of labels does the job
-    ' with no native component (§7's two tiers). Five columns of five hundred rows
-    ' is the "few thousand cells" the design puts the fork at.
+    ' The line between design §7's two tiers. Under GTK it decided the WIDGET --
+    ' a grid of labels below it, the virtualized DataGrid above. Under Qt every
+    ' grid is a `table to ask`, whose cost is the viewport, so nothing on screen
+    ' forks on it any more; `tier` still reports it, and `offer_line` no longer
+    ' says it, because "(DataGrid)" named a widget that does not exist.
     function modest_rows()
         return 500
     end function
 
-    ' The export cap. Not a display limit — the DataGrid is virtualized and does
-    ' not care — but a limit on how much of someone's data Studio will copy out of
+    ' The export cap. Not a display limit — the grid asks for visible cells only
+    ' and does not care — but a limit on how much of someone's data Studio will copy out of
     ' a run and leave on their disk without being asked twice.
     function export_cap()
         return 1000000
@@ -130,18 +131,18 @@ library studio_table
     end function
 
     ' One line describing what a table offer would open, for the pane and the
-    ' status line. Says the tier out loud: a reader deciding whether to fetch
-    ' 48,000 rows should know the grid they get is the virtualized one.
+    ' status line: the variable and how many rows the RUN saw -- the total, not
+    ' what the capture kept, since that is what a reader decides to fetch on.
     function offer_line(v)
         t = studio_table.tier(v)
         if t = "none" then
             return ""
         end if
         n = studio_table.row_count(v)
-        if t = "large" then
-            return v.name + ": " + n + " rows (DataGrid)"
+        if n = 1 then
+            return v.name + ": 1 row"
         end if
-        return v.name + ": " + n + " rows (table)"
+        return v.name + ": " + n + " rows"
     end function
 
     ' ---- row sources -------------------------------------------------------

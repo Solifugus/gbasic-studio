@@ -3,7 +3,7 @@ offers: 0
 -> Run
    exec: run: finished [sec-1] — exit 0
 == what the result can be opened as ==
-  rows: 1200 rows (DataGrid)
+  rows: 1200 rows
 == opening one WITHOUT fetching shows the capture sample, and says so ==
 caption: rows: 50 of 1200 rows (sampled — the run that made them has ended)
 source: preview
