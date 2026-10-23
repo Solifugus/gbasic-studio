@@ -224,27 +224,20 @@ program main(args)
     src = studio_table.from_export(read(f), path)
     print "a " + src.n + "-row table, " + src.decodes + " rows decoded by opening it"
     print ""
-    print "-- half one: the NATIVE model serves the count and hands out lazy row"
-    print "   proxies. Row requests are bounded by what is asked for, not by the"
-    print "   table's size."
-    m = rowmodel.new(1)
-    set_count_result = rowmodel.set_count(m, src.known)
-    print "  model count: " + rowmodel.count(m)
-    rowmodel.reset_requests(m)
-    print ""
-    print "-- half two: Studio decodes a row when a cell of it is asked for, and"
-    print "   not before. 300 rows spread across the table:"
+    ' THE GRID ASKS FOR A CELL AT A TIME (a Qt `table to ask`), so what this
+    ' asserts is Studio's half: a row is decoded when a cell of it is asked
+    ' for, and not before. It used to drive gBASIC's GTK row model as well;
+    ' that model went with GTK, and the claim that matters never needed it.
+    print "-- a row is decoded when a cell of it is asked for, and not before."
+    print "   300 rows spread across the table:"
     k = 0
     total = 0
     while k < 300
-      pos = k * 166
-      row = rowmodel.get_item(m, pos)
-      r = studio_table.cell(src, rowmodel.row_index(row), 0)
+      r = studio_table.cell(src, k * 166, 0)
       total = total + number(r.text)
       src = r.src
       k = k + 1
     end while
-    print "  row requests: " + rowmodel.item_requests(m)
     print "  rows decoded: " + src.decodes
     print "  id sum:       " + total
     print "  table size:   " + src.n + " rows, of which " + (src.n - src.decodes) + " were never touched"

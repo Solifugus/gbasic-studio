@@ -215,8 +215,9 @@ library studio_ui
     ' by extension `*.bas` resolves to FreeBASIC. So gBASIC is Studio's own
     ' suffix rule (`is_gbasic`), and everything else is this table of
     ' KSyntaxHighlighting names, each measured to resolve on this machine.
-    ' "" means NO definition: a plain editor, which is right for a `.txt` and
-    ' for anything this table does not know.
+    ' "" means NO definition: a plain editor -- themed like the rest since
+    ' gBASIC db8c3ad -- which is right for a `.txt` and for anything this
+    ' table does not know.
     '
     ' A REGRESSION FROM GTK, found while pruning CLAUDE.md: the Qt shell built
     ' every editor as `language: "gBASIC"`, so a README, a `.sql` file and a

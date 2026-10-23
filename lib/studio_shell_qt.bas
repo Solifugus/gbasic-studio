@@ -1103,11 +1103,12 @@ end function
 '
 ' THE COLOURS are DECLARED from the setting, because `theme` is construction-
 ' only and a stylesheet does not move Qt's palette: a dark Studio would
-' otherwise wrap a light editor. gBASIC refuses a `theme` with no `language`
-' (the theme is applied WITH the definition), so a plain editor has neither --
-' and in Dark it is light. Stated rather than hidden; asked of gBASIC.
+' otherwise wrap a light editor. A PLAIN editor takes the theme too (gBASIC
+' db8c3ad, asked for by Studio): before that, a `theme` with no `language` was
+' refused, and a .txt in a dark Studio was the one light pane.
 function _editor_options(app, doc_id)
-    opts = { line_numbers: true, marks: true }
+    opts = { line_numbers: true, marks: true,
+             theme: studio_style.qt_source_theme(app.model.settings.theme) }
     doc = studio_docs.doc_by_id(app.dm, doc_id)
     lang = ""
     if doc != nothing then
@@ -1115,7 +1116,6 @@ function _editor_options(app, doc_id)
     end if
     if lang != "" then
         opts.language = lang
-        opts.theme = studio_style.qt_source_theme(app.model.settings.theme)
     end if
     return opts
 end function

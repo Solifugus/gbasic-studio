@@ -346,11 +346,7 @@ run_table() { # mode
 for m in tier preview export sort; do
     run_table "$m"
 done
-if timeout 30 "$GBASIC" tests/drivers/have_rowmodel.bas >/dev/null 2>&1; then
-    run_table model
-else
-    printf 'SKIP table_model (interpreter has no native row-model adapter)\n'
-fi
+run_table model
 
 # ==========================================================================
 # STU-7 — exploratory branching, state-only. Pure model logic over plain data:

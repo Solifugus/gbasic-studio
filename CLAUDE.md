@@ -1160,8 +1160,15 @@ The skip path itself is not exercised: there is no Qt-less build here to run it
 against. `qtview_tables` additionally fails on any `runtime error` in stderr,
 because a raise inside a handler exits 0.
 
-**THE PINNED INTERPRETER MOVED to gBASIC `cbbaae0`** (§0.35: `align:` on a
-column, and `qt.alignment`). Before that `931bea2` (§0.34: several shortcuts on
+**gBASIC NO LONGER HAS GTK** (19a830f, at the user's direction): the `gui` and
+`gi` modules, `rowmodel`, and the `gtk`, `sourceeditor` and `datagrid`
+libraries are gone. Studio needed none of them. `table_model` had driven
+`rowmodel` alongside Studio's own lazy decoding; it keeps the half that is
+Studio's and no longer probes for the rest.
+
+**THE PINNED INTERPRETER MOVED to gBASIC `db8c3ad`** (a themed plain `source`,
+and `palette` readable). Before that `cbbaae0` (§0.35: `align:` on a
+column, and `qt.alignment`), and before that `931bea2` (§0.34: several shortcuts on
 an item, and `qt.key`), and before that `1963388`, which is what Ctrl+wheel
 needed (3d3f7d9: `qt.refresh` connects the handlers of what it builds;
 1963388: `qt.wheel()` carries the unrounded `dy_exact`). Before
@@ -2621,9 +2628,9 @@ none of them is about SQL.
   gBASIC's Qt takes a definition name and never an extension — by extension
   `*.bas` resolves to FreeBASIC. The GTK editor asked its toolkit to guess;
   the Qt shell first declared EVERY editor gBASIC, highlighting a README as
-  code, found while pruning this file. A plain editor cannot carry a theme
-  (gBASIC refuses `theme:` without `language:`), so in Dark it is light —
-  asked upstream.
+  code, found while pruning this file. A plain editor takes the theme like any
+  other (gBASIC db8c3ad, asked for by Studio); `qtview_edit` reads `palette`
+  back and checks a `.txt` and a `.bas` agree in Dark.
 - `studio_tools._is_refusal` must list every way `run_section` declines —
   `execute_section` is an agent act over the same function, and an action
   missing from that list is reported to the model as a SUCCESS. The agent would

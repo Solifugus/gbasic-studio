@@ -23,3 +23,5 @@ New Folder, with the field empty
 each editor highlights as its OWN language
   main.bas: gBASIC
   README.md: Markdown
+  notes.txt: true (no highlighter)
+  in Dark, main.bas is #d6d6d6 on #141516; notes.txt the same: true

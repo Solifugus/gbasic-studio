@@ -2321,6 +2321,26 @@ program main(args)
             end if
             print "  " + f + ": " + hname
         end for
+        ' A PLAIN FILE IN A DARK STUDIO: no highlighter, but the theme's own
+        ' colours -- the same pair a highlighted editor gets, read back off Qt
+        ' (`palette` is "text on background").
+        z = qt.write(win, studio_shell_qt.part_name_field(), "notes.txt")
+        z = qt.invoke(win, qt_item("new-file"), "trigger")
+        plain = studio_shell_qt.part_editor(studio_docs.active_doc(G.app.dm).id)
+        hl = qt.highlighting(win, plain)
+        print "  notes.txt: " + string(is_unknown(hl)) + " (no highlighter)"
+        z = qt_theme_to("dark")
+        rr = studio_ui.nav_rows(G.app)
+        o = studio_ui.activate_row(G.app, rr, studio_qt_row_index(rr, "file", "main.bas"))
+        G.app = o.app
+        z = qt_redraw()
+        mp = qt.read(win, studio_shell_qt.part_editor(studio_docs.active_doc(G.app.dm).id), "palette")
+        rr = studio_ui.nav_rows(G.app)
+        o = studio_ui.activate_row(G.app, rr, studio_qt_row_index(rr, "file", "notes.txt"))
+        G.app = o.app
+        z = qt_redraw()
+        tp = qt.read(win, studio_shell_qt.part_editor(studio_docs.active_doc(G.app.dm).id), "palette")
+        print "  in Dark, main.bas is " + mp + "; notes.txt the same: " + string(mp = tp)
         return nothing
     end if
 
