@@ -1,0 +1,24 @@
+-- a cold home --
+  0 (no workspace open)
+  0 New Project starts a fresh one
+  0 or type a folder path and press Open Folder
+typing the folder path into the name field, then Open Folder
+  action=adopted, the field is now []
+  0 Workspace: workspace
+  0 ● opened
+  1 ▸ src
+  1   thing.bas
+Open Folder again on the same path
+  action=activated -- activated, not duplicated: 4 rows
+  the folder holds a project file: false
+Project File
+  action=project-file, written: true
+  0 Workspace: workspace
+  0 ● opened
+  1 ▸ src
+  1   .gstudio.json
+  1   thing.bas
+Project File again
+  action=exists
+Open Folder on a path that is not there
+  action=no-folder

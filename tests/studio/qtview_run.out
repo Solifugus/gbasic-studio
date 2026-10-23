@@ -1,0 +1,26 @@
+caret on line 1  section: sec-1 statements
+caret on line 3  section: sec-2 function add
+caret on line 7  section: sec-3 statements
+clicking Run Section
+  strip:   run: finished [sec-3] — exit 0
+  status:  finished sec-3
+  prefix:  <first
+>
+  target:  <5
+>
+  errors:  Errors <(none)>
+the results pane, caret on the section that ran:
+  Results — sec-3  (1 run(s))
+  latest: res-1  finished exit 0  at 1969-12-31 19:16:40  0s
+    output: <5
+  >
+    variables: none
+moving the caret to the first section -- the pane follows it
+  Results — sec-1
+  (no runs yet)
+editing the section that ran, then putting the caret back on it
+  Results — sec-3  (1 run(s))
+  latest: res-1  finished exit 0  at 1969-12-31 19:16:40  0s  [section edited since this run]
+    output: <5
+  >
+    variables: none

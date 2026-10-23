@@ -1124,6 +1124,17 @@ function qt_scripted_reply(m, req)
     return { status: 200, headers: {}, body: b }
 end function
 
+' Every row of the browser as the WIDGET holds it: depth, then text.
+function qt_nav_cells(win)
+    out = []
+    i = 0
+    for each r in studio_ui.nav_rows(G.app)
+        out = append(out, string(qt.depth(win, studio_shell_qt.part_browser(), i)) + " " + qt.cell(win, studio_shell_qt.part_browser(), i, "text"))
+        i = i + 1
+    end for
+    return out
+end function
+
 ' ---- the header -----------------------------------------------------------
 
 function on_qt_save()
@@ -2030,6 +2041,101 @@ program main(args)
         return nothing
     end if
 
+    if mode = "open" then
+        ' OPEN FOLDER AND PROJECT FILE, pressed for real -- the retired
+        ' `ui_gui_open`. Open Folder reads the name field as a PATH; opening
+        ' the same folder twice ACTIVATES it rather than adding it again; it
+        ' writes nothing into the folder; Project File writes the one file
+        ' Studio ever puts there, only when asked, and refuses to overwrite it.
+        print "-- a cold home --"
+        print qt_indent(join(qt_nav_cells(win), chr(10)))
+        print "typing the folder path into the name field, then Open Folder"
+        z = qt.write(win, studio_shell_qt.part_name_field(), args[3])
+        z = qt.invoke(win, qt_item("open-folder"), "trigger")
+        print "  action=" + G.last_action + ", the field is now [" + qt.read(win, studio_shell_qt.part_name_field(), "text") + "]"
+        print qt_indent(join(qt_nav_cells(win), chr(10)))
+        print "Open Folder again on the same path"
+        z = qt.write(win, studio_shell_qt.part_name_field(), args[3])
+        z = qt.invoke(win, qt_item("open-folder"), "trigger")
+        print "  action=" + G.last_action + " -- activated, not duplicated: " + string(count(qt_nav_cells(win))) + " rows"
+        pf{file} = args[3] + "/.gstudio.json"
+        print "  the folder holds a project file: " + string(exists(pf))
+        print "Project File"
+        z = qt.invoke(win, qt_item("project-file"), "trigger")
+        print "  action=" + G.last_action + ", written: " + string(exists(pf))
+        print qt_indent(join(qt_nav_cells(win), chr(10)))
+        print "Project File again"
+        z = qt.invoke(win, qt_item("project-file"), "trigger")
+        print "  action=" + G.last_action
+        print "Open Folder on a path that is not there"
+        z = qt.write(win, studio_shell_qt.part_name_field(), args[3] + "/nowhere")
+        z = qt.invoke(win, qt_item("open-folder"), "trigger")
+        print "  action=" + G.last_action
+        return nothing
+    end if
+
+    if mode = "run" then
+        ' A RUN, READ BACK OFF THE WINDOW -- the retired `ui_gui_run`,
+        ' `ui_gui_cursor` and `results_gui`, in one script. What only a window
+        ' shows: the strip naming the section the CARET is in, the four output
+        ' panes and the results pane after a real run, the results pane
+        ' FOLLOWING the caret to a section that has not run, and the stale mark
+        ' after the section that ran is edited.
+        rows = studio_ui.nav_rows(G.app)
+        ro = studio_ui.activate_row(G.app, rows, studio_qt_row_index(rows, "file", "run.bas"))
+        G.app = ro.app
+        G.app.clock_fixed = 1000
+        nav = studio_ui.nav_rows(G.app)
+        G.app = studio_view_qt.render(win, G.app, "")
+        ed = studio_shell_qt.part_editor(studio_docs.active_doc(G.app.dm).id)
+        for each at in [1, 3, 7]
+            z = qt.caret_to(win, ed, at, 1)
+            G.app = qt_sync_caret(G.app)
+            print "caret on line " + string(at) + "  " + qt.read(win, "run_section", "text")
+        end for
+        print "clicking Run Section"
+        z = qt.invoke(win, "run_btn", "click")
+        went = qt_tables_wait()
+        print "  strip:   " + qt.read(win, "run_state", "text")
+        print "  status:  " + qt.read(win, studio_shell_qt.part_status(), "text")
+        print "  prefix:  <" + qt.read(win, "prefix_body", "plainText") + ">"
+        print "  target:  <" + qt.read(win, "target_body", "plainText") + ">"
+        print "  errors:  " + qt.read(win, "err_head", "text") + " <" + qt.read(win, "err_body", "plainText") + ">"
+        print "the results pane, caret on the section that ran:"
+        print qt_indent(qt.read(win, "results_body", "plainText"))
+        print "moving the caret to the first section -- the pane follows it"
+        z = qt.caret_to(win, ed, 1, 1)
+        G.app = qt_sync_caret(G.app)
+        print qt_indent(qt.read(win, "results_body", "plainText"))
+        print "editing the section that ran, then putting the caret back on it"
+        did = studio_docs.active_doc(G.app.dm).id
+        G.app = studio.edit_document(G.app, did, "print \"first\"" + chr(10) + chr(10) + "function add(a, b)" + chr(10) + "  return a + b" + chr(10) + "end function" + chr(10) + chr(10) + "print add(2, 4)" + chr(10))
+        z = qt_redraw()
+        z = qt.caret_to(win, ed, 7, 1)
+        G.app = qt_sync_caret(G.app)
+        z = qt_redraw()
+        print qt_indent(qt.read(win, "results_body", "plainText"))
+        return nothing
+    end if
+
+    if mode = "cold" then
+        ' A COLD HOME TO A FILE IN THE BROWSER -- the retired `ui_gui_cold`. The
+        ' one path in this application that cannot be allowed to break: nothing
+        ' at all, New Project as the way in, and a project with a file to click.
+        print "-- a cold home --"
+        print qt_indent(join(qt_nav_cells(win), chr(10)))
+        print "  tabs: " + string(qt.tabs(win, studio_shell_qt.part_tabs()))
+        print "pressing New Project"
+        z = qt.invoke(win, qt_item("new-project"), "trigger")
+        print "  its window is open=" + string(qt_np_is_open())
+        print "pressing Create, with the window's defaults"
+        z = qt.invoke(G.npwin, "np_create", "click")
+        print "  action=" + G.last_action + ", window closed=" + string(not qt_np_is_open())
+        print "-- after New Project --"
+        print qt_indent(join(qt_nav_cells(win), chr(10)))
+        return nothing
+    end if
+
     if mode = "git" then
         ' GIT, QUIET AND ENGAGED (STU-11), the retired `ui_gui_git` script: a
         ' project that is not a repository, then one that is, adopted the way
@@ -2262,6 +2368,11 @@ program main(args)
         print "  tabs:     " + string(qt.tabs(win, studio_shell_qt.part_tabs()))
         print "  title:    " + studio_qt_scrub(qt.read(win, studio_shell_qt.window_name(), "windowTitle"), G.app)
         print "  rows:     " + string(count(studio_ui.nav_rows(G.app)))
+        ' THE ARRANGEMENT the last launch left: launch 1 floats the Files dock
+        ' before it closes, so launch 2 answering `true` is a CHANGED layout
+        ' surviving a relaunch -- not only the default being rebuilt (the
+        ' retired `ui_gui_layout`'s claim, for dividers it dragged).
+        print "  files dock floating: " + string(qt.dock(win, studio_shell_qt.part_browser_dock()).floating)
         ' A RESTORED editor is built by `qt.open`, not by a refresh, so its
         ' handlers come from the window record (`with_editor_handlers`) -- the
         ' one path the press tier, which starts from nothing open, cannot reach.
@@ -2347,6 +2458,7 @@ program main(args)
         again = qt_theme_to("dark")
         print "  and back to dark for the next launch: " + G.last_action
 
+        z = qt.set(win, studio_shell_qt.part_browser_dock(), "floating", true)
         z = qt.close(win)
         ' PERSISTED, unlike `probe` and `press`, because the whole point of
         ' this mode is what the NEXT launch finds -- and `persist`, not

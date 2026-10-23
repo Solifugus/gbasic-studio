@@ -7,6 +7,7 @@
   tabs:     ["(no document)"]
   title:    gBASIC Studio — workspace
   rows:     6
+  files dock floating: false
 -- with main.bas open --
   action:   open
   tabs:     ["main.bas"]
@@ -42,6 +43,7 @@
   tabs:     ["main.bas"]
   title:    main.bas — gBASIC Studio — workspace
   rows:     6
+  files dock floating: true
   Ctrl+wheel on the editor qt.open built: claimed=true, 115%
 -- with main.bas open --
   action:   open

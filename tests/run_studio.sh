@@ -1016,6 +1016,9 @@ else
     printf 'SKIP qtview_overlay (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_assistant (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_git (this gBASIC has no qt module)\n'
+    printf 'SKIP qtview_run (this gBASIC has no qt module)\n'
+    printf 'SKIP qtview_cold (this gBASIC has no qt module)\n'
+    printf 'SKIP qtview_open (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_reopen (this gBASIC has no qt module)\n'
 fi
 
@@ -1177,6 +1180,30 @@ fi
     else
         printf 'SKIP qtview_git (git is not installed)\n'
     fi
+
+    # A RUN READ BACK OFF THE WINDOW (the retired ui_gui_run, ui_gui_cursor
+    # and results_gui): the strip following the caret, the four output panes
+    # and the results pane after a real run, the results pane following the
+    # caret, and the stale mark after an edit.
+    qh="$tmproot/qtview_run"; qp="$tmproot/qtview_run_proj"
+    rm -rf "$qh" "$qp"; mkdir -p "$qh" "$qp"
+    printf 'print "first"\n\nfunction add(a, b)\n  return a + b\nend function\n\nprint add(2, 3)\n' > "$qp/run.bas"
+    qt_mode_tier qtview_run run "$qh" "$qp" "a run read back off the window, following the caret"
+
+    # A COLD HOME TO A FILE IN THE BROWSER (the retired ui_gui_cold): nothing
+    # at all, New Project as the way in. The project argument is EMPTY.
+    qh="$tmproot/qtview_cold"
+    rm -rf "$qh"; mkdir -p "$qh"
+    qt_mode_tier qtview_cold cold "$qh" "" "a cold home reaches a project with a file in it"
+
+    # OPEN FOLDER AND PROJECT FILE (the retired ui_gui_open): a folder opened
+    # by typing its path, opened again (activated, not duplicated), given a
+    # project file only when asked, and a path that is not there refused. The
+    # folder is called `opened` so the golden names it and nothing else.
+    qh="$tmproot/qtview_open"; qo="$tmproot/qtview_open_at/opened"
+    rm -rf "$qh" "$tmproot/qtview_open_at"; mkdir -p "$qh" "$qo/src"
+    printf 'x\n' > "$qo/thing.bas"
+    qt_mode_tier qtview_open open "$qh" "" "a folder opened by path, activated, given a project file" "$qo"
 
     # A SECOND LAUNCH OVER A HOME THAT HAS BEEN USED.
     #

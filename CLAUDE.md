@@ -1297,12 +1297,18 @@ exactly. The headless modes moved to `app/studio_cli.bas` verbatim, which is
 why none of their goldens moved; `ui_settings` moved by three deliberate lines
 (the theme and zoom decisions printed as Qt's).
 
+**SUCCESSORS WRITTEN AFTERWARDS**, one per retired claim, because the git pane
+showed a retired tier can hide a render-side gap: `qtview_git` (ui_gui_git),
+`qtview_run` (ui_gui_run, ui_gui_cursor, results_gui — the strip, the four
+panes, the results pane following the caret, the stale mark), `qtview_cold`
+(ui_gui_cold), `qtview_open` (ui_gui_open), and a floated dock surviving a
+relaunch in `qtview_reopen` (ui_gui_layout's claim).
+
 **Retired WITHOUT a Qt counterpart, stated:** `ui_gui_solo` (two instances at
 once — a GTK single-instance concern); `ui_gui_new`'s two-process cold start (`qtview_reopen` covers a second launch
 over a used home, not New Project → close → reopen); `sessions_gui`'s
 "no scratch files left behind" (the headless session tiers own scratch
-handling); `ui_gui_layout`'s dragged divider (Qt saves `qt.layout` whole and
-`qtview_reopen` restores it, but nothing drags first).
+handling).
 
 **AND THE WIRING DIFF HAD A BLIND SPOT, found the same day.** It compares
 SIGNALS, so it cannot see what a redraw WRITES: the Qt git pane put the

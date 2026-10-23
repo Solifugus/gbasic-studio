@@ -1,0 +1,13 @@
+-- a cold home --
+  0 (no workspace open)
+  0 New Project starts a fresh one
+  0 or type a folder path and press Open Folder
+  tabs: ["(no document)"]
+pressing New Project
+  its window is open=true
+pressing Create, with the window's defaults
+  action=project-created, window closed=true
+-- after New Project --
+  0 Workspace: workspace
+  0 ● Project 1
+  1   main.bas
