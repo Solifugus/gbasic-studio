@@ -87,6 +87,12 @@ esac
 # Only pass a third argument when there is one: several modes read args[2] as
 # their own parameter, and handing them an empty string is not the same as
 # handing them nothing.
+# Anything after the folder goes to the mode as it is: `showcase` takes a
+# file, a line and "table" (see app/studio.bas).
+if [ "$#" -gt 3 ]; then
+    shift 3
+    exec "$GBASIC" "$entry" "$mode" "$home" "$folder" "$@"
+fi
 if [ -n "$folder" ]; then
     exec "$GBASIC" "$entry" "$mode" "$home" "$folder"
 fi

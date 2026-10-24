@@ -885,7 +885,15 @@ library studio_results
         ' Only the latest result's output is read: history rows show their sizes
         ' from the index, so browsing does not pull megabytes off disk.
         if studio_results.capture_bytes(latest, "out_target") > 0 then
-            lines = append(lines, "  output: <" + studio_results.capture(home, store, latest.result_id, "out_target") + ">")
+            ' ONE trailing newline is dropped before the brackets: nearly every
+            ' `print` leaves one, and it put the closing `>` alone on the next
+            ' line -- which in a screenshot reads as a broken pane. A blank line,
+            ' or a second newline, still shows inside the brackets.
+            out = studio_results.capture(home, store, latest.result_id, "out_target")
+            if ends_with(out, chr(10)) then
+                out = mid(out, 0, len(out) - 1)
+            end if
+            lines = append(lines, "  output: <" + out + ">")
         end if
         if count(latest.truncated) > 0 then
             lines = append(lines, "  truncated: " + join(latest.truncated, ","))

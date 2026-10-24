@@ -26,11 +26,11 @@
 -- the furniture: which EDGE did each dock land on? --
   files     left
   console   bottom
-  branch    right, tabbed with 4
-  results   right, tabbed with 4
-  tables    right, tabbed with 4
-  git       right, tabbed with 4
-  agent     right, tabbed with 4
+  branch    right, tabbed with 3
+  results   right, tabbed with 3
+  tables    right, tabbed with 3
+  git       right, tabbed with 0
+  agent     right, tabbed with 3
   (Qt TABS the docks sharing an edge, which is what stops the
    last of five panes sitting below the fold)
 -- and the toolbar's items are QActions with real icons --

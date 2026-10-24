@@ -25,22 +25,19 @@ print "score is " + score(threshold)
 -- High (selected)
 Results — sec-3  (1 run(s))
 latest: res-3  finished exit 0  at 1969-12-31 19:16:40  0s
-  output: <score is 90
->
+  output: <score is 90>
   variables (1):
       threshold number = 0.9
 -- Low
 Results — sec-3  (1 run(s))
 latest: res-2  finished exit 0  at 1969-12-31 19:16:40  0s
-  output: <score is 25
->
+  output: <score is 25>
   variables (1):
       threshold number = 0.25
 -- baseline
 Results — sec-3  (1 run(s))
 latest: res-1  finished exit 0  at 1969-12-31 19:16:40  0s
-  output: <score is 50
->
+  output: <score is 50>
   variables (1):
       threshold number = 0.5
 == branches survive a save and a relaunch ==

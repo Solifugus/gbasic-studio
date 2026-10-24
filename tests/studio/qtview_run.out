@@ -12,8 +12,7 @@ clicking Run Section
 the results pane, caret on the section that ran:
   Results — sec-3  (1 run(s))
   latest: res-1  finished exit 0  at 1969-12-31 19:16:40  0s
-    output: <5
-  >
+    output: <5>
     variables: none
 moving the caret to the first section -- the pane follows it
   Results — sec-1
@@ -21,6 +20,5 @@ moving the caret to the first section -- the pane follows it
 editing the section that ran, then putting the caret back on it
   Results — sec-3  (1 run(s))
   latest: res-1  finished exit 0  at 1969-12-31 19:16:40  0s  [section edited since this run]
-    output: <5
-  >
+    output: <5>
     variables: none

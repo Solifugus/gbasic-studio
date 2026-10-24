@@ -67,6 +67,12 @@ function dress(win, app)
     ' one by itself would desynchronise the index the click dispatcher uses.
     z = qt.set(win, files, "itemsExpandable", false)
     z = qt.set(win, files, "rootIsDecorated", false)
+    ' AND NO BRANCH LINES. Qt draws its own connector before a child row, which
+    ' sat beside Studio's own glyphs and indentation as a second, half-drawn
+    ' answer to "where is this" -- seen in a capture of the real window, a lone
+    ' line before `sales.bas` and none before the project above it. The rule
+    ' names only the branch sub-control, so it changes nothing else.
+    z = qt.set(win, files, "styleSheet", "QTreeView::branch { image: none; border-image: none; background: transparent; }")
     ' The same eight pixels per level the GTK browser uses, and for the same
     ' measured reason: twelve was visibly wider than the two-spaces-in-a-
     ' proportional-font it replaced, wide enough that two names started

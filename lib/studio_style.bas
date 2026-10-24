@@ -239,6 +239,20 @@ library studio_style
     ' stands for the set rather than on all five: they are written by a single
     ' script in a single commit, and five `exists` calls per redraw to answer
     ' the same question is work for nothing.
+    ' A control's own art for the dark sheet, by name, or "" when the file is
+    ' not there -- the sheet then leaves that control to the platform.
+    function control_icon(name)
+        d = studio_style.toolbar_icon_dir()
+        if d = "" then
+            return ""
+        end if
+        p = replace(d, "/icons/toolbar", "/icons/controls") + "/" + name + ".svg"
+        if exists({file} p) then
+            return p
+        end if
+        return ""
+    end function
+
     function dark_icons_available()
         d = studio_style.toolbar_icon_dir()
         if d = "" then
@@ -310,7 +324,21 @@ library studio_style
         ' cannot be reached this way are left to the platform.
         l = append(l, "QMainWindow { background: " + bg + "; }")
         l = append(l, "QMainWindow::separator { background: " + line + "; width: 4px; height: 4px; }")
+        ' A LAYOUT `separator` is a QFrame line, drawn from the palette's LIGHT
+        ' colour -- a bright white rule across a dark console, seen in a capture.
+        ' frameShape 4 is HLine and 5 is VLine.
+        l = append(l, "QFrame[frameShape=\"4\"] { border: none; background: " + line + "; max-height: 1px; min-height: 1px; }")
+        l = append(l, "QFrame[frameShape=\"5\"] { border: none; background: " + line + "; max-width: 1px; min-width: 1px; }")
         l = append(l, "QDialog { background: " + bg + "; }")
+        ' A SECOND WINDOW IS A PLAIN `QWidget` -- the grid, New Project, the
+        ' snippets, the schema -- so neither rule above reaches it, and a
+        ' capture showed the grid's caption as light text on a light window.
+        ' `.QWidget` matches that exact class and NO subclass, so it is not the
+        ' bare-`QWidget` trap: a view, a toolbar or a combo box is a subclass.
+        ' An item view's VIEWPORT is a plain QWidget too, so it is given back
+        ' to the view, whose own background rule paints it.
+        l = append(l, ".QWidget { background: " + bg + "; }")
+        l = append(l, "QAbstractScrollArea > .QWidget { background: transparent; }")
         l = append(l, "QLabel { color: " + fg + "; background: transparent; }")
 
         ' Text surfaces sit DARKER than the chrome, which is what `dark_base`
@@ -328,7 +356,7 @@ library studio_style
         ' there is nothing of Qt's there to colour.
         l = append(l, "QTreeView, QTableView, QListView {")
         l = append(l, "  background: " + base + "; color: " + fg + ";")
-        l = append(l, "  border: 1px solid " + line + "; outline: 0;")
+        l = append(l, "  border: 1px solid " + line + "; outline: 0; gridline-color: " + line + ";")
         l = append(l, "  selection-background-color: " + sel + "; selection-color: #ffffff; }")
         l = append(l, "QTreeView::item, QTableView::item, QListView::item {")
         l = append(l, "  color: " + fg + "; background: transparent; padding: 2px; }")
@@ -339,6 +367,8 @@ library studio_style
         l = append(l, "QHeaderView { background: " + ctl + "; }")
         l = append(l, "QHeaderView::section { background: " + ctl + "; color: " + fg + ";")
         l = append(l, "  padding: 4px; border: 0px; border-bottom: 1px solid " + line + "; }")
+        ' The grid's top-left corner is a button of its own, white until named.
+        l = append(l, "QTableCornerButton::section { background: " + ctl + "; border: 0px; border-bottom: 1px solid " + line + "; }")
 
         ' THE MENUS, which are the toolkit's own now and so need naming here.
         ' A menu's text is the sheet's to colour, which is why these are safe
@@ -401,6 +431,18 @@ library studio_style
         ' icons, so the closed box is left near the platform's lightness and
         ' only its popup list is darkened -- the list is item text, which the
         ' sheet does own.
+        ' UNLESS STUDIO SHIPS ITS OWN ARROW, which it does
+        ' (`share/icons/controls/down.svg`): then the closed box is dark too, and
+        ' a white box in every second window -- the brightest thing on screen --
+        ' is gone. No file, no rule, and the platform's box stands.
+        arrow = studio_style.control_icon("down")
+        if arrow != "" then
+            l = append(l, "QComboBox { background: " + ctl + "; color: " + fg + ";")
+            l = append(l, "  border: 1px solid " + line + "; border-radius: 3px; padding: 3px 8px; }")
+            l = append(l, "QComboBox:hover { background: " + hi + "; }")
+            l = append(l, "QComboBox::drop-down { border: 0px; width: 22px; }")
+            l = append(l, "QComboBox::down-arrow { image: url(" + arrow + "); width: 12px; height: 12px; }")
+        end if
         l = append(l, "QComboBox QAbstractItemView { background: " + ctl + "; color: " + fg + ";")
         l = append(l, "  selection-background-color: " + sel + "; selection-color: #ffffff; }")
 

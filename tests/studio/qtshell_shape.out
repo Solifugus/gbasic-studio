@@ -156,8 +156,8 @@ window studio
   /studio/bottom/dock_console/console/run_strip/force_btnlabel=Force Stop
   /studio/bottom/dock_console/console/run_strip/snippet_btnlabel=Insert SQL…
   /studio/bottom/dock_console/console/run_strip/schema_btnlabel=Schema…
-  /studio/bottom/dock_console/console/run_strip/run_sectionlabel=section: (none)
-  /studio/bottom/dock_console/console/run_strip/run_standinglabel=
+  /studio/bottom/dock_console/console/run_strip/run_sectionlabel=section: (none) wordWrap=false
+  /studio/bottom/dock_console/console/run_strip/run_standinglabel= wordWrap=false
   /studio/bottom/dock_console/console/run_state       label=
   /studio/bottom/dock_console/console/run_branch      label=
   /studio/bottom/dock_console/console/prefix_head     label=Prefix output — sections replayed before the target

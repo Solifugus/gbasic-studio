@@ -554,6 +554,12 @@ end function
 ' The caption is `studio_table.caption`, the same sentence the headless goldens
 ' assert, so the window cannot quietly say something kinder than the model --
 ' it is where a sample admits to being one.
+' A second window's heading: bold, so it reads as a title. A style sheet on a
+' label has no children for it to cascade into.
+function heading_style()
+    return "font-weight: bold;"
+end function
+
 function table_window(caption, note, cols, numeric)
     u = studio_style.unit()
     fields = []
@@ -572,10 +578,9 @@ function table_window(caption, note, cols, numeric)
         i = i + 1
     end for
     body = []
-    ' THE CAPTION READS AS A TITLE: bold, and a style sheet on a label has no
-    ' children for it to cascade into.
+    ' THE CAPTION READS AS A TITLE.
     body = append(body, part("text", "grid_caption",
-                             { label: caption, styleSheet: "font-weight: bold;" }))
+                             { label: caption, styleSheet: studio_shell_qt.heading_style() }))
     ' What a SAMPLE means and where the rest is -- empty for a whole table.
     body = append(body, part("text", "grid_note", { label: note, wordWrap: true }))
     if count(fields) > 0 then
@@ -659,7 +664,7 @@ function snippet_window(rows, engine, conn_name)
             part("field", f.part, opts) ]))
     end for
     body = [
-        part("text", "sn_head", { label: "Write a statement into this file" }),
+        part("text", "sn_head", { label: "Write a statement into this file", styleSheet: studio_shell_qt.heading_style() }),
         ' WHICH database, said out loud: a form offering `create login` without
         ' saying it means SQL Server on `erp` is one you must already understand.
         part("text", "sn_where", { label: conn_name + " — " + engine }),
@@ -669,6 +674,9 @@ function snippet_window(rows, engine, conn_name)
         body = append(body, l)
     end for
     body = append(body, part("text", "sn_note", { label: "" }))
+    ' The spare height goes BELOW the form, or the column spreads it between
+    ' every row and the heading floats away from what it heads.
+    body = append(body, bare("stretch"))
     body = append(body, box("row", { margin: 0, spacing: u }, [
         bare("stretch"),
         part("button", "sn_cancel", { label: "Cancel" }),
@@ -695,7 +703,7 @@ function schema_window(conn_name, driver)
     return { kind: "window", name: studio_shell_qt.schema_window_name(),
              options: { title: "gBASIC Studio — schema", width: 600, height: 520 },
              items: [ box("column", { margin: u * 2, spacing: u }, [
-                 part("text", "sc_head", { label: "What this database says about itself" }),
+                 part("text", "sc_head", { label: "What this database says about itself", styleSheet: studio_shell_qt.heading_style() }),
                  part("text", "sc_where", { label: conn_name + " — " + driver }),
                  part("choice", "sc_pick", {}),
                  part("memo", "sc_cols", { readOnly: true }),
@@ -748,7 +756,7 @@ function new_project_window(opts, license_ids)
              options: { title: "gBASIC Studio — new project",
                         width: 560, height: 420 },
              items: [ box("column", { margin: u * 2, spacing: u }, [
-                 part("text", "np_head", { label: "New project" }),
+                 part("text", "np_head", { label: "New project", styleSheet: studio_shell_qt.heading_style() }),
                  { kind: "container", word: "form", direction: "edit",
                    subject: studio_shell_qt.newproj_subject(), items: [
                      part("field", "name",
@@ -1178,8 +1186,11 @@ function _console(app)
         part("button", "force_btn", { label: "Force Stop" }),
         part("button", "snippet_btn", { label: "Insert SQL…" }),
         part("button", "schema_btn", { label: "Schema…" }),
-        part("text", "run_section", { label: "section: (none)" }),
-        part("text", "run_standing", { label: "" }),
+        ' NOT wrapped: a `text` part wraps by default, and in a row with a
+        ' stretch a wrapping label is squeezed -- "section: sec-1 statements"
+        ' came out on two lines beside an empty half-row, seen in a capture.
+        part("text", "run_section", { label: "section: (none)", wordWrap: false }),
+        part("text", "run_standing", { label: "", wordWrap: false }),
         bare("stretch") ])
     panes = [ strip,
               part("text", "run_state", { label: "" }),

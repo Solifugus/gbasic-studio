@@ -529,6 +529,12 @@ function qt_open_grid(caption, src)
     end if
     G.tablewin = w
     z = qt.open(G.tablewin)
+    ' FOCUS GOES TO THE CONTENT. Left to Qt it lands on the first focusable
+    ' part, which is the caption -- a keyboard-selectable label, so the window
+    ' opened with a text caret blinking after its title.
+    if count(src.cols) > 0 then
+        z = qt.invoke(G.tablewin, studio_shell_qt.part_grid(), "setFocus")
+    end if
     if count(src.cols) > 0 then
         ' The choice's list is DATA (the columns), so it is filled after the
         ' open -- and inside the guard, because filling it is a change too.
@@ -660,6 +666,7 @@ function on_qt_snippet()
     G.snip_rows = r.rows
     G.snipwin = qt_wire_snippet(studio_shell_qt.snippet_window(r.rows, r.engine, r.name))
     z = qt.open(G.snipwin)
+    z = qt.invoke(G.snipwin, "sn_pick", "setFocus")
     names = []
     for each row in r.rows
         names = append(names, row.name)
@@ -781,6 +788,7 @@ function on_qt_schema()
     w = qt_on(w, "sc_close", "clicked", on_qt_schema_close)
     G.schemawin = w
     z = qt.open(G.schemawin)
+    z = qt.invoke(G.schemawin, "sc_pick", "setFocus")
     z = qt.set(G.schemawin, "sc_asked", "text", r.source)
     names = []
     for each t in r.tables
@@ -1251,6 +1259,22 @@ function qt_table_offers(win)
     return out
 end function
 
+' THE FIRST ARRANGEMENT, for a home with no saved layout. Two things a
+' capture of the real window showed were wrong with the declaration's default:
+'   * the right-hand tabs opened on the ASSISTANT, the last pane declared,
+'     where the results of the section at the cursor are what Studio is for;
+'   * the console took half the height and left the editor a strip.
+' gBASIC has no verb to size a dock, so the console is CAPPED for the first
+' layout and the cap lifted on the first tick: Qt keeps the size it chose,
+' and the user can drag it anywhere after. Lifted after ~16 ticks, once Qt
+' has laid the window out with it.
+function qt_first_layout(win)
+    z = qt.invoke(win, studio_shell_qt.part_side_dock("results"), "raise")
+    z = qt.set(win, studio_shell_qt.part_console_dock(), "maximumHeight", 230)
+    G.console_capped = 16
+    return nothing
+end function
+
 ' ---- the header -----------------------------------------------------------
 
 function on_qt_save()
@@ -1357,6 +1381,7 @@ function on_qt_new_project()
     opts = studio_ui.default_options(G.app, G.app.paths.home)
     G.npwin = qt_wire_newproj(studio_shell_qt.new_project_window(opts, studio_ui.license_ids()))
     z = qt.open(G.npwin)
+    z = qt.invoke(G.npwin, "name", "setFocus")
     ' A `choice`'s own list, which is data rather than declaration -- the
     ' licences Studio actually SHIPS, so an id whose text is missing cannot be
     ' offered in the first place.
@@ -1817,6 +1842,9 @@ program main(args)
           schemawin: nothing, schema_tables: [], schema_columns: [],
           ' Wheel turn not yet spent as a zoom step -- see `on_qt_editor_wheel`.
           wheel_acc: 0,
+          ' Ticks left before the console's first-layout height cap comes off
+          ' (0 = no cap): about a second, so Qt has laid the window out with it.
+          console_capped: 0,
           ' The scripted provider's round counter, for the `assistant` mode.
           agent_round: 0,
           ' The New Project window, which is a SECOND ordinary window rather
@@ -1904,11 +1932,19 @@ program main(args)
     ' own declaration changed. Losing a saved arrangement is not worth stopping
     ' a program for, so this is noted on stderr and nothing else.
     saved_layout = studio_model.qt_layout_of(G.app.model.session)
+    restored = false
     if saved_layout != "" then
         took = qt.restore_layout(win, saved_layout)
         if not took then
             print to error "Studio (Qt): the saved window layout was not recognised — starting from the declaration"
         end if
+        restored = took
+    end if
+    ' A FIRST LOOK WORTH HAVING, only when there is no arrangement of the
+    ' user's to honour -- found by looking at the window (CLAUDE.md, "Seeing
+    ' the window").
+    if not restored then
+        z = qt_first_layout(win)
     end if
 
     bo = false
@@ -2156,6 +2192,43 @@ program main(args)
         z = qt_point("run_panel", "highlight", "")
         print "  action=" + G.last_action + " — " + G.last_detail
         return nothing
+    end if
+
+    ' SHOWCASE: a reproducible window to LOOK AT -- for a capture during
+    ' development and for the book's screenshots. It opens the samples, opens
+    ' one file, puts the caret on the first line starting with a given text,
+    ' runs that section and waits for it, and can open the first table offer.
+    ' Then it does NOT return: it falls through to the ordinary event loop, so
+    ' the window is the real, interactive Studio in a known state.
+    '   ./studio showcase <home> "" <file> [<line text>] [table|newproject|snippet|schema]
+    if mode = "showcase" then
+        z = qt.invoke(win, qt_item("open-samples"), "trigger")
+        sfile = "01_sections.bas"
+        if count(args) > 3 then
+            sfile = args[3]
+        end if
+        ed = qt_sample_open(sfile)
+        if count(args) > 4 then
+            if args[4] != "" then
+                z = qt_sample_caret(ed, args[4])
+                z = qt_sample_run()
+            end if
+        end if
+        if count(args) > 5 then
+            if args[5] = "table" then
+                z = qt.select(win, studio_shell_qt.part_tables(), 0)
+            end if
+            if args[5] = "newproject" then
+                z = qt.invoke(win, qt_item("new-project"), "trigger")
+            end if
+            if args[5] = "snippet" then
+                z = qt.invoke(win, "snippet_btn", "click")
+            end if
+            if args[5] = "schema" then
+                z = qt.invoke(win, "schema_btn", "click")
+            end if
+        end if
+        G.polling = false
     end if
 
     if mode = "samples" then
@@ -3193,6 +3266,20 @@ program main(args)
                 ' function either: its timer returns `active` and removes
                 ' itself. A `timer.every` keeps ticking, so the flag is what
                 ' stops the poller doing work between runs.
+                ' The console's height cap is lifted on the first tick, once Qt
+                ' has laid the window out with it -- see `qt_first_layout`.
+                if G.console_capped > 0 then
+                    G.console_capped = G.console_capped - 1
+                    if G.console_capped = 0 then
+                        ' Lifting the cap alone SNAPS the dock back to its
+                        ' preferred size (measured: 259 -> 606). Its layout
+                        ' saved while capped records 259, so restoring that
+                        ' after the lift keeps it -- and it drags freely.
+                        capped = qt.layout(G.win)
+                        z = qt.set(G.win, studio_shell_qt.part_console_dock(), "maximumHeight", 16777215)
+                        z = qt.restore_layout(G.win, capped)
+                    end if
+                end if
                 if G.polling then
                     t = studio_ui.tick_run(G.app)
                     G.app = t.app

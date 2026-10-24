@@ -32,8 +32,7 @@ Open Samples: samples-opened, on top: 01_sections.bas
 == 04_records.bas
   Results — sec-1  (1 run(s))
   latest: res-1  finished exit 0  at 1969-12-31 19:16:40  0s
-    output: <the oldest is The Art of Computer Programming (1968)
-  >
+    output: <the oldest is The Art of Computer Programming (1968)>
     variables (4, 4 changed):
       + b record[3]
           field | value

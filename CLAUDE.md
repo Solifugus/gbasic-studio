@@ -832,6 +832,22 @@ window on the user's desktop; use a scratch home, never theirs.
   column. Removed from `dress`. The offscreen tiers read a row's TEXT back
   and never its size, so all 202 passed throughout. **A green suite says the
   window holds the right data; only looking says anyone can see it.**
+- **`./studio showcase <home> "" <file> [<line text>] [table|newproject|snippet|schema]`**
+  puts the real window into a known state (samples open, caret placed, section
+  run, a second window raised) and then runs the ordinary event loop — the
+  reproducible starting point for a capture, and for the book's screenshots.
+  It does NOT pin the clock: a screenshot showing a run "at 1969-12-31" is
+  what a pinned one produced.
+- **Every SECOND window is a plain `QWidget`**, which neither `QMainWindow` nor
+  `QDialog` reaches, so in Dark they were light windows with light text. The
+  sheet's `.QWidget` rule matches that exact class and no subclass — not the
+  bare-`QWidget` trap — and hands an item view's viewport back to the view.
+  The same captures found the grid's white corner button, a text caret after
+  each window's title (a keyboard-selectable label takes first focus, so each
+  window now focuses its content), and white combo boxes, dark now with
+  Studio's own arrow (`share/icons/controls/down.svg`).
+- **A `form` drops the label of anything but a `field`** — New Project's
+  licence choice has `label: "Licence"` and shows none. gBASIC's, asked upstream.
 
 #### Theming under Qt, which was a dead control
 
