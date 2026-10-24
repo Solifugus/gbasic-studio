@@ -72,8 +72,13 @@ function dress(win, app)
     ' proportional-font it replaced, wide enough that two names started
     ' ellipsizing which had fitted before. Qt's default is 20.
     z = qt.set(win, files, "indentation", studio_style.indent())
-    ' Every row is one line of text, so Qt may assume it and stop measuring.
-    z = qt.set(win, files, "uniformRowHeights", true)
+    ' NOT `uniformRowHeights`, though every row is one line of text: with it set,
+    ' NO ROW WAS DRAWN on a real display. Measured under X11, one property at a
+    ' time: the same tree draws every row without it and none with it --
+    ' presumably the row height is measured from the undrawn depth column, and
+    ' comes out zero. The offscreen tiers never saw it, because they read a
+    ' row's TEXT back, never its size. It is a speed hint and the browser does
+    ' not need one.
     ' NOT striped. A file tree with alternating bands reads as a report; the
     ' property is there and this is a choice rather than an omission.
     z = qt.set(win, files, "alternatingRowColors", false)

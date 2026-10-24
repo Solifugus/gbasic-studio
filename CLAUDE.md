@@ -810,6 +810,29 @@ tier could see**, plus one more the user found by closing the window:
   block-buffered-death signature in this file, first as a hang rather than a
   crash.
 
+#### SEEING THE WINDOW: an X11 capture of Studio's own window
+
+Studio can be LOOKED AT from a session now, without the user. Under the
+user's Wayland desktop no program may read another's window, but XWayland is
+already running: launch with `QT_QPA_PLATFORM=xcb ./studio gui <scratch-home>
+<project>`, find the window with `xwininfo -root -tree | grep '"gBASIC Studio'`,
+grab it with `xwd -id <id> -silent -out f.xwd`, and convert (PIL cannot read
+XWD; a 30-line header-plus-raw-pixels reader does). Ask before opening a
+window on the user's desktop; use a scratch home, never theirs.
+
+- **CAPTURE ONE WINDOW AT A TIME, AND LET IT PAINT.** `xwd` copies what is on
+  screen in that window's area: a second window on top, or an area the new
+  window has not painted yet, shows up as somebody else's pixels. Several of
+  the first captures were nonsense for exactly this reason.
+- **IT FOUND A BUG IN MINUTES THAT EVERY TIER HAD PASSED.** The browser drew NO
+  ROWS on a real display — the empty Files pane the user had reported weeks
+  earlier, then blamed on the old dark sheet. Bisected one property at a time
+  in a standalone tree: `uniformRowHeights` set on a tree with a depth column
+  hides every row, presumably by measuring the row height off the undrawn
+  column. Removed from `dress`. The offscreen tiers read a row's TEXT back
+  and never its size, so all 202 passed throughout. **A green suite says the
+  window holds the right data; only looking says anyone can see it.**
+
 #### Theming under Qt, which was a dead control
 
 **The user's report was exact: *"changing the theme to dark and the other
