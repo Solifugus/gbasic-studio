@@ -252,7 +252,7 @@ library studio_secrets
             return { ok: false, why: "the store is " + cur.status, value: "" }
         end if
         v = cur.values[name]
-        if v = unknown then
+        if is_unknown(v) then
             return { ok: false, why: "no secret named " + quote(name), value: "" }
         end if
         return { ok: true, why: "", value: v }

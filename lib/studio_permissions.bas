@@ -100,7 +100,7 @@ library studio_permissions
         end if
         for each t in studio_permissions.tiers()
             v = raw[t]
-            if v != unknown then
+            if not is_unknown(v) then
                 if is_string(v) then
                     if studio_permissions.is_policy(v) then
                         out[t] = v
@@ -118,7 +118,7 @@ library studio_permissions
         out = studio_permissions.defaults()
         for each t in studio_permissions.tiers()
             v = studio_permissions.stated(raw)[t]
-            if v != unknown then
+            if not is_unknown(v) then
                 out[t] = v
             end if
         end for
@@ -142,10 +142,10 @@ library studio_permissions
         out = {}
         for each t in studio_permissions.tiers()
             v = base[t]
-            if p[t] != unknown then
+            if not is_unknown(p[t]) then
                 v = studio_permissions._strictest(v, p[t])
             end if
-            if s[t] != unknown then
+            if not is_unknown(s[t]) then
                 v = studio_permissions._strictest(v, s[t])
             end if
             out[t] = v
@@ -167,7 +167,7 @@ library studio_permissions
             return "deny"
         end if
         v = effective_set[tier]
-        if v = unknown then
+        if is_unknown(v) then
             return "deny"
         end if
         return v
@@ -278,12 +278,12 @@ library studio_permissions
         v = studio_permissions.policy_for(eff, tier)
         base = studio_permissions.normalize(global_raw)
         if base[tier] = v then
-            if studio_permissions.stated(global_raw)[tier] = unknown then
+            if is_unknown(studio_permissions.stated(global_raw)[tier]) then
                 return tier + " = " + v + " (default)"
             end if
             return tier + " = " + v + " (from global)"
         end if
-        if studio_permissions.stated(project_raw)[tier] = v then
+        if default(studio_permissions.stated(project_raw)[tier], "") = v then
             return tier + " = " + v + " (narrowed by project)"
         end if
         return tier + " = " + v + " (narrowed by session)"

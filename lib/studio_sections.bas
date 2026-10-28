@@ -696,7 +696,7 @@ library studio_sections
     ' persist.write_atomic unchanged.
 
     function _bundle(raw)
-        if raw = unknown then
+        if is_unknown(raw) then
             return []
         end if
         if raw = nothing then

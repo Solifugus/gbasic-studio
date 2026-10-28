@@ -1205,7 +1205,16 @@ libraries are gone. Studio needed none of them. `table_model` had driven
 `rowmodel` alongside Studio's own lazy decoding; it keeps the half that is
 Studio's and no longer probes for the rest.
 
-**THE PINNED INTERPRETER MOVED to gBASIC `db8c3ad`** (a themed plain `source`,
+**`unknown` IS THREE-VALUED since gBASIC 4f3eb1e** (SQL's NULL): `x = unknown`,
+`unknown = 1` and `unknown != 1` are all `unknown`, and an `if` REFUSES an
+unknown — `./studio` died at startup on `if sv = unknown` in
+`studio_model.is_future`. Every such test is `is_unknown(x)` now (55 of them,
+rewritten mechanically; `is_unknown` exists on 0.10.0 too, so the installed
+gBASIC still runs Studio). The IMPLICIT case is the one to watch: a value that
+MAY be unknown compared to a real one — `stated(raw)[tier] = v` — raises too,
+and only running finds it; write `default(x, "") = v`. The goldens did not move.
+
+**THE PINNED INTERPRETER MOVED to gBASIC `557e0f7`**, then. Before that `db8c3ad` (a themed plain `source`,
 and `palette` readable). Before that `cbbaae0` (§0.35: `align:` on a
 column, and `qt.alignment`), and before that `931bea2` (§0.34: several shortcuts on
 an item, and `qt.key`), and before that `1963388`, which is what Ctrl+wheel

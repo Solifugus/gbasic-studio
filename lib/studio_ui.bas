@@ -120,7 +120,7 @@ library studio_ui
         doc = studio_docs.active_doc(app.dm)
         want = studio_ui.project_path_for(app, doc)
         held = app["pstate"]
-        if held != unknown then
+        if not is_unknown(held) then
             if held != nothing then
                 if held.path = want then
                     return { app: app, state: held.state, path: want, key: held.key }
@@ -159,7 +159,7 @@ library studio_ui
         held = app["pstate"]
         pth = ""
         key = ""
-        if held != unknown then
+        if not is_unknown(held) then
             if held != nothing then
                 pth = held.path
                 key = held.key
@@ -1125,7 +1125,7 @@ library studio_ui
     ' what was written so the window can say it.
     function create_project(app, opts)
         stamp = app["clock_fixed"]
-        if stamp = unknown then
+        if is_unknown(stamp) then
             stamp = epoch()
         end if
         if stamp = 0 then
@@ -1926,7 +1926,7 @@ library studio_ui
     ' of the process it is already running in.
     function _secret_key(app)
         k = app["secret_key"]
-        if k != unknown then
+        if not is_unknown(k) then
             return k
         end if
         return studio_secrets.key_from_env()
@@ -2673,7 +2673,7 @@ library studio_ui
 
     function restores_session(app)
         v = app.model.settings["restore_last_session"]
-        if v = unknown then
+        if is_unknown(v) then
             return true
         end if
         if not is_boolean(v) then
@@ -3053,7 +3053,7 @@ library studio_ui
         ' the removal below `project_path_for` answers "" for these documents,
         ' so the cache would be flushed to nowhere.
         held = app["pstate"]
-        if held != unknown then
+        if not is_unknown(held) then
             if held != nothing then
                 if held.path = proj.path then
                     wrote = studio_projects.save(app.paths.home, held.key, held.state)
@@ -3682,7 +3682,7 @@ library studio_ui
         ' Pinned by the same seam the run clock uses, so a golden can hold the
         ' shape of a minted id without holding the second it was minted in.
         stamp = app["clock_fixed"]
-        if stamp = unknown then
+        if is_unknown(stamp) then
             stamp = epoch()
         end if
         if stamp = 0 then
@@ -3714,7 +3714,7 @@ library studio_ui
             return app
         end if
         held = app["pstate"]
-        if held != unknown then
+        if not is_unknown(held) then
             if held != nothing then
                 if held.path = project_path then
                     ' Loaded, and newer than anything on disk. Re-file what is
@@ -3969,7 +3969,7 @@ library studio_ui
             return { app: app, st: v.st, src: ps.text, overlaid: false }
         end if
         cached = app["bview"]
-        if cached != unknown then
+        if not is_unknown(cached) then
             if cached != nothing then
                 if cached.src = ps.text then
                     return { app: app, st: cached.st, src: ps.text, overlaid: true }
@@ -4246,7 +4246,7 @@ library studio_ui
             return { app: app, action: "none", detail: "", active: false }
         end if
         ex = app["exec"]
-        if ex != unknown then
+        if not is_unknown(ex) then
             if ex != nothing then
                 busy = studio_session.is_active(ex.session)
                 if busy then
@@ -4323,7 +4323,7 @@ library studio_ui
         ' The same test seam the headless session cases use: with the clock pinned,
         ' a result's timestamps are reproducible and a golden can hold them.
         fixed = app["clock_fixed"]
-        if fixed != unknown then
+        if not is_unknown(fixed) then
             sess.clock_fixed = fixed
         end if
         ' STU-7: the selected chain's bindings go into the materialized prefix.
@@ -4343,7 +4343,7 @@ library studio_ui
         ' path, so an export can never be taken by a run that differs from the
         ' one the user sees results from.
         tf = app["table_fetch"]
-        if tf != unknown then
+        if not is_unknown(tf) then
             if tf != nothing then
                 sess.table = { name: tf.name, path: tf.path, cap: studio_table.export_cap(), chunk: studio_table.export_chunk(), stamp: tf.stamp }
             end if
@@ -4423,7 +4423,7 @@ library studio_ui
             return { app: app, action: "not-sql", detail: doc.path, active: false }
         end if
         ex = app["exec"]
-        if ex != unknown then
+        if not is_unknown(ex) then
             if ex != nothing then
                 busy = studio_session.is_active(ex.session)
                 if busy then
@@ -4527,7 +4527,7 @@ library studio_ui
             sess.env = envr
         end if
         fixed = app["clock_fixed"]
-        if fixed != unknown then
+        if not is_unknown(fixed) then
             sess.clock_fixed = fixed
         end if
         sess.detail_rules = studio_viewers.capture_rules(studio_ui.viewers_of(app))
@@ -4577,7 +4577,7 @@ library studio_ui
     ' the history for one execution.
     function tick_run(app)
         ex = app["exec"]
-        if ex = unknown then
+        if is_unknown(ex) then
             return { app: app, action: "idle", detail: "", active: false }
         end if
         if ex = nothing then
@@ -4614,7 +4614,7 @@ library studio_ui
         ' gained a result. Handing over the one we already have in memory beats
         ' re-reading the file we only just wrote.
         v = app["view"]
-        if v != unknown then
+        if not is_unknown(v) then
             if v != nothing then
                 if v.doc_path = ex.doc_path then
                     v.store = ex.store
@@ -4654,7 +4654,7 @@ library studio_ui
     ' and `unresponsive` is a state the strip shows rather than hides.
     function stop_run(app)
         ex = app["exec"]
-        if ex = unknown then
+        if is_unknown(ex) then
             return { app: app, action: "idle", detail: "", active: false }
         end if
         if ex = nothing then
@@ -4672,7 +4672,7 @@ library studio_ui
     ' Stop it and do not take no for an answer.
     function force_stop_run(app)
         ex = app["exec"]
-        if ex = unknown then
+        if is_unknown(ex) then
             return { app: app, action: "idle", detail: "", active: false }
         end if
         if ex = nothing then
@@ -4767,7 +4767,7 @@ library studio_ui
     ' The session behind the strip, or nothing when nothing has run.
     function exec_session(app)
         ex = app["exec"]
-        if ex = unknown then
+        if is_unknown(ex) then
             return nothing
         end if
         if ex = nothing then
@@ -4799,7 +4799,7 @@ library studio_ui
             return { app: app, st: nothing, sid: "", store: nothing }
         end if
         v = app["view"]
-        if v = unknown then
+        if is_unknown(v) then
             v = { doc_id: "", src: "", st: nothing, doc_path: "", store: nothing }
         end if
         if v = nothing then
@@ -5383,7 +5383,7 @@ library studio_ui
             return { app: app, state: "none", root: "", branch: "" }
         end if
         cached = app["gitstate"]
-        if cached != unknown then
+        if not is_unknown(cached) then
             if cached != nothing then
                 if cached.path = root then
                     return { app: app, state: cached.state, root: cached.root, branch: cached.branch }

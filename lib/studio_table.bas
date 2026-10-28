@@ -262,7 +262,7 @@ library studio_table
         end if
         key = string(i)
         hit = src.cache[key]
-        if hit != unknown then
+        if not is_unknown(hit) then
             return { src: src, row: hit }
         end if
         r = try_decode(src.lines[i])

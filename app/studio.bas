@@ -978,7 +978,7 @@ end function
 ' button with no network.
 function on_qt_ask()
     h = G.app["agent_handle"]
-    if h = unknown then
+    if is_unknown(h) then
         r = studio_providers.resolve(G.app.paths.home, studio_ui._secret_key(G.app),
                                      studio_providers.default_id(), "")
     else
@@ -1134,7 +1134,7 @@ end function
 ' tier can say "later" without waiting for it.
 function qt_expire_pulse(app, now)
     due = app["qt_pulse_until"]
-    if due = unknown then
+    if is_unknown(due) then
         return app
     end if
     if due = nothing then

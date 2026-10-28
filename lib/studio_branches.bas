@@ -442,7 +442,7 @@ library studio_branches
 
     function from_persist(raw)
         tree = studio_branches.create()
-        if raw = unknown then
+        if is_unknown(raw) then
             return tree
         end if
         if raw = nothing then

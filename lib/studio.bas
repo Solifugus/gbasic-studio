@@ -144,7 +144,7 @@ library studio
         diagnostics_code = "none"
         if settings.restore_last_session then
             held = session["workspace"]
-            if held != unknown then
+            if not is_unknown(held) then
                 if held != nothing then
                     workspace = studio_model.normalize_workspace(held)
                     diagnostics_code = "loaded"
@@ -326,7 +326,7 @@ library studio
         ' here, which is the same in-memory-until-exit behaviour they had inside
         ' the workspace record — only the file changed.
         held = app["pstate"]
-        if held != unknown then
+        if not is_unknown(held) then
             if held != nothing then
                 if held.key != "" then
                     wrote = studio_projects.save(app.paths.home, held.key, held.state)

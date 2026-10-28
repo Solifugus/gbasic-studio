@@ -364,7 +364,7 @@ library studio_viewers
         for each b in layout
             if b.block = "fields" then
                 for each it in b.items
-                    if seen[it.field] = unknown then
+                    if is_unknown(seen[it.field]) then
                         seen[it.field] = true
                         detail = append(detail, it.field)
                     end if
@@ -373,7 +373,7 @@ library studio_viewers
             if b.block = "parallel" then
                 for each c in b.columns
                     if has(c, "field") then
-                        if seen[c.field] = unknown then
+                        if is_unknown(seen[c.field]) then
                             seen[c.field] = true
                             detail = append(detail, c.field)
                         end if
@@ -446,7 +446,7 @@ library studio_viewers
             present[fn] = true
         end for
         for each want in spec.fields
-            if present[want] = unknown then
+            if is_unknown(present[want]) then
                 return false
             end if
         end for

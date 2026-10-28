@@ -151,7 +151,7 @@ function render(win, app, notice)
     ' THE ASSISTANT'S ANSWER, which lives on the app between redraws, or the
     ' sentence saying what the button does when there is none yet.
     answer = app["agent_answer"]
-    if answer = unknown then
+    if is_unknown(answer) then
         answer = "Press Where was I? — the answer appears here. It needs a provider key: Studio looks in its secret store first, then the environment, and says which it used."
     end if
     z = qt.write(win, "agent_body", answer)
@@ -358,7 +358,7 @@ end function
 function _zoom(win, app, part)
     font = qt.read(win, part, "font")
     base = app["qt_font_base"]
-    if base = unknown then
+    if is_unknown(base) then
         base = font
         app["qt_font_base"] = base
     end if
@@ -400,7 +400,7 @@ end function
 ' the welcome page has no row and no editor, and is passed through.
 function editor_handlers(app, pages)
     hs = app["qt_editor_handlers"]
-    if hs = unknown then
+    if is_unknown(hs) then
         return pages
     end if
     rows = studio_ui.tab_rows(app)
@@ -455,7 +455,7 @@ end function
 ' marks in the editor's margin over the line range.
 function _cue(win, app)
     c = app["teach"]
-    if c = unknown then
+    if is_unknown(c) then
         return app
     end if
     if c = nothing then
@@ -515,7 +515,7 @@ end function
 function clear_cue(win, app)
     ' `lit`, not `on`: ON is a reserved word.
     lit = app["qt_teach_on"]
-    if lit != unknown then
+    if not is_unknown(lit) then
         if lit != nothing then
             z = qt.set(win, lit, "styleSheet", "")
         end if
@@ -523,7 +523,7 @@ function clear_cue(win, app)
     app["qt_teach_on"] = nothing
     app["qt_pulse_until"] = nothing
     notes = app["qt_teach_notes"]
-    if notes != unknown then
+    if not is_unknown(notes) then
         if notes != nothing then
             z = qt.mark(win, notes, "note", [])
         end if

@@ -580,7 +580,7 @@ library studio_tools
         ' The three that take a section id. A missing or unknown id is reported,
         ' not guessed at.
         sid = args["section_id"]
-        if sid = unknown then
+        if is_unknown(sid) then
             return { ok: false, why: "tool " + name + " needs a section_id", value: nothing }
         end if
         if name = "section_results" then
@@ -717,7 +717,7 @@ library studio_tools
             return { section_id: sid, ran: false, status: "none", variables: [] }
         end if
         status = latest["vars_status"]
-        if status = unknown then
+        if is_unknown(status) then
             status = "none"
         end if
         vars = []

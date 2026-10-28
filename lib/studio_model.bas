@@ -429,7 +429,7 @@ library studio_model
     ' understands — the caller must refuse it and recover to a default.
     function is_future(raw)
         sv = raw["schema_version"]
-        if sv = unknown then
+        if is_unknown(sv) then
             return false
         end if
         cur = studio_model.schema_version()
@@ -444,7 +444,7 @@ library studio_model
         defs = studio_model.default_settings()
         for each k in keys(defs)
             v = result[k]
-            if v = unknown then
+            if is_unknown(v) then
                 result[k] = defs[k]
             end if
         end for
@@ -458,7 +458,7 @@ library studio_model
         defs = studio_model.default_session()
         for each k in keys(defs)
             v = result[k]
-            if v = unknown then
+            if is_unknown(v) then
                 result[k] = defs[k]
             end if
         end for
@@ -472,7 +472,7 @@ library studio_model
         defs = studio_model.new_workspace("", "")
         for each k in keys(defs)
             v = result[k]
-            if v = unknown then
+            if is_unknown(v) then
                 result[k] = defs[k]
             end if
         end for

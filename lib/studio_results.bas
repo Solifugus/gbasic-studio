@@ -421,7 +421,7 @@ library studio_results
             return 0
         end if
         n = result.captures[name]
-        if n = unknown then
+        if is_unknown(n) then
             return 0
         end if
         return n
@@ -432,7 +432,7 @@ library studio_results
     ' branch field at all, and that is the baseline — which is what it was.
     function branch_of(result)
         b = result["branch"]
-        if b = unknown then
+        if is_unknown(b) then
             return ""
         end if
         if b = nothing then
@@ -595,7 +595,7 @@ library studio_results
     ' a caller asking "what can I open" has nothing to open in any of them.
     function vars_of(home, store, result)
         status = result["vars_status"]
-        if status = unknown then
+        if is_unknown(status) then
             return []
         end if
         if status != "captured" then
@@ -626,7 +626,7 @@ library studio_results
     function vars_lines_with(home, store, result, reg)
         out = []
         status = result["vars_status"]
-        if status = unknown then
+        if is_unknown(status) then
             return out
         end if
         if status = "absent" then
@@ -804,7 +804,7 @@ library studio_results
         same = []
         for each a in after
             prev = seen[a.name]
-            if prev = unknown then
+            if is_unknown(prev) then
                 a.change = "new"
                 added = append(added, a)
             else
