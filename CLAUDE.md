@@ -2784,8 +2784,17 @@ once hoisted, and `window` (gBASIC, 2026-10-17) was missed from both. Both
 lists now carry `server`, `window`, `database` and `sql` (G-SQL, 2026-10-30) —
 the kind strings `source_outline` reports, measured. `sessions_hoist_gsql`
 runs a body naming a `database` and three `sql` blocks declared below `end
-program` (red without the change), probed for a G-SQL build and skipped
-without one.
+program`, probed for a G-SQL build and skipped without one. Red without the
+change, measured on ONE pinned binary: `undefined variable: mk` with the old
+`_hoistable_kind`, a syntax error in the generated program with both lists old.
+
+**THE CHILD RUNS `$GBASIC`, AND FROM `PATH` WITHOUT IT.** Driving a session
+driver by hand with only the parent pinned runs the child on the INSTALLED
+gBASIC — it made a wrong golden here and a false "red" (`library not found:
+gsql`, which was 0.10.0 having no G-SQL) that was nearly reported upstream as
+a language defect. And the version string cannot tell them apart: the pinned
+`588e888` build ALSO says `gBASIC 0.10.0`. Set `GBASIC` to the same binary for
+both, every time, and name the binary by its PATH.
 
 ## Licensing
 
