@@ -1,0 +1,19 @@
+sections=5
+  statements nothing
+  database shop
+  sql mk
+  sql add
+  sql cheap
+-- a body naming a database and sql blocks declared below it
+state=finished section=sec-1 run=1 split=out:exact err:exact
+hoisted=4
+exit_code=0 signal=0 success=true
+out_prefix=<>
+out_target=<pen
+>
+transitions: idle>materializing materializing>running running>finished
+hoisted=4
+hoist database shop
+hoist sql mk
+hoist sql add
+hoist sql cheap

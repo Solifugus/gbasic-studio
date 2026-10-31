@@ -784,6 +784,20 @@ library studio_session
         if kind = "server" then
             return true
         end if
+        ' `window` joined gBASIC's set on 2026-10-17 and was missed here; G-SQL's
+        ' `database` and `sql` joined it on 2026-10-30. All three bind a name to
+        ' inert data and run no user code when registered -- a database
+        ' connects on FIRST USE -- so a program body may name one declared
+        ' below `end program`.
+        if kind = "window" then
+            return true
+        end if
+        if kind = "database" then
+            return true
+        end if
+        if kind = "sql" then
+            return true
+        end if
         return false
     end function
 

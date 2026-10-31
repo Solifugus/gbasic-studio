@@ -99,6 +99,12 @@ function hoist_inert_src()
   return "program main(args)\n  print add(1, 1)\n\n  function inner(n)\n    return n\n  end function\n\n  print \"body\"\nend program\n\nprint \"TOP-LEVEL-NEVER-RUNS\"\n\nfunction add(a, b)\n  return a + b\nend function\n"
 end function
 
+'' G-SQL's two declarations, both BELOW `end program` and both named from the
+' body -- which only runs if they are hoisted. `db` is the database file.
+function hoist_gsql_src(db)
+  return "program main(args)\n  load gsql\n  z = gsql.exec(mk)\n  z = gsql.exec(add)\n  for each r in cheap\n    print r.name\n  end for\nend program\n\ndatabase shop( file: " + quote(db) + ", create: true )\n\nsql mk on shop\n  create table t (name text, p int)\nend sql\n\nsql add on shop\n  insert into t values ('pen', 2), ('book', 9)\nend sql\n\nsql cheap on shop\n  select name, p from t where p < 5\nend sql\n"
+end function
+
 ' Output on BOTH sides of the N-1/N boundary, so a successful separation has
 ' something to separate.
 function split_src()
@@ -561,6 +567,25 @@ program main(args)
     first = secs.sections[0]
     sess = run_and_show("top-level statement below the block stays inert", sess, secs, src, first.id)
     print "top_level_ran=" + (find(sess.out_target + sess.out_prefix, "TOP-LEVEL-NEVER-RUNS") != nothing)
+  end if
+
+  if mode = "hoist_gsql" then
+    ' G-SQL (gBASIC 9b886f6): `database` and `sql` are pre-registered like a
+    ' function, so a body naming them from above must find them hoisted. The
+    ' database file sits BESIDE the scratch directory, which must end empty.
+    src = hoist_gsql_src(scratch + "_db.gsql")
+    secs = sections_for(src)
+    print "sections=" + count(secs.sections)
+    for each s in secs.sections
+      print "  " + s.kind + " " + string(s.name)
+    end for
+    sess = studio_session.create("doc-1", scratch)
+    first = secs.sections[0]
+    sess = run_and_show("a body naming a database and sql blocks declared below it", sess, secs, src, first.id)
+    print "hoisted=" + count(sess.hoisted)
+    for each h in sess.hoisted
+      print "hoist " + h.kind + " " + h.name
+    end for
   end if
 
   ' ---- STU-4B: output separation -----------------------------------------

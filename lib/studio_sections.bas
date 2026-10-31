@@ -110,6 +110,24 @@ library studio_sections
         if kind = "modifier" then
             return true
         end if
+        ' The blocks the interpreter pre-registers (see
+        ' `studio_session._hoistable_kind`) are declarations here too. Without
+        ' that a `server`, `window`, `database` or `sql` block was folded into
+        ' a "statements" section, and a statements section is never hoisted --
+        ' so `server` sat in the hoisting list for a phase and was never once
+        ' hoisted.
+        if kind = "server" then
+            return true
+        end if
+        if kind = "window" then
+            return true
+        end if
+        if kind = "database" then
+            return true
+        end if
+        if kind = "sql" then
+            return true
+        end if
         return false
     end function
 

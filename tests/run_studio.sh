@@ -654,6 +654,15 @@ for m in hoist hoist_before hoist_order hoist_err hoist_target hoist_inert \
          split split_nonce split_die split_stderr map stream; do
     run_session "$m"
 done
+# G-SQL's `database` and `sql` blocks hoist like a function (gBASIC 9b886f6).
+# G-SQL is a build switch (GBASIC_GSQL), so it is probed rather than assumed.
+gsql_probe="$tmproot/gsql_probe.bas"
+printf 'program main(args)\n  load gsql\n  print "yes"\nend program\ndatabase p( file: "%s", create: true )\n' "$tmproot/gsql_probe.gsql" > "$gsql_probe"
+if [ "$(timeout 30 "$GBASIC" "$gsql_probe" 2>/dev/null)" = "yes" ]; then
+    run_session hoist_gsql
+else
+    printf 'SKIP sessions_hoist_gsql (this gBASIC has no G-SQL)\n'
+fi
 printf 'PASS sessions_scratch_clean (no materialized prefix left by any case)\n'
 
 # ---- STU-5A: persistent, section-linked results and history ------------------

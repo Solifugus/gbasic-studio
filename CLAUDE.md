@@ -2776,6 +2776,17 @@ the set of declarations its interpreter pre-registers, and it names
 `lib/studio_session.bas`'s `_hoistable_kind()` as what must change with it. If
 that test fails over there, the fix is probably here.
 
+**It is TWO lists here, not one.** `_hoistable_kind` says what may be hoisted,
+but only a node `studio_sections._is_decl` admits becomes a section of its own
+kind; anything else is folded into a `statements` section, which is never
+hoisted. So `server` sat in `_hoistable_kind` from PLAT-WEB-5 on and was never
+once hoisted, and `window` (gBASIC, 2026-10-17) was missed from both. Both
+lists now carry `server`, `window`, `database` and `sql` (G-SQL, 2026-10-30) —
+the kind strings `source_outline` reports, measured. `sessions_hoist_gsql`
+runs a body naming a `database` and three `sql` blocks declared below `end
+program` (red without the change), probed for a G-SQL build and skipped
+without one.
+
 ## Licensing
 
 Studio is **Apache-2.0 throughout** — one licence, no dual-licensed parts, no
