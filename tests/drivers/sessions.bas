@@ -124,6 +124,30 @@ function sections_for(src)
 end function
 
 ' Drive the session to completion exactly as the shell's timer does.
+' Tick until the slow child has printed its first line, so a stop lands on a
+' child that is RUNNING ITS CODE and the output the golden holds is there.
+' Five 10ms ticks used to stand in for this, and under load (the gBASIC suite
+' alongside, load 16) the stop beat the child's first print two runs in five:
+' a tick count is not a wait -- `acts_task`'s defect, in this driver. Children
+' run `--line-buffered`, so the line arrives as soon as it is printed. A
+' deadline, and it SAYS it ran out rather than stopping a child that never
+' started and reporting that as the result. `first` is the line to wait for:
+' "started" from slow_src, "READY" from the SIGTERM-ignoring helper, which
+' prints it only once its trap is set -- a stop before that would kill it and
+' the case would never reach `unresponsive`.
+function settle(sess, first)
+  deadline = monotonic() + 20
+  while find(sess.out_raw, first) = nothing
+    if monotonic() > deadline then
+      print "!! the child never printed: settle timed out"
+      return sess
+    end if
+    sess = studio_session.tick(sess)
+    sleep(0.0625)
+  end while
+  return sess
+end function
+
 function drain(sess)
   guard = 0
   while studio_session.is_active(sess)
@@ -259,18 +283,7 @@ program main(args)
     sess = studio_session.create("doc-1", scratch)
     last = secs.sections[count(secs.sections) - 1]
     sess = studio_session.run(sess, secs, src, last.id)
-    ' Tick until the child has actually produced something, so the stop lands on a
-    ' running child rather than racing its startup.
-    ' Settle: the child is already exec'd (process.start verified that), so a few
-    ' ticks simply let the state machine observe it running. We deliberately do NOT
-    ' wait for output -- a gBASIC child's stdout is BLOCK-buffered on a pipe, so a
-    ' program that never exits may never flush a short line at all.
-    i = 0
-    while i < 5
-      sess = studio_session.tick(sess)
-      i = i + 1
-      sleep(0.01)
-    end while
+    sess = settle(sess, "started")
     print "running-before-stop=" + (sess.state = "running")
     sess = studio_session.request_stop(sess)
     sess = drain(sess)
@@ -284,16 +297,7 @@ program main(args)
     sess = studio_session.create("doc-1", scratch)
     last = secs.sections[count(secs.sections) - 1]
     sess = studio_session.run(sess, secs, src, last.id)
-    ' Settle: the child is already exec'd (process.start verified that), so a few
-    ' ticks simply let the state machine observe it running. We deliberately do NOT
-    ' wait for output -- a gBASIC child's stdout is BLOCK-buffered on a pipe, so a
-    ' program that never exits may never flush a short line at all.
-    i = 0
-    while i < 5
-      sess = studio_session.tick(sess)
-      i = i + 1
-      sleep(0.01)
-    end while
+    sess = settle(sess, "started")
     sess = studio_session.force_stop(sess, 1)
     sess = studio_session.finalize(sess, secs, src)
     show("force-stopped", sess)
@@ -314,16 +318,7 @@ program main(args)
     last = secs.sections[count(secs.sections) - 1]
     sess = studio_session.run(sess, secs, src, last.id)
 
-    ' Settle: the child is already exec'd (process.start verified that), so a few
-    ' ticks simply let the state machine observe it running. We deliberately do NOT
-    ' wait for output -- a gBASIC child's stdout is BLOCK-buffered on a pipe, so a
-    ' program that never exits may never flush a short line at all.
-    i = 0
-    while i < 5
-      sess = studio_session.tick(sess)
-      i = i + 1
-      sleep(0.01)
-    end while
+    sess = settle(sess, "READY")
 
     ' A bare stop cannot end this child.
     sess = studio_session.request_stop(sess)
@@ -355,16 +350,7 @@ program main(args)
     sess = studio_session.create("doc-1", scratch)
     last = secs.sections[count(secs.sections) - 1]
     sess = studio_session.run(sess, secs, src, last.id)
-    ' Settle: the child is already exec'd (process.start verified that), so a few
-    ' ticks simply let the state machine observe it running. We deliberately do NOT
-    ' wait for output -- a gBASIC child's stdout is BLOCK-buffered on a pipe, so a
-    ' program that never exits may never flush a short line at all.
-    i = 0
-    while i < 5
-      sess = studio_session.tick(sess)
-      i = i + 1
-      sleep(0.01)
-    end while
+    sess = settle(sess, "started")
     print "active-before-restart=" + studio_session.is_active(sess)
     ' Restart onto a different, terminating document so the case ends.
     src2 = base_src()

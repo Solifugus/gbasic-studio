@@ -219,6 +219,9 @@ library studio_style
         out = append(out, { part: "tb_open_folder", sp: "SP_DialogOpenButton", file: "open-folder" })
         out = append(out, { part: "tb_new_file", sp: "SP_FileIcon", file: "new-file" })
         out = append(out, { part: "tb_new_folder", sp: "SP_FileDialogNewFolder", file: "new-folder" })
+        ' No standard pixmap is a pilcrow, so `sp` is "" and the light theme
+        ' gets Studio's own dark-stroked copy (`<file>-light.svg`) instead.
+        out = append(out, { part: "tb_whitespace", sp: "", file: "whitespace" })
         return out
     end function
 
@@ -271,6 +274,15 @@ library studio_style
                 if studio_style.qt_dark_for(theme) then
                     if studio_style.dark_icons_available() then
                         return studio_style.toolbar_icon_dir() + "/" + e.file + ".svg"
+                    end if
+                    return ""
+                end if
+                if e.sp = "" then
+                    light = studio_style.toolbar_icon_dir() + "/" + e.file + "-light.svg"
+                    if studio_style.toolbar_icon_dir() != "" then
+                        if exists({file} light) then
+                            return light
+                        end if
                     end if
                     return ""
                 end if
@@ -393,6 +405,9 @@ library studio_style
         l = append(l, "  border: 1px solid transparent; padding: 4px 8px; border-radius: 3px; }")
         l = append(l, "QToolButton:hover { background: " + hi + "; border: 1px solid " + line + "; }")
         l = append(l, "QToolButton:pressed { background: " + sel + "; color: #ffffff; }")
+        ' A CHECKABLE button (the ¶) has to look ON, or a toggle is a button
+        ' that says nothing about its state -- the light style draws it sunk.
+        l = append(l, "QToolButton:checked { background: " + hi + "; border: 1px solid " + faint + "; }")
         l = append(l, "QToolButton:disabled { color: " + faint + "; }")
         l = append(l, "QStatusBar { background: " + bg + "; color: " + faint + "; border-top: 1px solid " + line + "; }")
         l = append(l, "QStatusBar QLabel { color: " + fg + "; }")

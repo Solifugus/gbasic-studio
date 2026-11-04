@@ -109,6 +109,9 @@ library studio_model
             ' editor out of that, which is the opposite of what someone who
             ' enlarged their system font wants.
             editor_zoom: 1,
+            ' Spaces, tabs and line ends drawn in the editor. OFF: a toggle
+            ' a person reaches for, one press away rather than deep in a menu.
+            show_whitespace: false,
             recent_limit: 10
         }
     end function

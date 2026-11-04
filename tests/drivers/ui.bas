@@ -1842,6 +1842,20 @@ program main(args)
       print "      menu: " + studio_ui.menu_text(app, "restore-session")
     end for
 
+    banner("invisible characters")
+    print "  starts as: " + string(studio_ui.shows_whitespace(app)) + "   menu: " + studio_ui.menu_text(app, "show-whitespace")
+    for each i in [1, 2]
+      r = studio_ui.toggle_whitespace(app)
+      app = r.app
+      print "  toggled -> " + padto(r.action, 16) + studio_ui.action_notice(r.action, r.detail)
+      print "      menu: " + studio_ui.menu_text(app, "show-whitespace")
+    end for
+    for each bad in ["yes", 1]
+      app.model.settings.show_whitespace = bad
+      print "  " + padto(string(bad), 5) + "reads as " + string(studio_ui.shows_whitespace(app))
+    end for
+    app.model.settings.show_whitespace = false
+
     banner("both survive a save and a reload")
     r = studio_ui.set_theme(app, "dark")
     app = r.app
@@ -1849,12 +1863,15 @@ program main(args)
     app = r.app
     r = studio_ui.zoom_by(app, 1)
     app = r.app
+    r = studio_ui.toggle_whitespace(app)
+    app = r.app
     saved = studio.shutdown(app)
     print "  written: " + join(saved, ", ")
     fresh = studio.startup(home)
     print "  theme after reload:   " + studio_ui.theme_of(fresh)
     print "  restore after reload: " + string(studio_ui.restores_session(fresh))
     print "  zoom after reload:    " + studio_ui.zoom_label(studio_ui.editor_zoom(fresh))
+    print "  invisibles after reload: " + string(studio_ui.shows_whitespace(fresh))
   end if
 
   if mode = "menus" then

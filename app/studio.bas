@@ -1620,6 +1620,10 @@ function on_qt_restore_session()
     return qt_took(studio_ui.toggle_restore(G.app))
 end function
 
+function on_qt_whitespace()
+    return qt_took(studio_ui.toggle_whitespace(G.app))
+end function
+
 ' ---- closing --------------------------------------------------------------
 
 ' THE WINDOW IS CLOSING, AND THIS IS THE ONLY MOMENT ITS LAYOUT CAN BE READ.
@@ -1728,6 +1732,8 @@ function qt_wire(win)
     win = qt_on(win, qt_item("text-smaller"), "triggered", on_qt_text_smaller)
     win = qt_on(win, qt_item("text-reset"), "triggered", on_qt_text_reset)
     win = qt_on(win, qt_item("restore-session"), "triggered", on_qt_restore_session)
+    win = qt_on(win, qt_item("show-whitespace"), "triggered", on_qt_whitespace)
+    win = qt_on(win, studio_shell_qt.part_tb_whitespace(), "triggered", on_qt_whitespace)
 
     ' The browser's own menu. Every item dispatches to the SAME `studio_ui`
     ' function the header item does -- which is what keeps Delete armed from
@@ -3141,6 +3147,26 @@ program main(args)
         wsize = number(split(qt.read(win, wed, "font"), ",")[1])
         print "  and the editor followed: " + string(round(wsize / zbase * 20) * 5) + "%"
         z = qt.invoke(win, qt_item("text-reset"), "trigger")
+
+        print "-- invisible characters, read back off the editors --"
+        ' The SETTING is not the claim (the zoom's lesson): each line reads
+        ' `whitespace` off a real editor, which gBASIC answers from Qt's own
+        ' text option. Two editors -- one open before the toggle and one opened
+        ' while it is on, which only the next render can catch.
+        print "  at launch: " + string(qt.read(win, zed, "whitespace")) + ", the toolbar's ¶ checked=" + string(qt.read(win, studio_shell_qt.part_tb_whitespace(), "checked"))
+        z = qt.invoke(win, qt_item("show-whitespace"), "trigger")
+        print "  the menu item: " + G.last_action + " -> " + zdoc.display_name + " " + string(qt.read(win, zed, "whitespace")) + ", " + ndoc.display_name + " " + string(qt.read(win, wed, "whitespace")) + ", ¶ checked=" + string(qt.read(win, studio_shell_qt.part_tb_whitespace(), "checked"))
+        z = qt.write(win, studio_shell_qt.part_name_field(), "spaces.bas")
+        z = qt.invoke(win, qt_item("new-file"), "trigger")
+        sdoc = studio_docs.active_doc(G.app.dm)
+        print "  a tab opened while shown: " + sdoc.display_name + " " + string(qt.read(win, studio_shell_qt.part_editor(sdoc.id), "whitespace"))
+        z = qt.invoke(win, studio_shell_qt.part_tb_whitespace(), "trigger")
+        print "  the toolbar's ¶: " + G.last_action + " -> " + zdoc.display_name + " " + string(qt.read(win, zed, "whitespace")) + ", menu checked=" + string(qt.read(win, qt_item("show-whitespace"), "checked"))
+        print "  shortcuts: " + join(qt.shortcuts(win, qt_item("show-whitespace")), " or ")
+        for each k in ["Ctrl+Shift+8", "Ctrl+*"]
+            took = qt.key(win, zed, k)
+            print "  key " + padto_qt(k, 13) + "took=" + string(took) + ", " + G.last_action + " -> " + string(qt.read(win, zed, "whitespace"))
+        end for
 
         print "-- the browser's own right-click menu, per row --"
         ' Each click is AIMED at its row (gBASIC §0.33), and the tier checks the

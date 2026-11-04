@@ -2702,6 +2702,31 @@ library studio_ui
         return { app: app, action: "theme-set", detail: value }
     end function
 
+    ' Whether the editors draw spaces, tabs and line ends. Guarded like
+    ' `restores_session`: a hand-edited file may hold anything here.
+    function shows_whitespace(app)
+        v = app.model.settings["show_whitespace"]
+        if is_unknown(v) then
+            return false
+        end if
+        if not is_boolean(v) then
+            return false
+        end if
+        return v
+    end function
+
+    ' Show or hide them. Takes effect at once, in every open editor.
+    function toggle_whitespace(app)
+        st = app.model.settings
+        now = not studio_ui.shows_whitespace(app)
+        st.show_whitespace = now
+        app.model.settings = st
+        if now then
+            return { app: app, action: "whitespace-on", detail: "" }
+        end if
+        return { app: app, action: "whitespace-off", detail: "" }
+    end function
+
     ' Toggle whether the last session reopens. Read by `studio.startup`, so it
     ' takes effect on the NEXT launch and the notice says so -- a setting whose
     ' effect is invisible until tomorrow is one a user will otherwise press
@@ -2783,6 +2808,7 @@ library studio_ui
         out = append(out, { id: "settings", label: "Settings",
                             items: ["theme-system", "theme-dark", "-",
                                     "text-bigger", "text-smaller", "text-reset", "-",
+                                    "show-whitespace", "-",
                                     "restore-session"] })
         return out
     end function
@@ -2855,6 +2881,9 @@ library studio_ui
         if action = "restore-session" then
             return "Reopen last session on start"
         end if
+        if action = "show-whitespace" then
+            return "Show invisible characters"
+        end if
         if action = "text-bigger" then
             return "Bigger editor text"
         end if
@@ -2902,6 +2931,9 @@ library studio_ui
         if action = "restore-session" then
             return true
         end if
+        if action = "show-whitespace" then
+            return true
+        end if
         return false
     end function
 
@@ -2915,6 +2947,9 @@ library studio_ui
         end if
         if action = "restore-session" then
             return studio_ui.restores_session(app)
+        end if
+        if action = "show-whitespace" then
+            return studio_ui.shows_whitespace(app)
         end if
         return false
     end function
@@ -2993,6 +3028,9 @@ library studio_ui
         end if
         if action = "restore-session" then
             return "Whether Studio reopens the projects and files you had open. Read when Studio starts, so it takes effect on the next launch."
+        end if
+        if action = "show-whitespace" then
+            return "Draw spaces, tabs and line ends in the editor, so trailing blanks and a tab among spaces can be seen. Ctrl+Shift+8, or the ¶ on the toolbar."
         end if
         ' All three say EDITOR, because the rest of the window follows your
         ' desktop's interface font and is not Studio's to resize -- setting it
@@ -3260,6 +3298,12 @@ library studio_ui
         end if
         if action = "restore-off" then
             return "Studio will start with nothing open — this takes effect on the next launch"
+        end if
+        if action = "whitespace-on" then
+            return "showing spaces, tabs and line ends"
+        end if
+        if action = "whitespace-off" then
+            return "invisible characters hidden"
         end if
         ' ---- STU-20, the editor's text size.
         if action = "zoom-set" then

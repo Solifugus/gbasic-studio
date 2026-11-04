@@ -184,6 +184,9 @@ function render(win, app, notice)
                        studio_ui.menu_checked(app, action))
         end if
     end for
+    ' The toolbar's ¶ is the same decision as the menu's checkmark.
+    z = qt.set(win, studio_shell_qt.part_tb_whitespace(), "checked",
+               studio_ui.shows_whitespace(app))
 
     ' The title, which carries the unsaved marker as well as the tab does --
     ' conventional, and it costs one property write.
@@ -325,6 +328,7 @@ function _tabs(win, app)
                 z = qt.write(win, part, doc.content)
             end if
             app = studio_view_qt._zoom(win, app, part)
+            z = studio_view_qt._whitespace(win, app, part)
         end if
     end for
     ' Which page is on top. A document is made active in the MODEL and the
@@ -367,6 +371,17 @@ function _zoom(win, app, part)
         z = qt.set(win, part, "font", studio_style.qt_font_sized(base, want))
     end if
     return app
+end function
+
+' INVISIBLE CHARACTERS, a setting on the editor (gBASIC §0.36) and read back
+' from Qt's own text option. Written only where it differs, like the font, so
+' a new tab or a theme-rebuilt editor is caught by the next render.
+function _whitespace(win, app, part)
+    want = studio_ui.shows_whitespace(app)
+    if qt.read(win, part, "whitespace") != want then
+        z = qt.set(win, part, "whitespace", want)
+    end if
+    return nothing
 end function
 
 function _page_of(app)

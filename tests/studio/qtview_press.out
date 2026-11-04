@@ -61,6 +61,14 @@
   Ctrl+wheel toward, on main.bas: 100%
   four quarter-notches (a trackpad): 100% 100% 100% 115%
   and the editor followed: 115%
+-- invisible characters, read back off the editors --
+  at launch: false, the toolbar's ¶ checked=false
+  the menu item: whitespace-on -> main.bas true, zoomed.bas true, ¶ checked=true
+  a tab opened while shown: spaces.bas true
+  the toolbar's ¶: whitespace-off -> main.bas false, menu checked=false
+  shortcuts: Ctrl+Shift+8 or Ctrl+*
+  key Ctrl+Shift+8 took=true, whitespace-on -> true
+  key Ctrl+*       took=true, whitespace-off -> false
 -- the browser's own right-click menu, per row --
   file    raised on row 4=true shown=true offers: open, rename, delete
   dir     raised on row 2=true shown=true offers: new-file-here, new-folder-here, rename, delete

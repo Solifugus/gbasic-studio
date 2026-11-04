@@ -880,7 +880,17 @@ function shortcut_for(action)
     if action = "close-tab" then
         return "Ctrl+W"
     end if
+    ' Word's key for its ¶, and a SHIFTED one -- so both spellings, for the
+    ' reason zoom-in has two: on a US layout Ctrl+Shift+8 is delivered as
+    ' Ctrl+*.
+    if action = "show-whitespace" then
+        return ["Ctrl+Shift+8", "Ctrl+*"]
+    end if
     return ""
+end function
+
+function part_tb_whitespace()
+    return "tb_whitespace"
 end function
 
 ' THE TOOLBAR, which is what the header row used to be and is now the
@@ -926,7 +936,17 @@ function _toolbar(app)
                toolTip: studio_ui.menu_hint("new-file") }),
         part("item", "tb_new_folder",
              { label: "New Folder", icon: "SP_FileDialogNewFolder",
-               toolTip: studio_ui.menu_hint("new-folder") }) ])
+               toolTip: studio_ui.menu_hint("new-folder") }),
+        bare("separator"),
+        ' ONE PRESS, and that was the request: Notepad++ keeps this deep in a
+        ' menu. Checkable, so the button itself says whether they are shown.
+        ' NO ICON IN THE RECORD: no standard pixmap is a ¶, so it is Studio's
+        ' own file in both themes, and a file is a path on this machine. The
+        ' entry point's `qt_apply_toolbar` sets it once the window is open,
+        ' as it sets the dark set; until then, or without the file, it is ¶.
+        part("item", studio_shell_qt.part_tb_whitespace(),
+             { label: "¶", checkable: true,
+               toolTip: studio_ui.menu_hint("show-whitespace") }) ])
 end function
 
 ' The five panes that were a scrolled column on the right, each now a dock with

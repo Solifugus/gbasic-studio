@@ -121,10 +121,15 @@ this file already documents:
 
 ```sh
 git -C ~/development/gbasic archive HEAD | tar -x -C "$SC/gb"
-make -C "$SC/gb" -j"$(nproc)"
+make -C "$SC/gb" -j"$(nproc)" GBASIC_REVISION="+$(git -C ~/development/gbasic rev-parse --short HEAD)"
 GBASIC="$SC/gb/gbasic" GBASIC_STDLIB="$SC/gb/stdlib" \
     GBASIC_SYNTAX_PATH="$SC/gb/editors/kate" tests/run_studio.sh
 ```
+
+**The revision has to be PASSED.** gBASIC's `--version` names its build
+(`0.10.0+9abf381`) by asking git, and an archive has no git — so without
+`GBASIC_REVISION` a pinned build answers a bare `0.10.0`, the same as the
+installed one, which is how a wrong-interpreter run went unnoticed once.
 
 `git archive` rather than a worktree: no git metadata in a scratchpad, nothing
 to go stale, and nothing that touches the other session's tree. It buys a
@@ -146,6 +151,17 @@ loop condition of `active` — which is what `ui.bas`'s `drive` and `agent.bas`
 have always done, neither having ever hung. The backstop SAYS it timed out
 rather than printing an empty output: a tier that reports a silent wrong answer
 is worse than one that fails. Six consecutive clean runs after.
+
+**And the same defect was in `tests/drivers/sessions.bas`, four times.**
+`stop`, `force`, `unresponsive` and `restart` waited five 10ms ticks before
+stopping the slow child, under a comment saying output could not be waited for
+because a child's stdout is block-buffered — true before `--line-buffered`,
+false since. With the gBASIC suite running alongside (load 16) `force` failed
+two runs in five: the stop beat the child's first `print`. `settle(sess,
+first)` now waits for that line under a deadline and SAYS when it runs out.
+`unresponsive` waits for its helper's `READY`, printed once its SIGTERM trap is
+set — a stop before that would kill the helper and the case could never reach
+`unresponsive`. Five of five for all four under the same load.
 
 Before a release, also run against what users actually have:
 
@@ -1101,6 +1117,26 @@ theme's failure, one row down the Settings menu.
   the single shortcut put back, `Ctrl+=` reads `took=false`, the user's report.
   `qt.key` presses the key Qt DELIVERS, not a physical one, so the layout is
   not reproduced: Ctrl+Shift+= is pressed as `Ctrl++`.
+
+#### Invisible characters (gBASIC §0.36)
+
+- **ONE PRESS, which was the request** — the user's complaint about Notepad++
+  is that the toggle is deep in a menu. A checkable ¶ on the toolbar, Settings
+  ▸ Show invisible characters, and Ctrl+Shift+8 (Word's key, and shifted, so
+  `Ctrl+*` too — zoom-in's lesson). OFF by default, remembered as
+  `settings.show_whitespace`, guarded like `restore_last_session`.
+- `whitespace` is a SETTING on a `source`, not a property, read back with
+  `qt.read` from Qt's own text option (the §0.36 text says `qt.get`, which does
+  not exist). `studio_view_qt._whitespace` writes it only where it differs, so
+  a tab opened while it is on is caught by the next render — and
+  `qtview_press` checks exactly that, red with the call removed.
+- **The ¶ icon is Studio's in BOTH themes** (no `SP_` pixmap is a pilcrow), so
+  the light theme gets `whitespace-light.svg`. It is NOT in the record: an icon
+  file is a path on this machine, and the shape golden would hold it. The
+  entry point's `qt_apply_toolbar` sets it after the open, as it sets the dark
+  set.
+- **A checkable tool button needs a `:checked` rule in the dark sheet**, or
+  the toggle shows nothing about its state. Seen in a capture.
 
 #### The Tables pane and the grid window under Qt (STU-8)
 

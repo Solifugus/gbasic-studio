@@ -6,6 +6,8 @@
   text-smaller    Smaller editor text
   text-reset      Reset editor text size
   --
+  show-whitespace ○ Show invisible characters
+  --
   restore-session ● Reopen last session on start
   recent_limit is offered: false
 == choosing a theme ==
@@ -50,8 +52,17 @@
       menu: ○ Reopen last session on start
   toggled -> restore-on    the last session will reopen on start
       menu: ● Reopen last session on start
+== invisible characters ==
+  starts as: false   menu: ○ Show invisible characters
+  toggled -> whitespace-on   showing spaces, tabs and line ends
+      menu: ● Show invisible characters
+  toggled -> whitespace-off  invisible characters hidden
+      menu: ○ Show invisible characters
+  yes  reads as false
+  1    reads as false
 == both survive a save and a reload ==
   written: settings, session
   theme after reload:   dark
   restore after reload: false
   zoom after reload:    115%
+  invisibles after reload: true
