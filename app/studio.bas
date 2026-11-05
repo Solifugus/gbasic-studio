@@ -1268,6 +1268,25 @@ end function
 ' layout and the cap lifted on the first tick: Qt keeps the size it chose,
 ' and the user can drag it anywhere after. Lifted after ~16 ticks, once Qt
 ' has laid the window out with it.
+' The figures `showcase` writes under GBASIC_STUDIO_SHOT, at 2x -- print wants
+' about 1,800 pixels across a 6-inch text block.
+function qt_shoot(win, dir)
+    shots = [ { file: "window.png", part: "" },
+              { file: "files.png", part: "dock_files" },
+              { file: "editor.png", part: studio_shell_qt.part_tabs() },
+              { file: "results.png", part: "dock_results" },
+              { file: "console.png", part: "dock_console" } ]
+    for each sh in shots
+        opts = { scale: 2 }
+        if sh.part != "" then
+            opts.part = sh.part
+        end if
+        r = qt.capture(win, dir + "/" + sh.file, opts)
+        print sh.file + "  " + string(r.width) + "x" + string(r.height)
+    end for
+    return nothing
+end function
+
 function qt_first_layout(win)
     z = qt.invoke(win, studio_shell_qt.part_side_dock("results"), "raise")
     z = qt.set(win, studio_shell_qt.part_console_dock(), "maximumHeight", 230)
@@ -2208,6 +2227,17 @@ program main(args)
     ' the window is the real, interactive Studio in a known state.
     '   ./studio showcase <home> "" <file> [<line text>] [table|newproject|snippet|schema]
     if mode = "showcase" then
+        ' A FIGURE IS DETERMINISTIC, so under GBASIC_STUDIO_SHOT the clock is
+        ' pinned (2026-01-05 10:00 UTC) -- the Results pane prints a run's time,
+        ' and a real one makes every retake a changed image. Only then: the
+        ' interactive showcase shows the real time (a pinned one once put
+        ' "1969-12-31" in a screenshot).
+        shot = env("GBASIC_STUDIO_SHOT")
+        if is_string(shot) then
+            if shot != "" then
+                G.app.clock_fixed = 1767607200
+            end if
+        end if
         z = qt.invoke(win, qt_item("open-samples"), "trigger")
         sfile = "01_sections.bas"
         if count(args) > 3 then
@@ -2235,6 +2265,21 @@ program main(args)
             end if
         end if
         G.polling = false
+        ' WITH GBASIC_STUDIO_SHOT=<dir>, the window is CAPTURED and closed
+        ' rather than handed to a person (gBASIC cac666c, `qt.capture`): the
+        ' whole window, and each pane on its own -- a book figure is a PANE,
+        ' since a whole window shrunk to a 6-inch text block is unreadable.
+        ' Works offscreen. A first rough cut of the book proposal's shot mode.
+        if is_string(shot) then
+            if shot != "" then
+                z = qt_shoot(win, shot)
+                ' Ended like every test mode, BEFORE the loop: a window closed
+                ' and then handed to `qt.run()` left it waiting with nothing to
+                ' wait for -- measured, a hang with the prints lost.
+                z = qt.close(win)
+                return nothing
+            end if
+        end if
     end if
 
     if mode = "samples" then

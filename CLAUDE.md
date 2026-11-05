@@ -854,6 +854,14 @@ window on the user's desktop; use a scratch home, never theirs.
   reproducible starting point for a capture, and for the book's screenshots.
   It does NOT pin the clock: a screenshot showing a run "at 1969-12-31" is
   what a pinned one produced.
+- **`GBASIC_STUDIO_SHOT=<dir>` turns showcase into a FIGURE** (gBASIC
+  cac666c, `qt.capture`): offscreen, at 2x, it writes the window and four
+  panes (files, editor, results, console) as PNGs and exits — 1.5 seconds,
+  no display. The clock is pinned under it, and two runs over two different
+  homes gave byte-identical files, so neither the time nor a host path is in
+  the picture. The first rough cut of `docs/gbasic_studio_book_snapshots.md`
+  §4.2. Closing the window and then entering `qt.run()` HUNG with every print
+  lost; it returns before the loop, as every test mode does.
 - **Every SECOND window is a plain `QWidget`**, which neither `QMainWindow` nor
   `QDialog` reaches, so in Dark they were light windows with light text. The
   sheet's `.QWidget` rule matches that exact class and no subclass — not the
