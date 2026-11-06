@@ -1,0 +1,55 @@
+== a request line, decided
+  {"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"parse error: expected value at byte 0"}}
+  {"jsonrpc":"2.0","id":null,"error":{"code":-32600,"message":"a request must be an object"}}
+  {"jsonrpc":"2.0","id":1,"error":{"code":-32600,"message":"a request needs a method"}}
+  (no reply)
+  (no reply)
+  {"jsonrpc":"2.0","id":2,"result":{}}
+  {"jsonrpc":"2.0","id":3,"error":{"code":-32601,"message":"no such method: resources/list"}}
+  {"jsonrpc":"2.0","id":4,"error":{"code":-32602,"message":"tools/call needs a tool name"}}
+  {"jsonrpc":"2.0","id":5,"error":{"code":-32602,"message":"arguments must be an object"}}
+  call capture {"part":"files"} id="s"
+  call run_state {} id=6
+== initialize: the client's version when it is one we speak
+  asked 2025-06-18 -> 2025-06-18  server gbasic-studio 0.1.0  tools capability true
+  asked 2024-11-05 -> 2024-11-05  server gbasic-studio 0.1.0  tools capability true
+  asked 1999-01-01 -> 2024-11-05  server gbasic-studio 0.1.0  tools capability true
+== what is offered
+  every tool: 36, names repeated: 0
+  every Studio tool is there: true
+  external denied: 33 offered; save false, delete false, rename false, frame false
+  external auto: 36 offered; save true, delete true, rename true, frame false
+  listed as MCP spells it: true, first current_project, last shot_script
+  verbs: open_samples, open_folder, caret_to, raise, open_window, capture, shot_script
+== a verb's arguments, checked as a script line is
+  capture {} -> {"file":"capture-3.png","scale":1}  problem []
+  capture named -> {"file":"mine.png","scale":2}
+  capture ../x.png -> capture file must be a plain name in the output directory, with no /
+  capture scale 9 -> capture scale must be at most 8
+  raise sideways -> raise pane must be one of results, branch, tables, git, agent
+  caret_to {} -> caret_to needs "text"
+  open_window main -> open_window: the main window is always open
+  shot_script {x} -> shot_script takes no arguments
+  shot_script {} -> []
+== the run wait
+  [] -> 30
+  [soon] -> 30
+  [0] -> 30
+  [-2] -> 30
+  [2.5] -> 2.5
+  [45] -> 45
+  unset -> 30
+== a session, recorded and handed back as a script
+  recorded 6 of 9, captures 1
+  | # recorded by ./studio mcp -- replay with: ./studio shoot <this file> <out-dir>
+  | {"tool":"frame","args":{"width":1200,"height":800,"theme":"dark","zoom":1,"whitespace":false}}
+  | {"tool":"open_samples"}
+  | {"tool":"open_document","args":{"path":"02_tables.bas"}}
+  | {"tool":"caret_to","args":{"text":"sales = []"}}
+  | {"tool":"execute_section"}
+  | # save_document was called here; a figure does not change the project, so it is left out
+  | {"tool":"capture","args":{"part":"tables","file":"capture-1.png","scale":1}}
+  studio_shots takes it back: 6 steps, 0 errors
+== a reply
+  {"jsonrpc":"2.0","id":7,"result":{"content":[{"type":"text","text":"done"}],"isError":false}}
+  {"jsonrpc":"2.0","id":8,"result":{"content":[{"type":"text","text":"no"},{"type":"image","data":"AAAA","mimeType":"image/png"}],"isError":true}}

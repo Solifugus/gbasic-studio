@@ -1,0 +1,58 @@
+1  initialized, protocol 2025-06-18
+2  33 tools
+3  ok  samples
+4  ok  02_tables.bas
+5  ok  02_tables.bas:15  section: sec-1 statements
+6  ok  ran sec-1 finished
+7  ok  {"section_id":"sec-1","label":"section: sec-1 statements"}
+8  ok  tables
+9  ok  capture-1.png  385x450
+9  ok  image/png, PNG signature true
+10  ok  table
+11  ok  capture-2.png  900x600
+11  ok  image/png, PNG signature true
+12  isError  save_document is not offered in this session: it is external, and external tools are denied
+13  isError  no line of 02_tables.bas starts with "no line reads like this"
+14  {}
+15  ok  a shot script of 10 lines
+      | # recorded by ./studio mcp -- replay with: ./studio shoot <this file> <out-dir>
+      | {"tool":"frame","args":{"width":1200,"height":800,"theme":"dark","zoom":1,"whitespace":false}}
+      | {"tool":"open_samples"}
+      | {"tool":"open_document","args":{"path":"02_tables.bas"}}
+      | {"tool":"caret_to","args":{"text":"sales = []"}}
+      | {"tool":"execute_section"}
+      | {"tool":"raise","args":{"pane":"tables"}}
+      | {"tool":"capture","args":{"part":"tables","file":"capture-1.png","scale":1}}
+      | {"tool":"open_window","args":{"window":"table"}}
+      | {"tool":"capture","args":{"window":"table","file":"capture-2.png","scale":1}}
+lines that are not JSON-RPC: 0
+-- the recorded script, replayed by ./studio shoot
+capture-1.png: what the client saw, identical
+capture-2.png: what the client saw, identical
+-- a conversation, one reply at a time
+connected: 33 tools
+external offered: false
+frame offered: false
+-- open_folder  ok
+   <slow>
+   status: opened slow
+-- open_document  ok
+   slow.bas
+   status: ready — workspace — 1 project(s) — 1 open
+-- move_cursor  ok
+   slow.bas:6
+   status: ready — workspace — 1 project(s) — 1 open
+-- section_at_cursor  ok
+   {"section_id":"sec-2","label":"section: sec-2 statements"}
+-- execute_section  ok
+   still running after 0.5 seconds; run_state reports it and stop_execution stops it
+-- run_state at once  running=true
+-- run_state later  finished=true
+-- section_output  {"section_id":"sec-2","ran":true,"prefix":"","target":"woke\n","errors":""}
+-- capture  REFUSED
+   qt.capture: this window has no `nosuch`; its parts are agent_body, agent_head, ask_btn, bind_btn,...
+-- delete_path  REFUSED
+   delete_path is not offered in this session: it is external, and external tools are denied
+-- no_such_tool  REFUSED
+   no such tool: no_such_tool
+disconnected

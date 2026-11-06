@@ -612,7 +612,14 @@ end function
 ' result whenever the child had not been scheduled yet -- and the backstop SAYS
 ' it timed out rather than reporting an empty pane as the answer.
 function qt_tables_wait()
-    deadline = monotonic() + 60
+    return qt_run_wait(60)
+end function
+
+' The run in flight, ticked to its end under a deadline of `secs` -- the
+' poller's work, done in line because nothing here is inside `qt.run()`.
+' Answers the run's final action, or "TIMED OUT" with the run still going.
+function qt_run_wait(secs)
+    deadline = monotonic() + secs
     active = true
     while active
         t = studio_ui.tick_run(G.app)
@@ -1313,7 +1320,8 @@ function qt_shot_load(args)
         return nothing
     end if
     return { steps: r.steps, dir: studio_shots.dir_of(args[2]), out: args[3],
-             frame: studio_shots.frame_of(r.steps) }
+             frame: studio_shots.frame_of(r.steps), policy: studio_shots.policy(),
+             wait: 60, clip: true, run_on: false }
 end function
 
 ' The frame, applied to the model BEFORE the window is built from it. The
@@ -1333,11 +1341,12 @@ end function
 ' a step that did not happen is a plausible wrong picture.
 function qt_shot_run(plan)
     for each st in plan.steps
-        why = qt_shot_step(plan, st)
-        if why != "" then
-            print to error "shoot: line " + string(st.line) + ": " + st.tool + ": " + why
+        r = qt_step(plan, st.tool, st.args)
+        if r.why != "" then
+            print to error "shoot: line " + string(st.line) + ": " + st.tool + ": " + r.why
             return false
         end if
+        z = qt_shot_say(st, r.text)
     end for
     return true
 end function
@@ -1347,62 +1356,68 @@ function qt_shot_say(st, text)
     return nothing
 end function
 
-' One step. Answers "" or why it failed.
-function qt_shot_step(plan, st)
-    a = st.args
-    if st.tool = "frame" then
+' ONE STEP, performed: a frame verb or a Studio tool. Shared by `shoot` and
+' `mcp` -- a session an AI drives is made of the same steps a figure is, done
+' the same way, which is what lets the session come back as a script that
+' replays. Answers { why, text, file }: `why` is "" or the reason it failed,
+' `text` what it did, `file` the picture a capture wrote.
+function qt_did(text)
+    return { why: "", text: text, file: "" }
+end function
+
+function qt_failed(why)
+    return { why: why, text: "", file: "" }
+end function
+
+function qt_step(plan, tool, a)
+    if tool = "frame" then
         f = plan.frame
-        z = qt_shot_say(st, string(f.width) + "x" + string(f.height) + " " + f.theme + " zoom " + string(f.zoom) + " whitespace " + string(f.whitespace))
-        return ""
+        return qt_did(string(f.width) + "x" + string(f.height) + " " + f.theme + " zoom " + string(f.zoom) + " whitespace " + string(f.whitespace))
     end if
-    if st.tool = "open_samples" then
+    if tool = "open_samples" then
         z = qt.invoke(G.win, qt_item("open-samples"), "trigger")
         if G.last_action != "samples-opened" then
-            return G.last_action + " " + G.last_detail
+            return qt_failed(G.last_action + " " + G.last_detail)
         end if
-        z = qt_shot_say(st, "samples")
-        return ""
+        return qt_did("samples")
     end if
-    if st.tool = "open_folder" then
+    if tool = "open_folder" then
         r = studio_ui.adopt_folder(G.app, studio_shots.resolve(plan.dir, a.path))
         if not contains(["adopted", "activated"], r.action) then
-            return r.action + " " + r.detail
+            return qt_failed(r.action + " " + r.detail)
         end if
         z = qt_took(r)
-        z = qt_shot_say(st, a.path)
-        return ""
+        return qt_did(a.path)
     end if
-    if st.tool = "caret_to" then
+    if tool = "caret_to" then
         doc = studio_docs.active_doc(G.app.dm)
         if is_nothing(doc) then
-            return "no document is open"
+            return qt_failed("no document is open")
         end if
         ed = studio_shell_qt.part_editor(doc.id)
         n = studio_shots.line_of(qt.read(G.win, ed, "plainText"), a.text)
         if n = 0 then
-            return "no line of " + doc.display_name + " starts with \"" + a.text + "\""
+            return qt_failed("no line of " + doc.display_name + " starts with \"" + a.text + "\"")
         end if
         col = default(a["column"], 1)
         z = qt.caret_to(G.win, ed, n, col)
         G.app = qt_sync_caret(G.app)
-        z = qt_shot_say(st, doc.display_name + ":" + string(n) + "  " + studio_ui.section_label(studio_ui.view_for(G.app).app))
-        return ""
+        return qt_did(doc.display_name + ":" + string(n) + "  " + studio_ui.section_label(studio_ui.view_for(G.app).app))
     end if
-    if st.tool = "raise" then
+    if tool = "raise" then
         z = qt.invoke(G.win, studio_shell_qt.part_side_dock(a.pane), "raise")
-        z = qt_shot_say(st, a.pane)
-        return ""
+        return qt_did(a.pane)
     end if
-    if st.tool = "open_window" then
-        return qt_shot_window(st, a)
+    if tool = "open_window" then
+        return qt_shot_window(a)
     end if
-    if st.tool = "capture" then
-        return qt_shot_capture(plan, st, a)
+    if tool = "capture" then
+        return qt_shot_capture(plan, a)
     end if
-    return qt_shot_tool(st, a)
+    return qt_shot_tool(plan, tool, a)
 end function
 
-function qt_shot_window(st, a)
+function qt_shot_window(a)
     w = a.window
     if w = "table" then
         z = qt.select(G.win, studio_shell_qt.part_tables(), default(a["row"], 0))
@@ -1417,10 +1432,9 @@ function qt_shot_window(st, a)
         z = qt.invoke(G.win, "schema_btn", "click")
     end if
     if is_nothing(qt_shot_win(w)) then
-        return "the " + w + " window did not open: " + G.last_action + " " + G.last_detail
+        return qt_failed("the " + w + " window did not open: " + G.last_action + " " + G.last_detail)
     end if
-    z = qt_shot_say(st, w)
-    return ""
+    return qt_did(w)
 end function
 
 ' A window by the name a script uses, or nothing when it is not open.
@@ -1457,11 +1471,11 @@ end function
 ' refuses an unknown or hidden part by RAISING, with the window's parts
 ' listed, and the script runner's job is to say which line asked for it and
 ' stop. The refusal is printed whole.
-function qt_shot_capture(plan, st, a)
+function qt_shot_capture(plan, a)
     wn = default(a["window"], "main")
     w = qt_shot_win(wn)
     if is_nothing(w) then
-        return "the " + wn + " window is not open"
+        return qt_failed("the " + wn + " window is not open")
     end if
     opts = { scale: default(a["scale"], studio_shots.default_scale()) }
     part = studio_shots.part_for(default(a["part"], ""))
@@ -1471,49 +1485,54 @@ function qt_shot_capture(plan, st, a)
     on error goto next
     r = qt.capture(w, plan.out + "/" + a.file, opts)
     if error then
-        return error.message
+        return qt_failed(error.message)
     end if
     on error stop
-    z = qt_shot_say(st, a.file + "  " + string(r.width) + "x" + string(r.height))
-    return ""
+    return { why: "", text: a.file + "  " + string(r.width) + "x" + string(r.height),
+             file: plan.out + "/" + a.file }
 end function
 
 ' A Studio tool, through THE GATE -- the same `studio_tools.invoke` an MCP
-' client's call will take. The window is then brought up to the model, which
+' client's call takes. The window is then brought up to the model, which
 ' is the half a tool call cannot do itself: a caret the model moved is put in
 ' the editor (or the next caret poll would move it back), and a run is waited
-' for, under a deadline, as a person waits for one.
-function qt_shot_tool(st, a)
-    r = studio_tools.invoke(G.app, G.log, studio_shots.policy(), st.tool, a, "")
+' for, under a deadline, as a person waits for one. The policy is the
+' caller's: a figure's (`studio_shots.policy`) or the MCP session's.
+function qt_shot_tool(plan, tool, a)
+    r = studio_tools.invoke(G.app, G.log, plan.policy, tool, a, "")
     G.app = r.app
     G.log = r.log
     if not r.ok then
-        return r.why
+        return qt_failed(r.why)
     end if
-    G.last_action = st.tool
+    G.last_action = tool
     G.last_detail = ""
-    if st.tool = "move_cursor" then
+    if tool = "move_cursor" then
         why = qt_shot_push_caret()
         if why != "" then
-            return why
+            return qt_failed(why)
         end if
     end if
-    if st.tool = "execute_section" then
+    if tool = "execute_section" then
         G.polling = false
-        how = qt_tables_wait()
+        how = qt_run_wait(plan.wait)
         if how = "TIMED OUT" then
-            return "the run did not finish in 60 seconds"
+            ' A figure must not be taken of a run half done, so `shoot` stops
+            ' here. A session ANSWERS: the run goes on, and is not a failure.
+            if plan.run_on then
+                return qt_did("still running after " + string(plan.wait) + " seconds; run_state reports it and stop_execution stops it")
+            end if
+            return qt_failed("the run did not finish in " + string(plan.wait) + " seconds")
         end if
-        z = qt_shot_say(st, how + " " + G.last_detail)
-        return ""
+        return qt_did(how + " " + G.last_detail)
     end if
     text = ""
-    if st.tool = "point_at" then
+    if tool = "point_at" then
         G.last_detail = studio_teaching.describe(r.value)
         text = G.last_detail
     end if
     z = qt_redraw()
-    if studio_tools.is_act(st.tool) then
+    if studio_tools.is_act(tool) then
         ' What the act left in front of the reader: the document and the
         ' caret, which is what every later step and the picture depend on.
         doc = studio_docs.active_doc(G.app.dm)
@@ -1531,12 +1550,13 @@ function qt_shot_tool(st, a)
         end if
     else
         text = encode(r.value)
-        if len(text) > 160 then
-            text = left(text, 157) + "..."
+        if plan.clip then
+            if len(text) > 160 then
+                text = left(text, 157) + "..."
+            end if
         end if
     end if
-    z = qt_shot_say(st, text)
-    return ""
+    return qt_did(text)
 end function
 
 ' The model's caret, put in the editor. `doc.cursor` is 1-based, as
@@ -1566,6 +1586,144 @@ function qt_shot_close()
     end for
     z = qt.close(G.win)
     return nothing
+end function
+
+' ---- ./studio mcp [home] [folder] --------------------------------------------
+'
+' STUDIO AS AN MCP SERVER on stdio (docs/gbasic_studio_book_snapshots.md
+' §4.4). The protocol is `studio_mcp`'s; this is the adapter: read a line,
+' perform the call through `qt_step` -- the performer `shoot` uses -- and
+' print the reply. Nothing else may reach STDOUT while it serves, because
+' stdout IS the protocol: every line printed there is read by the client as
+' JSON-RPC. Notes go to stderr.
+'
+' The window is offscreen and there is no `qt.run()`: the loop blocks on
+' `input()`, so Qt is driven call by call exactly as `shoot` drives it, and a
+' run is ticked in line (`qt_run_wait`). It must run under `--line-buffered`
+' or a reply sits in a block buffer while the client waits for it -- a
+' deadlock -- which the launcher sees to.
+
+' The plan a session runs under: what a relative path is relative to (where
+' `./studio mcp` was started), where captures go, and the policy.
+function qt_mcp_plan(frame)
+    cwd = env("GBASIC_STUDIO_CWD")
+    if not is_string(cwd) then
+        cwd = "."
+    end if
+    out = G.app.paths.home + "/captures"
+    persist.ensure_dir(out)
+    ext = env("GBASIC_STUDIO_MCP_EXTERNAL")
+    if not is_string(ext) then
+        ext = "deny"
+    end if
+    return { steps: [], dir: cwd, out: out, frame: frame,
+             policy: studio_mcp.policy(ext), wait: studio_mcp.run_wait(env("GBASIC_STUDIO_MCP_WAIT")),
+             clip: false, run_on: true }
+end function
+
+' The frame the window was built in, as a script's first line would say it:
+' the size and the settings the session started with.
+function qt_mcp_frame(app)
+    w = app.model.session.window
+    return { width: default(w["width"], 1200), height: default(w["height"], 800),
+             theme: studio_ui.theme_of(app), zoom: studio_ui.editor_zoom(app),
+             whitespace: studio_ui.shows_whitespace(app) }
+end function
+
+function qt_mcp_serve(plan)
+    while true
+        line = input()
+        ' A BLANK LINE ENDS THE SESSION: `input()` answers "" for end of input
+        ' and for a blank line alike, and JSON-RPC never sends a blank line.
+        if line = "" then
+            return nothing
+        end if
+        ' A run left going by a call that stopped waiting for it moves on with
+        ' every request, as the poller would move it.
+        t = studio_ui.tick_run(G.app)
+        G.app = t.app
+        if not t.active then
+            if t.action != "idle" then
+                G.last_action = t.action
+                G.last_detail = t.detail
+                z = qt_redraw()
+            end if
+        end if
+        d = studio_mcp.request(plan.policy, line)
+        if has(d, "reply") then
+            if d.reply != "" then
+                print d.reply
+            end if
+        else
+            r = qt_mcp_call(plan, d.call)
+            plan.steps = r.steps
+            print r.reply
+        end if
+    end while
+    return nothing
+end function
+
+' One tools/call, performed. Answers { reply, steps }: the reply line, and
+' the session's steps with this one recorded if it changed the window.
+function qt_mcp_call(plan, c)
+    name = c.name
+    a = c.args
+    if not studio_mcp.is_offered(plan.policy, name) then
+        why = "no such tool: " + name
+        if studio_tools.is_tool(name) then
+            why = name + " is not offered in this session: it is " + studio_tools.tier_of(name) + ", and " + studio_tools.tier_of(name) + " tools are denied"
+        end if
+        return qt_mcp_refused(plan, c, why)
+    end if
+    if studio_mcp.is_verb(name) then
+        a = studio_mcp.verb_args(name, a, studio_mcp.captures(plan.steps) + 1)
+        why = studio_mcp.verb_problem(name, a)
+        if why != "" then
+            return qt_mcp_refused(plan, c, why)
+        end if
+    end if
+    if name = "shot_script" then
+        text = studio_mcp.script_text(plan.frame, plan.steps)
+        return { steps: plan.steps, reply: studio_mcp.call_reply(c.id, [studio_mcp.text_block(text)], false) }
+    end if
+    ' A folder is recorded where it RESOLVED to: a script's own paths are
+    ' relative to the script, which is not where this session started.
+    if name = "open_folder" then
+        a.path = studio_shots.resolve(plan.dir, a.path)
+    end if
+    r = qt_step(plan, name, a)
+    if r.why != "" then
+        return qt_mcp_refused(plan, c, r.why)
+    end if
+    text = r.text
+    if r.file = "" then
+        ' What a person would read after doing it: the status line.
+        ' Not after a run: its answer already says how it ended, and while
+        ' one goes on the status line has not caught up with it.
+        if studio_tools.is_act(name) or studio_mcp.is_verb(name) then
+            if name != "execute_section" then
+                text = text + chr(10) + "status: " + qt.read(G.win, studio_shell_qt.part_status(), "text")
+            end if
+        end if
+    end if
+    blocks = [studio_mcp.text_block(text)]
+    if r.file != "" then
+        ' The picture itself, so the client SEES what it did. base64 is a
+        ' libcrypto builtin; a build without it says where the file is.
+        if has_builtin("base64_encode") then
+            png{file} = r.file
+            blocks = append(blocks, studio_mcp.image_block(base64_encode(read(png))))
+        else
+            blocks = [studio_mcp.text_block(text + chr(10) + "(this gBASIC has no base64_encode, so the picture is not attached; it is at " + r.file + ")")]
+        end if
+    end if
+    return { steps: studio_mcp.record(plan.steps, name, a),
+             reply: studio_mcp.call_reply(c.id, blocks, false) }
+end function
+
+function qt_mcp_refused(plan, c, why)
+    return { steps: plan.steps,
+             reply: studio_mcp.call_reply(c.id, [studio_mcp.text_block(why)], true) }
 end function
 
 function qt_first_layout(win)
@@ -2085,6 +2243,7 @@ program main(args)
     load llm
     load studio_permissions
     load studio_shots
+    load studio_mcp
 
     mode = "gui"
     if count(args) > 0 then
@@ -2171,6 +2330,14 @@ program main(args)
             exit(2)
         end if
         G.app = qt_shot_frame(G.app, shot_plan.frame)
+    end if
+    ' MCP in a FRESH home (the launcher's default) is built in a figure's
+    ' default frame, clock pinned, so what the client sees is what the
+    ' recorded script replays to. In a home somebody named, it is their window.
+    if mode = "mcp" then
+        if default(env("GBASIC_STUDIO_MCP_FRESH"), "") = "1" then
+            G.app = qt_shot_frame(G.app, studio_shots.frame_of([]))
+        end if
     end if
 
     ' EACH EDITOR'S HANDLERS, as data the renderer puts into every page --
@@ -2573,6 +2740,18 @@ program main(args)
                 return nothing
             end if
         end if
+    end if
+
+    if mode = "mcp" then
+        G.polling = false
+        z = qt_mcp_serve(qt_mcp_plan(qt_mcp_frame(G.app)))
+        z = qt_shot_close()
+        ' A home somebody named is kept as the window keeps it at close; a
+        ' fresh one is about to be removed, and there is nothing to keep.
+        if default(env("GBASIC_STUDIO_MCP_FRESH"), "") != "1" then
+            saved = studio.persist(G.app)
+        end if
+        return nothing
     end if
 
     if mode = "shoot" then

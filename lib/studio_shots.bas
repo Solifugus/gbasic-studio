@@ -9,7 +9,7 @@
 ' and the tools are of two kinds:
 '
 '   * STUDIO'S OWN TOOLS -- every name in `studio_tools.registry()`, the same
-'     surface the assistant reads through and an MCP server will serve. They
+'     surface the assistant reads through and `./studio mcp` serves. They
 '     go through `studio_tools.invoke`, the one gate, so a figure is made by the
 '     operations a person's clicks make and not by a second automation path;
 '   * THE FRAME VERBS here -- what a figure needs that is about the WINDOW

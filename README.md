@@ -29,7 +29,9 @@ replaced ten toolbar buttons with two menus that can say what they act on;
 **STU-18** made the theme and the restore-on-start setting reachable;
 **STU-19** gave Studio its own dark look, the whole window and not just the
 editor; **STU-20** made the code's text size the editor's own; and **STU-21**
-gave a tab its own right-click menu.
+gave a tab its own right-click menu. Then, for the books: `./studio shoot`
+makes figures from a script, in pinned fonts and a grayscale print theme, and
+`./studio mcp` serves Studio to an AI client over MCP.
 
 **STU-22 moved the window to gBASIC's Qt GUI system, and GTK is gone.**
 `./studio` opens the Qt window. What made the move affordable is a rule written
@@ -753,10 +755,59 @@ theme; that has been asked for.
 
 `print` is for figures only, and the Settings menu does not offer it.
 
+## Studio as an MCP server
+
+```sh
+./studio mcp                      # a fresh home, offscreen, on stdin/stdout
+./studio mcp - ~/src/myproject    # the same, with a folder open as a project
+./studio mcp ~/.gbasic-studio     # in a home of your own
+```
+
+`./studio mcp` serves Studio over the **Model Context Protocol** on stdio, so
+an AI client can start Studio and use it: open files, put the caret in a
+section, run it, read the results, and look at the window. To add it to Claude
+Code:
+
+```sh
+claude mcp add gbasic-studio -- /path/to/gbasic-studio/studio mcp
+```
+
+Claude Desktop takes the same command in its `mcpServers` configuration
+(`"command": "/path/to/gbasic-studio/studio", "args": ["mcp"]`).
+
+- **The tools are the ones a shot script uses.** Studio's own tools (the reads
+  the assistant has, and the acts behind the permission gate) plus the window
+  verbs `open_samples`, `open_folder`, `caret_to`, `raise`, `open_window` and
+  `capture`. `frame` is not one: the window is already open. `capture` returns
+  the picture as a PNG **image**, at scale 1 unless asked, so the client sees
+  what it did.
+- **`shot_script` hands the session back as a script.** Every step that
+  changed the window is recorded, and `./studio shoot` replays it into
+  figures. In a fresh home the picture the client was shown and the figure the
+  replay draws are the same bytes (the `mcp_session` tier checks it), because a
+  fresh home is set up as a figure's is: the pinned fonts, the pinned clock and
+  no host details.
+- **Save, delete and rename are denied**, and not even listed. Start the
+  server with `GBASIC_STUDIO_MCP_EXTERNAL=auto` to offer them. Your client's
+  own per-tool approval is then the confirmation. Everything else (open, type,
+  run) is Studio's to put back and runs without asking.
+- **A run is waited for up to 30 seconds** (`GBASIC_STUDIO_MCP_WAIT` to
+  change it). A longer one is answered as still running. It goes on, and
+  `run_state` and the output tools report it as later requests arrive.
+- **In a home of your own**, the session is saved when it ends, as the window
+  saves it at close. Do not serve a home that an open Studio window is using:
+  both write the same session at exit. A fresh home is removed afterwards;
+  captures go to `<home>/captures/`.
+
+It is **offscreen only** for now. The server waits on its input between
+requests, so a visible window would not repaint while the AI works; watching
+needs gBASIC to read stdin from inside the event loop. Tools only: no MCP
+resources or prompts.
+
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 206 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 208 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 30 cases, headless AND offline — no network, no key
 ```
 
@@ -777,6 +828,7 @@ tests/drivers/     harness programs for the STU-2B/3/4/5A tiers
 tests/studio/      goldens
 tests/helpers/     a shell helper for the signal-escalation case
 tests/shots/       the shot scripts the `shoot_run` tier replays
+tests/mcp/         the request lines the `mcp_session` tier sends
 share/             icons, licence texts, templates, samples, and the fonts a
                    book figure is drawn in (share/README.md)
 docs/              design and phase records

@@ -68,7 +68,7 @@ mode.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 206 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 208 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 30 cases, headless AND offline (scripted transport)
 ```
 
@@ -264,6 +264,10 @@ lib/studio_shots.bas    a book figure as a SCRIPT of Studio's own tool calls:
                         frame verbs, a capture's part by its caption name.
                         Toolkit-free; `app/studio.bas`'s `shoot` mode is the
                         adapter
+lib/studio_mcp.bas      `./studio mcp`, the protocol half: a request line
+                        decided, the tools offered under a policy, the reply,
+                        and the session recorded as a shot script.
+                        Toolkit-free; the `mcp` mode is the adapter
 lib/studio_style.bas    the spacing unit, the dark and PRINT palettes and the
                         one Qt sheet both render through (`sheet(p)`), and the
                         decisions that follow the theme. Toolkit-free
@@ -887,7 +891,7 @@ window on the user's desktop; use a scratch home, never theirs.
 
 `docs/gbasic_studio_book_snapshots.md` §4.2–4.3, step 2 of its order. A shot
 script is JSON lines of `{tool, args}`; most tools are `studio_tools`' own,
-run through `invoke` (the gate an MCP server will use too), and seven frame
+run through `invoke` (the gate `./studio mcp` uses too), and seven frame
 verbs are the window's: `frame`, `open_samples`, `open_folder`, `caret_to`,
 `raise`, `open_window`, `capture`. Every decision is in `studio_shots`
 (`shots_check`, headless); the entry point's `qt_shot_*` are adapters, and
@@ -991,6 +995,61 @@ theme for the paperback).
   theme that separates them by weight and shade.
 - **`mid` IS 0-BASED.** I wrote two 1-based checks in this change. One reported
   every gray as coloured, and the other printed `#73716` for a colour.
+
+#### Studio over MCP (`./studio mcp`)
+
+`docs/gbasic_studio_book_snapshots.md` §4.4, step 3 of its order. The protocol
+is `lib/studio_mcp.bas` (headless, `mcp_protocol`); the server is the `mcp`
+mode in `app/studio.bas` (`qt_mcp_*`), and `mcp_session` drives it through the
+launcher.
+
+- **ONE PERFORMER FOR `shoot` AND `mcp`.** `qt_step(plan, tool, args)` answers
+  `{ why, text, file }` and prints nothing. `qt_shot_run` prints the `line N`
+  lines, `qt_mcp_call` builds a reply. The plan carries what differs: the
+  policy, the run wait, whether a long read answer is clipped, and whether a
+  run still going after the wait is a failure (`shoot`) or an answer (`mcp`,
+  `run_on`). `shoot_run` did not move.
+- **The tools are the shot vocabulary**: `studio_tools.registry()` plus the
+  frame verbs less `frame`, plus `shot_script`. Because they are the same,
+  the session comes back as a script (`studio_mcp.record`, `script_text`).
+  Measured: in a fresh home, the captures the client received and the ones
+  `./studio shoot` draws from the recorded script are BYTE-IDENTICAL.
+  `mcp_session` checks both.
+- **NOT gBASIC's `mcp.handle`.** Its tool result is text only, and `capture`
+  answers with an image block. `tools.dispatch` also wants one function value
+  per tool, which cannot close over the app. The protocol is the same:
+  newline JSON-RPC, notifications unanswered, a failed tool a result with
+  `isError`. An upstream ask worth making: content blocks in `mcp.handle`'s
+  results.
+- **STDOUT IS THE PROTOCOL.** Nothing on the serving path may `print` except
+  the reply. `mcp_lines.bas` decodes every line and counts the ones that are
+  not JSON-RPC.
+- **`--line-buffered` IS LOAD-BEARING, and only a conversation can show it.**
+  A piped batch of requests reads fine block-buffered, because everything
+  comes out at exit. `mcp_client.bas` talks one request at a time through
+  `mcp.connect`. Measured red with the flag removed from the launcher: *"the
+  server did not answer within 10 seconds"*.
+- **No `qt.run()`.** The loop blocks on `input()` and Qt is driven call by
+  call, as `shoot` drives it. A run is ticked in line (`qt_run_wait`), and one
+  left going is ticked again at every request. So the server is offscreen
+  only: a visible window would not repaint between requests. Watching an AI
+  work needs a stdin source in gBASIC's event loop.
+- **The external tier is DENIED and NOT LISTED** unless
+  `GBASIC_STUDIO_MCP_EXTERNAL=auto`. Then it is `auto`, not `confirm`: a token
+  the model hands back to itself confirms nothing, and the client's own
+  per-tool approval is the human's say. An external act that ran is recorded
+  as a COMMENT in the script, because `shoot` refuses the whole script over
+  one.
+- **A fresh home (no home, or `-`) is a figure's world.** The launcher's
+  `figure_env` (shared with `shoot`) sets up the pinned fonts, `HOME`, XDG and
+  UTC, and the mode applies the default frame and the pinned clock. That is
+  what makes the client's picture the replay's picture. A named home is the
+  user's own: no frame, a real clock, and `studio.persist` at the end.
+- **`move_cursor` pushes the caret into the editor**, through the same
+  `qt_shot_push_caret` `shoot` uses, and the act answers with the caret read
+  back off the widget (`slow.bas:6` for line 5).
+- **`env()` of an unset variable is `unknown`, and `unknown = "1"` makes an
+  `if` refuse.** Written `default(env(...), "") = "1"`.
 
 #### Theming under Qt, which was a dead control
 

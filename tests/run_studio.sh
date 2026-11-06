@@ -1025,6 +1025,7 @@ else
     printf 'SKIP qtview_edit (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_samples (this gBASIC has no qt module)\n'
     printf 'SKIP shoot_run (this gBASIC has no qt module)\n'
+    printf 'SKIP mcp_session (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_reopen (this gBASIC has no qt module)\n'
 fi
 
@@ -1319,6 +1320,58 @@ fi
         cat "$stdout_file" "$qt_err"; fail "shoot_run (nonzero exit)"
     fi
 
+    # ./studio mcp: STUDIO AS AN MCP SERVER, through the launcher. Three
+    # claims. Every line on STDOUT is a JSON-RPC reply -- stdout is the
+    # protocol, and one stray print is a line no client can read -- and a
+    # capture comes back as a PNG image. The session's shot script, replayed
+    # by `./studio shoot`, draws the SAME BYTES the client was shown: an AI's
+    # exploring is the figure. And a CONVERSATION works, one reply at a time
+    # through gBASIC's own MCP client, which a piped batch cannot show: a
+    # reply stuck in a block buffer comes out at exit there, and here it is a
+    # named timeout. A run longer than the wait is answered as going on, and
+    # a later request finds it finished.
+    ms="$tmproot/mcp_session"; rm -rf "$ms"; mkdir -p "$ms/fig" "$ms/slow"
+    printf 'function nap()\n    sleep(1.5)\n    return "woke"\nend function\n\nprint nap()\n' >"$ms/slow/slow.bas"
+    : >"$qt_err"
+    if env -u ANTHROPIC_API_KEY -u OPENAI_API_KEY -u GBASIC_STUDIO_SECRET_KEY \
+            -u QT_QPA_PLATFORM -u GBASIC_STUDIO_MCP_EXTERNAL \
+            timeout 120 ./studio mcp <tests/mcp/session.jsonl >"$ms/out" 2>"$qt_err"; then
+        if grep -q "does not define 'capture'" "$ms/out"; then
+            printf 'SKIP mcp_session (this gBASIC predates qt.capture, cac666c)\n'
+        else
+            {
+                "$GBASIC" tests/drivers/mcp_lines.bas "$ms/out" "$ms"
+                printf -- '-- the recorded script, replayed by ./studio shoot\n'
+                if timeout 120 ./studio shoot "$ms/session.shot" "$ms/fig" >/dev/null 2>&1; then
+                    for pair in 9:capture-1 11:capture-2; do
+                        if cmp -s "$ms/${pair%%:*}.png" "$ms/fig/${pair#*:}.png"; then
+                            printf '%s: what the client saw, identical\n' "${pair#*:}.png"
+                        else
+                            printf '%s: what the client saw DIFFERS\n' "${pair#*:}.png"
+                        fi
+                    done
+                else
+                    printf 'the replay failed\n'
+                fi
+                printf -- '-- a conversation, one reply at a time\n'
+                env -u QT_QPA_PLATFORM -u GBASIC_STUDIO_MCP_EXTERNAL GBASIC_STUDIO_MCP_WAIT=0.5 \
+                    timeout 120 "$GBASIC" tests/drivers/mcp_client.bas ./studio "$ms/slow" 2>&1 \
+                    | grep -v propagateSizeHints | sed "s#$ms/slow#<slow>#g" || true
+            } >"$tmproot/mcp_session.txt"
+            if grep -q 'runtime error' "$qt_err"; then
+                grep 'runtime error' "$qt_err"; fail "mcp_session (a call raised)"
+            elif diff -u tests/studio/mcp_session.out "$tmproot/mcp_session.txt"; then
+                printf 'PASS mcp_session (Studio over MCP: JSON-RPC only on stdout, images, the session replays, a conversation)\n'
+            else
+                fail "mcp_session (output diff)"
+            fi
+        fi
+    elif grep -q 'Qt support is not available' "$qt_err"; then
+        printf 'SKIP mcp_session (this gBASIC has no Qt backend)\n'
+    else
+        cat "$ms/out" "$qt_err"; fail "mcp_session (nonzero exit)"
+    fi
+
     # A SECOND LAUNCH OVER A HOME THAT HAS BEEN USED.
     #
     # THIS IS THE TIER WHOSE ABSENCE LET A CRASH SHIP. Every other Qt tier
@@ -1455,6 +1508,20 @@ if diff -u tests/studio/shots_check.out "$stdout_file"; then
     printf 'PASS shots_check (a figure script is checked whole before anything runs)\n'
 else
     fail "shots_check (output diff)"
+fi
+
+# ./studio mcp's PROTOCOL, headless: what a request line is decided to be,
+# what is offered under which policy, a verb's arguments checked as a script
+# line is, and a session's record handed back as a script `studio_shots`
+# takes with no errors. The server itself is `mcp_session`, in the Qt section.
+: >"$stdout_file"
+if ! timeout 60 "$GBASIC" tests/drivers/mcp.bas >"$stdout_file" 2>&1; then
+    cat "$stdout_file"; fail "mcp_protocol (nonzero exit)"
+fi
+if diff -u tests/studio/mcp_protocol.out "$stdout_file"; then
+    printf 'PASS mcp_protocol (requests decided, tools offered by policy, a session comes back as a script)\n'
+else
+    fail "mcp_protocol (output diff)"
 fi
 
 # Where a database password comes from. Two of its cases read the ENCRYPTED

@@ -19,6 +19,11 @@
 #         ./studio shoot <script> <out-dir>
 #   replays a shot script offscreen in a fresh home and writes the figures it
 #   captures into <out-dir> (see README, "Figures of Studio, from a script").
+#
+#         ./studio mcp [home|-] [folder]
+#   serves Studio over MCP on stdin/stdout, offscreen (see README, "Studio as
+#   an MCP server"). No home, or `-`, is a fresh one made for the session and
+#   removed after, set up as a figure's is.
 set -u
 # Remembered before the cd, because a folder argument the user typed is relative
 # to where THEY are, not to where Studio lives.
@@ -88,21 +93,11 @@ case "$mode" in
         ;;
 esac
 
-# `./studio shoot <script> <out-dir>`: a book figure from a shot script (see
-# lib/studio_shots.bas). Its own argument shape, because a figure must not
-# depend on whose home it ran in: every shot runs in a FRESH home, made here
-# and removed after, so the session is clean and no host path can reach the
-# picture. Offscreen unless QT_QPA_PLATFORM says otherwise; no display needed.
-if [ "$mode" = "shoot" ]; then
-    if [ "$#" -lt 3 ]; then
-        printf 'usage: ./studio shoot <script> <out-dir>\n' >&2
-        exit 2
-    fi
-    script="$2"
-    out="$3"
-    case "$script" in /*) ;; *) script="$orig_pwd/$script" ;; esac
-    case "$out" in /*) ;; *) out="$orig_pwd/$out" ;; esac
-    mkdir -p "$out" || exit 2
+# A FIGURE'S WORLD: a fresh home that is HOME too, and nothing of this
+# machine's that could reach a picture. Used by `shoot`, and by `mcp` in a
+# fresh home, so what an MCP client sees is what the script it records replays
+# to. Sets `shot_home`.
+figure_env() {
     # The fresh home is HOME too, with Studio's at its default place -- so the
     # New Project window says `~/.gbasic-studio/projects`, as it would for a
     # reader, and not a temp path. git and the login are kept out for the same
@@ -129,7 +124,47 @@ if [ "$mode" = "shoot" ]; then
         exit 2
     fi
     export FONTCONFIG_FILE="$GBASIC_STUDIO_SHARE/fonts/fonts.conf"
+}
+
+# `./studio shoot <script> <out-dir>`: a book figure from a shot script (see
+# lib/studio_shots.bas). Its own argument shape, because a figure must not
+# depend on whose home it ran in: every shot runs in a FRESH home, made here
+# and removed after, so the session is clean and no host path can reach the
+# picture. Offscreen unless QT_QPA_PLATFORM says otherwise; no display needed.
+if [ "$mode" = "shoot" ]; then
+    if [ "$#" -lt 3 ]; then
+        printf 'usage: ./studio shoot <script> <out-dir>\n' >&2
+        exit 2
+    fi
+    script="$2"
+    out="$3"
+    case "$script" in /*) ;; *) script="$orig_pwd/$script" ;; esac
+    case "$out" in /*) ;; *) out="$orig_pwd/$out" ;; esac
+    mkdir -p "$out" || exit 2
+    figure_env
     "$GBASIC" "$entry" shoot "$shot_home" "$script" "$out"
+    exit $?
+fi
+
+# `./studio mcp [home|-] [folder]`: Studio over MCP on stdio. STDOUT IS THE
+# PROTOCOL, so it runs `--line-buffered` -- block-buffered, a reply waits in
+# the buffer while the client waits for it, and that is a deadlock. Offscreen
+# unless QT_QPA_PLATFORM says otherwise; external tools (save, delete, rename)
+# stay denied unless GBASIC_STUDIO_MCP_EXTERNAL=auto.
+if [ "$mode" = "mcp" ]; then
+    export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-offscreen}"
+    if [ -z "${2:-}" ] || [ "${2:-}" = "-" ]; then
+        figure_env || exit 2
+        export GBASIC_STUDIO_MCP_FRESH=1
+        mcp_home="$shot_home"
+    else
+        mcp_home="$2"
+        case "$mcp_home" in /*) ;; *) mcp_home="$orig_pwd/$mcp_home" ;; esac
+        mkdir -p "$mcp_home" || exit 2
+    fi
+    # Not `exec`: a fresh home is removed by the EXIT trap, which an exec'd
+    # shell never reaches.
+    "$GBASIC" --line-buffered "$entry" mcp "$mcp_home" "$folder"
     exit $?
 fi
 
