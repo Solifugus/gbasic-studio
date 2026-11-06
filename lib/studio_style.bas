@@ -458,6 +458,18 @@ library studio_style
             l = append(l, "QComboBox::drop-down { border: 0px; width: 22px; }")
             l = append(l, "QComboBox::down-arrow { image: url(" + arrow + "); width: 12px; height: 12px; }")
         end if
+        ' A CHECK BOX'S BOX is painted from the palette too, and in a dark
+        ' window it vanished: the grid's "Descending" read as a bare word, seen
+        ' in a `./studio shoot` figure. With Studio's own tick shipped
+        ' (`controls/check.svg`) the box is drawn by the sheet; without it, the
+        ' platform's stands.
+        tick = studio_style.control_icon("check")
+        if tick != "" then
+            l = append(l, "QCheckBox::indicator { width: 13px; height: 13px; background: " + base + ";")
+            l = append(l, "  border: 1px solid " + faint + "; border-radius: 2px; }")
+            l = append(l, "QCheckBox::indicator:hover { border: 1px solid " + fg + "; }")
+            l = append(l, "QCheckBox::indicator:checked { image: url(" + tick + "); }")
+        end if
         l = append(l, "QComboBox QAbstractItemView { background: " + ctl + "; color: " + fg + ";")
         l = append(l, "  selection-background-color: " + sel + "; selection-color: #ffffff; }")
 

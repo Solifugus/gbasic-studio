@@ -1,0 +1,90 @@
+-- a good script, with comments and blank lines
+  step line 3: frame
+  step line 4: open_samples
+  step line 5: open_document
+  step line 6: caret_to
+  step line 7: execute_section
+  step line 8: list_sections
+  step line 10: capture
+  frame: 900x800 system zoom 1.15 whitespace false
+-- no frame: the defaults
+  step line 1: open_samples
+  frame: 1200x800 dark zoom 1 whitespace false
+-- every way a line is refused, all reported at once
+  step line 1: open_samples
+  step line 7: open_samples
+  refused line 2: frame must be the first step (the window is built from it)
+  refused line 3: not JSON
+  refused line 4: not a JSON object
+  refused line 5: no "tool"
+  refused line 6: "args" is not an object
+  refused line 7: unknown key "wait" (a step is tool and args)
+  refused line 8: no such tool: launch_rockets
+  refused line 9: save_document writes outside Studio, and a figure does not change the project
+  refused line 10: delete_path writes outside Studio, and a figure does not change the project
+  refused line 11: capture has no option "scal" (it takes window, part, file, scale)
+  refused line 12: capture needs "file"
+  refused line 13: caret_to text must not be empty
+  refused line 14: caret_to column is 1-based
+  refused line 15: raise pane must be one of results, branch, tables, git, agent
+  refused line 16: open_window: the main window is always open
+  refused line 17: open_window row is the Tables row, so only a table takes one
+  refused line 18: capture window must be one of main, table, newproject, snippet, schema
+  refused line 19: capture scale must be at most 8
+  refused line 20: capture scale must be above 0
+-- a frame, one fault per script
+  {"width": 100} -> line 1: frame width must be at least 200
+  {"height": "tall"} -> line 1: frame height must be a number
+  {"width": 5000} -> line 1: frame width must be at most 4000
+  {"theme": "light"} -> line 1: frame theme must be one of system, dark
+  {"zoom": 1.2} -> line 1: frame zoom must be a step of the ladder: 0.8, 0.9, 1, 1.15, 1.3, 1.5, 1.75, 2
+  {"zoom": "big"} -> line 1: frame zoom must be a step of the ladder: 0.8, 0.9, 1, 1.15, 1.3, 1.5, 1.75, 2
+  {"whitespace": "yes"} -> line 1: frame whitespace must be true or false
+  {"size": 2} -> line 1: frame has no option "size" (it takes width, height, theme, zoom, whitespace)
+-- an empty script
+  refused the script has no steps
+-- a figure's file is a plain .png name in the output directory
+  [ch01-rejects.png] ok
+  [UP.PNG] ok
+  [/etc/x.png] file must be a plain name in the output directory, with no /
+  [~/x.png] file must be a plain name in the output directory, with no /
+  [../x.png] file must be a plain name in the output directory, with no /
+  [sub/x.png] file must be a plain name in the output directory, with no /
+  [.hidden.png] file must not start with a dot
+  [x.jpg] file must be a .png
+  [] file must not be empty
+-- a capture's part, by the name a caption uses
+  [] -> []
+  [window] -> []
+  [files] -> [dock_files]
+  [editor] -> [book]
+  [console] -> [dock_console]
+  [toolbar] -> [toolbar]
+  [results] -> [dock_results]
+  [tables] -> [dock_tables]
+  [branch] -> [dock_branch]
+  [git] -> [dock_git]
+  [agent] -> [dock_agent]
+  [run_btn] -> [run_btn]
+-- a caret placed by a line's TEXT, leading whitespace aside
+  [sales = []] -> line 2
+  [for each] -> line 3
+  [sales] -> line 2
+  [nothing like it] -> line 0
+-- a path in a script is the SCRIPT'S
+  /books/v3/ch01/shots
+  .
+  /
+  /books/v3/ch01/shots/..
+  /books/v3/ch01/shots
+  /srv/data
+-- the policy a figure runs under
+  read auto, local auto, external deny
+-- New Project's location, written from ~
+  ~/.gbasic-studio/projects
+  ~
+  /home/rx/projects
+  /srv/projects
+  /srv/projects
+  /srv/projects
+  /home/r/p

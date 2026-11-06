@@ -1,0 +1,4 @@
+{"tool": "open_samples"}
+{"tool": "frame", "args": {"width": 900}}
+{"tool": "save_document"}
+{"tool": "capture", "args": {"file": "../escape.png"}}

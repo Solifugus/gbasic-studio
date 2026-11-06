@@ -48,6 +48,8 @@ export GBASIC_PATH="lib:$GBASIC_STDLIB"
 # and finds that directory the way ./studio tells it to. Without this the licence
 # cases would exercise the "no text shipped" refusal instead of the licence.
 export GBASIC_STUDIO_SHARE="$PWD/share"
+# `./studio shoot` is driven through the launcher, which reads this too.
+export GBASIC_STDLIB
 APP=app/studio_cli.bas
 
 tmproot="$(mktemp -d)"
@@ -1022,6 +1024,7 @@ else
     printf 'SKIP qtview_ctx (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_edit (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_samples (this gBASIC has no qt module)\n'
+    printf 'SKIP shoot_run (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_reopen (this gBASIC has no qt module)\n'
 fi
 
@@ -1236,6 +1239,66 @@ fi
     rm -rf "$qh"; mkdir -p "$qh"
     qt_mode_tier qtview_samples samples "$qh" "" "every sample's Try-this steps, performed"
 
+    # ./studio shoot: A BOOK FIGURE FROM A SCRIPT, through the launcher itself
+    # (it makes the fresh home, the HOME around it and the UTC clock -- the
+    # half that keeps host details out of a picture). Three claims: a script
+    # runs every step and writes what it says, sizes and all (a PANE's size
+    # follows the layout and the fonts, so `part-*` sizes are masked); a
+    # rerun is BYTE-IDENTICAL; and a bad script is refused whole, with its
+    # line numbers, before anything runs -- or stops at the first step that
+    # fails, saying which.
+    sh_a="$tmproot/shoot_a"; sh_b="$tmproot/shoot_b"; sh_c="$tmproot/shoot_c"
+    rm -rf "$sh_a" "$sh_b" "$sh_c"
+    : >"$stdout_file"; : >"$qt_err"
+    if env -u ANTHROPIC_API_KEY -u OPENAI_API_KEY -u GBASIC_STUDIO_SECRET_KEY \
+            -u QT_QPA_PLATFORM timeout 120 ./studio shoot tests/shots/figure.shot "$sh_a" \
+            >"$stdout_file" 2>"$qt_err"; then
+        sed -E -i 's/^(line [0-9]+  capture  part-[^ ]+  )[0-9]+x[0-9]+$/\1WxH/' "$stdout_file"
+        {
+            cat "$stdout_file"
+            printf -- '-- written\n'
+            ( cd "$sh_a" && ls )
+            printf -- '-- a rerun\n'
+            if timeout 120 ./studio shoot tests/shots/figure.shot "$sh_b" >/dev/null 2>&1; then
+                for f in "$sh_a"/*.png; do
+                    if cmp -s "$f" "$sh_b/$(basename "$f")"; then
+                        printf '%s identical\n' "$(basename "$f")"
+                    else
+                        printf '%s DIFFERS\n' "$(basename "$f")"
+                    fi
+                done
+            else
+                printf 'the rerun failed\n'
+            fi
+            # Both of these exit nonzero ON PURPOSE, so each is captured
+            # rather than piped: under `set -e -o pipefail` a pipeline that
+            # ends in their status ends the whole suite, silently.
+            printf -- '-- a bad script, refused whole\n'
+            rc=0
+            got=$(timeout 60 ./studio shoot tests/shots/refused.shot "$sh_c" 2>&1 >/dev/null) || rc=$?
+            printf '%s\n' "$got" | grep -v propagateSizeHints | sed "s#$PWD/##" || true
+            printf 'exit %s, %s file(s) written\n' "$rc" "$(ls "$sh_c" | wc -l)"
+            printf -- '-- a step that fails stops the script\n'
+            rc=0
+            got=$(timeout 60 ./studio shoot tests/shots/stops.shot "$sh_c" 2>&1) || rc=$?
+            printf '%s\n' "$got" | grep -v propagateSizeHints || true
+            printf 'exit %s, %s file(s) written\n' "$rc" "$(ls "$sh_c" | wc -l)"
+        } >"$tmproot/shoot_run.txt"
+        if grep -q 'runtime error' "$qt_err"; then
+            grep 'runtime error' "$qt_err"; fail "shoot_run (a step raised)"
+        elif diff -u tests/studio/shoot_run.out "$tmproot/shoot_run.txt"; then
+            printf 'PASS shoot_run (a figure script replayed offscreen, byte-identical twice, refusals named)\n'
+        else
+            fail "shoot_run (output diff)"
+        fi
+    elif grep -q 'Qt support is not available' "$qt_err"; then
+        printf 'SKIP shoot_run (this gBASIC has no Qt backend)\n'
+    elif grep -q "does not define 'capture'" "$qt_err"; then
+        printf 'SKIP shoot_run (this gBASIC predates qt.capture, cac666c)\n'
+    else
+        cat "$stdout_file" "$qt_err"; fail "shoot_run (nonzero exit)"
+    fi
+
     # A SECOND LAUNCH OVER A HOME THAT HAS BEEN USED.
     #
     # THIS IS THE TIER WHOSE ABSENCE LET A CRASH SHIP. Every other Qt tier
@@ -1360,6 +1423,19 @@ fi
 # WRITES the statement into the file and never runs it, which is the design
 # showing through the test: there is nothing to connect to.
 run_ui snippets
+
+# A shot script's CHECK, headless: everything `./studio shoot` refuses before
+# it opens a window, and the decisions under it. The window half is
+# `shoot_run`, in the Qt section.
+: >"$stdout_file"
+if ! timeout 60 "$GBASIC" tests/drivers/shots.bas check >"$stdout_file" 2>&1; then
+    cat "$stdout_file"; fail "shots_check (nonzero exit)"
+fi
+if diff -u tests/studio/shots_check.out "$stdout_file"; then
+    printf 'PASS shots_check (a figure script is checked whole before anything runs)\n'
+else
+    fail "shots_check (output diff)"
+fi
 
 # Where a database password comes from. Two of its cases read the ENCRYPTED
 # store, and `crypto` is behind HAVE_LIBCRYPTO -- a build without it answers

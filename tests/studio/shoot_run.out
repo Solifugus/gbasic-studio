@@ -1,0 +1,32 @@
+line 4  frame  1000x700 dark zoom 1 whitespace true
+line 5  open_samples  samples
+line 6  open_document  02_tables.bas
+line 7  caret_to  02_tables.bas:15  section: sec-1 statements
+line 8  execute_section  ran sec-1 finished
+line 9  section_at_cursor  {"section_id":"sec-1","label":"section: sec-1 statements"}
+line 10  move_cursor  02_tables.bas:1
+line 11  section_at_cursor  {"section_id":"sec-1","label":"section: sec-1 statements"}
+line 12  point_at  highlight results (pane)
+line 13  raise  tables
+line 14  capture  window.png  1000x700
+line 15  capture  part-tables.png  WxH
+line 16  open_window  table
+line 17  capture  grid.png  1350x900
+-- written
+grid.png
+part-tables.png
+window.png
+-- a rerun
+grid.png identical
+part-tables.png identical
+window.png identical
+-- a bad script, refused whole
+shoot: tests/shots/refused.shot: line 2: frame must be the first step (the window is built from it)
+shoot: tests/shots/refused.shot: line 3: save_document writes outside Studio, and a figure does not change the project
+shoot: tests/shots/refused.shot: line 4: capture file must be a plain name in the output directory, with no /
+shoot: nothing was run
+exit 2, 0 file(s) written
+-- a step that fails stops the script
+shoot: line 2: caret_to: no line of 01_sections.bas starts with "no line reads like this"
+line 1  open_samples  samples
+exit 1, 0 file(s) written

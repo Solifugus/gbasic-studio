@@ -769,6 +769,20 @@ library studio_ui
     ' The next project name and directory for a "New Project" with no dialog
     ' behind it: "Project N" under <home>/projects/, N being one past the count
     ' already in the workspace. Deterministic, so a test can assert it.
+    ' The ACTIVE project's directory, or "" when there is none -- what a
+    ' relative path from a tool call is relative to.
+    function active_project_path(app)
+        ws = app.model.workspace
+        if ws = nothing then
+            return ""
+        end if
+        proj = studio_model.project_by_id(ws, ws.active_project)
+        if proj = nothing then
+            return ""
+        end if
+        return proj.path
+    end function
+
     function next_project_name(app)
         ws = app.model.workspace
         n = 1
@@ -865,7 +879,10 @@ library studio_ui
     function default_options(app, home)
         return {
             name: studio_ui.next_project_name(app),
-            location: home + "/projects",
+            ' Shown as `~/...` when it is under your home, the way a person
+            ' writes it -- and the way a book figure must show it, since the
+            ' full path names the machine. `project_plan` expands it back.
+            location: studio_ui.tilde_path(home + "/projects", studio_ui.home_dir()),
             author: studio_ui.default_author(),
             main: true,
             projfile: false,
@@ -3541,6 +3558,27 @@ library studio_ui
     ' an unset variable is `unknown`, not "", and string operations raise on it.
     function home_dir()
         return studio_ui._env_string("HOME")
+    end function
+
+    ' A path under `home`, written from `~`: the inverse of `expand_path`'s
+    ' first step, and nothing more. A path elsewhere, or no home, is unchanged.
+    function tilde_path(p, home)
+        if not is_string(home) then
+            return p
+        end if
+        if home = "" then
+            return p
+        end if
+        if home = "/" then
+            return p
+        end if
+        if p = home then
+            return "~"
+        end if
+        if starts_with(p, home + "/") then
+            return "~" + right(p, len(p) - len(home))
+        end if
+        return p
     end function
 
     function launch_dir()

@@ -59,6 +59,9 @@ Compare, Rebase, Promote, Discard) with the overlay's own editor. The assistant'
 **Where was I?** answers in its pane, using a key from Studio's secret store or
 the environment and saying which. The editor's text size follows Ctrl+= or
 Ctrl++, Ctrl+−, Ctrl+0 and Ctrl with the mouse wheel.
+The **¶** on the toolbar shows spaces, tabs and line ends in the editor, and
+hides them again: one press, off by default, remembered (also Settings ▸ Show
+invisible characters, and Ctrl+Shift+8).
 
 **Project ▸ Open Samples** opens a project of small sample programs — sections,
 tables, errors, records, branches, overlays and a `.sql` notebook — each
@@ -675,11 +678,62 @@ workspace instead:
 ./studio gui   /tmp/demo-home
 ```
 
+## Figures of Studio, from a script
+
+```sh
+./studio shoot ch01/shots/rejects.shot figures/
+```
+
+`shoot` replays a **shot script** and writes the PNGs it asks for — the way a
+book's figures of Studio are made, so they can all be retaken in one pass
+when Studio or gBASIC changes. A script is one JSON object per line:
+
+```text
+# The Tables sample, run, and its results pane
+{"tool": "frame", "args": {"width": 1200, "height": 800, "theme": "dark"}}
+{"tool": "open_samples"}
+{"tool": "open_document", "args": {"path": "02_tables.bas"}}
+{"tool": "caret_to", "args": {"text": "sales = []"}}
+{"tool": "execute_section"}
+{"tool": "capture", "args": {"part": "results", "file": "results.png"}}
+{"tool": "open_window", "args": {"window": "table"}}
+{"tool": "capture", "args": {"window": "table", "file": "grid.png", "scale": 1.5}}
+```
+
+Most steps are **Studio's own tools** — the same ones the assistant uses, run
+through the same permission gate — so a figure is made by the actions a person
+takes, not by a second automation path. A few verbs are about the window
+itself: `frame` (size, theme, text size, invisible characters; first line
+only), `open_samples`, `open_folder` (relative to the script), `caret_to` (a
+line found by its text, so a reworded comment does not move the figure),
+`raise` (a side pane), `open_window` (`table`, `newproject`, `snippet`,
+`schema`) and `capture` (`part`: `window`, `files`, `editor`, `console`,
+`toolbar`, `results`, `tables`, `branch`, `git`, `agent`, or any part name;
+`scale` defaults to 2, which a book's 6-inch text block wants).
+
+What keeps a figure the same every time:
+
+- **Each shot runs in a fresh home**, offscreen, made and removed by
+  `./studio`, so nothing you ran before is in the picture. That home is also
+  `HOME` for the run, so New Project shows `~/.gbasic-studio/projects` and no
+  path from your machine; git and your login are kept out, so no name appears.
+- **The clock is pinned, in UTC**, because the Results pane prints when a run
+  happened.
+- **The whole script is checked before anything runs.** An unknown tool, a
+  misspelt option, a file name that is not a plain `.png`, or a tool that would
+  change the project (save, delete, rename) is refused with its line number
+  and nothing is opened. A step that fails at run time stops the script there
+  and says which line.
+
+Two runs on one machine give byte-identical files (the `shoot_run` tier checks
+it). Across machines they will not be: fonts and FreeType differ. Needs a
+gBASIC with `qt.capture` (cac666c or later).
+
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 193 cases, headless; honours GBASIC / GBASIC_STDLIB
-tests/run_studio_agent.sh     # 29 cases, headless AND offline — no network, no key
+tests/run_studio.sh           # 206 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio_agent.sh     # 30 cases, headless AND offline — no network, no key
 ```
 
 Golden-file based: a driver plus a `.out` holding expected stdout, compared
@@ -698,6 +752,7 @@ tests/run_studio.sh
 tests/drivers/     harness programs for the STU-2B/3/4/5A tiers
 tests/studio/      goldens
 tests/helpers/     a shell helper for the signal-escalation case
+tests/shots/       the shot scripts the `shoot_run` tier replays
 docs/              design and phase records
 ```
 

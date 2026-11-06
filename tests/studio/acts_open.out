@@ -1,0 +1,8 @@
+open by a project-relative path, by an absolute one, and three refusals
+  open_document -> ok
+  active: a.bas
+  open_document -> ok
+  open documents: 1
+  open_document -> sub is not a file
+  open_document -> nothing in the browser is at nope.bas
+  open_document -> open_document needs a path

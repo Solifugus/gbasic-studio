@@ -1,0 +1,17 @@
+# The `shoot_run` tier's script: every frame verb, and Studio's own tools
+# through the gate. A file named part-*.png is a PANE, whose size follows the
+# layout and the fonts, so the runner masks it; a whole window's is asserted.
+{"tool": "frame", "args": {"width": 1000, "height": 700, "theme": "dark", "whitespace": true}}
+{"tool": "open_samples"}
+{"tool": "open_document", "args": {"path": "02_tables.bas"}}
+{"tool": "caret_to", "args": {"text": "sales = []"}}
+{"tool": "execute_section"}
+{"tool": "section_at_cursor"}
+{"tool": "move_cursor", "args": {"line": 0}}
+{"tool": "section_at_cursor"}
+{"tool": "point_at", "args": {"widget": "results", "gesture": "highlight"}}
+{"tool": "raise", "args": {"pane": "tables"}}
+{"tool": "capture", "args": {"file": "window.png", "scale": 1}}
+{"tool": "capture", "args": {"part": "tables", "file": "part-tables.png"}}
+{"tool": "open_window", "args": {"window": "table"}}
+{"tool": "capture", "args": {"window": "table", "file": "grid.png", "scale": 1.5}}

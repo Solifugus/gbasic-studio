@@ -189,6 +189,26 @@ program main(args)
     end for
   end if
 
+  if mode = "open" then
+    ' `open_document` RAISED on its first call for phases -- it read `.app`
+    ' and `.rows` off `nav_rows`, which answers an array -- and no tier had
+    ' ever called it. Found by the first `./studio shoot` script. The runner
+    ' puts `a.bas` and a folder `sub` in the project.
+    pol = policy_of({ local: "auto" }, nothing, nothing)
+    print "open by a project-relative path, by an absolute one, and three refusals"
+    r = try_call(app, log, pol, "open_document", { path: "a.bas" }, "")
+    app = r.app
+    log = r.log
+    print "  active: " + studio_docs.active_doc(app.dm).display_name
+    r = try_call(app, log, pol, "open_document", { path: projdir + "/a.bas" }, "")
+    app = r.app
+    log = r.log
+    print "  open documents: " + string(count(app.dm.docs))
+    r = try_call(app, log, pol, "open_document", { path: "sub" }, "")
+    r = try_call(app, log, pol, "open_document", { path: "nope.bas" }, "")
+    r = try_call(app, log, pol, "open_document", { path: 7 }, "")
+  end if
+
   if mode = "destructive" then
     pol = policy_of({ local: "auto" }, nothing, nothing)
     r = try_call(app, log, pol, "create_file", { name: "doomed.bas" }, "")

@@ -76,9 +76,12 @@ for m in scopes malformed tokens; do
 done
 
 ACTS=tests/drivers/acts.bas
-for m in tiers gate task destructive; do
+for m in tiers gate task destructive open; do
     h="$tmproot/acts_$m"; pj="$tmproot/acts_${m}_proj"
     rm -rf "$h" "$pj"; mkdir -p "$h" "$pj"
+    if [ "$m" = open ]; then
+        printf 'print "a"\n' >"$pj/a.bas"; mkdir -p "$pj/sub"
+    fi
     : >"$stdout_file"
     if ! timeout 120 "$GBASIC" "$ACTS" "$m" "$h" "$pj" >"$stdout_file" 2>&1; then
         cat "$stdout_file"; fail "acts_$m (nonzero exit)"

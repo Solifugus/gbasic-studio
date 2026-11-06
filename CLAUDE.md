@@ -68,8 +68,8 @@ mode.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 193 cases, headless; honours GBASIC / GBASIC_STDLIB
-tests/run_studio_agent.sh      # 29 cases, headless AND offline (scripted transport)
+tests/run_studio.sh            # 206 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio_agent.sh      # 30 cases, headless AND offline (scripted transport)
 ```
 
 **No tier needs a display.** The window is a RECORD, so `qtshell_shape` and
@@ -259,6 +259,11 @@ lib/studio_view_qt.bas  what is IN the window right now: `render` and
                         `render_run`, every line a `qt.` call and not one a
                         decision. Separate from the shell because the shell
                         has to stay reachable from a machine with no Qt
+lib/studio_shots.bas    a book figure as a SCRIPT of Studio's own tool calls:
+                        the whole script checked before anything runs, the
+                        frame verbs, a capture's part by its caption name.
+                        Toolkit-free; `app/studio.bas`'s `shoot` mode is the
+                        adapter
 lib/studio_style.bas    the spacing unit, the dark palette and its Qt sheet,
                         and the decisions that follow the theme. Toolkit-free
 share/                  the .desktop entry, the hicolor icons, and the licence
@@ -862,6 +867,9 @@ window on the user's desktop; use a scratch home, never theirs.
   the picture. The first rough cut of `docs/gbasic_studio_book_snapshots.md`
   §4.2. Closing the window and then entering `qt.run()` HUNG with every print
   lost; it returns before the loop, as every test mode does.
+- **`./studio shoot <script> <out>` is the scripted form, and the book's
+  route** (`lib/studio_shots.bas`; README, "Figures of Studio, from a
+  script"). See "Book figures from a script" below.
 - **Every SECOND window is a plain `QWidget`**, which neither `QMainWindow` nor
   `QDialog` reaches, so in Dark they were light windows with light text. The
   sheet's `.QWidget` rule matches that exact class and no subclass — not the
@@ -872,6 +880,57 @@ window on the user's desktop; use a scratch home, never theirs.
   Studio's own arrow (`share/icons/controls/down.svg`).
 - **A `form` drops the label of anything but a `field`** — New Project's
   licence choice has `label: "Licence"` and shows none. gBASIC's, asked upstream.
+
+#### Book figures from a script (`./studio shoot`)
+
+`docs/gbasic_studio_book_snapshots.md` §4.2–4.3, step 2 of its order. A shot
+script is JSON lines of `{tool, args}`; most tools are `studio_tools`' own,
+run through `invoke` (the gate an MCP server will use too), and seven frame
+verbs are the window's: `frame`, `open_samples`, `open_folder`, `caret_to`,
+`raise`, `open_window`, `capture`. Every decision is in `studio_shots`
+(`shots_check`, headless); the entry point's `qt_shot_*` are adapters, and
+`shoot_run` replays `tests/shots/*.shot` through the LAUNCHER, twice.
+
+- **THE WHOLE SCRIPT IS CHECKED FIRST**, every fault reported with its line,
+  and nothing opened. A run that stops at step ten has done nine steps nobody
+  wanted, and one that skipped a step it did not understand prints a plausible
+  wrong picture. Option sets are closed (a misspelt `scale` is refused), and
+  `frame` must be the first step: the window is BUILT from it, and an
+  editor's theme is construction-only.
+- **A figure does not change the project**: an `external` tool is refused at
+  the check, and the policy denies it again. A capture's file is a plain
+  `.png` NAME in the output directory -- a script is a thing you can be sent.
+- **The one `on error` on the path is around `qt.capture`**, whose refusal of
+  an unknown or hidden part is a raise listing the parts; the runner prints it
+  with the line number and STOPS. That is reporting, not hiding.
+- **NO HOST DETAIL IN A PICTURE, and three were found by looking at one.** The
+  run time read `05:00:00` -- the pinned clock rendered in this machine's
+  zone, so the launcher runs a shot under `TZ=UTC`. New Project's Location
+  showed the temp home and its Author my git `user.name`: the fresh directory
+  is now `HOME` too, with Studio's home at its default `~/.gbasic-studio`,
+  `GIT_CONFIG_GLOBAL=/dev/null`, `USER` unset -- and `default_options` writes
+  a location under home as `~/...` (`studio_ui.tilde_path`; `project_plan`
+  already expanded it), which is how a person writes it anyway.
+- **The same capture showed the grid's Descending check box had NO BOX in
+  Dark**: an indicator is palette-painted. `controls/check.svg` and a
+  `QCheckBox::indicator` rule, only when the file is there (the `down.svg`
+  pattern).
+- **`open_document`, an agent act tool, RAISED ON ITS FIRST CALL** -- it read
+  `.app` and `.rows` off `nav_rows`, which answers an array -- and had for
+  phases, because no tier called it. The first shot script did. Fixed, and
+  `acts_open` covers it; a relative path is now relative to the active project
+  (through `studio_ui.active_project_path`: `agent_parity` refused the first
+  fix, which reached into `studio_model` from an act tool).
+- **`move_cursor` moves the MODEL's caret and not the editor's**, so in the
+  window the next caret poll would put it back. The window's assistant is
+  read-only, so this was not live; the shot runner pushes the caret into the
+  editor after it, and reports the caret READ BACK OFF THE WIDGET -- measured
+  red (`:15` for `:1`) with the push removed. An MCP server must do the same.
+- **Under `set -e -o pipefail` a pipeline that ends in an intended nonzero exit
+  ends the whole suite SILENTLY** -- the log just stopped after
+  `qtview_samples`. The refusal cases are captured with `|| rc=$?`.
+- Skips, with its reason, on a gBASIC that predates `qt.capture` (cac666c),
+  which the scratch-pinned 9abf381 archive does.
 
 #### Theming under Qt, which was a dead control
 

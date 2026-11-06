@@ -10,6 +10,7 @@ share/applications/org.gbasic.Studio.desktop   the desktop entry
 share/icons/hicolor/<size>/apps/org.gbasic.Studio.png   the icon, 16 … 256
 share/icons/toolbar/*.svg                      the Qt toolbar's icons for the DARK theme
 share/icons/controls/down.svg                  a drop-down's arrow, for the DARK theme
+share/icons/controls/check.svg                 a check box's tick, for the DARK theme
 share/licenses/<spdx-id>.txt                   the licence texts New Project can write
 share/templates/project.templates              the boilerplate New Project renders
 share/templates/sql.templates                  the statements the SQL builders write

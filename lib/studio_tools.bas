@@ -118,7 +118,7 @@ library studio_tools
     function act_registry()
         out = []
         out = append(out, { name: "open_document", tier: "local",
-            description: "Open a file from the project browser into a tab, and make it active.",
+            description: "Open a file from the project browser into a tab, and make it active. A relative path is relative to the active project.",
             schema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } })
         out = append(out, { name: "select_document", tier: "local",
             description: "Make an already-open document the active tab.",
@@ -239,17 +239,32 @@ library studio_tools
             if not is_string(path) then
                 return studio_tools._fail(app, name, "open_document needs a path")
             end if
+            ' A RELATIVE path is relative to the ACTIVE PROJECT, which is how a
+            ' model (and a shot script) names a file: `main.bas`, not a temp
+            ' directory it has never seen.
+            if not starts_with(path, "/") then
+                root = studio_ui.active_project_path(app)
+                if root != "" then
+                    path = root + "/" + path
+                end if
+            end if
+            ' `nav_rows` answers the ROWS, an array -- this read `.app` and
+            ' `.rows` off it, a shape it had not had for phases, and raised on
+            ' the first call. No tier had ever called this tool; `acts_open`
+            ' does now.
             rows = studio_ui.nav_rows(app)
-            app = rows.app
             i = 0
-            for each row in rows.rows
+            for each row in rows
                 if row.path = path then
-                    r = studio_ui.activate_row(app, rows.rows, i)
-                    return studio_tools._done(app, r, { doc: r.detail })
+                    if row.kind = "file" then
+                        r = studio_ui.activate_row(app, rows, i)
+                        return studio_tools._done(app, r, { doc: r.detail })
+                    end if
+                    return studio_tools._fail(app, name, args["path"] + " is not a file")
                 end if
                 i = i + 1
             end for
-            return studio_tools._fail(app, name, "nothing in the browser is at " + path)
+            return studio_tools._fail(app, name, "nothing in the browser is at " + args["path"])
         end if
         if name = "select_document" then
             doc_id = args["doc_id"]

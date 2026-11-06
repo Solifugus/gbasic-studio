@@ -1287,6 +1287,287 @@ function qt_shoot(win, dir)
     return nothing
 end function
 
+' ---- ./studio shoot <script> <out> ------------------------------------------
+'
+' A FIGURE AS A SCRIPT of Studio's own actions (docs/gbasic_studio_book_snapshots.md
+' §4.3). Every decision -- what a step means, whether the script may run, what
+' a capture's part is called -- is `studio_shots`', over plain data; what is
+' here is the adapter, one `qt.` call or one `studio_tools.invoke` per step.
+
+function qt_shot_load(args)
+    if count(args) < 4 then
+        print to error "usage: ./studio shoot <script> <out-dir>"
+        return nothing
+    end if
+    sp{file} = args[2]
+    if not exists(sp) then
+        print to error "shoot: no script at " + args[2]
+        return nothing
+    end if
+    r = studio_shots.script_steps(read(sp))
+    if count(r.errors) > 0 then
+        for each e in r.errors
+            print to error "shoot: " + args[2] + ": " + e
+        end for
+        print to error "shoot: nothing was run"
+        return nothing
+    end if
+    return { steps: r.steps, dir: studio_shots.dir_of(args[2]), out: args[3],
+             frame: studio_shots.frame_of(r.steps) }
+end function
+
+' The frame, applied to the model BEFORE the window is built from it. The
+' clock is pinned for the reason showcase's shot mode pins it: the Results
+' pane prints when a run happened, and a real time makes every retake a
+' changed image.
+function qt_shot_frame(app, f)
+    app.model.session.window = { width: f.width, height: f.height, maximized: false }
+    app.model.settings.theme = f.theme
+    app.model.settings.editor_zoom = f.zoom
+    app.model.settings.show_whitespace = f.whitespace
+    app.clock_fixed = 1767607200
+    return app
+end function
+
+' Every step, in order, stopping at the FIRST that fails: a figure built past
+' a step that did not happen is a plausible wrong picture.
+function qt_shot_run(plan)
+    for each st in plan.steps
+        why = qt_shot_step(plan, st)
+        if why != "" then
+            print to error "shoot: line " + string(st.line) + ": " + st.tool + ": " + why
+            return false
+        end if
+    end for
+    return true
+end function
+
+function qt_shot_say(st, text)
+    print "line " + string(st.line) + "  " + st.tool + "  " + text
+    return nothing
+end function
+
+' One step. Answers "" or why it failed.
+function qt_shot_step(plan, st)
+    a = st.args
+    if st.tool = "frame" then
+        f = plan.frame
+        z = qt_shot_say(st, string(f.width) + "x" + string(f.height) + " " + f.theme + " zoom " + string(f.zoom) + " whitespace " + string(f.whitespace))
+        return ""
+    end if
+    if st.tool = "open_samples" then
+        z = qt.invoke(G.win, qt_item("open-samples"), "trigger")
+        if G.last_action != "samples-opened" then
+            return G.last_action + " " + G.last_detail
+        end if
+        z = qt_shot_say(st, "samples")
+        return ""
+    end if
+    if st.tool = "open_folder" then
+        r = studio_ui.adopt_folder(G.app, studio_shots.resolve(plan.dir, a.path))
+        if not contains(["adopted", "activated"], r.action) then
+            return r.action + " " + r.detail
+        end if
+        z = qt_took(r)
+        z = qt_shot_say(st, a.path)
+        return ""
+    end if
+    if st.tool = "caret_to" then
+        doc = studio_docs.active_doc(G.app.dm)
+        if is_nothing(doc) then
+            return "no document is open"
+        end if
+        ed = studio_shell_qt.part_editor(doc.id)
+        n = studio_shots.line_of(qt.read(G.win, ed, "plainText"), a.text)
+        if n = 0 then
+            return "no line of " + doc.display_name + " starts with \"" + a.text + "\""
+        end if
+        col = default(a["column"], 1)
+        z = qt.caret_to(G.win, ed, n, col)
+        G.app = qt_sync_caret(G.app)
+        z = qt_shot_say(st, doc.display_name + ":" + string(n) + "  " + studio_ui.section_label(studio_ui.view_for(G.app).app))
+        return ""
+    end if
+    if st.tool = "raise" then
+        z = qt.invoke(G.win, studio_shell_qt.part_side_dock(a.pane), "raise")
+        z = qt_shot_say(st, a.pane)
+        return ""
+    end if
+    if st.tool = "open_window" then
+        return qt_shot_window(st, a)
+    end if
+    if st.tool = "capture" then
+        return qt_shot_capture(plan, st, a)
+    end if
+    return qt_shot_tool(st, a)
+end function
+
+function qt_shot_window(st, a)
+    w = a.window
+    if w = "table" then
+        z = qt.select(G.win, studio_shell_qt.part_tables(), default(a["row"], 0))
+    end if
+    if w = "newproject" then
+        z = qt.invoke(G.win, qt_item("new-project"), "trigger")
+    end if
+    if w = "snippet" then
+        z = qt.invoke(G.win, "snippet_btn", "click")
+    end if
+    if w = "schema" then
+        z = qt.invoke(G.win, "schema_btn", "click")
+    end if
+    if is_nothing(qt_shot_win(w)) then
+        return "the " + w + " window did not open: " + G.last_action + " " + G.last_detail
+    end if
+    z = qt_shot_say(st, w)
+    return ""
+end function
+
+' A window by the name a script uses, or nothing when it is not open.
+function qt_shot_win(w)
+    if w = "main" then
+        return G.win
+    end if
+    if w = "table" then
+        return qt_shot_if_open(G.tablewin)
+    end if
+    if w = "newproject" then
+        return qt_shot_if_open(G.npwin)
+    end if
+    if w = "snippet" then
+        return qt_shot_if_open(G.snipwin)
+    end if
+    if w = "schema" then
+        return qt_shot_if_open(G.schemawin)
+    end if
+    return nothing
+end function
+
+function qt_shot_if_open(w)
+    if is_nothing(w) then
+        return nothing
+    end if
+    if not qt.is_open(w) then
+        return nothing
+    end if
+    return w
+end function
+
+' THE ONE CATCH ON THIS PATH, and it is not hiding anything: `qt.capture`
+' refuses an unknown or hidden part by RAISING, with the window's parts
+' listed, and the script runner's job is to say which line asked for it and
+' stop. The refusal is printed whole.
+function qt_shot_capture(plan, st, a)
+    wn = default(a["window"], "main")
+    w = qt_shot_win(wn)
+    if is_nothing(w) then
+        return "the " + wn + " window is not open"
+    end if
+    opts = { scale: default(a["scale"], studio_shots.default_scale()) }
+    part = studio_shots.part_for(default(a["part"], ""))
+    if part != "" then
+        opts.part = part
+    end if
+    on error goto next
+    r = qt.capture(w, plan.out + "/" + a.file, opts)
+    if error then
+        return error.message
+    end if
+    on error stop
+    z = qt_shot_say(st, a.file + "  " + string(r.width) + "x" + string(r.height))
+    return ""
+end function
+
+' A Studio tool, through THE GATE -- the same `studio_tools.invoke` an MCP
+' client's call will take. The window is then brought up to the model, which
+' is the half a tool call cannot do itself: a caret the model moved is put in
+' the editor (or the next caret poll would move it back), and a run is waited
+' for, under a deadline, as a person waits for one.
+function qt_shot_tool(st, a)
+    r = studio_tools.invoke(G.app, G.log, studio_shots.policy(), st.tool, a, "")
+    G.app = r.app
+    G.log = r.log
+    if not r.ok then
+        return r.why
+    end if
+    G.last_action = st.tool
+    G.last_detail = ""
+    if st.tool = "move_cursor" then
+        why = qt_shot_push_caret()
+        if why != "" then
+            return why
+        end if
+    end if
+    if st.tool = "execute_section" then
+        G.polling = false
+        how = qt_tables_wait()
+        if how = "TIMED OUT" then
+            return "the run did not finish in 60 seconds"
+        end if
+        z = qt_shot_say(st, how + " " + G.last_detail)
+        return ""
+    end if
+    text = ""
+    if st.tool = "point_at" then
+        G.last_detail = studio_teaching.describe(r.value)
+        text = G.last_detail
+    end if
+    z = qt_redraw()
+    if studio_tools.is_act(st.tool) then
+        ' What the act left in front of the reader: the document and the
+        ' caret, which is what every later step and the picture depend on.
+        doc = studio_docs.active_doc(G.app.dm)
+        if text = "" then
+            if not is_nothing(doc) then
+                ' The caret as the EDITOR holds it, read back off the widget
+                ' -- not the model's, which `move_cursor` sets whether or not
+                ' the editor follows. Line 0 is "never placed": just opened.
+                text = doc.display_name
+                if doc.cursor.line > 0 then
+                    c = qt.caret(G.win, studio_shell_qt.part_editor(doc.id))
+                    text = text + ":" + string(c.line)
+                end if
+            end if
+        end if
+    else
+        text = encode(r.value)
+        if len(text) > 160 then
+            text = left(text, 157) + "..."
+        end if
+    end if
+    z = qt_shot_say(st, text)
+    return ""
+end function
+
+' The model's caret, put in the editor. `doc.cursor` is 1-based, as
+' `qt.caret_to` is; a line past the end is refused by `qt.caret_to`, so it is
+' checked here first and named.
+function qt_shot_push_caret()
+    doc = studio_docs.active_doc(G.app.dm)
+    if is_nothing(doc) then
+        return "no document is open"
+    end if
+    n = count(split(doc.content, chr(10)))
+    if doc.cursor.line > n then
+        return "line " + string(doc.cursor.line) + " is past the end of " + doc.display_name + " (" + string(n) + " lines)"
+    end if
+    z = qt.caret_to(G.win, studio_shell_qt.part_editor(doc.id), max([doc.cursor.line, 1]), max([doc.cursor.column, 1]))
+    G.app = qt_sync_caret(G.app)
+    return ""
+end function
+
+' Every window closed, the main one last, so the process can end.
+function qt_shot_close()
+    for each w in ["table", "newproject", "snippet", "schema"]
+        o = qt_shot_win(w)
+        if not is_nothing(o) then
+            z = qt.close(o)
+        end if
+    end for
+    z = qt.close(G.win)
+    return nothing
+end function
+
 function qt_first_layout(win)
     z = qt.invoke(win, studio_shell_qt.part_side_dock("results"), "raise")
     z = qt.set(win, studio_shell_qt.part_console_dock(), "maximumHeight", 230)
@@ -1806,6 +2087,7 @@ program main(args)
     load studio_providers
     load llm
     load studio_permissions
+    load studio_shots
 
     mode = "gui"
     if count(args) > 0 then
@@ -1879,6 +2161,20 @@ program main(args)
           ' itself by returning `active`; a `timer.every` keeps ticking, so the
           ' flag is what stops the poller doing work between runs.
           polling: false }
+
+    ' SHOOT: the script is read and CHECKED before the window exists, because
+    ' its first step can say what the window is -- size, theme, text size,
+    ' invisible characters -- and an editor's theme is construction-only. A
+    ' script that will not run is refused here, whole, with its line numbers,
+    ' and nothing is opened (see `studio_shots`).
+    shot_plan = nothing
+    if mode = "shoot" then
+        shot_plan = qt_shot_load(args)
+        if is_nothing(shot_plan) then
+            exit(2)
+        end if
+        G.app = qt_shot_frame(G.app, shot_plan.frame)
+    end if
 
     ' EACH EDITOR'S HANDLERS, as data the renderer puts into every page --
     ' see `studio_view_qt.editor_handlers`. Before the window is built, so the
@@ -2280,6 +2576,16 @@ program main(args)
                 return nothing
             end if
         end if
+    end if
+
+    if mode = "shoot" then
+        G.polling = false
+        ok = qt_shot_run(shot_plan)
+        z = qt_shot_close()
+        if not ok then
+            exit(1)
+        end if
+        return nothing
     end if
 
     if mode = "samples" then

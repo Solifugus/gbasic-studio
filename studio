@@ -15,6 +15,10 @@
 #           (defaults to ~/.gbasic-studio, created on first run)
 #   folder  window only: an existing directory to open as a project, e.g.
 #             ./studio gui ~/.gbasic-studio ~/development/myproject
+#
+#         ./studio shoot <script> <out-dir>
+#   replays a shot script offscreen in a fresh home and writes the figures it
+#   captures into <out-dir> (see README, "Figures of Studio, from a script").
 set -u
 # Remembered before the cd, because a folder argument the user typed is relative
 # to where THEY are, not to where Studio lives.
@@ -83,6 +87,40 @@ case "$mode" in
         export GBASIC_SYNTAX_PATH="${GBASIC_SYNTAX_PATH:-$(dirname "$GBASIC_STDLIB")/editors/kate}"
         ;;
 esac
+
+# `./studio shoot <script> <out-dir>`: a book figure from a shot script (see
+# lib/studio_shots.bas). Its own argument shape, because a figure must not
+# depend on whose home it ran in: every shot runs in a FRESH home, made here
+# and removed after, so the session is clean and no host path can reach the
+# picture. Offscreen unless QT_QPA_PLATFORM says otherwise; no display needed.
+if [ "$mode" = "shoot" ]; then
+    if [ "$#" -lt 3 ]; then
+        printf 'usage: ./studio shoot <script> <out-dir>\n' >&2
+        exit 2
+    fi
+    script="$2"
+    out="$3"
+    case "$script" in /*) ;; *) script="$orig_pwd/$script" ;; esac
+    case "$out" in /*) ;; *) out="$orig_pwd/$out" ;; esac
+    mkdir -p "$out" || exit 2
+    # The fresh home is HOME too, with Studio's at its default place -- so the
+    # New Project window says `~/.gbasic-studio/projects`, as it would for a
+    # reader, and not a temp path. git and the login are kept out for the same
+    # reason: the author field otherwise holds whoever ran the build.
+    shot_root="$(mktemp -d)" || exit 2
+    trap 'rm -rf "$shot_root"' EXIT
+    export HOME="$shot_root"
+    shot_home="$shot_root/.gbasic-studio"
+    mkdir -p "$shot_home" || exit 2
+    export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+    unset USER LOGNAME
+    export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-offscreen}"
+    # UTC, because the Results pane prints when a run happened and the clock
+    # is pinned in UTC: a local zone put this machine's offset in a figure.
+    export TZ=UTC
+    "$GBASIC" "$entry" shoot "$shot_home" "$script" "$out"
+    exit $?
+fi
 
 # Only pass a third argument when there is one: several modes read args[2] as
 # their own parameter, and handing them an empty string is not the same as

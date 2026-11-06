@@ -1,0 +1,3 @@
+{"tool": "open_samples"}
+{"tool": "caret_to", "args": {"text": "no line reads like this"}}
+{"tool": "capture", "args": {"file": "never.png"}}
