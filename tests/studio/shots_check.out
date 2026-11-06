@@ -36,7 +36,7 @@
   {"width": 100} -> line 1: frame width must be at least 200
   {"height": "tall"} -> line 1: frame height must be a number
   {"width": 5000} -> line 1: frame width must be at most 4000
-  {"theme": "light"} -> line 1: frame theme must be one of system, dark
+  {"theme": "light"} -> line 1: frame theme must be one of system, dark, print
   {"zoom": 1.2} -> line 1: frame zoom must be a step of the ladder: 0.8, 0.9, 1, 1.15, 1.3, 1.5, 1.75, 2
   {"zoom": "big"} -> line 1: frame zoom must be a step of the ladder: 0.8, 0.9, 1, 1.15, 1.3, 1.5, 1.75, 2
   {"whitespace": "yes"} -> line 1: frame whitespace must be true or false

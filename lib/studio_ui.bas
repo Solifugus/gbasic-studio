@@ -2582,13 +2582,24 @@ library studio_ui
         return ["system", "dark"]
     end function
 
+    ' The themes a FIGURE may be drawn in: the two above, and `print` -- light
+    ' and gray only, for a book printed in black ink (`studio_style
+    ' .print_palette`). Not on the Settings menu: it is Studio's look for a
+    ' page, chosen by a `./studio shoot` script's `frame`. A settings file that
+    ' names it is still honoured rather than read as "system", because the
+    ' shot runner writes it there and a figure in the wrong theme is the
+    ' plausible wrong answer.
+    function figure_themes()
+        return ["system", "dark", "print"]
+    end function
+
     ' The theme in force, as the rest of Studio should see it.
     function theme_of(app)
         t = app.model.settings["theme"]
         if not is_string(t) then
             return "system"
         end if
-        if not contains(studio_ui.themes(), t) then
+        if not contains(studio_ui.figure_themes(), t) then
             return "system"
         end if
         return t

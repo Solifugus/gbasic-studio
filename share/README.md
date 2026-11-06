@@ -11,6 +11,9 @@ share/icons/hicolor/<size>/apps/org.gbasic.Studio.png   the icon, 16 … 256
 share/icons/toolbar/*.svg                      the Qt toolbar's icons for the DARK theme
 share/icons/controls/down.svg                  a drop-down's arrow, for the DARK theme
 share/icons/controls/check.svg                 a check box's tick, for the DARK theme
+share/icons/*/*-light.svg                      the same art dark-stroked, for the PRINT theme
+share/icons/controls/close-light.svg, float-light.svg   a dock's buttons, for the PRINT theme
+share/fonts/                                   the fonts a `./studio shoot` figure is drawn in
 share/licenses/<spdx-id>.txt                   the licence texts New Project can write
 share/templates/project.templates              the boilerplate New Project renders
 share/templates/sql.templates                  the statements the SQL builders write
@@ -91,3 +94,21 @@ answered from the filesystem, so `app/studio.bas`'s `qt_apply_toolbar`
 catches the refusal and switches the toolbar to text. Both paths are exercised:
 a corrupt `save.svg` and a missing `share/` each produce a toolbar of words and
 a line on stderr, not a window that will not open.
+
+## The print theme's icons
+
+Every `*-light.svg` is its dark-theme counterpart with the stroke changed to
+`#3c3c3c` and the blue plus made the same gray — no other edit — so a print
+figure's toolbar is gray only and drawn by Studio rather than by whichever Qt
+style is installed. The dock's close and float buttons have no dark-theme
+counterpart: the dark sheet leaves them to the platform, and the print sheet
+replaces them because the Fusion style tints them warm, which `shoot_run`'s
+gray check caught.
+
+## The fonts
+
+`fonts/` holds Noto Sans and DejaVu Sans Mono, unmodified, with their licences
+and a `fonts.conf` that lists that directory and nothing else. `./studio shoot`
+sets `FONTCONFIG_FILE` to it, so a figure is drawn in the same faces on every
+machine. The ordinary window does not use them. See `fonts/README.md` for
+where the files came from and their checksums.

@@ -239,10 +239,10 @@ library studio_shots
             t = a["theme"]
             if not is_unknown(t) then
                 if not is_string(t) then
-                    return "frame theme must be one of " + join(studio_ui.themes(), ", ")
+                    return "frame theme must be one of " + join(studio_ui.figure_themes(), ", ")
                 end if
-                if not contains(studio_ui.themes(), t) then
-                    return "frame theme must be one of " + join(studio_ui.themes(), ", ")
+                if not contains(studio_ui.figure_themes(), t) then
+                    return "frame theme must be one of " + join(studio_ui.figure_themes(), ", ")
                 end if
             end if
             z = a["zoom"]

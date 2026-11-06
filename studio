@@ -118,6 +118,17 @@ if [ "$mode" = "shoot" ]; then
     # UTC, because the Results pane prints when a run happened and the clock
     # is pinned in UTC: a local zone put this machine's offset in a figure.
     export TZ=UTC
+    # The per-user XDG places go under the fresh home as well, or a host's own
+    # Qt settings and syntax files would still reach the picture through them.
+    export XDG_CONFIG_HOME="$shot_root/.config" XDG_DATA_HOME="$shot_root/.local/share" \
+        XDG_CACHE_HOME="$shot_root/.cache"
+    # PINNED FONTS: the only fonts the figure can see are the ones Studio
+    # ships (share/fonts/README.md), so it is drawn the same on every machine.
+    if [ ! -f "$GBASIC_STUDIO_SHARE/fonts/fonts.conf" ]; then
+        printf 'shoot: no pinned fonts at %s/fonts -- a figure would use this machine'"'"'s\n' "$GBASIC_STUDIO_SHARE" >&2
+        exit 2
+    fi
+    export FONTCONFIG_FILE="$GBASIC_STUDIO_SHARE/fonts/fonts.conf"
     "$GBASIC" "$entry" shoot "$shot_home" "$script" "$out"
     exit $?
 fi

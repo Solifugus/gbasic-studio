@@ -1857,10 +1857,7 @@ function qt_apply_toolbar(app)
 end function
 
 function qt_apply_theme(app)
-    if studio_style.qt_dark_for(app.model.settings.theme) then
-        return qt.theme(studio_style.dark_qss())
-    end if
-    return qt.theme("")
+    return qt.theme(studio_style.qt_sheet_for(app.model.settings.theme))
 end function
 
 ' The two theme items. Each one is still an ADAPTER -- `studio_ui.set_theme`

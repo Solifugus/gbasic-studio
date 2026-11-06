@@ -79,6 +79,47 @@ library studio_style
         return "#2f6fb5"
     end function
 
+    ' The dark palette as ONE record, which is what `sheet` renders. The
+    ' functions above stay the names the rest of Studio (and a tier) reads a
+    ' colour by; this is them gathered, not a second copy.
+    function dark_palette()
+        return { bg: studio_style.dark_bg(), base: studio_style.dark_base(),
+                 ctl: studio_style.dark_ctl(), hi: studio_style.dark_ctl_hi(),
+                 fg: studio_style.dark_fg(), faint: studio_style.dark_dim(),
+                 line: studio_style.dark_line(), sel: studio_style.dark_sel(),
+                 on_sel: "#ffffff",
+                 arrow: studio_style.control_icon("down"),
+                 tick: studio_style.control_icon("check"),
+                 dock_close: "", dock_float: "" }
+    end function
+
+    ' ---- the PRINT palette, for book figures ---------------------------------
+    '
+    ' A figure in a paperback is printed in black ink, so this theme is made of
+    ' GRAYS ONLY: converting it to grayscale changes nothing, and what a reader
+    ' sees on paper is what the figure showed. It is light because a page is,
+    ' and it is a FIGURE theme -- `./studio shoot`'s `frame` can ask for it,
+    ' the Settings menu does not offer it (`studio_ui.figure_themes`).
+    '
+    ' The selection is a mid-light gray with BLACK text rather than a colour
+    ' with white text: a blue selection is about 45% gray in print, and white
+    ' text on it is the least legible thing on the page.
+    '
+    ' The EDITOR is Breeze Light (`qt_source_theme` answers "light"), because
+    ' gBASIC's `theme:` takes "dark" or "light" and no named theme. In grayscale
+    ' its keywords are bold black and its strings dark, which reads well; its
+    ' comments, numbers and operators all land near the same mid-gray. A tuned
+    ' print syntax theme needs `theme:` to take a theme NAME -- asked upstream.
+    function print_palette()
+        return { bg: "#f0f0f0", base: "#ffffff", ctl: "#e2e2e2", hi: "#d4d4d4",
+                 fg: "#111111", faint: "#666666", line: "#a8a8a8",
+                 sel: "#c4c4c4", on_sel: "#000000",
+                 arrow: studio_style.control_icon("down-light"),
+                 tick: studio_style.control_icon("check-light"),
+                 dock_close: studio_style.control_icon("close-light"),
+                 dock_float: studio_style.control_icon("float-light") }
+    end function
+
     ' ======================================================================
     ' STU-22 -- THE SAME DARK, AS A QT STYLE SHEET.
     '
@@ -136,6 +177,18 @@ library studio_style
             return "dark"
         end if
         return "light"
+    end function
+
+    ' The application's sheet under `theme`: Studio's dark, the print sheet,
+    ' or "" -- no sheet of Studio's, the platform's look ("Follow the desktop").
+    function qt_sheet_for(theme)
+        if studio_style.qt_dark_for(theme) then
+            return studio_style.dark_qss()
+        end if
+        if theme = "print" then
+            return studio_style.print_qss()
+        end if
+        return ""
     end function
 
     ' THE EDITOR'S TEXT SIZE UNDER Qt (STU-20), as a `font` property string.
@@ -271,6 +324,18 @@ library studio_style
     function toolbar_icon(part, theme)
         for each e in studio_style.toolbar_icons()
             if e.part = part then
+                ' PRINT WEARS STUDIO'S OWN ICONS, dark-stroked and gray only:
+                ' an `SP_` pixmap is the platform style's, coloured, and a
+                ' figure must not depend on which Qt drew it.
+                if theme = "print" then
+                    light = studio_style.toolbar_icon_dir() + "/" + e.file + "-light.svg"
+                    if studio_style.toolbar_icon_dir() != "" then
+                        if exists({file} light) then
+                            return light
+                        end if
+                    end if
+                    return e.sp
+                end if
                 if studio_style.qt_dark_for(theme) then
                     if studio_style.dark_icons_available() then
                         return studio_style.toolbar_icon_dir() + "/" + e.file + ".svg"
@@ -316,14 +381,27 @@ library studio_style
     end function
 
     function dark_qss()
-        bg = studio_style.dark_bg()
-        base = studio_style.dark_base()
-        ctl = studio_style.dark_ctl()
-        hi = studio_style.dark_ctl_hi()
-        fg = studio_style.dark_fg()
-        faint = studio_style.dark_dim()
-        line = studio_style.dark_line()
-        sel = studio_style.dark_sel()
+        return studio_style.sheet(studio_style.dark_palette())
+    end function
+
+    function print_qss()
+        return studio_style.sheet(studio_style.print_palette())
+    end function
+
+    ' ONE SHEET, TWO PALETTES. The rules below were written for the dark
+    ' theme and the comments say why each is there; the print theme is the
+    ' same rules over other colours, so the two cannot drift into styling
+    ' different widgets.
+    function sheet(p)
+        bg = p.bg
+        base = p.base
+        ctl = p.ctl
+        hi = p.hi
+        fg = p.fg
+        faint = p.faint
+        line = p.line
+        sel = p.sel
+        onsel = p.on_sel
         l = []
 
         ' NO BARE `QWidget` RULE, and that was the whole defect. Styling every
@@ -358,7 +436,7 @@ library studio_style
         l = append(l, "QPlainTextEdit, QTextEdit, QLineEdit {")
         l = append(l, "  background: " + base + "; color: " + fg + ";")
         l = append(l, "  border: 1px solid " + line + "; selection-background-color: " + sel + ";")
-        l = append(l, "  selection-color: #ffffff; }")
+        l = append(l, "  selection-color: " + onsel + "; }")
 
         ' THE TREE AND THE TABLE, with their ITEM COLOUR SAID OUT LOUD. A
         ' `color` on the view is not what paints a row: the delegate draws item
@@ -369,11 +447,11 @@ library studio_style
         l = append(l, "QTreeView, QTableView, QListView {")
         l = append(l, "  background: " + base + "; color: " + fg + ";")
         l = append(l, "  border: 1px solid " + line + "; outline: 0; gridline-color: " + line + ";")
-        l = append(l, "  selection-background-color: " + sel + "; selection-color: #ffffff; }")
+        l = append(l, "  selection-background-color: " + sel + "; selection-color: " + onsel + "; }")
         l = append(l, "QTreeView::item, QTableView::item, QListView::item {")
         l = append(l, "  color: " + fg + "; background: transparent; padding: 2px; }")
         l = append(l, "QTreeView::item:selected, QTableView::item:selected, QListView::item:selected {")
-        l = append(l, "  background: " + sel + "; color: #ffffff; }")
+        l = append(l, "  background: " + sel + "; color: " + onsel + "; }")
         l = append(l, "QTreeView::item:hover, QTableView::item:hover, QListView::item:hover {")
         l = append(l, "  background: " + hi + "; color: " + fg + "; }")
         l = append(l, "QHeaderView { background: " + ctl + "; }")
@@ -390,7 +468,7 @@ library studio_style
         l = append(l, "QMenuBar::item:selected { background: " + hi + "; }")
         l = append(l, "QMenu { background: " + ctl + "; color: " + fg + "; border: 1px solid " + line + "; }")
         l = append(l, "QMenu::item { color: " + fg + "; padding: 4px 24px 4px 24px; }")
-        l = append(l, "QMenu::item:selected { background: " + sel + "; color: #ffffff; }")
+        l = append(l, "QMenu::item:selected { background: " + sel + "; color: " + onsel + "; }")
         l = append(l, "QMenu::item:disabled { color: " + faint + "; }")
         l = append(l, "QMenu::separator { height: 1px; background: " + line + "; margin: 4px 8px; }")
 
@@ -404,7 +482,7 @@ library studio_style
         l = append(l, "QToolButton { background: transparent; color: " + fg + ";")
         l = append(l, "  border: 1px solid transparent; padding: 4px 8px; border-radius: 3px; }")
         l = append(l, "QToolButton:hover { background: " + hi + "; border: 1px solid " + line + "; }")
-        l = append(l, "QToolButton:pressed { background: " + sel + "; color: #ffffff; }")
+        l = append(l, "QToolButton:pressed { background: " + sel + "; color: " + onsel + "; }")
         ' A CHECKABLE button (the ¶) has to look ON, or a toggle is a button
         ' that says nothing about its state -- the light style draws it sunk.
         l = append(l, "QToolButton:checked { background: " + hi + "; border: 1px solid " + faint + "; }")
@@ -417,6 +495,12 @@ library studio_style
         ' float buttons are the style's own pixmaps, so they are NOT hidden and
         ' NOT recoloured -- same reason as the toolbar.
         l = append(l, "QDockWidget { color: " + fg + "; }")
+        ' A palette that ships its own close and float art says so, and the
+        ' style's pixmaps -- tinted, and drawn by whichever Qt is installed --
+        ' are replaced. The print palette does; the dark one leaves them be.
+        if p.dock_close != "" and p.dock_float != "" then
+            l = append(l, "QDockWidget { titlebar-close-icon: url(" + p.dock_close + "); titlebar-normal-icon: url(" + p.dock_float + "); }")
+        end if
         l = append(l, "QDockWidget::title { background: " + ctl + "; color: " + fg + ";")
         l = append(l, "  padding: 4px 6px; border-bottom: 1px solid " + line + "; }")
 
@@ -433,7 +517,7 @@ library studio_style
         l = append(l, "QPushButton { background: " + ctl + "; color: " + fg + ";")
         l = append(l, "  border: 1px solid " + line + "; padding: 4px 12px; border-radius: 3px; }")
         l = append(l, "QPushButton:hover { background: " + hi + "; }")
-        l = append(l, "QPushButton:pressed { background: " + sel + "; color: #ffffff; }")
+        l = append(l, "QPushButton:pressed { background: " + sel + "; color: " + onsel + "; }")
         l = append(l, "QPushButton:disabled { color: " + faint + "; }")
         l = append(l, "QCheckBox, QRadioButton { color: " + fg + "; background: transparent; }")
         l = append(l, "QGroupBox { color: " + fg + "; border: 1px solid " + line + "; margin-top: 8px; padding-top: 6px; }")
@@ -450,7 +534,7 @@ library studio_style
         ' (`share/icons/controls/down.svg`): then the closed box is dark too, and
         ' a white box in every second window -- the brightest thing on screen --
         ' is gone. No file, no rule, and the platform's box stands.
-        arrow = studio_style.control_icon("down")
+        arrow = p.arrow
         if arrow != "" then
             l = append(l, "QComboBox { background: " + ctl + "; color: " + fg + ";")
             l = append(l, "  border: 1px solid " + line + "; border-radius: 3px; padding: 3px 8px; }")
@@ -463,7 +547,7 @@ library studio_style
         ' in a `./studio shoot` figure. With Studio's own tick shipped
         ' (`controls/check.svg`) the box is drawn by the sheet; without it, the
         ' platform's stands.
-        tick = studio_style.control_icon("check")
+        tick = p.tick
         if tick != "" then
             l = append(l, "QCheckBox::indicator { width: 13px; height: 13px; background: " + base + ";")
             l = append(l, "  border: 1px solid " + faint + "; border-radius: 2px; }")
@@ -471,7 +555,7 @@ library studio_style
             l = append(l, "QCheckBox::indicator:checked { image: url(" + tick + "); }")
         end if
         l = append(l, "QComboBox QAbstractItemView { background: " + ctl + "; color: " + fg + ";")
-        l = append(l, "  selection-background-color: " + sel + "; selection-color: #ffffff; }")
+        l = append(l, "  selection-background-color: " + sel + "; selection-color: " + onsel + "; }")
 
         ' The scrollbars, which are the clearest sign a window was half-themed.
         l = append(l, "QScrollBar:vertical { background: " + bg + "; width: 12px; margin: 0px; }")

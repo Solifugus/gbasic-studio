@@ -1258,8 +1258,15 @@ fi
             cat "$stdout_file"
             printf -- '-- written\n'
             ( cd "$sh_a" && ls )
-            printf -- '-- a rerun\n'
-            if timeout 120 ./studio shoot tests/shots/figure.shot "$sh_b" >/dev/null 2>&1; then
+            # The rerun is OFFERED THIS MACHINE'S FONTS and its own syntax
+            # files: the launcher must replace both, so the pixels are the
+            # same as the first run's. Measured red: without FONTCONFIG_FILE
+            # pinned, the same window drew in another face.
+            printf -- '-- a rerun, offered the host fonts\n'
+            printf '<?xml version="1.0"?>\n<fontconfig><dir>/usr/share/fonts</dir></fontconfig>\n' \
+                >"$tmproot/host-fonts.conf"
+            if FONTCONFIG_FILE="$tmproot/host-fonts.conf" XDG_DATA_HOME="$HOME/.local/share" \
+                    timeout 120 ./studio shoot tests/shots/figure.shot "$sh_b" >/dev/null 2>&1; then
                 for f in "$sh_a"/*.png; do
                     if cmp -s "$f" "$sh_b/$(basename "$f")"; then
                         printf '%s identical\n' "$(basename "$f")"
@@ -1273,6 +1280,19 @@ fi
             # Both of these exit nonzero ON PURPOSE, so each is captured
             # rather than piped: under `set -e -o pipefail` a pipeline that
             # ends in their status ends the whole suite, silently.
+            # THE PRINT THEME IS GRAY: every pixel of its chrome, read back
+            # off the PNG. A palette-painted surface -- the docks' float and
+            # close buttons were Fusion's warm gray -- brings back a colour no
+            # Studio colour named, and only the pixels can say so.
+            printf -- '-- the print theme, gray only\n'
+            sh_d="$tmproot/shoot_d"; rm -rf "$sh_d"
+            if timeout 120 ./studio shoot tests/shots/print.shot "$sh_d" >"$tmproot/shoot_print.txt" 2>/dev/null; then
+                grep 'capture' "$tmproot/shoot_print.txt" \
+                    | sed -E 's/^(line [0-9]+  capture  part-[^ ]+  )[0-9]+x[0-9]+$/\1WxH/' || true
+                "$GBASIC" tests/drivers/png_gray.bas "$sh_d/part-files.png" "$sh_d/part-toolbar.png" "$sh_d/newproject.png"
+            else
+                printf 'the print run failed\n'
+            fi
             printf -- '-- a bad script, refused whole\n'
             rc=0
             got=$(timeout 60 ./studio shoot tests/shots/refused.shot "$sh_c" 2>&1 >/dev/null) || rc=$?

@@ -28,6 +28,12 @@
 == and what the editor and the tint do with each of the two ==
   system  dark=false editor=light
   dark    dark=true  editor=dark
+== print is a FIGURE theme: not on the menu, honoured from the file, gray ==
+  the menu's route: bad-theme
+  <print> reads as print   editor=light   dark=false
+  sheet is the print one: true   not the dark one: true
+  system sets no sheet: true
+  gray: bg, base, ctl, hi, fg, faint, line, sel, on_sel
 == the editor's text size ==
   starts at 100%   a 10pt editor is 10pt
   bigger -> zoom-set   editor text: 115%

@@ -1792,6 +1792,28 @@ program main(args)
       print "  " + padto(t, 8) + "dark=" + padto(string(d), 6) + "editor=" + studio_style.qt_source_theme(studio_ui.theme_of(app))
     end for
 
+    banner("print is a FIGURE theme: not on the menu, honoured from the file, gray")
+    r = studio_ui.set_theme(app, "print")
+    print "  the menu's route: " + r.action
+    app = r.app
+    app.model.settings.theme = "print"
+    print "  <print> reads as " + studio_ui.theme_of(app) + "   editor=" + studio_style.qt_source_theme("print") + "   dark=" + string(studio_style.qt_dark_for("print"))
+    sh = studio_style.qt_sheet_for("print")
+    print "  sheet is the print one: " + string(contains(sh, studio_style.print_palette().bg)) + "   not the dark one: " + string(not contains(sh, studio_style.dark_bg()))
+    print "  system sets no sheet: " + string(studio_style.qt_sheet_for("system") = "")
+    pal = studio_style.print_palette()
+    grays = []
+    for each k in ["bg", "base", "ctl", "hi", "fg", "faint", "line", "sel", "on_sel"]
+      c = pal[k]
+      if mid(c, 1, 2) = mid(c, 3, 2) and mid(c, 3, 2) = mid(c, 5, 2) then
+        grays = append(grays, k)
+      else
+        grays = append(grays, k + " IS NOT GRAY (" + c + ")")
+      end if
+    end for
+    print "  gray: " + join(grays, ", ")
+    app.model.settings.theme = "dark"
+
     banner("the editor's text size")
     print "  starts at " + studio_ui.zoom_label(studio_ui.editor_zoom(app)) + "   a 10pt editor is " + string(studio_style.qt_zoomed_size("monospace,10", studio_ui.editor_zoom(app))) + "pt"
     for each d in [1, 1, 1]

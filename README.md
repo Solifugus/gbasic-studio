@@ -725,9 +725,33 @@ What keeps a figure the same every time:
   and nothing is opened. A step that fails at run time stops the script there
   and says which line.
 
-Two runs on one machine give byte-identical files (the `shoot_run` tier checks
-it). Across machines they will not be: fonts and FreeType differ. Needs a
-gBASIC with `qt.capture` (cac666c or later).
+- **The fonts are pinned.** A shot sees only the two families Studio ships in
+  `share/fonts/` — Noto Sans for the window, DejaVu Sans Mono for the code —
+  so the host's fonts cannot reach the picture. The per-user Qt settings and
+  syntax files are kept out the same way.
+
+Two runs give byte-identical files, and so does a rerun that is offered this
+machine's own fonts (the `shoot_run` tier checks both). Another machine with
+the same Qt and FreeType should match; a different Qt can still move a pixel.
+Needs a gBASIC with `qt.capture` (cac666c or later).
+
+### The print theme
+
+`"theme": "print"` in a `frame` draws the figure for a book printed in black
+ink: light, and made of grays only, so turning it to grayscale changes nothing.
+The selection is a light gray with black text rather than blue with white, and
+the toolbar, drop-down, check-box and dock icons are Studio's own gray ones
+rather than the platform's. `shoot_run` reads every pixel of a print figure's
+chrome back and checks it is gray.
+
+One part is not gray yet: **the editor's syntax colours.** They are KDE's
+Breeze Light, because gBASIC's editor takes only "light" or "dark" today. In
+grayscale, keywords stay bold black and strings stay dark, but comments, numbers
+and operators come out close to the same mid-gray. A print syntax theme that
+tells them apart by weight and shade needs gBASIC's editor to accept a named
+theme; that has been asked for.
+
+`print` is for figures only, and the Settings menu does not offer it.
 
 ## Tests
 
@@ -753,6 +777,8 @@ tests/drivers/     harness programs for the STU-2B/3/4/5A tiers
 tests/studio/      goldens
 tests/helpers/     a shell helper for the signal-escalation case
 tests/shots/       the shot scripts the `shoot_run` tier replays
+share/             icons, licence texts, templates, samples, and the fonts a
+                   book figure is drawn in (share/README.md)
 docs/              design and phase records
 ```
 
@@ -804,3 +830,6 @@ schema browser writes, the programs Studio generates to run a cell — those are
 yours, under whatever licence you choose for your own project. The texts under
 `share/licenses/` are data for that purpose and carry their own upstream
 licensing; see [share/licenses/README.md](share/licenses/README.md).
+The fonts in `share/fonts/`, used only to draw book figures, are Noto Sans (SIL
+OFL 1.1) and DejaVu Sans Mono (the Bitstream Vera licence), shipped unmodified;
+see [share/fonts/README.md](share/fonts/README.md).

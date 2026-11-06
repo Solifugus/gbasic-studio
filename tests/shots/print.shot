@@ -1,0 +1,11 @@
+# The `shoot_run` tier's PRINT figure: the chrome a book printed in black ink
+# shows, captured at scale 1 and read back pixel by pixel -- every one must be
+# a gray. The editor is not here: its syntax colours are Breeze Light's, which
+# gBASIC's `theme:` cannot yet replace (see studio_style.print_palette).
+{"tool": "frame", "args": {"width": 1000, "height": 700, "theme": "print"}}
+{"tool": "open_samples"}
+{"tool": "open_document", "args": {"path": "02_tables.bas"}}
+{"tool": "capture", "args": {"part": "files", "file": "part-files.png", "scale": 1}}
+{"tool": "capture", "args": {"part": "toolbar", "file": "part-toolbar.png", "scale": 1}}
+{"tool": "open_window", "args": {"window": "newproject"}}
+{"tool": "capture", "args": {"window": "newproject", "file": "newproject.png", "scale": 1}}

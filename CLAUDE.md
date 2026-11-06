@@ -264,11 +264,13 @@ lib/studio_shots.bas    a book figure as a SCRIPT of Studio's own tool calls:
                         frame verbs, a capture's part by its caption name.
                         Toolkit-free; `app/studio.bas`'s `shoot` mode is the
                         adapter
-lib/studio_style.bas    the spacing unit, the dark palette and its Qt sheet,
-                        and the decisions that follow the theme. Toolkit-free
-share/                  the .desktop entry, the hicolor icons, and the licence
-                        texts New Project can write (see share/README and
-                        share/licenses/README)
+lib/studio_style.bas    the spacing unit, the dark and PRINT palettes and the
+                        one Qt sheet both render through (`sheet(p)`), and the
+                        decisions that follow the theme. Toolkit-free
+share/                  the .desktop entry, the hicolor icons, the licence
+                        texts New Project can write, and the fonts a figure is
+                        drawn in (see share/README, share/licenses/README and
+                        share/fonts/README)
 ```
 
 **The interaction rule (STU-2B), which later phases must follow.** A signal
@@ -931,6 +933,64 @@ verbs are the window's: `frame`, `open_samples`, `open_folder`, `caret_to`,
   `qtview_samples`. The refusal cases are captured with `|| rc=$?`.
 - Skips, with its reason, on a gBASIC that predates `qt.capture` (cac666c),
   which the scratch-pinned 9abf381 archive does.
+
+**PINNED FONTS AND THE PRINT THEME** (`docs/gbasic_studio_book_snapshots.md`
+§4.2 and §5, with the user's choice of DejaVu Sans Mono + Noto Sans, and a light grayscale
+theme for the paperback).
+
+- **The pin is fontconfig, not a font name.** `share/fonts/fonts.conf` lists
+  `share/fonts/` (`<dir prefix="relative">`) and nothing else, and the launcher
+  sets `FONTCONFIG_FILE` to it for every shot. Asking Qt for a family does not
+  pin anything: a missing family is substituted in silence. Measured: one
+  window under three configs gave three different PNGs, and twice under the
+  pinned one gave the same bytes.
+- **Qt asks for `Sans Serif` by that NAME**, so `fonts.conf` aliases it as well
+  as `sans-serif`. Without it the window text fell back to the first font on
+  the list, the monospace one, seen in a capture.
+- Noto Sans has no `●○▾▸`. The tree's glyphs come from DejaVu Sans Mono, the
+  only other font listed, which is deterministic. No italic face is shipped
+  because nothing in a figure is italic yet.
+- The per-user XDG places (`XDG_CONFIG_HOME`, `XDG_DATA_HOME`,
+  `XDG_CACHE_HOME`) go under the shot's fresh home too. `HOME` alone left a
+  user who sets them exposed, and `~/.local/share/org.kde.syntax-highlighting`
+  is where the June hand-install that shadowed gBASIC's definition lived.
+- `shoot_run`'s rerun is OFFERED THE HOST'S FONTS (`FONTCONFIG_FILE` pointing
+  at `/usr/share/fonts`) and must still match byte for byte. Measured red with
+  the launcher's pin removed: all three PNGs differ.
+- **`print` is a FIGURE theme** (`studio_ui.figure_themes`). The menu still
+  offers only `themes()`, so `set_theme(app, "print")` answers `bad-theme`. But
+  `theme_of` honours `print` from the settings file, because the shot runner
+  writes it there, and a figure in the wrong theme would be a plausible wrong
+  answer.
+- **ONE SHEET, TWO PALETTES.** `dark_qss` became `sheet(dark_palette())`, and
+  its output is byte-identical to before (81 lines, compared against HEAD's
+  library). `print_qss` is the same rules over `print_palette()`. Two sheets
+  would drift apart in which widgets they style.
+- The print palette is PURE GRAYS (`ui_settings` checks every entry), and the
+  selection is light gray with black text: blue is about 45% gray on paper,
+  and white text on it is the least legible thing on the page.
+- **`shoot_run` READS THE PIXELS.** `tests/drivers/png_gray.bas` is a PNG
+  reader just big enough for `qt.capture`'s output, in gBASIC (`uncompress`,
+  `to_bytes`, the five row filters), so the suite gains no Python. It agrees
+  with PIL's count exactly (762 and 1,198 on two test images). It reads about
+  150 KB of pixels a second, so the tier checks three scale-1 parts and not a
+  2x window.
+- **IT FOUND A COLOUR NO STUDIO COLOUR NAMED.** The docks' float and close
+  buttons are Fusion pixmaps tinted warm (`#d7d6d6`). The print sheet replaces
+  them with `controls/close-light.svg` and `float-light.svg` through
+  `titlebar-close-icon` / `titlebar-normal-icon`. With that rule removed,
+  `part-files.png` reads `181 coloured pixel(s)`. The dark sheet leaves them
+  alone, as before.
+- **THE EDITOR IS NOT GRAY, and that is stated.** gBASIC's `theme:` takes
+  `"dark"`, `"light"` or nothing (`theme_named` in `qt_backend.cpp`), so the
+  print editor is Breeze Light. Its normal text is `#1f1c1b`. In grayscale its
+  comments (136), numbers (128) and operators (140) land near the same gray.
+  The fix is upstream: a `theme:` that names a KSyntaxHighlighting theme found
+  on the syntax path (`themeForName`; a custom search path already reads
+  `<path>/themes/`). Studio would then ship `share/syntax/themes/` with a print
+  theme that separates them by weight and shade.
+- **`mid` IS 0-BASED.** I wrote two 1-based checks in this change. One reported
+  every gray as coloured, and the other printed `#73716` for a colour.
 
 #### Theming under Qt, which was a dead control
 

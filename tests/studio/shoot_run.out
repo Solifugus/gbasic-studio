@@ -16,10 +16,17 @@ line 17  capture  grid.png  1350x900
 grid.png
 part-tables.png
 window.png
--- a rerun
+-- a rerun, offered the host fonts
 grid.png identical
 part-tables.png identical
 window.png identical
+-- the print theme, gray only
+line 8  capture  part-files.png  WxH
+line 9  capture  part-toolbar.png  WxH
+line 11  capture  newproject.png  560x420
+part-files.png  gray
+part-toolbar.png  gray
+newproject.png  gray
 -- a bad script, refused whole
 shoot: tests/shots/refused.shot: line 2: frame must be the first step (the window is built from it)
 shoot: tests/shots/refused.shot: line 3: save_document writes outside Studio, and a figure does not change the project
