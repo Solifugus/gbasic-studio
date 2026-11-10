@@ -193,6 +193,25 @@ library studio_model
         return h - floor(h / m) * m
     end function
 
+    ' An instant as a PERSON here reads it: this machine's wall clock. Studio
+    ' keeps epoch seconds; this is the one place one is shown.
+    '
+    ' gBASIC 461b1a94 made every instant UTC ("store UTC, convert at the
+    ' edges"), so `from_epoch` answers UTC and `to_zone(dt, "local")` is the
+    ' edge. Before it, `from_epoch` answered LOCAL time and `"local"` was not
+    ' a zone, and the refusal is how that interpreter is recognised: its value
+    ' is already the local one. A capability probe at the edge, not a hidden
+    ' failure -- on either interpreter the answer is the local wall clock.
+    function local_time(epoch_seconds)
+        dt = from_epoch(epoch_seconds)
+        on error goto next
+        here = to_zone(dt, "local")
+        if error then
+            return dt
+        end if
+        return here
+    end function
+
     function path_key(path)
         h = studio_model.text_hash(path)
         n = byte_count(path)

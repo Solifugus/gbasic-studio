@@ -561,7 +561,7 @@ library studio_results
     ' minutes or five weeks ago, which is the only question they are asking.
     ' A pinned test clock produces a fixed date, so goldens stay byte-stable.
     function _when(epoch_seconds)
-        return string(from_epoch(epoch_seconds))
+        return string(studio_model.local_time(epoch_seconds))
     end function
 
     function _one_line(r, standing)

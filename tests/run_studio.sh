@@ -50,6 +50,12 @@ export GBASIC_PATH="lib:$GBASIC_STDLIB"
 export GBASIC_STUDIO_SHARE="$PWD/share"
 # `./studio shoot` is driven through the launcher, which reads this too.
 export GBASIC_STDLIB
+# A ZONE WITH AN OFFSET, pinned. The goldens print a pinned clock as a person
+# here reads it (`studio_model.local_time`), and since gBASIC 461b1a94 made
+# every instant UTC that conversion is Studio's to make -- so the suite runs
+# where it is not a no-op, and on every machine the same one. Under UTC a
+# missing conversion would pass. `./studio shoot` sets UTC for itself.
+export TZ=America/New_York
 APP=app/studio_cli.bas
 
 tmproot="$(mktemp -d)"

@@ -980,10 +980,11 @@ library studio_ui
     end function
 
     ' The year a licence is granted in, from the same clock everything else
-    ' reads. `from_epoch` renders "YYYY-MM-DD HH:MM:SS", so the year is its
-    ' first four characters — and a pinned test clock gives a fixed one.
+    ' reads, on this machine's calendar (`studio_model.local_time`). A
+    ' datetime renders "YYYY-MM-DD HH:MM:SS", so the year is its first four
+    ' characters — and a pinned test clock gives a fixed one.
     function license_year(stamp)
-        return left(string(from_epoch(stamp)), 4)
+        return left(string(studio_model.local_time(stamp)), 4)
     end function
 
     ' ---- the plan -----------------------------------------------------------

@@ -1436,6 +1436,18 @@ gBASIC still runs Studio). The IMPLICIT case is the one to watch: a value that
 MAY be unknown compared to a real one — `stated(raw)[tier] = v` — raises too,
 and only running finds it; write `default(x, "") = v`. The goldens did not move.
 
+**EVERY INSTANT IS UTC since gBASIC 461b1a94** ("store UTC, convert at the
+edges"): `from_epoch` answers UTC, so the Results pane showed run times hours
+off with nothing saying so. `studio_model.local_time` is the one edge
+(`to_zone(dt, "local")`, falling back to the value itself on an interpreter
+that refuses `"local"`, whose `from_epoch` was already local). The licence year
+goes through it too. **The suite now pins `TZ=America/New_York`**: the goldens
+hold the pinned clock in local time, and under UTC a missing conversion would
+pass. Measured: `results_view` reads `00:18:20` for `19:18:20` without the fix.
+And a lesson about measuring: the first suite run against 461b1a94 PASSED with
+the old code, because I edited `lib/` while it ran, so later tiers read the
+fix. Do not edit what a running suite reads.
+
 **THE PINNED INTERPRETER MOVED to gBASIC `557e0f7`**, then. Before that `db8c3ad` (a themed plain `source`,
 and `palette` readable). Before that `cbbaae0` (§0.35: `align:` on a
 column, and `qt.alignment`), and before that `931bea2` (§0.34: several shortcuts on
