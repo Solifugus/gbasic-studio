@@ -105,11 +105,8 @@ library studio_style
     ' with white text: a blue selection is about 45% gray in print, and white
     ' text on it is the least legible thing on the page.
     '
-    ' The EDITOR is Breeze Light (`qt_source_theme` answers "light"), because
-    ' gBASIC's `theme:` takes "dark" or "light" and no named theme. In grayscale
-    ' its keywords are bold black and its strings dark, which reads well; its
-    ' comments, numbers and operators all land near the same mid-gray. A tuned
-    ' print syntax theme needs `theme:` to take a theme NAME -- asked upstream.
+    ' The EDITOR has a print theme of Studio's own (`print_editor_theme`):
+    ' pure grays, told apart by weight, italics and shade. See `editor_theme`.
     function print_palette()
         return { bg: "#f0f0f0", base: "#ffffff", ctl: "#e2e2e2", hi: "#d4d4d4",
                  fg: "#111111", faint: "#666666", line: "#a8a8a8",
@@ -177,6 +174,31 @@ library studio_style
             return "dark"
         end if
         return "light"
+    end function
+
+    ' The print editor's syntax theme: Studio's own, all grays --
+    ' share/org.kde.syntax-highlighting/themes/studio-print.theme, found because
+    ' the launcher puts share/ on XDG_DATA_DIRS. KDE's own "Printing" was tried
+    ' first and is not gray (its strings are red).
+    function print_editor_theme()
+        return "gBASIC Studio Print"
+    end function
+
+    ' The theme an editor is BUILT with. `qt_source_theme`'s dark or light,
+    ' except under the print theme when the entry point found the print theme
+    ' usable (`app.qt_print_theme_ok`): `theme:` takes a theme NAME only since
+    ' gBASIC ad1cb9dc, and the file has to be on the path. An
+    ' editor that cannot have it is Breeze Light, which is what it was before.
+    function editor_theme(app)
+        t = app.model.settings["theme"]
+        if is_string(t) then
+            if t = "print" then
+                if default(app["qt_print_theme_ok"], false) = true then
+                    return studio_style.print_editor_theme()
+                end if
+            end if
+        end if
+        return studio_style.qt_source_theme(t)
     end function
 
     ' The application's sheet under `theme`: Studio's dark, the print sheet,

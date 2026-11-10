@@ -1032,6 +1032,7 @@ else
     printf 'SKIP qtview_samples (this gBASIC has no qt module)\n'
     printf 'SKIP shoot_run (this gBASIC has no qt module)\n'
     printf 'SKIP mcp_session (this gBASIC has no qt module)\n'
+    printf 'SKIP shoot_print_editor (this gBASIC has no qt module)\n'
     printf 'SKIP qtview_reopen (this gBASIC has no qt module)\n'
 fi
 
@@ -1326,6 +1327,33 @@ fi
         cat "$stdout_file" "$qt_err"; fail "shoot_run (nonzero exit)"
     fi
 
+    # THE PRINT EDITOR IS GRAY TOO: its syntax colours are Studio's own theme
+    # (share/org.kde.syntax-highlighting/themes/studio-print.theme), every pixel
+    # read back. It needs a gBASIC whose `theme:` takes a NAME (ad1cb9dc); on
+    # an older one the editor is drawn light, Studio says so on stderr, and
+    # this SKIPS with that reason. Red with the light editor: 7,558 coloured.
+    sh_e="$tmproot/shoot_e"; rm -rf "$sh_e"
+    : >"$qt_err"
+    if env -u QT_QPA_PLATFORM timeout 120 ./studio shoot tests/shots/print_editor.shot "$sh_e" \
+            >"$stdout_file" 2>"$qt_err"; then
+        if grep -q 'the print editor theme is not available' "$qt_err"; then
+            printf 'SKIP shoot_print_editor (this gBASIC takes no theme name, before ad1cb9dc)\n'
+        else
+            "$GBASIC" tests/drivers/png_gray.bas "$sh_e/part-editor.png" >"$tmproot/shoot_e.txt"
+            if diff -u tests/studio/shoot_print_editor.out "$tmproot/shoot_e.txt"; then
+                printf 'PASS shoot_print_editor (the print editor, every pixel gray)\n'
+            else
+                fail "shoot_print_editor (output diff)"
+            fi
+        fi
+    elif grep -q 'Qt support is not available' "$qt_err"; then
+        printf 'SKIP shoot_print_editor (this gBASIC has no Qt backend)\n'
+    elif grep -q "does not define 'capture'" "$qt_err"; then
+        printf 'SKIP shoot_print_editor (this gBASIC predates qt.capture, cac666c)\n'
+    else
+        cat "$stdout_file" "$qt_err"; fail "shoot_print_editor (nonzero exit)"
+    fi
+
     # ./studio mcp: STUDIO AS AN MCP SERVER, through the launcher. Three
     # claims. Every line on STDOUT is a JSON-RPC reply -- stdout is the
     # protocol, and one stray print is a line no client can read -- and a
@@ -1514,6 +1542,28 @@ if diff -u tests/studio/shots_check.out "$stdout_file"; then
     printf 'PASS shots_check (a figure script is checked whole before anything runs)\n'
 else
     fail "shots_check (output diff)"
+fi
+
+# THE PINNED FONTS TAKE: under share/fonts/fonts.conf, fontconfig sees the
+# four files Studio ships and nothing else, and says nothing on stderr. A
+# fonts.conf fontconfig cannot parse is DROPPED and the host's config used --
+# measured, from one double hyphen in a comment -- so this is the check that
+# the shipped file is one fontconfig accepts. `./studio shoot` asks the same.
+if command -v fc-list >/dev/null 2>&1; then
+    fcd="$tmproot/fonts_pinned"; rm -rf "$fcd"; mkdir -p "$fcd"
+    if env -u XDG_DATA_DIRS XDG_CACHE_HOME="$fcd" FONTCONFIG_FILE="$PWD/share/fonts/fonts.conf" \
+            fc-list -f '%{file}\n' >"$fcd/list" 2>"$fcd/err"; then
+        { sed "s#^$PWD/##" "$fcd/list" | sort; printf -- '-- stderr: %s line(s)\n' "$(wc -l <"$fcd/err")"; } >"$stdout_file"
+        if diff -u tests/studio/fonts_pinned.out "$stdout_file"; then
+            printf 'PASS fonts_pinned (fontconfig sees only the fonts Studio ships)\n'
+        else
+            fail "fonts_pinned (output diff)"
+        fi
+    else
+        cat "$fcd/err"; fail "fonts_pinned (fc-list failed)"
+    fi
+else
+    printf 'SKIP fonts_pinned (no fc-list here)\n'
 fi
 
 # ./studio mcp's PROTOCOL, headless: what a request line is decided to be,

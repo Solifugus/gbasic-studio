@@ -1136,7 +1136,7 @@ end function
 ' refused, and a .txt in a dark Studio was the one light pane.
 function _editor_options(app, doc_id)
     opts = { line_numbers: true, marks: true,
-             theme: studio_style.qt_source_theme(app.model.settings.theme) }
+             theme: studio_style.editor_theme(app) }
     doc = studio_docs.doc_by_id(app.dm, doc_id)
     lang = ""
     if doc != nothing then

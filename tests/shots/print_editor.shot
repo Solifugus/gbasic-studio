@@ -1,0 +1,7 @@
+# The `shoot_print_editor` tier's figure: the EDITOR in the print theme, read
+# back pixel by pixel. Its syntax colours are Studio's own gray theme
+# (share/org.kde.syntax-highlighting/themes/studio-print.theme).
+{"tool": "frame", "args": {"width": 1000, "height": 700, "theme": "print"}}
+{"tool": "open_samples"}
+{"tool": "open_document", "args": {"path": "03_errors.bas"}}
+{"tool": "capture", "args": {"part": "editor", "file": "part-editor.png", "scale": 1}}

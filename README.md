@@ -746,12 +746,17 @@ the toolbar, drop-down, check-box and dock icons are Studio's own gray ones
 rather than the platform's. `shoot_run` reads every pixel of a print figure's
 chrome back and checks it is gray.
 
-One part is not gray yet: **the editor's syntax colours.** They are KDE's
-Breeze Light, because gBASIC's editor takes only "light" or "dark" today. In
-grayscale, keywords stay bold black and strings stay dark, but comments, numbers
-and operators come out close to the same mid-gray. A print syntax theme that
-tells them apart by weight and shade needs gBASIC's editor to accept a named
-theme; that has been asked for.
+**The editor is gray too**, in a syntax theme of Studio's own
+(`share/org.kde.syntax-highlighting/themes/studio-print.theme`): keywords bold
+black, strings dark gray, comments italic and lighter. Every pixel of it is
+checked as well. It needs a gBASIC whose editor takes a theme name (`ad1cb9dc`
+or later). On an older one the print editor is KDE's Breeze Light, whose
+comments, numbers and operators come out close to the same gray, and Studio
+says so when the figure is made.
+
+Text in a figure is antialiased in gray, never in colour: the pinned font
+configuration says so, because a desktop set to subpixel antialiasing would
+otherwise put coloured edges on every letter.
 
 `print` is for figures only, and the Settings menu does not offer it.
 
@@ -807,7 +812,7 @@ resources or prompts.
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 208 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 210 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 30 cases, headless AND offline — no network, no key
 ```
 

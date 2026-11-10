@@ -31,6 +31,10 @@
 == print is a FIGURE theme: not on the menu, honoured from the file, gray ==
   the menu's route: bad-theme
   <print> reads as print   editor=light   dark=false
+  editor built: light (theme not probed)
+  editor built: light (probe refused it)
+  editor built: gBASIC Studio Print (probe took it)
+  and under dark, probed: dark
   sheet is the print one: true   not the dark one: true
   system sets no sheet: true
   gray: bg, base, ctl, hi, fg, faint, line, sel, on_sel

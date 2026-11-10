@@ -1588,6 +1588,28 @@ function qt_shot_close()
     return nothing
 end function
 
+' Can an editor be built in the print theme here? Asked by BUILDING one: a
+' one-editor window opened and closed, offscreen like the figure it is for.
+' `qt.check` does not look at a theme; `qt.open` refuses a name it cannot
+' have, on a gBASIC that takes only "dark" and "light" and on one where the
+' theme file is not on the path, and either way the figure falls back to the
+' light editor it had before and SAYS so on stderr. A capability probe, not
+' a hidden failure.
+function qt_print_theme_probe()
+    w = { kind: "window", name: "studio_theme_probe", options: { title: "probe" },
+          items: [ studio_shell_qt.part("source", "probe_ed",
+                       { language: "gBASIC", theme: studio_style.print_editor_theme() }) ] }
+    on error goto next
+    z = qt.open(w)
+    if error then
+        print to error "Studio: the print editor theme is not available here (" + error.message + "); the editor is drawn light"
+        return false
+    end if
+    on error stop
+    z = qt.close(w)
+    return true
+end function
+
 ' ---- ./studio mcp [home] [folder] --------------------------------------------
 '
 ' STUDIO AS AN MCP SERVER on stdio (docs/gbasic_studio_book_snapshots.md
@@ -2338,6 +2360,12 @@ program main(args)
         if default(env("GBASIC_STUDIO_MCP_FRESH"), "") = "1" then
             G.app = qt_shot_frame(G.app, studio_shots.frame_of([]))
         end if
+    end if
+
+    ' THE PRINT EDITOR'S THEME, if this gBASIC can have it -- see
+    ' `qt_print_theme_probe`. Only under `print`, which only a figure asks for.
+    if studio_ui.theme_of(G.app) = "print" then
+        G.app["qt_print_theme_ok"] = qt_print_theme_probe()
     end if
 
     ' EACH EDITOR'S HANDLERS, as data the renderer puts into every page --

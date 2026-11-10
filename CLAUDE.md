@@ -68,7 +68,7 @@ mode.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 208 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 210 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 30 cases, headless AND offline (scripted transport)
 ```
 
@@ -985,14 +985,35 @@ theme for the paperback).
   `titlebar-close-icon` / `titlebar-normal-icon`. With that rule removed,
   `part-files.png` reads `181 coloured pixel(s)`. The dark sheet leaves them
   alone, as before.
-- **THE EDITOR IS NOT GRAY, and that is stated.** gBASIC's `theme:` takes
-  `"dark"`, `"light"` or nothing (`theme_named` in `qt_backend.cpp`), so the
-  print editor is Breeze Light. Its normal text is `#1f1c1b`. In grayscale its
-  comments (136), numbers (128) and operators (140) land near the same gray.
-  The fix is upstream: a `theme:` that names a KSyntaxHighlighting theme found
-  on the syntax path (`themeForName`; a custom search path already reads
-  `<path>/themes/`). Studio would then ship `share/syntax/themes/` with a print
-  theme that separates them by weight and shade.
+- **THE PRINT EDITOR IS GRAY NOW** (gBASIC ad1cb9dc, D1 of §0.38: `theme:`
+  takes a theme NAME). KDE's own "Printing" was tried first and is NOT gray:
+  its strings are red. So Studio ships "gBASIC Studio Print"
+  (`share/org.kde.syntax-highlighting/themes/studio-print.theme`), found
+  through `XDG_DATA_DIRS`, which the launcher already sets to include `share/`,
+  because `GBASIC_SYNTAX_PATH` takes ONE directory. `shoot_print_editor` reads
+  every pixel. Red with the light editor: 7,558 coloured.
+- **The editor's theme is decided in `studio_style.editor_theme(app)`**, from
+  `qt_source_theme`'s dark/light plus `app.qt_print_theme_ok`, which the entry
+  point sets by BUILDING a one-editor window (`qt_print_theme_probe`), only
+  under `print`. `qt.check` does not look at a theme (measured on both
+  builds); `qt.open` refuses a name it cannot have, on an older gBASIC and on
+  one where the file is not on the path. Refused, the editor is Breeze Light as
+  before and stderr says so. Page names still key on `qt_source_theme`, so a
+  name with spaces never reaches a part name.
+- **A fonts.conf fontconfig cannot parse is DROPPED, SILENTLY, and the HOST's
+  config is used.** One `--` inside an XML comment did it: a print editor came
+  back with 14,840 coloured pixels, from the host's subpixel antialiasing, and
+  `shoot_run`'s host-fonts rerun could not see it, because both runs fell back
+  the same way. `fc-match` cannot see it either: the host's default config
+  scans `$XDG_DATA_DIRS/fonts` too, finds `share/fonts`, and picks Studio's
+  fonts. The question that works is the pin's own claim, asked with `fc-list`:
+  every font fontconfig sees is one Studio ships. `figure_env` refuses a shot
+  otherwise, naming the stray font, and `fonts_pinned` checks the shipped file.
+- **Grayscale antialiasing is STATED** in fonts.conf (`antialias` true, `rgba`
+  none). gBASIC measured 472 subpixel-fringed pixels in a capture under a host
+  config with `rgba` RGB. Under Studio's pin, with or without the rule, the
+  figures are byte-identical: the rule is there so a changed fontconfig
+  default cannot bring the fringes back.
 - **`mid` IS 0-BASED.** I wrote two 1-based checks in this change. One reported
   every gray as coloured, and the other printed `#73716` for a colour.
 

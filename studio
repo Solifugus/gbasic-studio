@@ -124,6 +124,21 @@ figure_env() {
         exit 2
     fi
     export FONTCONFIG_FILE="$GBASIC_STUDIO_SHARE/fonts/fonts.conf"
+    # AND THE PIN MUST HAVE TAKEN. A fonts.conf fontconfig cannot parse is
+    # dropped with one line on stderr and the host's own config is used
+    # instead: the host's fonts in a figure, with nothing said. Measured: one
+    # stray double hyphen in a comment did exactly that. Asked as the pin's
+    # own claim -- EVERY font fontconfig can see is one Studio ships -- because
+    # "where does monospace resolve" passes on the fallback too: the host's
+    # default config also scans $XDG_DATA_DIRS/fonts, and share/ is on it.
+    if command -v fc-list >/dev/null 2>&1; then
+        stray="$(fc-list -f '%{file}\n' 2>/dev/null | grep -v "^$GBASIC_STUDIO_SHARE/fonts/" | head -1)"
+        if [ -n "$stray" ]; then
+            printf 'shoot: the pinned fonts did not take (fontconfig also sees %s); is %s valid XML?\n' \
+                "$stray" "$FONTCONFIG_FILE" >&2
+            exit 2
+        fi
+    fi
 }
 
 # `./studio shoot <script> <out-dir>`: a book figure from a shot script (see

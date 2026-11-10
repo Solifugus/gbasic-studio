@@ -14,6 +14,7 @@ share/icons/controls/check.svg                 a check box's tick, for the DARK 
 share/icons/*/*-light.svg                      the same art dark-stroked, for the PRINT theme
 share/icons/controls/close-light.svg, float-light.svg   a dock's buttons, for the PRINT theme
 share/fonts/                                   the fonts a `./studio shoot` figure is drawn in
+share/org.kde.syntax-highlighting/themes/studio-print.theme   the PRINT editor's syntax colours
 share/licenses/<spdx-id>.txt                   the licence texts New Project can write
 share/templates/project.templates              the boilerplate New Project renders
 share/templates/sql.templates                  the statements the SQL builders write
@@ -112,3 +113,18 @@ and a `fonts.conf` that lists that directory and nothing else. `./studio shoot`
 sets `FONTCONFIG_FILE` to it, so a figure is drawn in the same faces on every
 machine. The ordinary window does not use them. See `fonts/README.md` for
 where the files came from and their checksums.
+
+`fonts.conf` also turns subpixel antialiasing off, so letters have gray edges
+and not coloured ones. It must stay valid XML: fontconfig drops a file it
+cannot parse, without failing, and uses the host's configuration instead.
+`./studio shoot` checks that the only fonts fontconfig sees are these and
+refuses otherwise. Note that an XML comment may not contain two hyphens in a
+row.
+
+## The print editor's theme
+
+`org.kde.syntax-highlighting/themes/studio-print.theme` is a KSyntaxHighlighting
+theme, written for Studio, all grays: keywords bold black, strings `#454545`,
+comments italic `#6e6e6e`, numbers and operators black. KDE's own "Printing"
+theme is not gray, since its strings are red. It is found because the launcher puts
+`share/` on `XDG_DATA_DIRS`, which KSyntaxHighlighting searches.

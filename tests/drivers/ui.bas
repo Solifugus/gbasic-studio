@@ -1798,6 +1798,14 @@ program main(args)
     app = r.app
     app.model.settings.theme = "print"
     print "  <print> reads as " + studio_ui.theme_of(app) + "   editor=" + studio_style.qt_source_theme("print") + "   dark=" + string(studio_style.qt_dark_for("print"))
+    print "  editor built: " + studio_style.editor_theme(app) + " (theme not probed)"
+    app["qt_print_theme_ok"] = false
+    print "  editor built: " + studio_style.editor_theme(app) + " (probe refused it)"
+    app["qt_print_theme_ok"] = true
+    print "  editor built: " + studio_style.editor_theme(app) + " (probe took it)"
+    app.model.settings.theme = "dark"
+    print "  and under dark, probed: " + studio_style.editor_theme(app)
+    app.model.settings.theme = "print"
     sh = studio_style.qt_sheet_for("print")
     print "  sheet is the print one: " + string(contains(sh, studio_style.print_palette().bg)) + "   not the dark one: " + string(not contains(sh, studio_style.dark_bg()))
     print "  system sets no sheet: " + string(studio_style.qt_sheet_for("system") = "")
