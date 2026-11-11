@@ -2828,7 +2828,7 @@ library studio_ui
                             items: ["new-file", "new-folder", "-",
                                     "rename", "delete", "-",
                                     "reload", "close-tab", "-",
-                                    "export-md"] })
+                                    "export-md", "export-measured"] })
         ' STU-18. Only what the application actually READS is here.
         ' `settings.recent_limit` is deliberately absent: `touch_recent` has one
         ' call site, in the canned-workspace demo, with a literal 10 -- so
@@ -2922,6 +2922,9 @@ library studio_ui
         end if
         if action = "export-md" then
             return "Export as Markdown"
+        end if
+        if action = "export-measured" then
+            return "Export as Measured Program"
         end if
         if action = "text-bigger" then
             return "Bigger editor text"
@@ -3091,6 +3094,9 @@ library studio_ui
         end if
         if action = "export-md" then
             return "Write the open file as one Markdown document beside it: the documentation comments as prose, the code as listings, and each section's last result under it. A result whose code changed since it ran is left out."
+        end if
+        if action = "export-measured" then
+            return "Run the whole file twice, alone in an empty folder, and write it beside itself as one measured-program block with its output and exit status, which the book's check-measured.py re-runs against its pinned gBASIC."
         end if
         ' All three say EDITOR, because the rest of the window follows your
         ' desktop's interface font and is not Studio's to resize -- setting it
@@ -3385,6 +3391,36 @@ library studio_ui
                 t = t + "; " + parts[2] + " out of date, left out — run them again to include them"
             end if
             return t
+        end if
+        ' ---- Export as Measured Program. "<file> <exit> <lines> <output|contains>".
+        if action = "measured-exported" then
+            parts = split(detail, " ")
+            t = "exported " + parts[0] + ": exit " + parts[1] + ", " + parts[2] + " line(s), the same on two runs"
+            if parts[3] = "contains" then
+                t = t + "; it wrote to stderr, so the block lists the lines and not their order"
+            end if
+            return t
+        end if
+        if action = "measured-empty" then
+            return "there is no code in this file to measure"
+        end if
+        if action = "measured-clash" then
+            return "line " + detail + " would end the measured block (a ``` fence or a --- section line) — reword it to export"
+        end if
+        if action = "measured-output-clash" then
+            return "the program prints a line that would end the measured block (a ``` fence or a --- section line)"
+        end if
+        if action = "measured-control" then
+            return "the program prints a tab, carriage return or escape, which the book's checker cannot read back — it was not exported"
+        end if
+        if action = "measured-timeout" then
+            return "the program did not finish within " + string(studio_ui.measured_timeout()) + " seconds (one that reads input cannot be measured) — it was not exported"
+        end if
+        if action = "measured-signal" then
+            return "the program was killed by signal " + detail + " — it was not exported"
+        end if
+        if action = "measured-unstable" then
+            return "two runs printed different things, so the book could never check it — it was not exported"
         end if
         if action = "export-exists" then
             return leaf + " is already there and Studio did not write it — rename it to export"
@@ -6296,6 +6332,234 @@ library studio_ui
         write(f, e.text)
         return { app: app, action: "exported",
                  detail: studio_ui._leaf(path) + " " + string(e.results) + " " + string(e.left_out) }
+    end function
+
+    ' ---- the whole file as a measured program (the book's own gate) ---------
+    '
+    ' gbasic-books' `tools/check-measured.py` re-runs a block marked
+    ' `<!--measured: program NAME.bas-->` against the book's pinned gBASIC and
+    ' fails the build when the output or the exit status moved. Export as
+    ' Markdown cannot write one: a section's output depends on the replay
+    ' prefix in front of it. A WHOLE-FILE run is what the checker does, so this
+    ' runs the file the way it will -- alone in an empty directory, under its
+    ' own name, with no GBASIC_PATH -- TWICE, and writes the block only when
+    ' both runs agree. A program that prints the time is a block that fails
+    ' the book's build, and the author should hear that now.
+
+    function measured_path(path)
+        p = studio_ui.export_path(path)
+        return left(p, len(p) - 3) + ".measured.md"
+    end function
+
+    function measured_timeout()
+        return 10
+    end function
+
+    ' The text the checker will run: it writes the block's lines with leading
+    ' and trailing blank lines stripped, so that is what is run here too, or a
+    ' diagnostic's line number would differ between the two.
+    function _measured_code(content)
+        lines = split(content, "\n")
+        a = 0
+        b = count(lines)
+        while a < b
+            if trim(lines[a]) != "" then
+                break
+            end if
+            a = a + 1
+        end while
+        while b > a
+            if trim(lines[b - 1]) != "" then
+                break
+            end if
+            b = b - 1
+        end while
+        out = []
+        i = a
+        while i < b
+            out = append(out, lines[i])
+            i = i + 1
+        end while
+        return join(out, "\n")
+    end function
+
+    ' A line the checker would read as something else: a fence ends the block
+    ' wherever one starts a line, and `--- output` and its siblings start a
+    ' section. The 1-based line, or 0. A word merely BEGINNING with a section
+    ' name (`--- outputs`) is refused too; over-refusing costs a rewording.
+    function _measured_clash(lines)
+        i = 0
+        for each l in lines
+            i = i + 1
+            if left(l, 3) = "```" then
+                return i
+            end if
+            t = trim(l)
+            if len(t) > 3 and left(t, 3) = "---" then
+                if mid(t, 3, 1) = " " or mid(t, 3, 1) = "\t" then
+                    rest = trim(mid(t, 3, len(t) - 3))
+                    for each w in ["file", "input", "output", "contains", "exit", "argv"]
+                        if left(rest, len(w)) = w then
+                            return i
+                        end if
+                    end for
+                end if
+            end if
+        end for
+        return 0
+    end function
+
+    ' The checker reads the program through a terminal emulator that drops
+    ' every control character but the newline, so output carrying a tab, a
+    ' carriage return or an escape can never match what was captured here.
+    function _has_control(text)
+        for each c in ["\t", "\r", chr(27), chr(0)]
+            if contains(text, c) then
+                return true
+            end if
+        end for
+        return false
+    end function
+
+    function _rstrip(s)
+        n = len(s)
+        while n > 0
+            if mid(s, n - 1, 1) != " " then
+                break
+            end if
+            n = n - 1
+        end while
+        return left(s, n)
+    end function
+
+    function _measured_lines(text)
+        all = []
+        last = 0
+        for each l in split(text, "\n")
+            all = append(all, studio_ui._rstrip(l))
+            if all[count(all) - 1] != "" then
+                last = count(all)
+            end if
+        end for
+        out = []
+        i = 0
+        while i < last
+            out = append(out, all[i])
+            i = i + 1
+        end while
+        return out
+    end function
+
+    ' The block, from the code and ONE run ({stdout, stderr, exit_code}).
+    ' Nothing on stderr: `--- output`, exact. Something on stderr: the
+    ' checker sees both streams interleaved on one terminal and Studio has
+    ' them on two pipes, so the order between them is not known here -- the
+    ' block says `--- contains` instead, every line, which is order-free.
+    function measured_text(leaf, code, run)
+        if code = "" then
+            return { ok: false, why: "measured-empty", detail: "", text: "", mode: "", lines: 0 }
+        end if
+        at = studio_ui._measured_clash(split(code, "\n"))
+        if at > 0 then
+            return { ok: false, why: "measured-clash", detail: string(at), text: "", mode: "", lines: 0 }
+        end if
+        if studio_ui._has_control(run.stdout + run.stderr) then
+            return { ok: false, why: "measured-control", detail: "", text: "", mode: "", lines: 0 }
+        end if
+        mode = "output"
+        body = studio_ui._measured_lines(run.stdout)
+        if run.stderr != "" then
+            mode = "contains"
+            body = []
+            for each l in studio_ui._measured_lines(run.stdout + "\n" + run.stderr)
+                if trim(l) != "" then
+                    body = append(body, trim(l))
+                end if
+            end for
+        end if
+        if studio_ui._measured_clash(body) > 0 then
+            return { ok: false, why: "measured-output-clash", detail: "", text: "", mode: "", lines: 0 }
+        end if
+        t = studio_ui.export_marker(leaf) + "\n\n"
+        t = t + "<!--measured: program " + leaf + "-->\n```\n" + code + "\n"
+        if count(body) > 0 then
+            t = t + "--- " + mode + "\n" + join(body, "\n") + "\n"
+        end if
+        t = t + "--- exit " + string(run.exit_code) + "\n```\n"
+        return { ok: true, why: "", detail: "", text: t, mode: mode, lines: count(body) }
+    end function
+
+    ' Run the code once, as the checker will.
+    function _measured_run(app, doc, found, code)
+        dir = app.paths.home + "/scratch/measured-" + doc.id
+        persist.ensure_dir(dir)
+        leaf = studio_ui._leaf(doc.path)
+        f{file} = dir + "/" + leaf
+        write(f, code + "\n")
+        r = process.run({ command: found, args: [leaf], cwd: dir,
+                          env: { GBASIC_PATH: nothing },
+                          timeout: studio_ui.measured_timeout() })
+        if exists(f) then
+            delete(f)
+        end if
+        return r
+    end function
+
+    function export_measured(app)
+        doc = studio_docs.active_doc(app.dm)
+        if doc = nothing then
+            return { app: app, action: "export-no-doc", detail: "" }
+        end if
+        if not studio_ui.is_gbasic(doc.path) then
+            return { app: app, action: "export-not-gbasic", detail: "" }
+        end if
+        leaf = studio_ui._leaf(doc.path)
+        code = studio_ui._measured_code(doc.content)
+        ' Checked before running anything: a refusal about the TEXT should not
+        ' cost two runs of it.
+        pre = studio_ui.measured_text(leaf, code, { stdout: "", stderr: "", exit_code: 0 })
+        if not pre.ok then
+            return { app: app, action: pre.why, detail: pre.detail }
+        end if
+        interp = studio_session.default_interpreter()
+        pin = studio_projfile.read_spec(studio_ui.project_path_for(app, doc))
+        if pin.interpreter != "" then
+            interp = pin.interpreter
+        end if
+        found = studio_ui._interpreter_path(interp)
+        if found = "" then
+            return { app: app, action: "no-interpreter", detail: interp }
+        end if
+        runs = []
+        for each n in [1, 2]
+            r = studio_ui._measured_run(app, doc, found, code)
+            if r.timed_out then
+                return { app: app, action: "measured-timeout", detail: "" }
+            end if
+            if r.signal != 0 then
+                return { app: app, action: "measured-signal", detail: string(r.signal) }
+            end if
+            runs = append(runs, r)
+        end for
+        if runs[0].stdout != runs[1].stdout or runs[0].stderr != runs[1].stderr or runs[0].exit_code != runs[1].exit_code then
+            return { app: app, action: "measured-unstable", detail: "" }
+        end if
+        m = studio_ui.measured_text(leaf, code, runs[0])
+        if not m.ok then
+            return { app: app, action: m.why, detail: m.detail }
+        end if
+        path = studio_ui.measured_path(doc.path)
+        probe{file} = path
+        if exists(probe) then
+            had = read(probe)
+            if split(had, "\n")[0] != studio_ui.export_marker(leaf) then
+                return { app: app, action: "export-exists", detail: path }
+            end if
+        end if
+        out{file} = path
+        write(out, m.text)
+        return { app: app, action: "measured-exported",
+                 detail: studio_ui._leaf(path) + " " + string(runs[0].exit_code) + " " + string(m.lines) + " " + m.mode }
     end function
 
     ' ---- STU-11: git, and staying quiet about it ----------------------------

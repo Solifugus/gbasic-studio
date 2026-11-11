@@ -63,6 +63,23 @@ function read_file_text(p)
   return read(f)
 end function
 
+' Open a project file and press Export as Measured Program on it: the
+' notice, and the block when one was written.
+function open_and_measure(app, projdir, leaf)
+  rows = studio_ui.nav_rows(app)
+  r = studio_ui.activate_row(app, rows, row_index(rows, "file", leaf))
+  app = r.app
+  r = studio_ui.export_measured(app)
+  app = r.app
+  print "  " + leaf + ": " + r.action + ": " + studio_ui.action_notice(r.action, r.detail)
+  if r.action = "measured-exported" then
+    for each ml in split(read_file_text(studio_ui.measured_path(projdir + "/" + leaf)), "\n")
+      print "  | " + ml
+    end for
+  end if
+  return app
+end function
+
 ' The section ids of a state, in order — what a result is filed against.
 function secids(st)
   out = []
@@ -1465,6 +1482,65 @@ program main(args)
     app = r.app
     print "  a file that does not parse: " + r.action + ": " + studio_ui.action_notice(r.action, r.detail)
     print "  export path of a.b.bas: " + studio_ui._leaf(studio_ui.export_path("/x/a.b.bas"))
+  end if
+
+  if mode = "measured" then
+    nf{file} = projdir + "/nb.bas"
+    write(nf, "\n\n' Doubling, measured.\nfunction twice(x)\n  return x * 2\nend function\n\nprint \"twice 21 is \" + twice(21)\nprint \"trailing   \"\nprint \"\"\nprint \"done\"\n\n\n")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "nb.bas"))
+    app = r.app
+
+    banner("a whole file, run twice alone, written as one measured block")
+    r = studio_ui.export_measured(app)
+    app = r.app
+    print "  " + r.action + ": " + studio_ui.action_notice(r.action, r.detail)
+    for each ml in split(read_file_text(projdir + "/nb.measured.md"), "\n")
+      print "  | " + ml
+    end for
+    r = studio_ui.export_measured(app)
+    app = r.app
+    print "  again, over its own export: " + r.action
+
+    banner("stderr too: the lines are listed, not their order")
+    ff{file} = projdir + "/fails.bas"
+    write(ff, "print \"before\"\ny = 1 / 0\nprint \"never\"\n")
+    app = open_and_measure(app, projdir, "fails.bas")
+
+    banner("run alone: a library beside it, or on Studio's own path, is not found")
+    hf{file} = projdir + "/helper.bas"
+    write(hf, "library helper\n  function hi()\n    return \"hi\"\n  end function\nend library\n")
+    lf{file} = projdir + "/loads.bas"
+    write(lf, "load studio_model\nprint \"loaded\"\n")
+    app = open_and_measure(app, projdir, "loads.bas")
+    sf{file} = projdir + "/sibling.bas"
+    write(sf, "load helper from \"helper.bas\"\nprint helper.hi()\n")
+    app = open_and_measure(app, projdir, "sibling.bas")
+
+    banner("refusals")
+    uf{file} = projdir + "/clock.bas"
+    write(uf, "print monotonic()\n")
+    app = open_and_measure(app, projdir, "clock.bas")
+    tf{file} = projdir + "/tab.bas"
+    write(tf, "print \"a\\tb\"\n")
+    app = open_and_measure(app, projdir, "tab.bas")
+    cf{file} = projdir + "/clash.bas"
+    write(cf, "print 1\n```\n")
+    app = open_and_measure(app, projdir, "clash.bas")
+    of{file} = projdir + "/oclash.bas"
+    write(of, "print \"--- exit 0\"\n")
+    app = open_and_measure(app, projdir, "oclash.bas")
+    ef{file} = projdir + "/empty.bas"
+    write(ef, "\n\n")
+    app = open_and_measure(app, projdir, "empty.bas")
+    mf{file} = projdir + "/notes.bas"
+    write(mf, "print 1\n")
+    hm{file} = projdir + "/notes.measured.md"
+    write(hm, "# mine\n")
+    app = open_and_measure(app, projdir, "notes.bas")
+    print "  notes.measured.md untouched: " + string(read_file_text(projdir + "/notes.measured.md") = "# mine\n")
+    app = open_and_measure(app, projdir, "notes.measured.md")
+    print "  measured path of a.b.bas: " + studio_ui._leaf(studio_ui.measured_path("/x/a.b.bas"))
   end if
 
   if mode = "inline" then

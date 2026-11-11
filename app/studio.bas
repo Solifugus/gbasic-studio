@@ -2200,6 +2200,10 @@ function on_qt_export_md()
     return qt_took(studio_ui.export_markdown(G.app))
 end function
 
+function on_qt_export_measured()
+    return qt_took(studio_ui.export_measured(G.app))
+end function
+
 ' ---- closing --------------------------------------------------------------
 
 ' THE WINDOW IS CLOSING, AND THIS IS THE ONLY MOMENT ITS LAYOUT CAN BE READ.
@@ -2312,6 +2316,7 @@ function qt_wire(win)
     win = qt_on(win, qt_item("show-inline"), "triggered", on_qt_inline)
     win = qt_on(win, qt_item("show-prose"), "triggered", on_qt_prose)
     win = qt_on(win, qt_item("export-md"), "triggered", on_qt_export_md)
+    win = qt_on(win, qt_item("export-measured"), "triggered", on_qt_export_measured)
     win = qt_on(win, studio_shell_qt.part_tb_whitespace(), "triggered", on_qt_whitespace)
 
     ' The browser's own menu. Every item dispatches to the SAME `studio_ui`
@@ -3332,6 +3337,12 @@ program main(args)
         print "  the status line says so: " + string(qt.read(win, studio_shell_qt.part_status(), "text") = studio_ui.action_notice(G.last_action, G.last_detail))
         print "  its first paragraph: " + split(md, chr(10))[2]
         print "  the text is untouched: " + string(qt.read(win, ed, "plainText") = text0)
+        print "File > Export as Measured Program"
+        z = qt.invoke(win, qt_item("export-measured"), "trigger")
+        print "  " + G.last_action + ": " + studio_ui.action_notice(G.last_action, G.last_detail)
+        msf{file} = studio_ui.measured_path(studio_docs.active_doc(G.app.dm).path)
+        print "  its block opens: " + split(read(msf), chr(10))[2]
+        print "  the status line says so: " + string(qt.read(win, studio_shell_qt.part_status(), "text") = studio_ui.action_notice(G.last_action, G.last_detail))
         return nothing
     end if
 

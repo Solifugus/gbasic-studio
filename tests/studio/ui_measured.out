@@ -1,0 +1,74 @@
+== a whole file, run twice alone, written as one measured block ==
+  measured-exported: exported nb.measured.md: exit 0, 4 line(s), the same on two runs
+  | <!-- gBASIC Studio export of nb.bas. Edit nb.bas, not this file. -->
+  | 
+  | <!--measured: program nb.bas-->
+  | ```
+  | ' Doubling, measured.
+  | function twice(x)
+  |   return x * 2
+  | end function
+  | 
+  | print "twice 21 is " + twice(21)
+  | print "trailing   "
+  | print ""
+  | print "done"
+  | --- output
+  | twice 21 is 42
+  | trailing
+  | 
+  | done
+  | --- exit 0
+  | ```
+  | 
+  again, over its own export: measured-exported
+== stderr too: the lines are listed, not their order ==
+  fails.bas: measured-exported: exported fails.measured.md: exit 1, 2 line(s), the same on two runs; it wrote to stderr, so the block lists the lines and not their order
+  | <!-- gBASIC Studio export of fails.bas. Edit fails.bas, not this file. -->
+  | 
+  | <!--measured: program fails.bas-->
+  | ```
+  | print "before"
+  | y = 1 / 0
+  | print "never"
+  | --- contains
+  | before
+  | runtime error at fails.bas:2:7: division by zero
+  | --- exit 1
+  | ```
+  | 
+== run alone: a library beside it, or on Studio's own path, is not found ==
+  loads.bas: measured-exported: exported loads.measured.md: exit 1, 1 line(s), the same on two runs; it wrote to stderr, so the block lists the lines and not their order
+  | <!-- gBASIC Studio export of loads.bas. Edit loads.bas, not this file. -->
+  | 
+  | <!--measured: program loads.bas-->
+  | ```
+  | load studio_model
+  | print "loaded"
+  | --- contains
+  | runtime error at loads.bas:1:1: library not found: studio_model
+  | --- exit 1
+  | ```
+  | 
+  sibling.bas: measured-exported: exported sibling.measured.md: exit 1, 1 line(s), the same on two runs; it wrote to stderr, so the block lists the lines and not their order
+  | <!-- gBASIC Studio export of sibling.bas. Edit sibling.bas, not this file. -->
+  | 
+  | <!--measured: program sibling.bas-->
+  | ```
+  | load helper from "helper.bas"
+  | print helper.hi()
+  | --- contains
+  | runtime error at sibling.bas:1:1: could not load library file: ./helper.bas
+  | --- exit 1
+  | ```
+  | 
+== refusals ==
+  clock.bas: measured-unstable: two runs printed different things, so the book could never check it — it was not exported
+  tab.bas: measured-control: the program prints a tab, carriage return or escape, which the book's checker cannot read back — it was not exported
+  clash.bas: measured-clash: line 2 would end the measured block (a ``` fence or a --- section line) — reword it to export
+  oclash.bas: measured-output-clash: the program prints a line that would end the measured block (a ``` fence or a --- section line)
+  empty.bas: measured-empty: there is no code in this file to measure
+  notes.bas: export-exists: notes.measured.md is already there and Studio did not write it — rename it to export
+  notes.measured.md untouched: true
+  notes.measured.md: export-not-gbasic: only a gBASIC file can be exported as Markdown
+  measured path of a.b.bas: a.b.measured.md

@@ -21,3 +21,7 @@ File > Export as Markdown
   the status line says so: true
   its first paragraph: # Rates
   the text is untouched: true
+File > Export as Measured Program
+  measured-exported: exported prose.measured.md: exit 0, 1 line(s), the same on two runs
+  its block opens: <!--measured: program prose.bas-->
+  the status line says so: true

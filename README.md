@@ -79,6 +79,18 @@ the `.bas` it came from, and a `.md` of that name Studio did not write is
 refused rather than overwritten. Pagination is the publisher's job, not
 Studio's.
 
+**File ▸ Export as Measured Program** writes the whole file as one
+`<!--measured: program rates.bas-->` block (`rates.measured.md`), the form
+the gBASIC books' `check-measured.py` re-runs against its pinned gBASIC: the
+code, then `--- output` and `--- exit`. Studio runs the file the way that
+checker will — alone in an empty folder, under its own name, with no
+`GBASIC_PATH` — and runs it twice: a program whose two runs differ (one that
+prints the time) is refused, because the book's build could never pass it. A
+program that writes to stderr gets `--- contains` instead, since the order
+between the two streams is not known. Output with a tab or an escape in it,
+and a line that would end the block, are refused by name; a program that
+reads input times out after ten seconds.
+
 **Run** runs the section the caret is in, and the strip names it before you
 press anything; a whole-file `.sql` run that stops part way moves the caret to
 the line it stopped at. **Force Stop** is there for a program that ignores a
@@ -843,7 +855,7 @@ resources or prompts.
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 215 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 216 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 30 cases, headless AND offline — no network, no key
 ```
 

@@ -68,7 +68,7 @@ mode.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 215 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 216 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 30 cases, headless AND offline (scripted transport)
 ```
 
@@ -1177,10 +1177,44 @@ presses the item in a real window.
   refused (`export-exists`), never overwritten.
 - Refuses a non-gBASIC file, a file that does not parse (results cannot be
   placed), and a gBASIC without `source_comments`.
-- **Not done:** the book's `<!--measured: program x.bas-->` blocks (`---
-  output` / `--- exit`) are the natural form for a WHOLE-FILE run that
-  `check-measured.py` can re-verify; a section's output depends on its replay
-  prefix, so it is not that. Printing is the publisher's.
+- Printing is the publisher's.
+
+#### Export as Measured Program (the book's own gate)
+
+File ▸ Export as Measured Program writes `<stem>.measured.md`: the marker
+line, then ONE `<!--measured: program x.bas-->` block of the whole file with
+`--- output` (or `--- contains`) and `--- exit`, the form
+`~/development/gbasic-books/tools/check-measured.py` re-runs. A section's
+output depends on its replay prefix, so only a WHOLE-FILE run can be this.
+`studio_ui.measured_text` decides the block from one run, headless;
+`export_measured` runs and writes; `ui_measured` covers both on every build,
+and `qtview_prose` presses the item.
+
+- **Run the way the checker runs**: the code with leading and trailing blank
+  lines stripped (the checker strips them, and a diagnostic's line number
+  must agree), written as `<leaf>` alone in `<home>/scratch/measured-<doc>/`,
+  run from there with `GBASIC_PATH` unset — so a library beside the file, or
+  one on Studio's own path, is not found, and the block records that. The
+  checker would see the same.
+- **TWICE**, and refused (`measured-unstable`) when the runs differ: a block
+  the book's build can never pass is worse than none.
+- **stderr means `--- contains`.** The checker reads one terminal, where the
+  streams interleave; Studio has two pipes and does not know the order.
+  Every non-blank line is listed; containment is order-free.
+- **What the checker's terminal emulator cannot read back is refused**: it
+  drops every control character but the newline, so a tab, CR or escape in
+  the output could never match (`measured-control`). A line starting a fence
+  or a `--- file|input|output|contains|exit|argv` section, in the code or the
+  output, would end or split the block (`measured-clash`,
+  `measured-output-clash`). Trailing spaces are stripped, as the checker does.
+- **Verified against the real checker, not reasoned about**: the three blocks
+  `ui_measured` writes (plain output, stderr, a library not found) pass
+  `check-measured.py` under a pin naming the scratch gBASIC (`GBPIN=<file>`
+  with `version` and `path`), and a block with one output digit changed fails
+  it. Not wired into the suite: that tool is the book's.
+- **Known limit:** the child inherits Studio's stdin, so a program calling
+  `input` waits out `measured_timeout()` (10s) and is refused. The checker's
+  `--- input` is not offered.
 
 #### Theming under Qt, which was a dead control
 
