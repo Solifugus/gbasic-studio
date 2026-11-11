@@ -63,6 +63,24 @@ function read_file_text(p)
   return read(f)
 end function
 
+' Make an already-open document the active tab again, by its file name --
+' what clicking its tab does.
+function back_to(app, leaf)
+  for each d in app.dm.docs
+    if d.display_name = leaf then
+      return studio.set_active_document(app, d.id)
+    end if
+  end for
+  return app
+end function
+
+' Which tab is active, and whether it holds what is on disk.
+function shown(app)
+  d = studio_docs.active_doc(app.dm)
+  f{file} = d.path
+  return d.display_name + " (matches the file: " + string(d.content = read(f)) + ")"
+end function
+
 ' Open a project file and press Export as Measured Program on it: the
 ' notice, and the block when one was written.
 function open_and_measure(app, projdir, leaf)
@@ -1444,9 +1462,15 @@ program main(args)
     print "  " + r.action + ": " + studio_ui.action_notice(r.action, r.detail)
     print "  first line: " + split(read_file_text(projdir + "/nb.md"), "\n")[0]
     print "  same text as decided: " + string(read_file_text(projdir + "/nb.md") = e.text)
+    print "  the export is the active tab: " + shown(app)
     r = studio_ui.export_markdown(app)
     app = r.app
-    print "  again: " + r.action
+    print "  pressed again on it: " + r.action
+    app = back_to(app, "nb.bas")
+    r = studio_ui.export_markdown(app)
+    app = r.app
+    print "  again from nb.bas: " + r.action + ", active: " + shown(app)
+    app = back_to(app, "nb.bas")
 
     banner("a section edited since it ran: its result is left out, and counted")
     app = studio.edit_document(app, id, replace(studio_docs.active_doc(app.dm).content, "print \"done\"", "print \"done, edited\""))
@@ -1454,6 +1478,18 @@ program main(args)
     app = r.app
     print "  " + r.action + ": " + studio_ui.action_notice(r.action, r.detail)
     print "  \"done\" still in the export: " + string(contains(read_file_text(projdir + "/nb.md"), "```text\ndone\n```"))
+    print "  and the open tab was reloaded with it: " + shown(app)
+
+    banner("the export open with unsaved edits is not written over")
+    mdid = studio_docs.active_doc(app.dm).id
+    app = studio.edit_document(app, mdid, "my notes\n")
+    app = back_to(app, "nb.bas")
+    before = read_file_text(projdir + "/nb.md")
+    r = studio_ui.export_markdown(app)
+    app = r.app
+    print "  " + r.action + ": " + studio_ui.action_notice(r.action, r.detail)
+    print "  nb.md on disk untouched: " + string(read_file_text(projdir + "/nb.md") = before)
+    print "  still active: " + studio_docs.active_doc(app.dm).display_name
 
     banner("refusals")
     mf{file} = projdir + "/notes.bas"
@@ -1498,9 +1534,11 @@ program main(args)
     for each ml in split(read_file_text(projdir + "/nb.measured.md"), "\n")
       print "  | " + ml
     end for
+    print "  the block is the active tab: " + shown(app)
+    app = back_to(app, "nb.bas")
     r = studio_ui.export_measured(app)
     app = r.app
-    print "  again, over its own export: " + r.action
+    print "  again, over its own export: " + r.action + ", active: " + shown(app)
 
     banner("stderr too: the lines are listed, not their order")
     ff{file} = projdir + "/fails.bas"

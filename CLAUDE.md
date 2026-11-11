@@ -1178,6 +1178,13 @@ presses the item in a real window.
 - Refuses a non-gBASIC file, a file that does not parse (results cannot be
   placed), and a gBASIC without `source_comments`.
 - Printing is the publisher's.
+- **What was written is OPENED as the active tab** (`_show_export`), by both
+  exports: a status line about a file somewhere is an export nobody sees. An
+  already-open copy is RELOADED, which is safe only because an export over
+  an open copy with unsaved edits is refused first (`export-open-dirty`):
+  reloading would discard the edits, and not reloading would leave the
+  buffer in conflict with the file. The cost: pressing Export again from the
+  `.md` answers `export-not-gbasic`; you go back to the `.bas` tab.
 
 #### Export as Measured Program (the book's own gate)
 

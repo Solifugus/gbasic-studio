@@ -77,7 +77,8 @@ result whose section is unchanged since it ran is written; one that is out of
 date is left out and the status line counts it. The export's first line names
 the `.bas` it came from, and a `.md` of that name Studio did not write is
 refused rather than overwritten. Pagination is the publisher's job, not
-Studio's.
+Studio's. Both exports open what they wrote as the active tab (reloading it if
+it was open already); an open copy with unsaved edits is not written over.
 
 **File ▸ Export as Measured Program** writes the whole file as one
 `<!--measured: program rates.bas-->` block (`rates.measured.md`), the form

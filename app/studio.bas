@@ -3337,11 +3337,16 @@ program main(args)
         print "  the status line says so: " + string(qt.read(win, studio_shell_qt.part_status(), "text") = studio_ui.action_notice(G.last_action, G.last_detail))
         print "  its first paragraph: " + split(md, chr(10))[2]
         print "  the text is untouched: " + string(qt.read(win, ed, "plainText") = text0)
+        mdoc = studio_docs.active_doc(G.app.dm)
+        print "  it opened as the active tab: " + mdoc.display_name + ", the tab shows it: " + string(qt.read(win, studio_shell_qt.part_editor(mdoc.id), "plainText") = md)
+        G.app = studio.set_active_document(G.app, did)
+        z = qt_redraw()
         print "File > Export as Measured Program"
+        msf{file} = studio_ui.measured_path(studio_docs.active_doc(G.app.dm).path)
         z = qt.invoke(win, qt_item("export-measured"), "trigger")
         print "  " + G.last_action + ": " + studio_ui.action_notice(G.last_action, G.last_detail)
-        msf{file} = studio_ui.measured_path(studio_docs.active_doc(G.app.dm).path)
         print "  its block opens: " + split(read(msf), chr(10))[2]
+        print "  and is the active tab: " + studio_docs.active_doc(G.app.dm).display_name
         print "  the status line says so: " + string(qt.read(win, studio_shell_qt.part_status(), "text") = studio_ui.action_notice(G.last_action, G.last_detail))
         return nothing
     end if

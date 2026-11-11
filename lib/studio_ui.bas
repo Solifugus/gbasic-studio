@@ -3093,10 +3093,10 @@ library studio_ui
             return "Show comment lines that begin with '' as formatted Markdown, in place of the comment. Put the caret on one to edit it as text. The file keeps the comments."
         end if
         if action = "export-md" then
-            return "Write the open file as one Markdown document beside it: the documentation comments as prose, the code as listings, and each section's last result under it. A result whose code changed since it ran is left out."
+            return "Write the open file as one Markdown document beside it: the documentation comments as prose, the code as listings, and each section's last result under it. A result whose code changed since it ran is left out. The document opens in a tab."
         end if
         if action = "export-measured" then
-            return "Run the whole file twice, alone in an empty folder, and write it beside itself as one measured-program block with its output and exit status, which the book's check-measured.py re-runs against its pinned gBASIC."
+            return "Run the whole file twice, alone in an empty folder, and write it beside itself as one measured-program block with its output and exit status, which the book's check-measured.py re-runs against its pinned gBASIC. The block opens in a tab."
         end if
         ' All three say EDITOR, because the rest of the window follows your
         ' desktop's interface font and is not Studio's to resize -- setting it
@@ -3424,6 +3424,9 @@ library studio_ui
         end if
         if action = "export-exists" then
             return leaf + " is already there and Studio did not write it — rename it to export"
+        end if
+        if action = "export-open-dirty" then
+            return leaf + " is open with unsaved changes — save or close it before exporting over it"
         end if
         if action = "export-no-doc" then
             return "open a gBASIC file to export it"
@@ -6328,10 +6331,45 @@ library studio_ui
                 return { app: app, action: "export-exists", detail: path }
             end if
         end if
+        if studio_ui._export_open_dirty(app, path) then
+            return { app: app, action: "export-open-dirty", detail: path }
+        end if
         f{file} = path
         write(f, e.text)
+        app = studio_ui._show_export(app, doc.project_id, path)
         return { app: app, action: "exported",
                  detail: studio_ui._leaf(path) + " " + string(e.results) + " " + string(e.left_out) }
+    end function
+
+    ' An export nobody can see is a status line about a file somewhere. So the
+    ' written file is OPENED and made the active tab -- reloaded first when it
+    ' was already open, which is safe only because an export over an open copy
+    ' with unsaved edits is refused before anything is written (below).
+    function _show_export(app, project_id, path)
+        id = studio_docs.find_open(app.dm, path)
+        if id != "" then
+            r = studio_docs.reload(app.dm, id)
+            app.dm = studio_docs.set_active(r.dm, id)
+            return app
+        end if
+        o = studio.open_file(app, project_id, path)
+        return o.app
+    end function
+
+    ' Writing over a file open with unsaved edits would leave that buffer in
+    ' conflict with what the export just wrote, and reloading it would discard
+    ' the edits. Neither is Studio's call to make.
+    function _export_open_dirty(app, path)
+        id = studio_docs.find_open(app.dm, path)
+        if id = "" then
+            return false
+        end if
+        for each d in app.dm.docs
+            if d.id = id then
+                return studio_docs.is_dirty(d)
+            end if
+        end for
+        return false
     end function
 
     ' ---- the whole file as a measured program (the book's own gate) ---------
@@ -6556,8 +6594,12 @@ library studio_ui
                 return { app: app, action: "export-exists", detail: path }
             end if
         end if
+        if studio_ui._export_open_dirty(app, path) then
+            return { app: app, action: "export-open-dirty", detail: path }
+        end if
         out{file} = path
         write(out, m.text)
+        app = studio_ui._show_export(app, doc.project_id, path)
         return { app: app, action: "measured-exported",
                  detail: studio_ui._leaf(path) + " " + string(runs[0].exit_code) + " " + string(m.lines) + " " + m.mode }
     end function

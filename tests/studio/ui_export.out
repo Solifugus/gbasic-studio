@@ -83,10 +83,17 @@
   exported: exported nb.md with 2 result(s)
   first line: <!-- gBASIC Studio export of nb.bas. Edit nb.bas, not this file. -->
   same text as decided: true
-  again: exported
+  the export is the active tab: nb.md (matches the file: true)
+  pressed again on it: export-not-gbasic
+  again from nb.bas: exported, active: nb.md (matches the file: true)
 == a section edited since it ran: its result is left out, and counted ==
   exported: exported nb.md with 1 result(s); 1 out of date, left out — run them again to include them
   "done" still in the export: false
+  and the open tab was reloaded with it: nb.md (matches the file: true)
+== the export open with unsaved edits is not written over ==
+  export-open-dirty: nb.md is open with unsaved changes — save or close it before exporting over it
+  nb.md on disk untouched: true
+  still active: nb.bas
 == refusals ==
   over a hand-written notes.md: export-exists: notes.md is already there and Studio did not write it — rename it to export
   notes.md untouched: true

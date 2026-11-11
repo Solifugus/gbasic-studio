@@ -21,7 +21,8 @@
   | --- exit 0
   | ```
   | 
-  again, over its own export: measured-exported
+  the block is the active tab: nb.measured.md (matches the file: true)
+  again, over its own export: measured-exported, active: nb.measured.md (matches the file: true)
 == stderr too: the lines are listed, not their order ==
   fails.bas: measured-exported: exported fails.measured.md: exit 1, 2 line(s), the same on two runs; it wrote to stderr, so the block lists the lines and not their order
   | <!-- gBASIC Studio export of fails.bas. Edit fails.bas, not this file. -->
