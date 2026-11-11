@@ -837,7 +837,7 @@ done
 for m in sqlconn rows open expand project bounds tabs edit save newproj refresh \
          newfile newfolder adopt exit \
          names rename delete closetab notice \
-         run runstop runerr runrefuse badsyntax filetypes projfile projpin newproj2 panes context menus settings projtabs anchors cursor drafts branch table overlay overlay_conflict inline measured; do
+         run runstop runerr runrefuse badsyntax filetypes projfile projpin newproj2 panes context menus settings projtabs anchors cursor drafts branch table overlay overlay_conflict inline measured lesson; do
     run_ui "$m"
 done
 

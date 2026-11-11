@@ -55,6 +55,7 @@ library studio_ui
     load studio_viewers
     load studio_table
     load studio_git
+    load studio_lesson
 
     ' Entries the browser does not show.
     '
@@ -2829,6 +2830,8 @@ library studio_ui
                                     "rename", "delete", "-",
                                     "reload", "close-tab", "-",
                                     "export-md", "export-measured"] })
+        out = append(out, { id: "lesson", label: "Lesson",
+                            items: ["check-lesson", "export-student"] })
         ' STU-18. Only what the application actually READS is here.
         ' `settings.recent_limit` is deliberately absent: `touch_recent` has one
         ' call site, in the canned-workspace demo, with a literal 10 -- so
@@ -2925,6 +2928,12 @@ library studio_ui
         end if
         if action = "export-measured" then
             return "Export as Measured Program"
+        end if
+        if action = "check-lesson" then
+            return "Check Lesson"
+        end if
+        if action = "export-student" then
+            return "Export Student Edition"
         end if
         if action = "text-bigger" then
             return "Bigger editor text"
@@ -3097,6 +3106,12 @@ library studio_ui
         end if
         if action = "export-measured" then
             return "Run the whole file twice, alone in an empty folder, and write it beside itself as one measured-program block with its output and exit status, which the book's check-measured.py re-runs against its pinned gBASIC. The block opens in a tab."
+        end if
+        if action = "check-lesson" then
+            return "Run each exercise's checks. In the instructor's file: does every solution pass, and does the student edition still fail them? In a student's copy: which exercises are done. The result is shown under each exercise."
+        end if
+        if action = "export-student" then
+            return "Write the student edition beside this lesson: each solution replaced by its starter code, and the private checks removed from the file, not hidden. It opens in a tab."
         end if
         ' All three say EDITOR, because the rest of the window follows your
         ' desktop's interface font and is not Studio's to resize -- setting it
@@ -3391,6 +3406,53 @@ library studio_ui
                 t = t + "; " + parts[2] + " out of date, left out — run them again to include them"
             end if
             return t
+        end if
+        ' ---- A lesson. "lesson-checked": "<instructor|student> <n> <passing> <given away>".
+        if action = "lesson-checked" then
+            parts = split(detail, " ")
+            if parts[0] = "student" then
+                return parts[2] + " of " + parts[1] + " exercise(s) done — the notes are under each exercise"
+            end if
+            t = "checked " + parts[1] + " exercise(s): the solutions pass " + parts[2] + " of " + parts[1]
+            if parts[3] = "0" then
+                t = t + ", and none is already done in the student edition"
+            else
+                t = t + ", but " + parts[3] + " already pass(es) in the student edition"
+            end if
+            if parts[2] != parts[1] or parts[3] != "0" then
+                t = t + " — see the notes under each exercise"
+            end if
+            return t
+        end if
+        if action = "student-exported" then
+            parts = split(detail, " ")
+            return "wrote " + parts[0] + " with " + parts[1] + " exercise(s); no solution or private check is in it"
+        end if
+        if action = "lesson-no-doc" then
+            return "open a lesson to check it"
+        end if
+        if action = "lesson-not-gbasic" then
+            return "only a gBASIC file can be a lesson"
+        end if
+        if action = "lesson-none" then
+            return "this file has no lesson markers — a lesson starts with a line like '' @exercise mean \"The mean\""
+        end if
+        if action = "lesson-problems" then
+            parts = split(detail, " ")
+            t = "line " + parts[0] + ": " + join(studio_ui._from(parts, 2), " ")
+            if parts[1] != "1" then
+                t = t + " (and " + string(number(parts[1]) - 1) + " more)"
+            end if
+            return t
+        end if
+        if action = "lesson-no-solutions" then
+            return "this file has no solutions or private checks to remove — it is already a student's copy"
+        end if
+        if action = "lesson-leak" then
+            return "the student edition would still hold line " + detail + " of a solution — nothing was written"
+        end if
+        if action = "lesson-edition-no-parse" then
+            return "the student edition would not parse (its line " + detail + ") — check the @starter code; nothing was written"
         end if
         ' ---- Export as Measured Program. "<file> <exit> <lines> <output|contains>".
         if action = "measured-exported" then
@@ -3740,7 +3802,7 @@ library studio_ui
     function sample_files()
         return [".gstudio.json", "README.md", "01_sections.bas", "02_tables.bas",
                 "03_errors.bas", "04_records.bas", "05_branches.bas",
-                "06_overlays.bas", "07_sql.sql"]
+                "06_overlays.bas", "07_sql.sql", "08_lesson.bas"]
     end function
 
     function samples_dir()
@@ -6602,6 +6664,283 @@ library studio_ui
         app = studio_ui._show_export(app, doc.project_id, path)
         return { app: app, action: "measured-exported",
                  detail: studio_ui._leaf(path) + " " + string(runs[0].exit_code) + " " + string(m.lines) + " " + m.mode }
+    end function
+
+    ' ---- a lesson: its checks and its student edition (proposal §9, stage 4) -
+    '
+    ' The markers and the edition are `studio_lesson`'s; what a press MEANS is
+    ' here. Check Lesson asks two different questions depending on whose file
+    ' it is. The INSTRUCTOR'S (it has solutions or private checks): does every
+    ' solution pass every check, and does the student edition built from it
+    ' FAIL them -- an exercise whose starter already passes gives itself away.
+    ' A STUDENT'S (no solutions): which exercises pass their public checks.
+    '
+    ' Each exercise is its own run of the whole file with only that
+    ' exercise's checks live, so one unfinished exercise cannot hide another's
+    ' result. Blocking, with a timeout, like the measured export: there is no
+    ' section to file a result against, and the answer is wanted now.
+
+    function lesson_timeout()
+        return 10
+    end function
+
+    function student_path(path)
+        p = studio_ui.export_path(path)
+        return left(p, len(p) - 3) + ".student.bas"
+    end function
+
+    ' The interpreter a run of this document uses: the project's pin, else
+    ' Studio's own. "" when it is not there.
+    function _doc_interpreter(app, doc)
+        interp = studio_session.default_interpreter()
+        pin = studio_projfile.read_spec(studio_ui.project_path_for(app, doc))
+        if pin.interpreter != "" then
+            interp = pin.interpreter
+        end if
+        return { found: studio_ui._interpreter_path(interp), interp: interp,
+                 gbasic_path: pin.gbasic_path }
+    end function
+
+    ' The active document as a lesson, or a refusal.
+    function _lesson_doc(app)
+        doc = studio_docs.active_doc(app.dm)
+        if doc = nothing then
+            return { ok: false, why: "lesson-no-doc", detail: "" }
+        end if
+        if not studio_ui.is_gbasic(doc.path) then
+            return { ok: false, why: "lesson-not-gbasic", detail: "" }
+        end if
+        l = studio_lesson.parse(doc.content)
+        if not l.is_lesson then
+            return { ok: false, why: "lesson-none", detail: "" }
+        end if
+        if count(l.problems) > 0 then
+            p = l.problems[0]
+            return { ok: false, why: "lesson-problems",
+                     detail: string(p.line) + " " + string(count(l.problems)) + " " + p.message }
+        end if
+        return { ok: true, why: "", detail: "", doc: doc, lesson: l }
+    end function
+
+    ' One exercise's checks, run against `text`. From the document's own
+    ' folder, so a lesson that reads a data file beside it finds it.
+    function _lesson_run(app, doc, found, envr, text, lesson, ex_id, private)
+        dir = app.paths.home + "/scratch"
+        persist.ensure_dir(dir)
+        path = dir + "/lesson-" + doc.id + ".bas"
+        persist.write_text_atomic(path, studio_lesson.check_program(text, lesson, ex_id, private))
+        leaf = studio_ui._leaf(doc.path)
+        opts = { command: found, args: [path], cwd: left(doc.path, len(doc.path) - len(leaf)),
+                 timeout: studio_ui.lesson_timeout() }
+        if count(keys(envr)) > 0 then
+            opts.env = envr
+        end if
+        r = process.run(opts)
+        f{file} = path
+        if exists(f) then
+            delete(f)
+        end if
+        if r.timed_out then
+            return { outcome: "error", passed: [], failed: [], missing: [],
+                     message: "did not finish within " + string(studio_ui.lesson_timeout()) + " seconds" }
+        end if
+        return studio_lesson.read_run(r, studio_lesson.expected(lesson, ex_id, private))
+    end function
+
+    function check_lesson(app)
+        d = studio_ui._lesson_doc(app)
+        if not d.ok then
+            return { app: app, action: d.why, detail: d.detail }
+        end if
+        doc = d.doc
+        l = d.lesson
+        ip = studio_ui._doc_interpreter(app, doc)
+        if ip.found = "" then
+            return { app: app, action: "no-interpreter", detail: ip.interp }
+        end if
+        envr = {}
+        if ip.gbasic_path != "" then
+            envr.GBASIC_PATH = ip.gbasic_path
+        end if
+        rows = []
+        good = 0
+        ' How many exercises the student edition ALREADY passes: an exercise
+        ' that gives itself away is the one thing about an edition worth
+        ' counting. One that fails, or does not run because the student has
+        ' a function to write, is what an exercise is.
+        gaps = 0
+        ed = nothing
+        if l.has_solutions then
+            et = studio_lesson.student_text(doc.content, l, studio_ui._leaf(doc.path))
+            ed = { text: et, lesson: studio_lesson.parse(et) }
+        end if
+        for each x in l.exercises
+            row = { id: x.id, title: x.title, line: x.end_line, own: nothing, edition: nothing }
+            row.own = studio_ui._lesson_run(app, doc, ip.found, envr, doc.content, l, x.id, true)
+            if row.own.outcome = "pass" then
+                good = good + 1
+            end if
+            if ed != nothing then
+                row.edition = studio_ui._lesson_run(app, doc, ip.found, envr, ed.text, ed.lesson, x.id, false)
+                if row.edition.outcome = "pass" then
+                    gaps = gaps + 1
+                end if
+            end if
+            rows = append(rows, row)
+        end for
+        app["lesson_checks"] = { doc_id: doc.id, content: doc.content,
+                                 instructor: l.has_solutions, rows: rows }
+        kind = "student"
+        if l.has_solutions then
+            kind = "instructor"
+        end if
+        return { app: app, action: "lesson-checked",
+                 detail: kind + " " + string(count(rows)) + " " + string(good) + " " + string(gaps) }
+    end function
+
+    ' The note under one exercise. Words, not glyphs: the figure fonts are
+    ' pinned, and a tick a font lacks is a box.
+    function lesson_note(row, instructor)
+        o = row.own
+        if not instructor then
+            n = count(o.passed) + count(o.failed) + count(o.missing)
+            if o.outcome = "pass" then
+                return "**Done.** " + row.title + ": all " + string(n) + " check(s) pass."
+            end if
+            if o.outcome = "fail" then
+                return "**Not yet.** " + row.title + ": " + studio_ui._lesson_failing(o.failed) + "."
+            end if
+            return "**Does not run.** " + row.title + ": " + o.message
+        end if
+        t = ""
+        if o.outcome = "pass" then
+            t = "**Solution passes** its " + string(count(o.passed)) + " check(s)."
+        else
+            if o.outcome = "fail" then
+                t = "**Solution fails:** " + studio_ui._lesson_failing(o.failed) + "."
+            else
+                t = "**Solution does not run:** " + o.message
+            end if
+        end if
+        ' The edition's line numbers are not this file's, so its result is
+        ' told in counts -- and a crash says whose line it was.
+        e = row.edition
+        if e != nothing then
+            m = count(e.passed) + count(e.failed) + count(e.missing)
+            if e.outcome = "pass" then
+                t = t + " **The starter already passes** every public check, so the exercise gives itself away."
+            else
+                if e.outcome = "fail" then
+                    t = t + " The student edition fails " + string(count(e.failed)) + " of its " + string(m) + " public check(s), as it should until the student does the exercise."
+                else
+                    t = t + " **The student edition does not run**, at its " + e.message
+                end if
+            end if
+        end if
+        return t
+    end function
+
+    ' "the check on line 9 fails" / "the checks on lines 37, 38 fail".
+    function _lesson_failing(lines)
+        parts = []
+        for each k in lines
+            parts = append(parts, string(k))
+        end for
+        if count(parts) = 1 then
+            return "the check on line " + parts[0] + " fails"
+        end if
+        return "the checks on lines " + join(parts, ", ") + " fail"
+    end function
+
+    function _from(a, k)
+        out = []
+        i = k
+        while i < count(a)
+            out = append(out, a[i])
+            i = i + 1
+        end while
+        return out
+    end function
+
+    ' The blocks: one note under each exercise's last marker, while the text
+    ' is still the text that was checked. An edit makes every note stale, and
+    ' a stale note is dropped rather than shown about code that changed.
+    function lesson_plan(app)
+        doc = studio_docs.active_doc(app.dm)
+        if doc = nothing then
+            return { doc_id: "", entries: [] }
+        end if
+        lc = app["lesson_checks"]
+        if is_unknown(lc) then
+            return { doc_id: doc.id, entries: [] }
+        end if
+        if lc.doc_id != doc.id or lc.content != doc.content then
+            return { doc_id: doc.id, entries: [] }
+        end if
+        folded = studio_ui._inline_folded(app)
+        entries = []
+        for each r in lc.rows
+            bid = "lesson-" + r.id
+            entries = append(entries, { id: bid, line: r.line,
+                                        note: studio_ui.lesson_note(r, lc.instructor),
+                                        title: "Exercise: " + r.title,
+                                        collapsed: contains(folded, studio_ui._fold_key(doc.id, bid)) })
+        end for
+        return { doc_id: doc.id, entries: entries }
+    end function
+
+    function lesson_items(plan)
+        items = []
+        for each e in plan.entries
+            items = append(items, { id: e.id, line: e.line, kind: "markdown",
+                                    title: e.title, content: e.note,
+                                    collapsed: e.collapsed })
+        end for
+        return items
+    end function
+
+    ' The student edition, written beside the lesson -- but only once it has
+    ' been checked to hold no solution, and to parse.
+    function export_student(app)
+        d = studio_ui._lesson_doc(app)
+        if not d.ok then
+            return { app: app, action: d.why, detail: d.detail }
+        end if
+        doc = d.doc
+        l = d.lesson
+        if not l.has_solutions then
+            return { app: app, action: "lesson-no-solutions", detail: "" }
+        end if
+        leaf = studio_ui._leaf(doc.path)
+        ed = studio_lesson.student_text(doc.content, l, leaf)
+        lk = studio_lesson.leaks(doc.content, l, ed)
+        if count(lk) > 0 then
+            return { app: app, action: "lesson-leak", detail: string(lk[0]) }
+        end if
+        o = source_outline(ed)
+        if not o.ok then
+            at = 0
+            if count(o.diagnostics) > 0 then
+                at = o.diagnostics[0].start_line
+            end if
+            return { app: app, action: "lesson-edition-no-parse", detail: string(at) }
+        end if
+        path = studio_ui.student_path(doc.path)
+        probe{file} = path
+        if exists(probe) then
+            had = read(probe)
+            if split(had, "\n")[0] != studio_lesson.edition_marker(leaf) then
+                return { app: app, action: "export-exists", detail: path }
+            end if
+        end if
+        if studio_ui._export_open_dirty(app, path) then
+            return { app: app, action: "export-open-dirty", detail: path }
+        end if
+        f{file} = path
+        write(f, ed)
+        app = studio_ui._show_export(app, doc.project_id, path)
+        return { app: app, action: "student-exported",
+                 detail: studio_ui._leaf(path) + " " + string(count(l.exercises)) }
     end function
 
     ' ---- STU-11: git, and staying quiet about it ----------------------------

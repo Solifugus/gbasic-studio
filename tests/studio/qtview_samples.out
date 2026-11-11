@@ -9,6 +9,7 @@ Open Samples: samples-opened, on top: 01_sections.bas
   1   05_branches.bas
   1   06_overlays.bas
   1   07_sql.sql
+  1   08_lesson.bas
   1   README.md
 == 01_sections.bas
   section: sec-1 statements
@@ -78,3 +79,15 @@ Open Samples: samples-opened, on top: 01_sections.bas
   Run All: ran
   the pane offers: rows: 4 rows
   Schema… finds: planets -- asked: pragma table_info("planets")
+== 08_lesson.bas
+  Check Lesson: checked 3 exercise(s): the solutions pass 3 of 3, and none is already done in the student edition
+    line 54: **Solution passes** its 3 check(s). The student edition fails 2 of its 2 public check(s), as it should until the student does the exercise.
+    line 84: **Solution passes** its 3 check(s). The student edition fails 2 of its 2 public check(s), as it should until the student does the exercise.
+    line 113: **Solution passes** its 2 check(s). The student edition fails 1 of its 1 public check(s), as it should until the student does the exercise.
+  Export Student Edition: wrote 08_lesson.student.bas with 3 exercise(s); no solution or private check is in it
+  the active tab: 08_lesson.student.bas; a solution line in it: false; a private check in it: false
+  Check Lesson there: 0 of 3 exercise(s) done — the notes are under each exercise
+  average written, checked again: 1 of 3 exercise(s) done — the notes are under each exercise
+    line 41: **Done.** The mean: all 2 check(s) pass.
+    line 56: **Not yet.** The median: the checks on lines 52, 53 fail.
+    line 70: **Not yet.** The standard deviation: the check on line 67 fails.

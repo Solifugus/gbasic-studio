@@ -326,7 +326,9 @@ function _inline(win, app)
     ' the other's. Its folds go with it.
     pp = studio_ui.prose_plan(app)
     app = pp.app
-    sig = studio_ui.inline_signature(p) + json_encode(pp.entries)
+    ' And so are a lesson's check notes, for the same reason.
+    lp = studio_ui.lesson_plan(app)
+    sig = studio_ui.inline_signature(p) + json_encode(pp.entries) + json_encode(lp.entries)
     sent = app["qt_inline_sent"]
     if is_unknown(sent) then
         sent = {}
@@ -343,6 +345,9 @@ function _inline(win, app)
     app = it.app
     items = it.items
     for each b in studio_ui.prose_items(pp)
+        items = append(items, b)
+    end for
+    for each b in studio_ui.lesson_items(lp)
         items = append(items, b)
     end for
     z = qt.blocks(win, part, items)

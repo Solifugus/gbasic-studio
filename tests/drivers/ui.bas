@@ -81,6 +81,20 @@ function shown(app)
   return d.display_name + " (matches the file: " + string(d.content = read(f)) + ")"
 end function
 
+' Open a project file and press Check Lesson, then Export Student Edition.
+function open_and_lesson(app, leaf)
+  rows = studio_ui.nav_rows(app)
+  r = studio_ui.activate_row(app, rows, row_index(rows, "file", leaf))
+  app = r.app
+  r = studio_ui.check_lesson(app)
+  app = r.app
+  print "  " + leaf + ", Check Lesson: " + r.action + ": " + studio_ui.action_notice(r.action, r.detail)
+  r = studio_ui.export_student(app)
+  app = r.app
+  print "  " + leaf + ", Export Student Edition: " + r.action + ": " + studio_ui.action_notice(r.action, r.detail)
+  return app
+end function
+
 ' Open a project file and press Export as Measured Program on it: the
 ' notice, and the block when one was written.
 function open_and_measure(app, projdir, leaf)
@@ -366,6 +380,7 @@ program main(args)
   load studio_model
   load studio_docs
   load studio
+  load studio_lesson
   load studio_ui
   load studio_table
   load studio_overlays
@@ -1518,6 +1533,157 @@ program main(args)
     app = r.app
     print "  a file that does not parse: " + r.action + ": " + studio_ui.action_notice(r.action, r.detail)
     print "  export path of a.b.bas: " + studio_ui._leaf(studio_ui.export_path("/x/a.b.bas"))
+  end if
+
+  if mode = "lesson" then
+    lesson_src = read_file_text(env("GBASIC_STUDIO_SHARE") + "/samples/08_lesson.bas")
+    lf{file} = projdir + "/lesson.bas"
+    write(lf, lesson_src)
+
+    banner("the markers, read: three exercises and where each one's note goes")
+    l = studio_lesson.parse(lesson_src)
+    print "  problems: " + count(l.problems) + ", has solutions: " + string(l.has_solutions)
+    for each x in l.exercises
+      ps = 0
+      for each c in x.checks
+        if c.private then
+          ps = ps + 1
+        end if
+      end for
+      print "  " + x.id + " \"" + x.title + "\" line " + x.line + ": solution " + x.solution.first + "-" + x.solution.last + ", starter " + x.starter.first + "-" + x.starter.last + ", " + count(x.checks) + " check region(s), " + ps + " private, hints " + count(x.hints) + ", tutor notes " + count(x.tutors) + ", note at " + x.end_line
+    end for
+    print "  in the prose view: " + studio_lesson.prose_line("@exercise mean \"The mean\"") + " | " + studio_lesson.prose_line("@hint Add them up.") + " | " + studio_lesson.prose_line("@tutor Ask first.")
+    print "  an ordinary line is left alone: " + string(studio_lesson.prose_line("@ alone") = nothing) + " " + string(studio_lesson.prose_line("plain") = nothing)
+
+    banner("what is wrong with a lesson is said by line")
+    bad = []
+    bad = append(bad, "'' @exercise a\n' @solution\nx = 1\n")
+    bad = append(bad, "' @end\n")
+    bad = append(bad, "'' @exercise a\n' @starter\nfunction f()\n' @end\n' @solution\nx = 1\n' @end\n' @check\nprint x = 1\n' @end\n")
+    bad = append(bad, "'' @exercise a\n' @check\nprint x = 1 ' a remark\n' @end\n")
+    bad = append(bad, "'' @exercise a\n' @check\nx = 1\n' @end\n")
+    bad = append(bad, "'' @exercise a\n' @check\nprint 1 = 1\n' @end\n'' @exercise a\n' @check\nprint 1 = 1\n' @end\n")
+    bad = append(bad, "'' @exercise Mean!\n' @check\nprint 1 = 1\n' @end\n")
+    bad = append(bad, "'' @exercise a\n' @check\nprint 1 = 1\n' @solution\n' @end\n")
+    bad = append(bad, "' @solution\n' @end\n")
+    bad = append(bad, "'' @exercise a\n' @check public\nprint 1 = 1\n' @end\n' @answer\n")
+    bad = append(bad, "'' @exercise a\n")
+    bad = append(bad, "'' @exercise a\n' @starter\n' x = 1\n' @end\n' @check\nprint 1 = 1\n' @end\n")
+    for each b in bad
+      for each p in studio_lesson.parse(b).problems
+        print "  line " + p.line + ": " + p.message
+      end for
+      print "  --"
+    end for
+
+    banner("the student edition: solutions replaced by starters, private checks gone")
+    ed = studio_lesson.student_text(lesson_src, l, "lesson.bas")
+    print "  lines: " + count(split(lesson_src, "\n")) + " -> " + count(split(ed, "\n"))
+    print "  first line: " + split(ed, "\n")[0]
+    print "  solution lines left: " + string(contains(ed, "total / count(xs)")) + ", private checks left: " + string(contains(ed, "@check private")) + string(contains(ed, "= mean(commute)"))
+    print "  leaks found in it: " + json_encode(studio_lesson.leaks(lesson_src, l, ed))
+    print "  and in the instructor's own text, which is all solution: " + json_encode(studio_lesson.leaks(lesson_src, l, lesson_src))
+    i = 0
+    for each el in split(ed, "\n")
+      i = i + 1
+      if i >= 26 and i <= 46 then
+        print "  | " + el
+      end if
+    end for
+
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "lesson.bas"))
+    app = r.app
+    id = studio_docs.active_doc(app.dm).id
+
+    banner("Check Lesson on the instructor's file")
+    r = studio_ui.check_lesson(app)
+    app = r.app
+    print "  " + r.action + ": " + studio_ui.action_notice(r.action, r.detail)
+    for each e in studio_ui.lesson_plan(app).entries
+      print "  " + e.id + " at line " + e.line + " (" + e.title + "): " + e.note
+    end for
+    print "  as blocks: " + json_encode(studio_ui.lesson_items(studio_ui.lesson_plan(app))[0])
+
+    banner("an edit makes the notes stale, and they go")
+    app = studio.edit_document(app, id, studio_docs.active_doc(app.dm).content + "\n")
+    print "  notes: " + count(studio_ui.lesson_plan(app).entries)
+    app = studio.edit_document(app, id, lesson_src)
+
+    banner("what the notes say when the lesson itself is wrong")
+    wrong = replace(lesson_src, "    return total / count(xs)", "    return total / (count(xs) + 1)")
+    wrong = replace(wrong, "' function middle(xs)\n'     return 0", "' function middle(xs)\n'     return median(xs)")
+    app = studio.edit_document(app, id, wrong)
+    r = studio_ui.check_lesson(app)
+    app = r.app
+    print "  a wrong solution, and a starter that is the answer:"
+    print "  " + r.action + ": " + studio_ui.action_notice(r.action, r.detail)
+    for each e in studio_ui.lesson_plan(app).entries
+      print "  " + e.id + ": " + e.note
+    end for
+    crash = replace(lesson_src, "' function spread(xs)\n'     return 0", "' function spread(xs)\n'     return 1 / 0")
+    app = studio.edit_document(app, id, crash)
+    r = studio_ui.check_lesson(app)
+    app = r.app
+    print "  a starter that divides by zero -- and the summary at the end calls it, so every run of the edition stops there:"
+    print "  " + r.action + ": " + studio_ui.action_notice(r.action, r.detail)
+    for each e in studio_ui.lesson_plan(app).entries
+      print "  " + e.id + ": " + e.note
+    end for
+    app = studio.edit_document(app, id, lesson_src)
+
+    banner("Export Student Edition, and the student's side of Check Lesson")
+    r = studio_ui.export_student(app)
+    app = r.app
+    print "  " + r.action + ": " + studio_ui.action_notice(r.action, r.detail)
+    print "  active: " + shown(app)
+    print "  the file is the edition decided above: " + string(read_file_text(projdir + "/lesson.student.bas") = ed)
+    r = studio_ui.check_lesson(app)
+    app = r.app
+    print "  " + r.action + ": " + studio_ui.action_notice(r.action, r.detail)
+    for each e in studio_ui.lesson_plan(app).entries
+      print "  " + e.id + ": " + e.note
+    end for
+    sid = studio_docs.active_doc(app.dm).id
+    stext = studio_docs.active_doc(app.dm).content
+    stext = replace(stext, "function average(xs)\n    return 0", "function average(xs)\n    return sum(xs) / count(xs)")
+    stext = replace(stext, "function middle(xs)\n    return 0", "function middle(xs)\n    return sort(xs)[1]")
+    app = studio.edit_document(app, sid, stext)
+    r = studio_ui.check_lesson(app)
+    app = r.app
+    print "  two written, one wrongly: " + studio_ui.action_notice(r.action, r.detail)
+    for each e in studio_ui.lesson_plan(app).entries
+      print "  " + e.id + ": " + e.note
+    end for
+    r = studio_ui.export_student(app)
+    app = r.app
+    print "  Export Student Edition on it: " + r.action + ": " + studio_ui.action_notice(r.action, r.detail)
+
+    banner("refusals")
+    app = back_to(app, "lesson.bas")
+    r = studio_ui.export_student(app)
+    app = r.app
+    print "  over the student's edited copy, open: " + r.action + ": " + studio_ui.action_notice(r.action, r.detail)
+    print "  the file on disk is as it was: " + string(read_file_text(projdir + "/lesson.student.bas") = ed) + "; their unsaved work is still in the tab: " + string(contains(stext, "sum(xs) / count(xs)"))
+    nf{file} = projdir + "/notes.bas"
+    write(nf, "print 1\n")
+    nl{file} = projdir + "/notes.student.bas"
+    write(nl, "' mine\n")
+    app = open_and_lesson(app, "notes.bas")
+    pf{file} = projdir + "/broken.bas"
+    write(pf, "'' @exercise a\n' @check\nprint 1 = 1\n")
+    app = open_and_lesson(app, "broken.bas")
+    sf{file} = projdir + "/syntax.bas"
+    write(sf, "'' @exercise a\n' @starter\n' function f(\n' @end\n' @solution\nfunction f()\n  return 1\nend function\n' @end\n' @check\nprint f() = 1\n' @end\n")
+    app = open_and_lesson(app, "syntax.bas")
+    of{file} = projdir + "/own.bas"
+    write(of, "'' @exercise a\n' @solution\nfunction f()\n  return 1\nend function\n' @end\n' @check\nprint f() = 1\n' @end\n")
+    ow{file} = projdir + "/own.student.bas"
+    write(ow, "' mine\n")
+    app = open_and_lesson(app, "own.bas")
+    print "  own.student.bas untouched: " + string(read_file_text(projdir + "/own.student.bas") = "' mine\n")
+    app = open_and_lesson(app, "own.student.bas")
+    print "  student path of a.b.bas: " + studio_ui._leaf(studio_ui.student_path("/x/a.b.bas"))
   end if
 
   if mode = "measured" then

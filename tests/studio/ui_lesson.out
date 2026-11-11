@@ -1,0 +1,110 @@
+== the markers, read: three exercises and where each one's note goes ==
+  problems: 0, has solutions: true
+  average "The mean" line 28: solution 37-45, starter 32-36, 2 check region(s), 1 private, hints 1, tutor notes 1, note at 54
+  middle "The median" line 56: solution 66-75, starter 61-65, 2 check region(s), 1 private, hints 1, tutor notes 1, note at 84
+  spread "The standard deviation" line 86: solution 96-105, starter 91-95, 2 check region(s), 1 private, hints 1, tutor notes 1, note at 113
+  in the prose view: ### Exercise: The mean | > **Hint:** Add them up. | > **For the tutor:** Ask first.
+  an ordinary line is left alone: true true
+== what is wrong with a lesson is said by line ==
+  line 2: @solution is never closed with ' @end
+  line 1: exercise a has no @check, so nothing can say whether it is done
+  --
+  line 1: @end with nothing open
+  --
+  line 3: a @starter line must be commented out (it is the student's code, not the instructor's)
+  --
+  line 3: a check line cannot end in a comment -- put the comment on its own line
+  line 2: this @check has no `print <expression>` line to check
+  --
+  line 2: this @check has no `print <expression>` line to check
+  --
+  line 5: exercise a is already defined at line 1
+  --
+  line 1: an exercise id is lower-case letters, digits, - and _ (got "Mean!")
+  --
+  line 4: @solution inside an open @check (line 2) -- close it with ' @end first
+  --
+  line 1: @solution before any @exercise
+  line 2: @end with nothing open
+  --
+  line 2: @check takes nothing or `private` (got "public")
+  line 5: @answer is not a lesson marker (exercise, solution, starter, check, end, hint, tutor)
+  --
+  line 1: exercise a has no @check, so nothing can say whether it is done
+  --
+  line 2: exercise a has a @starter but no @solution for it to replace
+  --
+== the student edition: solutions replaced by starters, private checks gone ==
+  lines: 121 -> 78
+  first line: ' Student edition of lesson.bas, made by gBASIC Studio.
+  solution lines left: false, private checks left: falsefalse
+  leaks found in it: []
+  and in the instructor's own text, which is all solution: [39,40,41,42,43,51,68,69,70,71,72,73,81,98,99,100,101,102,103,110]
+  | commute = [12, 25, 8, 30, 15, 45, 10, 22, 18, 9, 35, 14]
+  | print "minutes: " + string(commute)
+  | 
+  | '' @exercise average "The mean"
+  | ''
+  | '' The **mean** is the total divided by how many there are. Write
+  | '' `average(xs)` without using `mean`: add the numbers up with a loop.
+  | function average(xs)
+  |     return 0
+  | end function
+  | ' @check
+  | print average([2, 4, 4, 5]) = 3.75
+  | print average([7]) = 7
+  | ' @end
+  | '' @hint `total = total + x` inside a `for each` loop adds them up.
+  | '' @tutor If the answer is off by a lot, ask whether they divided by the count or by the last number.
+  | 
+  | '' @exercise middle "The median"
+  | ''
+  | '' The **median** is the middle value once the list is sorted. With an even
+  | '' count there are two middle values, and the median is halfway between them.
+== Check Lesson on the instructor's file ==
+  lesson-checked: checked 3 exercise(s): the solutions pass 3 of 3, and none is already done in the student edition
+  lesson-average at line 54 (Exercise: The mean): **Solution passes** its 3 check(s). The student edition fails 2 of its 2 public check(s), as it should until the student does the exercise.
+  lesson-middle at line 84 (Exercise: The median): **Solution passes** its 3 check(s). The student edition fails 2 of its 2 public check(s), as it should until the student does the exercise.
+  lesson-spread at line 113 (Exercise: The standard deviation): **Solution passes** its 2 check(s). The student edition fails 1 of its 1 public check(s), as it should until the student does the exercise.
+  as blocks: {"id":"lesson-average","line":54,"kind":"markdown","title":"Exercise: The mean","content":"**Solution passes** its 3 check(s). The student edition fails 2 of its 2 public check(s), as it should until the student does the exercise.","collapsed":false}
+== an edit makes the notes stale, and they go ==
+  notes: 0
+== what the notes say when the lesson itself is wrong ==
+  a wrong solution, and a starter that is the answer:
+  lesson-checked: checked 3 exercise(s): the solutions pass 1 of 3, but 1 already pass(es) in the student edition — see the notes under each exercise
+  lesson-average: **Solution fails:** the checks on lines 47, 48, 51 fail. The student edition fails 2 of its 2 public check(s), as it should until the student does the exercise.
+  lesson-middle: **Solution passes** its 3 check(s). **The starter already passes** every public check, so the exercise gives itself away.
+  lesson-spread: **Solution fails:** the checks on lines 107, 110 fail. The student edition fails 1 of its 1 public check(s), as it should until the student does the exercise.
+  a starter that divides by zero -- and the summary at the end calls it, so every run of the edition stops there:
+  lesson-checked: checked 3 exercise(s): the solutions pass 3 of 3, and none is already done in the student edition
+  lesson-average: **Solution passes** its 3 check(s). **The student edition does not run**, at its line 64: division by zero
+  lesson-middle: **Solution passes** its 3 check(s). **The student edition does not run**, at its line 64: division by zero
+  lesson-spread: **Solution passes** its 2 check(s). **The student edition does not run**, at its line 64: division by zero
+== Export Student Edition, and the student's side of Check Lesson ==
+  student-exported: wrote lesson.student.bas with 3 exercise(s); no solution or private check is in it
+  active: lesson.student.bas (matches the file: true)
+  the file is the edition decided above: true
+  lesson-checked: 0 of 3 exercise(s) done — the notes are under each exercise
+  lesson-average: **Not yet.** The mean: the checks on lines 37, 38 fail.
+  lesson-middle: **Not yet.** The median: the checks on lines 52, 53 fail.
+  lesson-spread: **Not yet.** The standard deviation: the check on line 67 fails.
+  two written, one wrongly: 1 of 3 exercise(s) done — the notes are under each exercise
+  lesson-average: **Done.** The mean: all 2 check(s) pass.
+  lesson-middle: **Not yet.** The median: the check on line 53 fails.
+  lesson-spread: **Not yet.** The standard deviation: the check on line 67 fails.
+  Export Student Edition on it: lesson-no-solutions: this file has no solutions or private checks to remove — it is already a student's copy
+== refusals ==
+  over the student's edited copy, open: export-open-dirty: lesson.student.bas is open with unsaved changes — save or close it before exporting over it
+  the file on disk is as it was: true; their unsaved work is still in the tab: true
+  notes.bas, Check Lesson: lesson-none: this file has no lesson markers — a lesson starts with a line like '' @exercise mean "The mean"
+  notes.bas, Export Student Edition: lesson-none: this file has no lesson markers — a lesson starts with a line like '' @exercise mean "The mean"
+  broken.bas, Check Lesson: lesson-problems: line 2: @check is never closed with ' @end (and 1 more)
+  broken.bas, Export Student Edition: lesson-problems: line 2: @check is never closed with ' @end (and 1 more)
+  syntax.bas, Check Lesson: lesson-checked: checked 1 exercise(s): the solutions pass 1 of 1, and none is already done in the student edition
+  syntax.bas, Export Student Edition: lesson-edition-no-parse: the student edition would not parse (its line 5) — check the @starter code; nothing was written
+  own.bas, Check Lesson: lesson-checked: checked 1 exercise(s): the solutions pass 1 of 1, and none is already done in the student edition
+  own.bas, Export Student Edition: export-exists: own.student.bas is already there and Studio did not write it — rename it to export
+  own.student.bas untouched: true
+  own.student.bas, Check Lesson: lesson-none: this file has no lesson markers — a lesson starts with a line like '' @exercise mean "The mean"
+  own.student.bas, Export Student Edition: lesson-none: this file has no lesson markers — a lesson starts with a line like '' @exercise mean "The mean"
+  student path of a.b.bas: a.b.student.bas

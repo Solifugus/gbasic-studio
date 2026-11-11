@@ -68,7 +68,7 @@ mode.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 216 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 217 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 30 cases, headless AND offline (scripted transport)
 ```
 
@@ -268,6 +268,10 @@ lib/studio_mcp.bas      `./studio mcp`, the protocol half: a request line
                         decided, the tools offered under a policy, the reply,
                         and the session recorded as a shot script.
                         Toolkit-free; the `mcp` mode is the adapter
+lib/studio_lesson.bas   a teaching lesson in a gBASIC file: the @ markers,
+                        the student edition (built by removal, then checked
+                        for leaks), and the program that runs one exercise's
+                        checks. Toolkit-free
 lib/studio_style.bas    the spacing unit, the dark and PRINT palettes and the
                         one Qt sheet both render through (`sheet(p)`), and the
                         decisions that follow the theme. Toolkit-free
@@ -1222,6 +1226,70 @@ and `qtview_prose` presses the item.
 - **Known limit:** the child inherits Studio's stdin, so a program calling
   `input` waits out `measured_timeout()` (10s) and is refused. The checker's
   `--- input` is not offered.
+
+#### A lesson: checks and a student edition (proposal §9, stage 4)
+
+The user's decisions (2026-11-11): `@` tags in comments, starters written by
+the author, an intro-statistics lesson, and editions + checks first (hints
+and tutor notes parsed and kept, not yet given to the assistant).
+`lib/studio_lesson.bas` is the markers, the edition and the check program,
+toolkit-free; `studio_ui.check_lesson` / `export_student` / `lesson_plan` are
+what the presses mean; `ui_lesson` asserts all of it headlessly against the
+SHIPPED lesson, `share/samples/08_lesson.bas`, and `qtview_samples` performs
+its "Try this" through the window.
+
+- **Markers are found by LINE TEXT** (`' @` or `'' @` first on the line). A
+  line starting with `'` is a whole-line comment, so it is not a guess, and
+  it needs no `source_comments` -- the lesson tier runs on every build.
+- **A check line is `print <expression>`**, so an author writes the claim
+  once and it reads both ways: plain gBASIC prints `true`, Check Lesson
+  rewrites the line into `__gbstudio_check(<line>, <expression>)`, which
+  prints `@@gbstudio-check pass|fail <line>`. gBASIC has no `assert` and no
+  `raise` statement, which is why it is a rewrite and not a convention the
+  author calls. Measured on all three builds: `=` is a comparison inside a
+  call's arguments, and a function defined at the top of the file (the
+  prelude) is visible to top-level statements below it. A check line cannot
+  end in a comment (the comment would swallow the closing parenthesis), and
+  the parse says so by line.
+- **ONE RUN PER EXERCISE**, the whole file with only that exercise's checks
+  live and every other check region BLANKED LINE FOR LINE, so a line number
+  still means the same line. The prelude's lines are taken off a diagnostic's
+  line, and the path is dropped. Blocking with a timeout, like the measured
+  export, from the document's own folder so a data file beside it is found.
+- **The cost of whole-file runs is real and shown:** a starter that crashes
+  stops every exercise's run of the edition if anything below calls it (the
+  lesson's summary calls all three). The notes say so, at the edition's line.
+- **The instructor's file is asked two things**: does each solution pass all
+  its checks, private included, and does the STUDENT EDITION already pass
+  its public ones -- an exercise that gives itself away is the one thing
+  counted. An edition that fails, or does not run because the student has a
+  function to write, is what an exercise is. The edition's line numbers are
+  not this file's, so its result is told in COUNTS, and a crash says "at its
+  line N". First version cited the edition's lines under the instructor's
+  file, found by reading the output.
+- **A student's copy** (no solutions, no private checks) is asked which
+  exercises pass. Same press, decided by `has_solutions`.
+- **THE EDITION IS BUILT BY REMOVAL**: solutions replaced by their starter,
+  uncommented; starters removed from where they were written; private check
+  regions removed whole. Public checks stay with their markers, so Check
+  Lesson works on the student's copy. Then `leaks` re-reads the edition for
+  any line ONLY a solution or a private check held (`end function` is in the
+  starter too and is no secret) -- the claim is checked, not trusted -- and
+  the edition must parse (`source_outline`). Either refusal writes nothing.
+- **The notes are blocks**, a third source in `_inline`'s one `qt.blocks`
+  replace (after results and prose), at each exercise's last marker. Keyed
+  by the document's CONTENT: an edit drops them rather than leave a note
+  about code that changed. No glyphs in them: the figure fonts are pinned.
+- **In the prose view** `@exercise` reads as a heading and `@hint`/`@tutor` as
+  quoted notes (`studio_lesson.prose_line`, called from
+  `studio_sections._prose_line`), so they also show that way in a Markdown
+  export.
+- **The edition's first line** is `' Student edition of <leaf>, made by gBASIC
+  Studio.`, and an existing `.student.bas` without it is refused; an open copy
+  with unsaved edits is refused (`export-open-dirty`), as for the exports.
+- **Not done:** `@hint` / `@tutor` reaching the assistant; hints shown one at
+  a time (in the edition they are all visible comments); an assignment
+  package (§11).
 
 #### Theming under Qt, which was a dead control
 

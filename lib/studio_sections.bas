@@ -29,6 +29,7 @@ library studio_sections
 
     ' Dependencies, declared rather than assumed.
     load studio_sql
+    load studio_lesson
 
     function schema_version()
         return 1
@@ -298,6 +299,12 @@ library studio_sections
         t = mid(raw_line, len(m), len(raw_line) - len(m))
         if starts_with(t, " ") then
             t = mid(t, 1, len(t) - 1)
+        end if
+        ' A lesson's markers (`@exercise`, `@hint`, `@tutor`) read as a heading
+        ' and two notes rather than as a sentence beginning with `@`.
+        lm = studio_lesson.prose_line(t)
+        if lm != nothing then
+            return lm
         end if
         return t
     end function

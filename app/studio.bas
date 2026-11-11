@@ -1311,6 +1311,27 @@ function on_qt_open_samples()
 end function
 
 ' The `samples` mode's helpers.
+' The notes Check Lesson put under the exercises, as the plan has them --
+' and, on a gBASIC that draws blocks, whether the editor holds one for each.
+function qt_lesson_notes(ed)
+    lp = studio_ui.lesson_plan(G.app)
+    for each e in lp.entries
+        print "    line " + string(e.line) + ": " + e.note
+    end for
+    if default(G.app["qt_blocks_ok"], false) then
+        n = 0
+        for each b in qt.blocks(G.win, ed)
+            if starts_with(b.id, "lesson-") then
+                n = n + 1
+            end if
+        end for
+        if n != count(lp.entries) then
+            print "    the editor holds " + string(n) + " lesson note(s), not " + string(count(lp.entries))
+        end if
+    end if
+    return nothing
+end function
+
 function qt_sample_open(name)
     rows = studio_ui.nav_rows(G.app)
     o = studio_ui.activate_row(G.app, rows, studio_qt_row_index(rows, "file", name))
@@ -2204,6 +2225,14 @@ function on_qt_export_measured()
     return qt_took(studio_ui.export_measured(G.app))
 end function
 
+function on_qt_check_lesson()
+    return qt_took(studio_ui.check_lesson(G.app))
+end function
+
+function on_qt_export_student()
+    return qt_took(studio_ui.export_student(G.app))
+end function
+
 ' ---- closing --------------------------------------------------------------
 
 ' THE WINDOW IS CLOSING, AND THIS IS THE ONLY MOMENT ITS LAYOUT CAN BE READ.
@@ -2317,6 +2346,8 @@ function qt_wire(win)
     win = qt_on(win, qt_item("show-prose"), "triggered", on_qt_prose)
     win = qt_on(win, qt_item("export-md"), "triggered", on_qt_export_md)
     win = qt_on(win, qt_item("export-measured"), "triggered", on_qt_export_measured)
+    win = qt_on(win, qt_item("check-lesson"), "triggered", on_qt_check_lesson)
+    win = qt_on(win, qt_item("export-student"), "triggered", on_qt_export_student)
     win = qt_on(win, studio_shell_qt.part_tb_whitespace(), "triggered", on_qt_whitespace)
 
     ' The browser's own menu. Every item dispatches to the SAME `studio_ui`
@@ -3011,6 +3042,26 @@ program main(args)
         end for
         print "  Schema… finds: " + join(names, ", ") + " -- asked: " + qt.read(G.schemawin, "sc_asked", "text")
         z = qt.close(G.schemawin)
+
+        print "== 08_lesson.bas"
+        ed = qt_sample_open("08_lesson.bas")
+        z = qt.invoke(win, qt_item("check-lesson"), "trigger")
+        print "  Check Lesson: " + studio_ui.action_notice(G.last_action, G.last_detail)
+        z = qt_lesson_notes(ed)
+        z = qt.invoke(win, qt_item("export-student"), "trigger")
+        print "  Export Student Edition: " + studio_ui.action_notice(G.last_action, G.last_detail)
+        sd = studio_docs.active_doc(G.app.dm)
+        sed = studio_shell_qt.part_editor(sd.id)
+        stext = qt.read(win, sed, "plainText")
+        print "  the active tab: " + sd.display_name + "; a solution line in it: " + string(contains(stext, "total / count(xs)")) + "; a private check in it: " + string(contains(stext, "= mean(commute)"))
+        z = qt.invoke(win, qt_item("check-lesson"), "trigger")
+        print "  Check Lesson there: " + studio_ui.action_notice(G.last_action, G.last_detail)
+        done = replace(stext, "function average(xs)" + chr(10) + "    return 0", "function average(xs)" + chr(10) + "    return sum(xs) / count(xs)")
+        G.app = studio.edit_document(G.app, sd.id, done)
+        z = qt_redraw()
+        z = qt.invoke(win, qt_item("check-lesson"), "trigger")
+        print "  average written, checked again: " + studio_ui.action_notice(G.last_action, G.last_detail)
+        z = qt_lesson_notes(sed)
         return nothing
     end if
 

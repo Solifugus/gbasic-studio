@@ -92,6 +92,23 @@ between the two streams is not known. Output with a tab or an escape in it,
 and a line that would end the block, are refused by name; a program that
 reads input times out after ten seconds.
 
+**A lesson is an ordinary gBASIC file with its exercises marked in
+comments** (`share/samples/08_lesson.bas` is a complete one, on describing a
+set of numbers). `'' @exercise mean "The mean"` opens an exercise; `' @solution`,
+`' @starter` (commented-out lines) and `' @check` / `' @check private`
+regions close with `' @end`; `'' @hint` and `'' @tutor` are one line each. A
+check line is `print <expression>`: run as plain gBASIC it prints `true`.
+**Lesson ▸ Check Lesson** runs each exercise's checks as its own run of the
+file and puts a note under the exercise. In the instructor's file, it reports
+whether each solution passes and whether the student edition already does,
+which would give the exercise away. In a student's copy, it says which
+exercises are done. **Lesson ▸ Export Student Edition** writes
+`<name>.student.bas` with every solution replaced by its starter and every
+private check *removed* from the text, not hidden, then re-reads the edition
+for any line only a solution held and refuses if it finds one, or if the
+edition would not parse. Hints and tutor notes are kept in the edition; they
+are not yet given to the assistant.
+
 **Run** runs the section the caret is in, and the strip names it before you
 press anything; a whole-file `.sql` run that stops part way moves the caret to
 the line it stopped at. **Force Stop** is there for a program that ignores a
@@ -856,7 +873,7 @@ resources or prompts.
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 216 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 217 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 30 cases, headless AND offline — no network, no key
 ```
 

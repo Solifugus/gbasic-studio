@@ -18,6 +18,9 @@ File (file)
   --
   export-md     Export as Markdown
   export-measuredExport as Measured Program
+Lesson (lesson)
+  check-lesson  Check Lesson
+  export-studentExport Student Edition
 Settings (settings)
   theme-system  Follow the desktop
   theme-dark    Dark
@@ -32,7 +35,7 @@ Settings (settings)
   --
   restore-sessionReopen last session on start
 == every item has a label and a hint, and no two share a label ==
-items=22 problems=0
+items=24 problems=0
 == an item nobody declared ==
   unknown -> no-such-item
   hint    -> []

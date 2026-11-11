@@ -15,6 +15,7 @@ the point.
 | `05_branches.bas` | Trying a different value on a branch without editing the file |
 | `06_overlays.bas` | Trying different code for one function on a branch |
 | `07_sql.sql` | A `.sql` file as a notebook of statements, against a small SQLite database |
+| `08_lesson.bas` | A teaching lesson: exercises, their checks, and the student edition made from it |
 
 `.gstudio.json` is this project's own file: it names the `samples` database
 that `07_sql.sql` uses (`samples.db` in this folder, created the first time it
