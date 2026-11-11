@@ -16,3 +16,8 @@ Settings > Show documentation comments as prose
 a theme change rebuilds the editor, and the prose is sent to the new one
   theme-set: doc-1@1 markdown, doc-5@5 markdown, doc-10@10 markdown; folds 1-3, 5-6
   the text is untouched: true
+File > Export as Markdown
+  exported: exported prose.md with 0 result(s)
+  the status line says so: true
+  its first paragraph: # Rates
+  the text is untouched: true

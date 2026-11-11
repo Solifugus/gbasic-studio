@@ -2827,7 +2827,8 @@ library studio_ui
         out = append(out, { id: "file", label: "File",
                             items: ["new-file", "new-folder", "-",
                                     "rename", "delete", "-",
-                                    "reload", "close-tab"] })
+                                    "reload", "close-tab", "-",
+                                    "export-md"] })
         ' STU-18. Only what the application actually READS is here.
         ' `settings.recent_limit` is deliberately absent: `touch_recent` has one
         ' call site, in the canned-workspace demo, with a literal 10 -- so
@@ -2918,6 +2919,9 @@ library studio_ui
         end if
         if action = "show-prose" then
             return "Show documentation comments as prose"
+        end if
+        if action = "export-md" then
+            return "Export as Markdown"
         end if
         if action = "text-bigger" then
             return "Bigger editor text"
@@ -3084,6 +3088,9 @@ library studio_ui
         end if
         if action = "show-prose" then
             return "Show comment lines that begin with '' as formatted Markdown, in place of the comment. Put the caret on one to edit it as text. The file keeps the comments."
+        end if
+        if action = "export-md" then
+            return "Write the open file as one Markdown document beside it: the documentation comments as prose, the code as listings, and each section's last result under it. A result whose code changed since it ran is left out."
         end if
         ' All three say EDITOR, because the rest of the window follows your
         ' desktop's interface font and is not Studio's to resize -- setting it
@@ -3369,6 +3376,30 @@ library studio_ui
         end if
         if action = "prose-off" then
             return "documentation comments shown as comments"
+        end if
+        ' ---- Export as Markdown. "<file> <results> <left out>".
+        if action = "exported" then
+            parts = split(detail, " ")
+            t = "exported " + parts[0] + " with " + parts[1] + " result(s)"
+            if parts[2] != "0" then
+                t = t + "; " + parts[2] + " out of date, left out — run them again to include them"
+            end if
+            return t
+        end if
+        if action = "export-exists" then
+            return leaf + " is already there and Studio did not write it — rename it to export"
+        end if
+        if action = "export-no-doc" then
+            return "open a gBASIC file to export it"
+        end if
+        if action = "export-not-gbasic" then
+            return "only a gBASIC file can be exported as Markdown"
+        end if
+        if action = "export-old-gbasic" then
+            return "this gBASIC cannot say which lines are comments, so it cannot export (source_comments, after 0.10.0)"
+        end if
+        if action = "export-no-parse" then
+            return "this file does not parse — fix it before exporting, so its results can be placed"
         end if
         ' ---- STU-20, the editor's text size.
         if action = "zoom-set" then
@@ -5836,94 +5867,15 @@ library studio_ui
         return { app: app, action: "prose-off", detail: "" }
     end function
 
-    ' What makes a comment documentation. One `'` is a comment, as ever; a
-    ' second one says "this is prose". Chosen because it costs a keystroke,
-    ' reads as a comment in every other editor, and is the marker gBASIC's own
-    ' `source_comments` documentation names.
+    ' What makes a comment documentation, and the runs of it in a text. Both
+    ' live in `studio_sections`, because a prose run also ENDS a section of
+    ' statements there -- one answer for the editor, the export and the cells.
     function doc_marker()
-        return "''"
+        return studio_sections.doc_marker()
     end function
 
-    ' One comment line's prose: the marker and ONE space after it removed, so
-    ' `''   - item` keeps the indentation Markdown reads as nesting.
-    function _prose_line(raw_line)
-        m = studio_ui.doc_marker()
-        t = mid(raw_line, len(m), len(raw_line) - len(m))
-        if starts_with(t, " ") then
-            t = mid(t, 1, len(t) - 1)
-        end if
-        return t
-    end function
-
-    function _is_doc_line(raw_line)
-        return starts_with(raw_line, studio_ui.doc_marker())
-    end function
-
-    ' The prose runs in a gBASIC text: `[{ start_line, end_line, markdown }]`,
-    ' 1-based and inclusive. The parser groups consecutive comment lines into
-    ' one comment; a run of prose is the consecutive `''` lines within it, so
-    ' an ordinary `'` line between two paragraphs splits them, and stays a
-    ' comment. A comment after code on its line is never prose.
     function prose_runs_of(text)
-        r = source_comments(text)
-        runs = []
-        last = 0
-        for each c in r.comments
-            if c.end_line > last then
-                last = c.end_line
-            end if
-            if not c.trailing then
-                lines = split(c.raw, "\n")
-                i = 0
-                n = count(lines)
-                while i < n
-                    if studio_ui._is_doc_line(lines[i]) then
-                        first = i
-                        md = []
-                        while i < n
-                            if not studio_ui._is_doc_line(lines[i]) then
-                                break
-                            end if
-                            md = append(md, studio_ui._prose_line(lines[i]))
-                            i = i + 1
-                        end while
-                        runs = append(runs, { start_line: c.start_line + first,
-                                              end_line: c.start_line + i - 1,
-                                              markdown: join(md, "\n") })
-                    else
-                        i = i + 1
-                    end if
-                end while
-            end if
-        end for
-        ' A TEXT THAT DOES NOT PARSE answers only the comments read before the
-        ' error, so without this, half a statement typed near the top would
-        ' turn every paragraph below it back into comments until the line was
-        ' finished. Past the last comment the parser read, the lines are
-        ' scanned as TEXT instead -- right for every `''` line but one inside
-        ' a string or an `sql` body, and only until the file parses again.
-        if not r.ok then
-            lines = split(text, "\n")
-            n = count(lines)
-            i = last
-            while i < n
-                if studio_ui._is_doc_line(trim(lines[i])) then
-                    first = i
-                    md = []
-                    while i < n
-                        if not studio_ui._is_doc_line(trim(lines[i])) then
-                            break
-                        end if
-                        md = append(md, studio_ui._prose_line(trim(lines[i])))
-                        i = i + 1
-                    end while
-                    runs = append(runs, { start_line: first + 1, end_line: i, markdown: join(md, "\n") })
-                else
-                    i = i + 1
-                end if
-            end while
-        end if
-        return { ok: r.ok, runs: runs }
+        return studio_sections.prose_runs(text)
     end function
 
     ' The runs of the ACTIVE document, cached on its content: the caret poll
@@ -6053,6 +6005,297 @@ library studio_ui
             end if
         end for
         return folds
+    end function
+
+    ' ---- the combined view as Markdown (proposal §4, stage 3) ---------------
+    '
+    ' What the editor shows, written out as ONE Markdown document: the prose
+    ' runs as the Markdown they are, the code between them in `basic` fences
+    ' (the fence the book's manuscript uses), and each section's last result
+    ' under the section that made it -- printed output in a `text` fence, a
+    ' table as a pipe table captioned as the grid is. Studio does not paginate;
+    ' the publisher does, from this.
+    '
+    ' ONLY A CURRENT RESULT IS WRITTEN. A publication has to be one deliberate
+    ' run whose code and output correspond, so a result whose section changed
+    ' since it ran is LEFT OUT and counted, never printed under code it did not
+    ' come from. The notice says how many, so a short export is not a mystery.
+
+    ' Where a document's export goes: beside it, `.md` for its suffix.
+    function export_path(path)
+        leaf = studio_ui._leaf(path)
+        dir = left(path, len(path) - len(leaf))
+        stem = leaf
+        dot = 0
+        i = 0
+        while i < len(leaf)
+            if mid(leaf, i, 1) = "." then
+                dot = i
+            end if
+            i = i + 1
+        end while
+        if dot > 0 then
+            stem = left(leaf, dot)
+        end if
+        return dir + stem + ".md"
+    end function
+
+    ' The export's first line. It says where the text comes from, and it is
+    ' how Studio knows a file of that name is its own to overwrite: a README.md
+    ' somebody wrote by hand does not start with it, and is refused.
+    function export_marker(leaf)
+        return "<!-- gBASIC Studio export of " + leaf + ". Edit " + leaf + ", not this file. -->"
+    end function
+
+    ' A fenced block. A body that itself holds a fence gets a longer one, which
+    ' is CommonMark's own rule for nesting them.
+    function _md_fence(lang, body)
+        f = "```"
+        while contains(body, f)
+            f = f + "`"
+        end while
+        return f + lang + "\n" + body + "\n" + f
+    end function
+
+    function _md_cell(text)
+        t = replace(string(text), "\\", "\\\\")
+        t = replace(t, "|", "\\|")
+        return replace(t, "\n", " ")
+    end function
+
+    ' A table as a pipe table, numbers right-aligned by the grid's own rule,
+    ' with the grid's caption under it -- so a SAMPLE says so on the page too.
+    function _md_table(name, src)
+        head = []
+        rule = []
+        nums = studio_table.numeric_columns(src)
+        i = 0
+        for each c in src.cols
+            head = append(head, studio_ui._md_cell(c))
+            if nums[i] then
+                rule = append(rule, "---:")
+            else
+                rule = append(rule, "---")
+            end if
+            i = i + 1
+        end for
+        out = ["| " + join(head, " | ") + " |", "| " + join(rule, " | ") + " |"]
+        for each row in src.rows
+            cells = []
+            for each x in row
+                cells = append(cells, studio_ui._md_cell(x))
+            end for
+            out = append(out, "| " + join(cells, " | ") + " |")
+        end for
+        return join(out, "\n") + "\n\n*" + studio_table.caption(name, src) + "*"
+    end function
+
+    ' A code chunk as a fence, its blank lines at either end dropped; "" when
+    ' nothing is left, so two paragraphs in a row do not get an empty listing
+    ' between them.
+    function _md_code(lines)
+        a = 0
+        b = count(lines)
+        while a < b
+            if trim(lines[a]) != "" then
+                break
+            end if
+            a = a + 1
+        end while
+        while b > a
+            if trim(lines[b - 1]) != "" then
+                break
+            end if
+            b = b - 1
+        end while
+        if a = b then
+            return ""
+        end if
+        keep = []
+        i = a
+        while i < b
+            keep = append(keep, lines[i])
+            i = i + 1
+        end while
+        return studio_ui._md_fence("basic", join(keep, "\n"))
+    end function
+
+    ' One result as Markdown chunks: what it printed and its errors, then each
+    ' table it made or changed (`inline_items`' rule, for the same reason).
+    function _md_result(app, store, r)
+        o = { result: r, store: store }
+        chunks = []
+        body = []
+        out = studio_ui._capture_or(app, o, "out_target", "")
+        if ends_with(out, "\n") then
+            out = left(out, len(out) - 1)
+        end if
+        if out != "" then
+            body = append(body, out)
+        end if
+        for each a in r.attribution
+            body = append(body, a.line + ":" + a.column + "  " + a.message)
+        end for
+        err = studio_ui._capture_or(app, o, "err_target", "")
+        if ends_with(err, "\n") then
+            err = left(err, len(err) - 1)
+        end if
+        if err != "" then
+            body = append(body, err)
+        end if
+        if count(body) > 0 then
+            chunks = append(chunks, studio_ui._md_fence("text", join(body, "\n")))
+        end if
+        for each tv in studio_results.vars_of(app.paths.home, store, r)
+            src = studio_table.from_preview(tv)
+            made = default(tv["change"], "") != "same"
+            if src.kind = "none" then
+                made = false
+            end if
+            if made then
+                chunks = append(chunks, studio_ui._md_table(tv.name, src))
+            end if
+        end for
+        return chunks
+    end function
+
+    ' The whole export, decided and not written: `{ app, ok, why, text,
+    ' results, left_out }`. Refuses (`ok` false, `why` an action) for no
+    ' document, a document that is not gBASIC, a gBASIC that cannot say which
+    ' lines are comments, and a file that does not parse -- whose results
+    ' cannot be placed, and which is not something to publish.
+    function export_markdown_text(app)
+        doc = studio_docs.active_doc(app.dm)
+        if doc = nothing then
+            return { app: app, ok: false, why: "export-no-doc", text: "", results: 0, left_out: 0 }
+        end if
+        if not studio_ui.is_gbasic(doc.path) then
+            return { app: app, ok: false, why: "export-not-gbasic", text: "", results: 0, left_out: 0 }
+        end if
+        if not studio_ui.prose_possible() then
+            return { app: app, ok: false, why: "export-old-gbasic", text: "", results: 0, left_out: 0 }
+        end if
+        v = studio_ui.view_for(app)
+        app = v.app
+        if v.st = nothing then
+            return { app: app, ok: false, why: "export-no-parse", text: "", results: 0, left_out: 0 }
+        end if
+        if not studio_ui.parses(v.st) then
+            return { app: app, ok: false, why: "export-no-parse", text: "", results: 0, left_out: 0 }
+        end if
+        pr = studio_ui.prose_runs_of(doc.content)
+        lines = split(doc.content, "\n")
+        n = count(lines)
+        if n > 0 then
+            if lines[n - 1] = "" then
+                n = n - 1
+            end if
+        end if
+        ' What goes under each line: the results of the sections ending there.
+        after = {}
+        shown = 0
+        left_out = 0
+        if v.store != nothing then
+            ab = studio_ui.active_branch(app)
+            app = ab.app
+            bs = studio_ui.branch_sections(app)
+            app = bs.app
+            for each s in v.st.sections
+                usable = s.status != "stale"
+                if s.end_line < 1 then
+                    usable = false
+                end if
+                if s.end_line > n then
+                    usable = false
+                end if
+                if usable then
+                    r = studio_results.latest_in(v.store, s.id, ab.id)
+                    if r != nothing then
+                        if studio_results.standing_of(r, bs.st) = "current" then
+                            chunks = studio_ui._md_result(app, v.store, r)
+                            if count(chunks) > 0 then
+                                k = string(s.end_line)
+                                was = after[k]
+                                if is_unknown(was) then
+                                    was = []
+                                end if
+                                for each c in chunks
+                                    was = append(was, c)
+                                end for
+                                after[k] = was
+                                shown = shown + 1
+                            end if
+                        else
+                            left_out = left_out + 1
+                        end if
+                    end if
+                end if
+            end for
+        end if
+        starts = {}
+        for each x in pr.runs
+            starts[string(x.start_line)] = x
+        end for
+        out = [studio_ui.export_marker(studio_ui._leaf(doc.path))]
+        code = []
+        i = 1
+        while i <= n
+            run = starts[string(i)]
+            if not is_unknown(run) then
+                c = studio_ui._md_code(code)
+                if c != "" then
+                    out = append(out, c)
+                end if
+                code = []
+                out = append(out, run.markdown)
+                i = run.end_line + 1
+            else
+                code = append(code, lines[i - 1])
+                more = after[string(i)]
+                if not is_unknown(more) then
+                    c = studio_ui._md_code(code)
+                    if c != "" then
+                        out = append(out, c)
+                    end if
+                    code = []
+                    for each m in more
+                        out = append(out, m)
+                    end for
+                end if
+                i = i + 1
+            end if
+        end while
+        c = studio_ui._md_code(code)
+        if c != "" then
+            out = append(out, c)
+        end if
+        return { app: app, ok: true, why: "", text: join(out, "\n\n") + "\n",
+                 results: shown, left_out: left_out }
+    end function
+
+    ' File > Export as Markdown: the export, written beside the document. A
+    ' file of that name that Studio did not write is REFUSED rather than
+    ' overwritten -- the name is the obvious one for a hand-written page.
+    function export_markdown(app)
+        e = studio_ui.export_markdown_text(app)
+        app = e.app
+        if not e.ok then
+            return { app: app, action: e.why, detail: "" }
+        end if
+        doc = studio_docs.active_doc(app.dm)
+        path = studio_ui.export_path(doc.path)
+        probe{file} = path
+        if exists(probe) then
+            had = read(probe)
+            first = split(had, "\n")[0]
+            if first != studio_ui.export_marker(studio_ui._leaf(doc.path)) then
+                return { app: app, action: "export-exists", detail: path }
+            end if
+        end if
+        f{file} = path
+        write(f, e.text)
+        return { app: app, action: "exported",
+                 detail: studio_ui._leaf(path) + " " + string(e.results) + " " + string(e.left_out) }
     end function
 
     ' ---- STU-11: git, and staying quiet about it ----------------------------

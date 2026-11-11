@@ -851,8 +851,10 @@ end program
 ' > "$prose_probe"
 if [ "$(timeout 60 "$GBASIC" "$prose_probe" 2>/dev/null)" = "true" ]; then
     run_ui prose
+    run_ui export
 else
     printf 'SKIP ui_prose (this gBASIC has no source_comments, before ad1cb9dc)\n'
+    printf 'SKIP ui_export (this gBASIC has no source_comments, before ad1cb9dc)\n'
 fi
 
 # THE QT SHELL, AS DATA -- and the first tier in this suite that asserts the

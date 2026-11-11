@@ -1,0 +1,95 @@
+== nothing has run: the prose and the listings, no results ==
+  ok=true results=0 left out=0
+  | <!-- gBASIC Studio export of nb.bas. Edit nb.bas, not this file. -->
+  | 
+  | # Doubling
+  | 
+  | A function, and what it **gives**.
+  | 
+  | ````basic
+  | function twice(x)
+  |   return x * 2
+  | end function
+  | 
+  | print "twice 21 is " + twice(21)
+  | print "a fence: ```"
+  | ````
+  | 
+  | ## A table
+  | 
+  | Two rows, one with a | in a cell.
+  | 
+  | ```basic
+  | rows = []
+  | rows = append(rows, { id: 1, name: "a|b" })
+  | rows = append(rows, { id: 20, name: "c" })
+  | ' an ordinary comment stays in the listing
+  | print "done"
+  | ```
+  | 
+== every section run: each result under the section that made it ==
+  (a paragraph between statements starts a new section, as a cell)
+  sec-1 function lines 4-6
+  sec-2 statements lines 8-9
+  sec-3 statements lines 14-18
+   exec: run: finished [sec-1] — exit 0
+   exec: run: finished [sec-2] — exit 0
+   exec: run: finished [sec-3] — exit 0
+  ok=true results=2 left out=0
+  | <!-- gBASIC Studio export of nb.bas. Edit nb.bas, not this file. -->
+  | 
+  | # Doubling
+  | 
+  | A function, and what it **gives**.
+  | 
+  | ````basic
+  | function twice(x)
+  |   return x * 2
+  | end function
+  | 
+  | print "twice 21 is " + twice(21)
+  | print "a fence: ```"
+  | ````
+  | 
+  | ````text
+  | twice 21 is 42
+  | a fence: ```
+  | ````
+  | 
+  | ## A table
+  | 
+  | Two rows, one with a | in a cell.
+  | 
+  | ```basic
+  | rows = []
+  | rows = append(rows, { id: 1, name: "a|b" })
+  | rows = append(rows, { id: 20, name: "c" })
+  | ' an ordinary comment stays in the listing
+  | print "done"
+  | ```
+  | 
+  | ```text
+  | done
+  | ```
+  | 
+  | | id | name |
+  | | ---: | --- |
+  | | 1 | a\|b |
+  | | 20 | c |
+  | 
+  | *rows: 2 rows*
+  | 
+== written beside the file, and written again over its own export ==
+  exported: exported nb.md with 2 result(s)
+  first line: <!-- gBASIC Studio export of nb.bas. Edit nb.bas, not this file. -->
+  same text as decided: true
+  again: exported
+== a section edited since it ran: its result is left out, and counted ==
+  exported: exported nb.md with 1 result(s); 1 out of date, left out — run them again to include them
+  "done" still in the export: false
+== refusals ==
+  over a hand-written notes.md: export-exists: notes.md is already there and Studio did not write it — rename it to export
+  notes.md untouched: true
+  a Markdown file: export-not-gbasic: only a gBASIC file can be exported as Markdown
+  a file that does not parse: export-no-parse: this file does not parse — fix it before exporting, so its results can be placed
+  export path of a.b.bas: a.b.md

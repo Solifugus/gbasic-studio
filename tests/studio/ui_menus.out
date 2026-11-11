@@ -15,6 +15,8 @@ File (file)
   --
   reload        Reload Changed Files
   close-tab     Close Tab
+  --
+  export-md     Export as Markdown
 Settings (settings)
   theme-system  Follow the desktop
   theme-dark    Dark
@@ -29,7 +31,7 @@ Settings (settings)
   --
   restore-sessionReopen last session on start
 == every item has a label and a hint, and no two share a label ==
-items=20 problems=0
+items=21 problems=0
 == an item nobody declared ==
   unknown -> no-such-item
   hint    -> []

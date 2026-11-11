@@ -16,6 +16,8 @@ window studio
     separator
     item mi_reload
     item mi_close_tab
+    separator
+    item mi_export_md
   menu "Settings"
     item mi_theme_system
     item mi_theme_dark
@@ -133,6 +135,7 @@ window studio
   /studio/mi_delete                                   label=Delete Selected toolTip=Delete the selected file or folder from disk. Press it twice: the first press arms it.
   /studio/mi_reload                                   label=Reload Changed Files toolTip=Check every open document against the file on disk: re-read the ones you have not edited, and flag the ones you have as conflicts. Nothing you typed is discarded.
   /studio/mi_close_tab                                label=Close Tab shortcut=Ctrl+W toolTip=Close the active document's tab. Unsaved text is discarded, so press it twice — the first press arms it.
+  /studio/mi_export_md                                label=Export as Markdown toolTip=Write the open file as one Markdown document beside it: the documentation comments as prose, the code as listings, and each section's last result under it. A result whose code changed since it ran is left out.
   /studio/mi_theme_system                             checkable=true checked=true label=Follow the desktop toolTip=Follow your desktop: Studio adds nothing and looks like the rest of your system.
   /studio/mi_theme_dark                               checkable=true checked=false label=Dark toolTip=Studio's own dark look — the whole window, not just the editor — whatever your desktop is set to. Takes effect at once.
   /studio/mi_text_bigger                              label=Bigger editor text shortcut=["Ctrl++","Ctrl+="] toolTip=Enlarge the code, and only the code. Ctrl and the mouse wheel do the same. The rest of the window follows your desktop's font setting.
@@ -200,7 +203,7 @@ window studio
   /studio/book/page_welcome                           margin=12 spacing=6
   /studio/book/page_welcome/welcome                   label=Open a file from the browser, or File ▸ New File.
 == every name it declares ==
-  mi_new_project mi_open_folder mi_open_samples mi_project_file mi_close_project mi_new_file mi_new_folder mi_rename mi_delete mi_reload mi_close_tab mi_theme_system mi_theme_dark mi_text_bigger mi_text_smaller mi_text_reset mi_show_whitespace mi_show_inline mi_show_prose mi_restore_session nav_menu ctx_open ctx_new_file_here ctx_new_folder_here ctx_rename ctx_delete ctx_project_file ctx_close_project tab_menu tabm_tab_close tabm_tab_copy_path toolbar save tb_reload tb_open_folder tb_new_file tb_new_folder tb_whitespace dock_files files text depth dock_console console run_strip run_btn run_all_btn stop_btn force_btn snippet_btn schema_btn run_section run_standing run_state run_branch prefix_head prefix_body target_head target_body err_head err_body dock_branch branch_list bind_btn ov_edit ov_save ov_compare ov_rebase ov_promote ov_discard ov_editor ov_diff dock_results results_body dock_tables table_list fetch_btn dock_git git_body dock_agent agent_head ask_btn agent_body status name_field book page_welcome welcome
+  mi_new_project mi_open_folder mi_open_samples mi_project_file mi_close_project mi_new_file mi_new_folder mi_rename mi_delete mi_reload mi_close_tab mi_export_md mi_theme_system mi_theme_dark mi_text_bigger mi_text_smaller mi_text_reset mi_show_whitespace mi_show_inline mi_show_prose mi_restore_session nav_menu ctx_open ctx_new_file_here ctx_new_folder_here ctx_rename ctx_delete ctx_project_file ctx_close_project tab_menu tabm_tab_close tabm_tab_copy_path toolbar save tb_reload tb_open_folder tb_new_file tb_new_folder tb_whitespace dock_files files text depth dock_console console run_strip run_btn run_all_btn stop_btn force_btn snippet_btn schema_btn run_section run_standing run_state run_branch prefix_head prefix_body target_head target_body err_head err_body dock_branch branch_list bind_btn ov_edit ov_save ov_compare ov_rebase ov_promote ov_discard ov_editor ov_diff dock_results results_body dock_tables table_list fetch_btn dock_git git_body dock_agent agent_head ask_btn agent_body status name_field book page_welcome welcome
 == the title carries the marker too, which is conventional ==
   cold: gBASIC Studio — ws
 == and where the record puts each dock, before any window exists ==

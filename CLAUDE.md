@@ -68,7 +68,7 @@ mode.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 214 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 215 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 30 cases, headless AND offline (scripted transport)
 ```
 
@@ -1149,6 +1149,38 @@ other -- and the folds are sent with it.
   caret move, so the guard is not optional.
 - The block's header bar (the collapse arrow) is gBASIC's and shows on open
   prose too; a header-less markdown block would read better. Not asked yet.
+- **A prose run between two top-level statements ENDS a statements section**
+  (`studio_sections._prose_breaks`), the way a Markdown cell does. Without it
+  every statement in a file was one section, and its output landed after the
+  last listing, under paragraphs about other code -- found by the first
+  export. The run finder moved into `studio_sections` for this
+  (`prose_runs`, `doc_marker`); `studio_ui` delegates. Only files with `''`
+  between statements are affected, and no golden moved.
+
+#### Export as Markdown (proposal §4, stage 3)
+
+File ▸ Export as Markdown writes the editor's combined view as one Markdown
+document beside the file. `studio_ui.export_markdown_text` decides it whole
+and writes nothing (`ui_export`); `export_markdown` writes it; `qtview_prose`
+presses the item in a real window.
+
+- **The conventions are the book's** (`~/development/gbasic-books`, Pandoc ->
+  WeasyPrint): code in ` ```basic ` fences, which its assembler renames for
+  the highlighter, output in ` ```text `, pipe tables. A fence that would
+  appear inside a body gets a longer one (CommonMark's rule).
+- **Only a CURRENT result is written.** A publication is one deliberate run
+  whose code and output correspond; a stale result is left out and the notice
+  counts it. Which tables: `inline_items`' rule (made or changed by that
+  section), captioned by `studio_table.caption`, so a sample says so on paper.
+- **The first line is a marker comment** naming the source, and it is how a
+  later export knows the file is its own: a `.md` of that name without it is
+  refused (`export-exists`), never overwritten.
+- Refuses a non-gBASIC file, a file that does not parse (results cannot be
+  placed), and a gBASIC without `source_comments`.
+- **Not done:** the book's `<!--measured: program x.bas-->` blocks (`---
+  output` / `--- exit`) are the natural form for a WHOLE-FILE run that
+  `check-measured.py` can re-verify; a section's output depends on its replay
+  prefix, so it is not that. Printing is the publisher's.
 
 #### Theming under Qt, which was a dead control
 

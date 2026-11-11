@@ -1382,6 +1382,91 @@ program main(args)
     print "  entries: " + count(p.entries)
   end if
 
+  if mode = "export" then
+    nf{file} = projdir + "/nb.bas"
+    write(nf, "'' # Doubling\n''\n'' A function, and what it **gives**.\nfunction twice(x)\n  return x * 2\nend function\n\nprint \"twice 21 is \" + twice(21)\nprint \"a fence: ```\"\n\n'' ## A table\n''\n'' Two rows, one with a | in a cell.\nrows = []\nrows = append(rows, { id: 1, name: \"a|b\" })\nrows = append(rows, { id: 20, name: \"c\" })\n' an ordinary comment stays in the listing\nprint \"done\"\n")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "nb.bas"))
+    app = r.app
+    app.clock_fixed = 1000
+    id = studio_docs.active_doc(app.dm).id
+
+    banner("nothing has run: the prose and the listings, no results")
+    e = studio_ui.export_markdown_text(app)
+    app = e.app
+    print "  ok=" + string(e.ok) + " results=" + e.results + " left out=" + e.left_out
+    for each ml in split(e.text, "\n")
+      print "  | " + ml
+    end for
+
+    banner("every section run: each result under the section that made it")
+    v = studio_ui.view_for(app)
+    app = v.app
+    print "  (a paragraph between statements starts a new section, as a cell)"
+    starts = []
+    for each s in v.st.sections
+      print "  " + s.id + " " + s.kind + " lines " + s.start_line + "-" + s.end_line
+      starts = append(starts, s.start_line - 1)
+    end for
+    for each l in starts
+      r = studio_ui.sync_cursor(app, id, l, 0)
+      app = r.app
+      r = studio_ui.run_section(app, l, 0)
+      app = drive(r.app)
+    end for
+    e = studio_ui.export_markdown_text(app)
+    app = e.app
+    print "  ok=" + string(e.ok) + " results=" + e.results + " left out=" + e.left_out
+    for each ml in split(e.text, "\n")
+      print "  | " + ml
+    end for
+
+    banner("written beside the file, and written again over its own export")
+    r = studio_ui.export_markdown(app)
+    app = r.app
+    print "  " + r.action + ": " + studio_ui.action_notice(r.action, r.detail)
+    print "  first line: " + split(read_file_text(projdir + "/nb.md"), "\n")[0]
+    print "  same text as decided: " + string(read_file_text(projdir + "/nb.md") = e.text)
+    r = studio_ui.export_markdown(app)
+    app = r.app
+    print "  again: " + r.action
+
+    banner("a section edited since it ran: its result is left out, and counted")
+    app = studio.edit_document(app, id, replace(studio_docs.active_doc(app.dm).content, "print \"done\"", "print \"done, edited\""))
+    r = studio_ui.export_markdown(app)
+    app = r.app
+    print "  " + r.action + ": " + studio_ui.action_notice(r.action, r.detail)
+    print "  \"done\" still in the export: " + string(contains(read_file_text(projdir + "/nb.md"), "```text\ndone\n```"))
+
+    banner("refusals")
+    mf{file} = projdir + "/notes.bas"
+    write(mf, "print 1\n")
+    hf{file} = projdir + "/notes.md"
+    write(hf, "# My own notes\n")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "notes.bas"))
+    app = r.app
+    r = studio_ui.export_markdown(app)
+    app = r.app
+    print "  over a hand-written notes.md: " + r.action + ": " + studio_ui.action_notice(r.action, r.detail)
+    print "  notes.md untouched: " + string(read_file_text(projdir + "/notes.md") = "# My own notes\n")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "notes.md"))
+    app = r.app
+    r = studio_ui.export_markdown(app)
+    app = r.app
+    print "  a Markdown file: " + r.action + ": " + studio_ui.action_notice(r.action, r.detail)
+    bf{file} = projdir + "/broken.bas"
+    write(bf, "'' Prose.\nprint (\n")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "broken.bas"))
+    app = r.app
+    r = studio_ui.export_markdown(app)
+    app = r.app
+    print "  a file that does not parse: " + r.action + ": " + studio_ui.action_notice(r.action, r.detail)
+    print "  export path of a.b.bas: " + studio_ui._leaf(studio_ui.export_path("/x/a.b.bas"))
+  end if
+
   if mode = "inline" then
     nf{file} = projdir + "/nb.bas"
     write(nf, "function twice(x)\n  return x * 2\nend function\n\nprint \"twice 21 is \" + twice(21)\nprint \"second line\"\nrows = []\nrows = append(rows, { id: 1, name: \"a\" })\nrows = append(rows, { id: 2, name: \"b\" })\n\nfunction half(x)\n  return x / 2\nend function\n\ny = 1 / 0\n")

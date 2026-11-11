@@ -274,13 +274,147 @@ library studio_sections
         return out
     end function
 
+    ' ---- documentation comments ----------------------------------------------
+    '
+    ' A run of `''` comment lines is prose (studio_ui shows it as Markdown and
+    ' exports it as such). It is here because it is also a CELL BOUNDARY: a
+    ' paragraph between two top-level statements starts a new statements
+    ' section, the way a Markdown cell does in a notebook. Without that, every
+    ' statement in a file is one section, and its output lands under the last
+    ' line -- after paragraphs about other code.
+
+    ' What makes a comment documentation. One `'` is a comment, as ever; a
+    ' second one says "this is prose". Chosen because it costs a keystroke,
+    ' reads as a comment in every other editor, and is the marker gBASIC's own
+    ' `source_comments` documentation names.
+    function doc_marker()
+        return "''"
+    end function
+
+    ' One comment line's prose: the marker and ONE space after it removed, so
+    ' `''   - item` keeps the indentation Markdown reads as nesting.
+    function _prose_line(raw_line)
+        m = studio_sections.doc_marker()
+        t = mid(raw_line, len(m), len(raw_line) - len(m))
+        if starts_with(t, " ") then
+            t = mid(t, 1, len(t) - 1)
+        end if
+        return t
+    end function
+
+    function _is_doc_line(raw_line)
+        return starts_with(raw_line, studio_sections.doc_marker())
+    end function
+
+    ' The prose runs in a gBASIC text: `[{ start_line, end_line, markdown }]`,
+    ' 1-based and inclusive. The parser groups consecutive comment lines into
+    ' one comment; a run of prose is the consecutive `''` lines within it, so
+    ' an ordinary `'` line between two paragraphs splits them, and stays a
+    ' comment. A comment after code on its line is never prose.
+    function prose_runs(text)
+        r = source_comments(text)
+        runs = []
+        last = 0
+        for each c in r.comments
+            if c.end_line > last then
+                last = c.end_line
+            end if
+            if not c.trailing then
+                lines = split(c.raw, "\n")
+                i = 0
+                n = count(lines)
+                while i < n
+                    if studio_sections._is_doc_line(lines[i]) then
+                        first = i
+                        md = []
+                        while i < n
+                            if not studio_sections._is_doc_line(lines[i]) then
+                                break
+                            end if
+                            md = append(md, studio_sections._prose_line(lines[i]))
+                            i = i + 1
+                        end while
+                        runs = append(runs, { start_line: c.start_line + first,
+                                              end_line: c.start_line + i - 1,
+                                              markdown: join(md, "\n") })
+                    else
+                        i = i + 1
+                    end if
+                end while
+            end if
+        end for
+        ' A TEXT THAT DOES NOT PARSE answers only the comments read before the
+        ' error, so without this, half a statement typed near the top would
+        ' turn every paragraph below it back into comments until the line was
+        ' finished. Past the last comment the parser read, the lines are
+        ' scanned as TEXT instead -- right for every `''` line but one inside
+        ' a string or an `sql` body, and only until the file parses again.
+        if not r.ok then
+            lines = split(text, "\n")
+            n = count(lines)
+            i = last
+            while i < n
+                if studio_sections._is_doc_line(trim(lines[i])) then
+                    first = i
+                    md = []
+                    while i < n
+                        if not studio_sections._is_doc_line(trim(lines[i])) then
+                            break
+                        end if
+                        md = append(md, studio_sections._prose_line(trim(lines[i])))
+                        i = i + 1
+                    end while
+                    runs = append(runs, { start_line: first + 1, end_line: i, markdown: join(md, "\n") })
+                else
+                    i = i + 1
+                end if
+            end while
+        end if
+        return { ok: r.ok, runs: runs }
+    end function
+
+    ' The lines a prose run STARTS on, where a statements section breaks. None
+    ' on a gBASIC that cannot say which lines are comments: the sections are
+    ' then what they always were.
+    function _prose_breaks(source)
+        if not has_builtin("source_comments") then
+            return []
+        end if
+        out = []
+        for each x in studio_sections.prose_runs(source).runs
+            out = append(out, x.start_line)
+        end for
+        return out
+    end function
+
+    function _break_between(breaks, after_line, before_line)
+        for each b in breaks
+            if b > after_line then
+                if b < before_line then
+                    return true
+                end if
+            end if
+        end for
+        return false
+    end function
+
     ' Derive candidate sections (no ids/status yet) from an outline + its source.
     function derive(outline, source)
         info = studio_sections._scope_nodes(outline)
         scope = info.nodes
         sections = []
         run = []
+        breaks = studio_sections._prose_breaks(source)
         for each n in scope
+            if count(run) > 0 then
+                if not studio_sections._is_decl(n.kind) then
+                    if studio_sections._break_between(breaks, run[count(run) - 1].end_line, n.start_line) then
+                        anc = studio_sections._ancestry(run[0], info, outline)
+                        sections = append(sections, studio_sections._statements_section(run, source, anc))
+                        run = []
+                    end if
+                end if
+            end if
             if studio_sections._is_decl(n.kind) then
                 if count(run) > 0 then
                     anc = studio_sections._ancestry(run[0], info, outline)

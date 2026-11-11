@@ -2196,6 +2196,10 @@ function on_qt_prose()
     return qt_took(studio_ui.toggle_prose(G.app))
 end function
 
+function on_qt_export_md()
+    return qt_took(studio_ui.export_markdown(G.app))
+end function
+
 ' ---- closing --------------------------------------------------------------
 
 ' THE WINDOW IS CLOSING, AND THIS IS THE ONLY MOMENT ITS LAYOUT CAN BE READ.
@@ -2307,6 +2311,7 @@ function qt_wire(win)
     win = qt_on(win, qt_item("show-whitespace"), "triggered", on_qt_whitespace)
     win = qt_on(win, qt_item("show-inline"), "triggered", on_qt_inline)
     win = qt_on(win, qt_item("show-prose"), "triggered", on_qt_prose)
+    win = qt_on(win, qt_item("export-md"), "triggered", on_qt_export_md)
     win = qt_on(win, studio_shell_qt.part_tb_whitespace(), "triggered", on_qt_whitespace)
 
     ' The browser's own menu. Every item dispatches to the SAME `studio_ui`
@@ -3318,6 +3323,14 @@ program main(args)
         z = qt.invoke(win, qt_item(th), "trigger")
         ed = studio_shell_qt.part_editor(did)
         print "  " + G.last_action + ": " + qt_prose_report(win, ed)
+        print "  the text is untouched: " + string(qt.read(win, ed, "plainText") = text0)
+        print "File > Export as Markdown"
+        z = qt.invoke(win, qt_item("export-md"), "trigger")
+        print "  " + G.last_action + ": " + studio_ui.action_notice(G.last_action, G.last_detail)
+        mdf{file} = studio_ui.export_path(studio_docs.active_doc(G.app.dm).path)
+        md = read(mdf)
+        print "  the status line says so: " + string(qt.read(win, studio_shell_qt.part_status(), "text") = studio_ui.action_notice(G.last_action, G.last_detail))
+        print "  its first paragraph: " + split(md, chr(10))[2]
         print "  the text is untouched: " + string(qt.read(win, ed, "plainText") = text0)
         return nothing
     end if

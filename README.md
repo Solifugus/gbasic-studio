@@ -65,7 +65,19 @@ before — to gBASIC `''` is an ordinary comment. Put the caret on the prose (cl
 it, or arrow onto it) and that comment comes back as text to edit; move away and
 it is prose again. A single `'` is an ordinary comment and stays one, and a
 comment after code is never prose. Settings ▸ *Show documentation comments as
-prose* turns it off.
+prose* turns it off. A paragraph between two top-level statements also starts a
+new section, the way a Markdown cell does, so each block of statements runs and
+shows its result on its own.
+
+**File ▸ Export as Markdown** writes that combined view beside the file
+(`rates.bas` → `rates.md`): the prose as Markdown, the code in ` ```basic `
+listings, and each section's last result under it — printed output in a
+` ```text ` block, a table as a pipe table captioned as the grid is. Only a
+result whose section is unchanged since it ran is written; one that is out of
+date is left out and the status line counts it. The export's first line names
+the `.bas` it came from, and a `.md` of that name Studio did not write is
+refused rather than overwritten. Pagination is the publisher's job, not
+Studio's.
 
 **Run** runs the section the caret is in, and the strip names it before you
 press anything; a whole-file `.sql` run that stops part way moves the caret to
@@ -831,7 +843,7 @@ resources or prompts.
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 214 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 215 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 30 cases, headless AND offline — no network, no key
 ```
 
