@@ -26,6 +26,7 @@ window studio
     separator
     item mi_show_whitespace
     item mi_show_inline
+    item mi_show_prose
     separator
     item mi_restore_session
   popup nav_menu
@@ -139,6 +140,7 @@ window studio
   /studio/mi_text_reset                               label=Reset editor text size shortcut=Ctrl+0 toolTip=Back to the size your desktop's font setting gives.
   /studio/mi_show_whitespace                          checkable=true checked=false label=Show invisible characters shortcut=["Ctrl+Shift+8","Ctrl+*"] toolTip=Draw spaces, tabs and line ends in the editor, so trailing blanks and a tab among spaces can be seen. Ctrl+Shift+8, or the ¶ on the toolbar.
   /studio/mi_show_inline                              checkable=true checked=true label=Show results under sections toolTip=Show each section's last result in the editor, under the section that made it. Display only: nothing is written into the file.
+  /studio/mi_show_prose                               checkable=true checked=true label=Show documentation comments as prose toolTip=Show comment lines that begin with '' as formatted Markdown, in place of the comment. Put the caret on one to edit it as text. The file keeps the comments.
   /studio/mi_restore_session                          checkable=true checked=true label=Reopen last session on start toolTip=Whether Studio reopens the projects and files you had open. Read when Studio starts, so it takes effect on the next launch.
   /studio/nav_menu/ctx_open                           label=Open
   /studio/nav_menu/ctx_new_file_here                  label=New File here
@@ -198,7 +200,7 @@ window studio
   /studio/book/page_welcome                           margin=12 spacing=6
   /studio/book/page_welcome/welcome                   label=Open a file from the browser, or File ▸ New File.
 == every name it declares ==
-  mi_new_project mi_open_folder mi_open_samples mi_project_file mi_close_project mi_new_file mi_new_folder mi_rename mi_delete mi_reload mi_close_tab mi_theme_system mi_theme_dark mi_text_bigger mi_text_smaller mi_text_reset mi_show_whitespace mi_show_inline mi_restore_session nav_menu ctx_open ctx_new_file_here ctx_new_folder_here ctx_rename ctx_delete ctx_project_file ctx_close_project tab_menu tabm_tab_close tabm_tab_copy_path toolbar save tb_reload tb_open_folder tb_new_file tb_new_folder tb_whitespace dock_files files text depth dock_console console run_strip run_btn run_all_btn stop_btn force_btn snippet_btn schema_btn run_section run_standing run_state run_branch prefix_head prefix_body target_head target_body err_head err_body dock_branch branch_list bind_btn ov_edit ov_save ov_compare ov_rebase ov_promote ov_discard ov_editor ov_diff dock_results results_body dock_tables table_list fetch_btn dock_git git_body dock_agent agent_head ask_btn agent_body status name_field book page_welcome welcome
+  mi_new_project mi_open_folder mi_open_samples mi_project_file mi_close_project mi_new_file mi_new_folder mi_rename mi_delete mi_reload mi_close_tab mi_theme_system mi_theme_dark mi_text_bigger mi_text_smaller mi_text_reset mi_show_whitespace mi_show_inline mi_show_prose mi_restore_session nav_menu ctx_open ctx_new_file_here ctx_new_folder_here ctx_rename ctx_delete ctx_project_file ctx_close_project tab_menu tabm_tab_close tabm_tab_copy_path toolbar save tb_reload tb_open_folder tb_new_file tb_new_folder tb_whitespace dock_files files text depth dock_console console run_strip run_btn run_all_btn stop_btn force_btn snippet_btn schema_btn run_section run_standing run_state run_branch prefix_head prefix_body target_head target_body err_head err_body dock_branch branch_list bind_btn ov_edit ov_save ov_compare ov_rebase ov_promote ov_discard ov_editor ov_diff dock_results results_body dock_tables table_list fetch_btn dock_git git_body dock_agent agent_head ask_btn agent_body status name_field book page_welcome welcome
 == the title carries the marker too, which is conventional ==
   cold: gBASIC Studio — ws
 == and where the record puts each dock, before any window exists ==

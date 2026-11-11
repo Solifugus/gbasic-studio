@@ -17,7 +17,7 @@
   bar:     ["Project","File","Settings"]
   Project: ["New Project…","Open Folder","Open Samples",unknown,"Add Project File","Close Project"]
   File: ["New File","New Folder",unknown,"Rename Selected","Delete Selected",unknown,"Reload Changed Files","Close Tab"]
-  Settings: ["Follow the desktop","Dark",unknown,"Bigger editor text","Smaller editor text","Reset editor text size",unknown,"Show invisible characters","Show results under sections",unknown,"Reopen last session on start"]
+  Settings: ["Follow the desktop","Dark",unknown,"Bigger editor text","Smaller editor text","Reset editor text size",unknown,"Show invisible characters","Show results under sections","Show documentation comments as prose",unknown,"Reopen last session on start"]
   a separator has no caption, where an empty label would have one
 == and a state item is CHECKABLE, not a glyph in its label ==
   mi_theme_system: checkable=true checked=true

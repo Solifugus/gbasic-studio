@@ -68,7 +68,7 @@ mode.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 212 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 214 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 30 cases, headless AND offline (scripted transport)
 ```
 
@@ -1115,6 +1115,40 @@ draws a block in a gap between two lines without touching the document.
   the signal) and the results stay in the panes; the tier SKIPs.
 - `qt.block_event()` does not say which editor; only the active one is sent
   blocks, so the event is about the active document.
+
+#### Documentation comments as prose (gBASIC §0.38 B)
+
+Stage 2's second half. A run of `''` comment lines is Markdown, shown as a
+`markdown` block that COVERS the run's first line, with the rest of the run
+folded (`qt.fold`). The block goes in the same `qt.blocks` replace as the
+results -- the verb replaces the whole set, so two senders would erase each
+other -- and the folds are sent with it.
+
+- **`''` is the marker**, the one gBASIC's `source_comments` documentation
+  names. A run is the CONSECUTIVE `''` lines within one parser comment, so a
+  plain `'` line splits two paragraphs and stays a comment; a trailing comment
+  is never prose. Which lines are comments is the PARSER's answer, so `''`
+  inside a string or an `sql` body is not prose.
+- **The caret's run is shown as text, and that is the whole editing model.**
+  `sync_cursor` answers `reveal` when the caret crosses into or out of a run,
+  and the caret poll redraws on it as on a section crossing. A click on prose
+  (`block_event` → `prose-edit`) puts the caret on its first line and focuses
+  the editor. Measured red with the poll's `reveal` removed.
+- **A file that does not parse keeps its prose.** `source_comments` answers only
+  the comments before the error, so past the last comment it read the lines are
+  scanned as text -- wrong only for `''` in a string below a syntax error, and
+  only until it parses. The first version kept the cached runs at their old
+  LINES, and lost every paragraph below a line typed above them.
+- The runs are cached on the document's content (`app.prose_cache`), because
+  the caret poll asks sixteen times a second.
+- **The collapse control works on prose too**, through the same per-block list,
+  and a collapsed paragraph is titled with its first line. Without that it was
+  a control on every paragraph that did nothing.
+- `prose_possible()` is `has_builtin("source_comments")`; on an older gBASIC
+  there is no prose and `ui_prose` SKIPs. `sync_cursor` calls into it on every
+  caret move, so the guard is not optional.
+- The block's header bar (the collapse arrow) is gBASIC's and shows on open
+  prose too; a header-less markdown block would read better. Not asked yet.
 
 #### Theming under Qt, which was a dead control
 

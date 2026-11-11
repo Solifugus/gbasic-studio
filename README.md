@@ -57,6 +57,16 @@ history and the caret are untouched, and each block can be collapsed. A section
 that printed nothing and made no table gets no block. Settings ▸ *Show results
 under sections* turns it off, and the panes still follow the caret either way.
 
+**Comment lines that begin with `''` are documentation, shown as Markdown**
+(gBASIC's `source_comments` and `qt.fold`): headings, emphasis, lists and code
+are drawn formatted in place of the comment, so a `.bas` file reads like a
+notebook without being one. The file keeps the comments and runs exactly as
+before — to gBASIC `''` is an ordinary comment. Put the caret on the prose (click
+it, or arrow onto it) and that comment comes back as text to edit; move away and
+it is prose again. A single `'` is an ordinary comment and stays one, and a
+comment after code is never prose. Settings ▸ *Show documentation comments as
+prose* turns it off.
+
 **Run** runs the section the caret is in, and the strip names it before you
 press anything; a whole-file `.sql` run that stops part way moves the caret to
 the line it stopped at. **Force Stop** is there for a program that ignores a
@@ -821,7 +831,7 @@ resources or prompts.
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 212 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 214 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 30 cases, headless AND offline — no network, no key
 ```
 

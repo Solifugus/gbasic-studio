@@ -321,7 +321,12 @@ function _inline(win, app)
         return app
     end if
     part = studio_shell_qt.part_editor(p.doc_id)
-    sig = studio_ui.inline_signature(p)
+    ' The documentation prose is blocks too, so it goes in the SAME replace:
+    ' `qt.blocks` replaces the whole set, and two senders would each erase
+    ' the other's. Its folds go with it.
+    pp = studio_ui.prose_plan(app)
+    app = pp.app
+    sig = studio_ui.inline_signature(p) + json_encode(pp.entries)
     sent = app["qt_inline_sent"]
     if is_unknown(sent) then
         sent = {}
@@ -336,8 +341,13 @@ function _inline(win, app)
     end if
     it = studio_ui.inline_items(app, p)
     app = it.app
-    z = qt.blocks(win, part, it.items)
-    sent[p.doc_id] = { sig: sig, n: count(it.items) }
+    items = it.items
+    for each b in studio_ui.prose_items(pp)
+        items = append(items, b)
+    end for
+    z = qt.blocks(win, part, items)
+    z = qt.fold(win, part, studio_ui.prose_folds(pp))
+    sent[p.doc_id] = { sig: sig, n: count(items) }
     app["qt_inline_sent"] = sent
     return app
 end function

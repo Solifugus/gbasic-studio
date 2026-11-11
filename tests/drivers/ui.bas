@@ -12,6 +12,14 @@
 ' args: mode home projdir. Output is path-free (only basenames are ever printed),
 ' so the goldens are byte-stable against a throwaway home.
 
+function map_ids(entries)
+  out = []
+  for each e in entries
+    out = append(out, e.id)
+  end for
+  return out
+end function
+
 function banner(title)
   print "== " + title + " =="
 end function
@@ -1260,6 +1268,120 @@ program main(args)
   end if
 
   ' ---- inline: each section's last result, under the section --------------
+  if mode = "prose" then
+    nf{file} = projdir + "/prose.bas"
+    write(nf, "'' # Rates\n''\n'' Rates are **read** from the file.\n' an ordinary comment\n'' - one\n''   - nested\nx = \"it's '' not prose\"  '' after code\nfunction f()\n    '' Inside a function.\n    return 1\nend function\n")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "prose.bas"))
+    app = r.app
+    id = studio_docs.active_doc(app.dm).id
+
+    banner("the prose runs: consecutive '' lines, as the parser read them")
+    print "  (an ordinary ' line splits two runs; a string and a comment after code are not prose)"
+    pr = studio_ui.prose_runs_of(studio_docs.active_doc(app.dm).content)
+    for each x in pr.runs
+      print "  lines " + x.start_line + "-" + x.end_line
+      for each ml in split(x.markdown, "\n")
+        print "    | " + ml
+      end for
+    end for
+
+    banner("the caret on code: every run is prose, a fold for each longer than a line")
+    r = studio_ui.sync_cursor(app, id, 7, 0)
+    app = r.app
+    p = studio_ui.prose_plan(app)
+    app = p.app
+    sig1 = json_encode(p.entries)
+    for each b in studio_ui.prose_items(p)
+      print "  " + b.id + " @" + b.line + " " + b.kind + " covers=" + string(b.covers)
+    end for
+    for each f in studio_ui.prose_folds(p)
+      print "  fold " + f.from + "-" + f.to
+    end for
+    p = studio_ui.prose_plan(app)
+    app = p.app
+    print "  asked again, the same plan: " + string(json_encode(p.entries) = sig1)
+
+    banner("the caret moves into a run: that run is text again, and only that one")
+    r = studio_ui.sync_cursor(app, id, 4, 0)
+    app = r.app
+    print "  onto line 5: reveal=" + string(r.reveal)
+    p = studio_ui.prose_plan(app)
+    app = p.app
+    print "  open run: " + p.open + "   prose: " + join(map_ids(p.entries), ", ")
+    r = studio_ui.sync_cursor(app, id, 5, 0)
+    app = r.app
+    print "  within it, to line 6: reveal=" + string(r.reveal)
+    r = studio_ui.sync_cursor(app, id, 7, 0)
+    app = r.app
+    print "  out to code, line 8: reveal=" + string(r.reveal)
+    r = studio_ui.sync_cursor(app, id, 6, 0)
+    app = r.app
+    print "  code to code, line 7: reveal=" + string(r.reveal)
+
+    banner("a click on prose asks to edit it; a click on a result does not")
+    r = studio_ui.block_event(app, { id: "doc-5", action: "click", target: unknown })
+    print "  " + r.action + " " + r.detail + " line " + r.line
+    r = studio_ui.block_event(app, { id: "res-sec-1", action: "click", target: unknown })
+    print "  " + r.action
+    r = studio_ui.block_event(app, { id: "doc-1", action: "link", target: "#rates" })
+    print "  a link: " + r.action
+    r = studio_ui.block_event(app, { id: "doc-1", action: "collapse", target: unknown })
+    app = r.app
+    p = studio_ui.prose_plan(app)
+    app = p.app
+    for each b in studio_ui.prose_items(p)
+      t = ""
+      if b.collapsed then
+        t = "  collapsed, titled \"" + b.title + "\""
+      end if
+      print "  " + b.id + t
+    end for
+    print "  and the plan moved: " + string(json_encode(p.entries) != sig1)
+    r = studio_ui.block_event(app, { id: "doc-1", action: "collapse", target: unknown })
+    app = r.app
+    print "  pressed again: " + r.action
+
+    banner("a half-typed line that does not parse keeps the prose below it")
+    t = studio_docs.active_doc(app.dm).content
+    broken = replace(t, "x = \"it's", "y = (\nx = \"it's")
+    print "  parses: " + string(studio_ui.prose_runs_of(broken).ok) + ", runs still found: " + count(studio_ui.prose_runs_of(broken).runs)
+    r = studio_ui.sync_buffers(app, [ { doc_id: id, text: broken } ])
+    app = r.app
+    p = studio_ui.prose_plan(app)
+    app = p.app
+    print "  the plan: " + join(map_ids(p.entries), ", ")
+    r = studio_ui.sync_buffers(app, [ { doc_id: id, text: replace(broken, "'' Inside", "' Inside") } ])
+    app = r.app
+    p = studio_ui.prose_plan(app)
+    app = p.app
+    print "  that line made an ordinary comment: " + join(map_ids(p.entries), ", ")
+    r = studio_ui.sync_buffers(app, [ { doc_id: id, text: t } ])
+    app = r.app
+
+    banner("the setting")
+    print "  shown: " + string(studio_ui.shows_prose(app)) + ", menu checked: " + string(studio_ui.menu_checked(app, "show-prose"))
+    r = studio_ui.toggle_prose(app)
+    app = r.app
+    p = studio_ui.prose_plan(app)
+    app = p.app
+    print "  " + r.action + ": " + count(p.entries) + " runs as prose, notice: " + studio_ui.action_notice(r.action, r.detail)
+    print "  sync_cursor never reveals with it off: " + string(studio_ui.sync_cursor(app, id, 0, 0).reveal)
+    app.model.settings.show_doc_prose = "yes"
+    print "  hand-edited \"yes\" reads as on: " + string(studio_ui.shows_prose(app))
+    r = studio_ui.toggle_prose(app)
+    print "  toggled from there: " + r.action
+
+    banner("a file that is not gBASIC has no prose")
+    mf{file} = projdir + "/notes.md"
+    write(mf, "'' not a comment here\n")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "notes.md"))
+    app = r.app
+    p = studio_ui.prose_plan(app)
+    print "  entries: " + count(p.entries)
+  end if
+
   if mode = "inline" then
     nf{file} = projdir + "/nb.bas"
     write(nf, "function twice(x)\n  return x * 2\nend function\n\nprint \"twice 21 is \" + twice(21)\nprint \"second line\"\nrows = []\nrows = append(rows, { id: 1, name: \"a\" })\nrows = append(rows, { id: 2, name: \"b\" })\n\nfunction half(x)\n  return x / 2\nend function\n\ny = 1 / 0\n")

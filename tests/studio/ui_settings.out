@@ -8,6 +8,7 @@
   --
   show-whitespace ○ Show invisible characters
   show-inline     ● Show results under sections
+  show-prose      ● Show documentation comments as prose
   --
   restore-session ● Reopen last session on start
   recent_limit is offered: false

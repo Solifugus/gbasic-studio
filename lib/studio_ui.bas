@@ -2837,7 +2837,7 @@ library studio_ui
         out = append(out, { id: "settings", label: "Settings",
                             items: ["theme-system", "theme-dark", "-",
                                     "text-bigger", "text-smaller", "text-reset", "-",
-                                    "show-whitespace", "show-inline", "-",
+                                    "show-whitespace", "show-inline", "show-prose", "-",
                                     "restore-session"] })
         return out
     end function
@@ -2916,6 +2916,9 @@ library studio_ui
         if action = "show-inline" then
             return "Show results under sections"
         end if
+        if action = "show-prose" then
+            return "Show documentation comments as prose"
+        end if
         if action = "text-bigger" then
             return "Bigger editor text"
         end if
@@ -2969,6 +2972,9 @@ library studio_ui
         if action = "show-inline" then
             return true
         end if
+        if action = "show-prose" then
+            return true
+        end if
         return false
     end function
 
@@ -2988,6 +2994,9 @@ library studio_ui
         end if
         if action = "show-inline" then
             return studio_ui.shows_inline(app)
+        end if
+        if action = "show-prose" then
+            return studio_ui.shows_prose(app)
         end if
         return false
     end function
@@ -3072,6 +3081,9 @@ library studio_ui
         end if
         if action = "show-inline" then
             return "Show each section's last result in the editor, under the section that made it. Display only: nothing is written into the file."
+        end if
+        if action = "show-prose" then
+            return "Show comment lines that begin with '' as formatted Markdown, in place of the comment. Put the caret on one to edit it as text. The file keeps the comments."
         end if
         ' All three say EDITOR, because the rest of the window follows your
         ' desktop's interface font and is not Studio's to resize -- setting it
@@ -3351,6 +3363,12 @@ library studio_ui
         end if
         if action = "inline-off" then
             return "results shown in the panes only"
+        end if
+        if action = "prose-on" then
+            return "documentation comments shown as prose"
+        end if
+        if action = "prose-off" then
+            return "documentation comments shown as comments"
         end if
         ' ---- STU-20, the editor's text size.
         if action = "zoom-set" then
@@ -5022,9 +5040,18 @@ library studio_ui
         ' second and would drown in the first — this fires on every arrow key.
         was = studio_ui.view_for(app)
         app = was.app
+        pw = studio_ui.prose_open_at(app)
+        app = pw.app
+        prose_was = pw.at
         app.dm = studio_docs.set_cursor(app.dm, doc_id, line0 + 1, column0 + 1)
         v = studio_ui.view_for(app)
-        return { app: v.app, action: "cursor", detail: v.sid, changed: v.sid != was.sid }
+        app = v.app
+        ' And whether the caret crossed into or out of a prose run, which
+        ' changes what the editor shows as much as a section crossing does.
+        pw = studio_ui.prose_open_at(app)
+        app = pw.app
+        return { app: app, action: "cursor", detail: v.sid, changed: v.sid != was.sid,
+                 reveal: pw.at != prose_was }
     end function
 
     ' The section the caret is in, for the strip — so it is visible WHICH section
@@ -5556,6 +5583,15 @@ library studio_ui
         if ev.action = "collapse" then
             return studio_ui.toggle_block(app, ev.id)
         end if
+        ' A click on PROSE is a request to edit it: the caret goes to the
+        ' comment's first line, and the caret being in the run is what shows
+        ' it as text. A click on a result is reading it.
+        if ev.action = "click" then
+            if starts_with(ev.id, "doc-") then
+                return { app: app, action: "prose-edit", detail: ev.id,
+                         line: number(mid(ev.id, 4, len(ev.id) - 4)) }
+            end if
+        end if
         return { app: app, action: "block-none", detail: ev.id }
     end function
 
@@ -5752,6 +5788,271 @@ library studio_ui
             end if
         end for
         return { app: app, items: items }
+    end function
+
+    ' ---- documentation comments shown as prose -------------------------------
+    '
+    ' The second half of the notebook view (proposal §4, stage 2): a run of
+    ' comment lines that begin with `''` is Markdown, and the editor shows it
+    ' formatted IN PLACE OF the comment -- gBASIC §0.38's fold over the run
+    ' with a `markdown` block covering its first line. The file keeps the
+    ' comments, and the program runs exactly as before: `''` is an ordinary
+    ' comment to the language, whose text happens to start with a quote.
+    '
+    ' The run the CARET is in is shown as text, so it can be edited: put the
+    ' caret on the prose (a click on it, or an arrow key onto it) and the
+    ' comment comes back; move away and it is prose again. That is the whole
+    ' editing model, and it needs no mode.
+    '
+    ' WHICH LINES ARE COMMENTS is the parser's answer (`source_comments`), not
+    ' a text scan, so a `''` inside a string or an `sql` body is not prose.
+
+    ' And only on a gBASIC that can say which lines are comments
+    ' (`source_comments`, after 0.10.0). Without it there is no prose, rather
+    ' than a guess from the text: the menu item still shows the setting.
+    function prose_possible()
+        return has_builtin("source_comments")
+    end function
+
+    function shows_prose(app)
+        v = app.model.settings["show_doc_prose"]
+        if is_unknown(v) then
+            return true
+        end if
+        if not is_boolean(v) then
+            return true
+        end if
+        return v
+    end function
+
+    function toggle_prose(app)
+        st = app.model.settings
+        now = not studio_ui.shows_prose(app)
+        st.show_doc_prose = now
+        app.model.settings = st
+        if now then
+            return { app: app, action: "prose-on", detail: "" }
+        end if
+        return { app: app, action: "prose-off", detail: "" }
+    end function
+
+    ' What makes a comment documentation. One `'` is a comment, as ever; a
+    ' second one says "this is prose". Chosen because it costs a keystroke,
+    ' reads as a comment in every other editor, and is the marker gBASIC's own
+    ' `source_comments` documentation names.
+    function doc_marker()
+        return "''"
+    end function
+
+    ' One comment line's prose: the marker and ONE space after it removed, so
+    ' `''   - item` keeps the indentation Markdown reads as nesting.
+    function _prose_line(raw_line)
+        m = studio_ui.doc_marker()
+        t = mid(raw_line, len(m), len(raw_line) - len(m))
+        if starts_with(t, " ") then
+            t = mid(t, 1, len(t) - 1)
+        end if
+        return t
+    end function
+
+    function _is_doc_line(raw_line)
+        return starts_with(raw_line, studio_ui.doc_marker())
+    end function
+
+    ' The prose runs in a gBASIC text: `[{ start_line, end_line, markdown }]`,
+    ' 1-based and inclusive. The parser groups consecutive comment lines into
+    ' one comment; a run of prose is the consecutive `''` lines within it, so
+    ' an ordinary `'` line between two paragraphs splits them, and stays a
+    ' comment. A comment after code on its line is never prose.
+    function prose_runs_of(text)
+        r = source_comments(text)
+        runs = []
+        last = 0
+        for each c in r.comments
+            if c.end_line > last then
+                last = c.end_line
+            end if
+            if not c.trailing then
+                lines = split(c.raw, "\n")
+                i = 0
+                n = count(lines)
+                while i < n
+                    if studio_ui._is_doc_line(lines[i]) then
+                        first = i
+                        md = []
+                        while i < n
+                            if not studio_ui._is_doc_line(lines[i]) then
+                                break
+                            end if
+                            md = append(md, studio_ui._prose_line(lines[i]))
+                            i = i + 1
+                        end while
+                        runs = append(runs, { start_line: c.start_line + first,
+                                              end_line: c.start_line + i - 1,
+                                              markdown: join(md, "\n") })
+                    else
+                        i = i + 1
+                    end if
+                end while
+            end if
+        end for
+        ' A TEXT THAT DOES NOT PARSE answers only the comments read before the
+        ' error, so without this, half a statement typed near the top would
+        ' turn every paragraph below it back into comments until the line was
+        ' finished. Past the last comment the parser read, the lines are
+        ' scanned as TEXT instead -- right for every `''` line but one inside
+        ' a string or an `sql` body, and only until the file parses again.
+        if not r.ok then
+            lines = split(text, "\n")
+            n = count(lines)
+            i = last
+            while i < n
+                if studio_ui._is_doc_line(trim(lines[i])) then
+                    first = i
+                    md = []
+                    while i < n
+                        if not studio_ui._is_doc_line(trim(lines[i])) then
+                            break
+                        end if
+                        md = append(md, studio_ui._prose_line(trim(lines[i])))
+                        i = i + 1
+                    end while
+                    runs = append(runs, { start_line: first + 1, end_line: i, markdown: join(md, "\n") })
+                else
+                    i = i + 1
+                end if
+            end while
+        end if
+        return { ok: r.ok, runs: runs }
+    end function
+
+    ' The runs of the ACTIVE document, cached on its content: the caret poll
+    ' asks at sixteen ticks a second and a parse per tick is work for nothing.
+    function _prose_runs(app, doc)
+        cache = app["prose_cache"]
+        if not is_unknown(cache) then
+            if cache.doc_id = doc.id then
+                if cache.content = doc.content then
+                    return { app: app, runs: cache.runs }
+                end if
+            end if
+        end if
+        runs = studio_ui.prose_runs_of(doc.content).runs
+        app["prose_cache"] = { doc_id: doc.id, content: doc.content, runs: runs }
+        return { app: app, runs: runs }
+    end function
+
+    ' The run holding 1-based `line`, as its start line; 0 for none.
+    function _prose_run_at(runs, line)
+        for each x in runs
+            if line >= x.start_line then
+                if line <= x.end_line then
+                    return x.start_line
+                end if
+            end if
+        end for
+        return 0
+    end function
+
+    ' Which run the caret has opened as text in the active document, 0 for
+    ' none. `sync_cursor` compares it before and after a move, so the window
+    ' redraws when the caret crosses into or out of a run and not on every
+    ' key.
+    function prose_open_at(app)
+        doc = studio_docs.active_doc(app.dm)
+        if doc = nothing then
+            return { app: app, at: 0 }
+        end if
+        if not studio_ui.shows_prose(app) then
+            return { app: app, at: 0 }
+        end if
+        if not studio_ui.prose_possible() then
+            return { app: app, at: 0 }
+        end if
+        if not studio_ui.is_gbasic(doc.path) then
+            return { app: app, at: 0 }
+        end if
+        pr = studio_ui._prose_runs(app, doc)
+        return { app: pr.app, at: studio_ui._prose_run_at(pr.runs, doc.cursor.line) }
+    end function
+
+    ' The plan: every run shown as prose, which is every run but the one the
+    ' caret is in. Cheap, and compared by the renderer like `inline_plan`.
+    function prose_plan(app)
+        doc = studio_docs.active_doc(app.dm)
+        if doc = nothing then
+            return { app: app, doc_id: "", entries: [], open: 0 }
+        end if
+        if not studio_ui.shows_prose(app) then
+            return { app: app, doc_id: doc.id, entries: [], open: 0 }
+        end if
+        if not studio_ui.prose_possible() then
+            return { app: app, doc_id: doc.id, entries: [], open: 0 }
+        end if
+        if not studio_ui.is_gbasic(doc.path) then
+            return { app: app, doc_id: doc.id, entries: [], open: 0 }
+        end if
+        pr = studio_ui._prose_runs(app, doc)
+        app = pr.app
+        open = studio_ui._prose_run_at(pr.runs, doc.cursor.line)
+        ' Collapsed through the same per-block list a result's control uses.
+        ' Keyed by the run's first line, so a collapsed paragraph stays
+        ' collapsed until lines are added above it -- in memory, like those.
+        folded = studio_ui._inline_folded(app)
+        entries = []
+        for each x in pr.runs
+            if x.start_line != open then
+                bid = "doc-" + x.start_line
+                entries = append(entries, { id: bid, from: x.start_line,
+                                            to: x.end_line, markdown: x.markdown,
+                                            collapsed: contains(folded, studio_ui._fold_key(doc.id, bid)) })
+            end if
+        end for
+        return { app: app, doc_id: doc.id, entries: entries, open: open }
+    end function
+
+    ' A `markdown` block over each run's first line, at the largest height
+    ' there is, because prose that scrolls inside a box is not reading. No
+    ' title while it is open -- the prose is the page -- and its first line
+    ' when it is collapsed, so a folded paragraph still says what it is.
+    function prose_items(plan)
+        items = []
+        for each e in plan.entries
+            b = { id: e.id, line: e.from, kind: "markdown", content: e.markdown,
+                  covers: true, max_height: 2000, collapsed: e.collapsed }
+            if e.collapsed then
+                b.title = studio_ui._prose_title(e.markdown)
+            end if
+            items = append(items, b)
+        end for
+        return items
+    end function
+
+    ' The first line with words on it, without a heading's `#`s.
+    function _prose_title(md)
+        for each l in split(md, "\n")
+            t = trim(l)
+            while starts_with(t, "#")
+                t = mid(t, 1, len(t) - 1)
+            end while
+            t = trim(t)
+            if t != "" then
+                return t
+            end if
+        end for
+        return "(empty)"
+    end function
+
+    ' And the fold that hides the rest of each run. A one-line run needs none:
+    ' its block covers the one line there is.
+    function prose_folds(plan)
+        folds = []
+        for each e in plan.entries
+            if e.to > e.from then
+                folds = append(folds, { from: e.from, to: e.to })
+            end if
+        end for
+        return folds
     end function
 
     ' ---- STU-11: git, and staying quiet about it ----------------------------

@@ -1,0 +1,45 @@
+== the prose runs: consecutive '' lines, as the parser read them ==
+  (an ordinary ' line splits two runs; a string and a comment after code are not prose)
+  lines 1-3
+    | # Rates
+    | 
+    | Rates are **read** from the file.
+  lines 5-6
+    | - one
+    |   - nested
+  lines 9-9
+    | Inside a function.
+== the caret on code: every run is prose, a fold for each longer than a line ==
+  doc-1 @1 markdown covers=true
+  doc-5 @5 markdown covers=true
+  doc-9 @9 markdown covers=true
+  fold 1-3
+  fold 5-6
+  asked again, the same plan: true
+== the caret moves into a run: that run is text again, and only that one ==
+  onto line 5: reveal=true
+  open run: 5   prose: doc-1, doc-9
+  within it, to line 6: reveal=false
+  out to code, line 8: reveal=true
+  code to code, line 7: reveal=false
+== a click on prose asks to edit it; a click on a result does not ==
+  prose-edit doc-5 line 5
+  block-none
+  a link: block-none
+  doc-1  collapsed, titled "Rates"
+  doc-5
+  doc-9
+  and the plan moved: true
+  pressed again: block-expanded
+== a half-typed line that does not parse keeps the prose below it ==
+  parses: false, runs still found: 3
+  the plan: doc-1, doc-5, doc-10
+  that line made an ordinary comment: doc-1, doc-5
+== the setting ==
+  shown: true, menu checked: true
+  prose-off: 0 runs as prose, notice: documentation comments shown as comments
+  sync_cursor never reveals with it off: false
+  hand-edited "yes" reads as on: true
+  toggled from there: prose-off
+== a file that is not gBASIC has no prose ==
+  entries: 0

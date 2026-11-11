@@ -841,6 +841,20 @@ for m in sqlconn rows open expand project bounds tabs edit save newproj refresh 
     run_ui "$m"
 done
 
+# DOCUMENTATION COMMENTS AS PROSE: the runs, the plan, the caret opening one,
+# a file that does not parse, the setting. Needs gBASIC's `source_comments`
+# (after 0.10.0); without it Studio shows no prose and this is skipped.
+prose_probe="$tmproot/prose_probe.bas"
+printf 'program main(args)
+    print has_builtin("source_comments")
+end program
+' > "$prose_probe"
+if [ "$(timeout 60 "$GBASIC" "$prose_probe" 2>/dev/null)" = "true" ]; then
+    run_ui prose
+else
+    printf 'SKIP ui_prose (this gBASIC has no source_comments, before ad1cb9dc)\n'
+fi
+
 # THE QT SHELL, AS DATA -- and the first tier in this suite that asserts the
 # window's STRUCTURE rather than its text.
 #
@@ -1216,6 +1230,19 @@ fi
         rm -rf "$qh" "$qp"; mkdir -p "$qh" "$qp"
         printf 'function twice(x)\n  return x * 2\nend function\n\nprint "twice 21 is " + twice(21)\nprint "second line"\nrows = []\nrows = append(rows, { id: 1, name: "a" })\nrows = append(rows, { id: 2, name: "b" })\n\nfunction half(x)\n  return x / 2\nend function\n\ny = 1 / 0\n' > "$qp/nb.bas"
         qt_mode_tier qtview_inline inline "$qh" "$qp" "each section's result under it, read back off the editor"
+    fi
+
+    # DOCUMENTATION COMMENTS AS PROSE (gBASIC §0.38 B): `''` runs folded with
+    # a markdown block covering each, the caret's run shown as text, a click on
+    # prose, a paragraph typed above, the toggle, a theme change. Read back
+    # off the editor; the text never moves.
+    if QT_QPA_PLATFORM=offscreen timeout 60 "$GBASIC" "$qt_blkprobe" 2>&1 | grep -q 'does not define'; then
+        printf 'SKIP qtview_prose (this gBASIC has no qt.blocks, before 59392001)\n'
+    else
+        qh="$tmproot/qtview_prose"; qp="$tmproot/qtview_prose_proj"
+        rm -rf "$qh" "$qp"; mkdir -p "$qh" "$qp"
+        printf "'' # Rates\n''\n'' Rates are **read** from the file.\n' an ordinary comment\n'' - one\n''   - nested\nx = 1  '' after code\nprint x\nfunction f()\n    '' Inside a function.\n    return 1\nend function\n" > "$qp/prose.bas"
+        qt_mode_tier qtview_prose prose "$qh" "$qp" "documentation comments shown as prose, read back off the editor"
     fi
 
     # A COLD HOME TO A FILE IN THE BROWSER (the retired ui_gui_cold): nothing

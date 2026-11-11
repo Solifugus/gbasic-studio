@@ -487,7 +487,26 @@ function on_qt_editor_block()
     if r.action = "block-none" then
         return nothing
     end if
+    if r.action = "prose-edit" then
+        return qt_prose_edit(r)
+    end if
     return qt_took(r)
+end function
+
+' A click on prose: the caret goes to the comment's first line and the editor
+' takes the keyboard, and the caret poll -- called here rather than waited
+' for -- sees it inside the run and shows the run as text.
+function qt_prose_edit(r)
+    G.app = r.app
+    doc = studio_docs.active_doc(G.app.dm)
+    if doc = nothing then
+        return nothing
+    end if
+    part = studio_shell_qt.part_editor(doc.id)
+    z = qt.caret_to(G.win, part, r.line, 1)
+    z = qt.invoke(G.win, part, "setFocus")
+    G.app = qt_sync_caret(G.app)
+    return nothing
 end function
 
 ' Does this gBASIC draw blocks between a source's lines? Asked of a window
@@ -941,6 +960,21 @@ function qt_inline_report(win, ed)
         return "(no blocks)"
     end if
     return join(out, ", ")
+end function
+
+function qt_fold_report(win, ed)
+    out = []
+    for each f in qt.fold(win, ed)
+        out = append(out, string(f.from) + "-" + string(f.to))
+    end for
+    if count(out) = 0 then
+        return "no folds"
+    end if
+    return "folds " + join(out, ", ")
+end function
+
+function qt_prose_report(win, ed)
+    return qt_inline_report(win, ed) + "; " + qt_fold_report(win, ed)
 end function
 
 function qt_indent(text)
@@ -2158,6 +2192,10 @@ function on_qt_inline()
     return qt_took(studio_ui.toggle_inline(G.app))
 end function
 
+function on_qt_prose()
+    return qt_took(studio_ui.toggle_prose(G.app))
+end function
+
 ' ---- closing --------------------------------------------------------------
 
 ' THE WINDOW IS CLOSING, AND THIS IS THE ONLY MOMENT ITS LAYOUT CAN BE READ.
@@ -2268,6 +2306,7 @@ function qt_wire(win)
     win = qt_on(win, qt_item("restore-session"), "triggered", on_qt_restore_session)
     win = qt_on(win, qt_item("show-whitespace"), "triggered", on_qt_whitespace)
     win = qt_on(win, qt_item("show-inline"), "triggered", on_qt_inline)
+    win = qt_on(win, qt_item("show-prose"), "triggered", on_qt_prose)
     win = qt_on(win, studio_shell_qt.part_tb_whitespace(), "triggered", on_qt_whitespace)
 
     ' The browser's own menu. Every item dispatches to the SAME `studio_ui`
@@ -3217,6 +3256,69 @@ program main(args)
         z = qt.invoke(win, qt_item(th), "trigger")
         ed = studio_shell_qt.part_editor(did)
         print "  " + G.last_action + ": " + qt_inline_report(win, ed)
+        return nothing
+    end if
+
+    if mode = "prose" then
+        ' DOCUMENTATION COMMENTS AS PROSE, read back off the editor: the
+        ' blocks Qt holds and the folds it holds, after every step, and the
+        ' text, which must never move -- the comments are the file.
+        rows = studio_ui.nav_rows(G.app)
+        ro = studio_ui.activate_row(G.app, rows, studio_qt_row_index(rows, "file", "prose.bas"))
+        G.app = ro.app
+        nav = studio_ui.nav_rows(G.app)
+        G.app = studio_view_qt.render(win, G.app, "")
+        did = studio_docs.active_doc(G.app.dm).id
+        ed = studio_shell_qt.part_editor(did)
+        text0 = qt.read(win, ed, "plainText")
+        print "this gBASIC reads comments: " + string(studio_ui.prose_possible())
+        G.app = qt_sync_caret(G.app)
+        c = qt.caret(win, ed)
+        print "opened, the caret on line " + string(c.line) + ", in the first run: " + qt_prose_report(win, ed)
+        z = qt.caret_to(win, ed, 8, 1)
+        G.app = qt_sync_caret(G.app)
+        print "the caret on code, line 8: " + qt_prose_report(win, ed)
+        print "  the text is untouched: " + string(qt.read(win, ed, "plainText") = text0) + ", unsaved: " + string(studio_docs.is_dirty(studio_docs.active_doc(G.app.dm)))
+        z = qt.caret_to(win, ed, 6, 1)
+        G.app = qt_sync_caret(G.app)
+        print "the caret into the second run: " + qt_prose_report(win, ed)
+        z = qt.caret_to(win, ed, 8, 1)
+        G.app = qt_sync_caret(G.app)
+        print "a click on the first run's prose"
+        z = qt.block_press(win, ed, "doc-1", "click")
+        c = qt.caret(win, ed)
+        print "  the caret is on line " + string(c.line) + ": " + qt_prose_report(win, ed)
+        z = qt.caret_to(win, ed, 8, 1)
+        G.app = qt_sync_caret(G.app)
+        print "the collapse control on prose"
+        z = qt.block_press(win, ed, "doc-5", "collapse")
+        print "  pressed once: " + G.last_action + " -> " + qt_prose_report(win, ed)
+        z = qt.block_press(win, ed, "doc-5", "collapse")
+        print "  pressed again: " + G.last_action + " -> " + qt_prose_report(win, ed)
+        print "a paragraph typed at the top, as the editor would: the prose moves with its lines"
+        G.app = studio.edit_document(G.app, did, "'' A new paragraph." + chr(10) + chr(10) + text0)
+        z = qt_redraw()
+        z = qt.caret_to(win, ed, 10, 1)
+        G.app = qt_sync_caret(G.app)
+        print "  " + qt_prose_report(win, ed)
+        G.app = studio.edit_document(G.app, did, text0)
+        z = qt_redraw()
+        z = qt.caret_to(win, ed, 8, 1)
+        G.app = qt_sync_caret(G.app)
+        print "Settings > Show documentation comments as prose"
+        z = qt.invoke(win, qt_item("show-prose"), "trigger")
+        print "  " + G.last_action + ": " + qt_prose_report(win, ed) + ", checked=" + string(qt.read(win, qt_item("show-prose"), "checked"))
+        z = qt.invoke(win, qt_item("show-prose"), "trigger")
+        print "  " + G.last_action + ": " + qt_prose_report(win, ed) + ", checked=" + string(qt.read(win, qt_item("show-prose"), "checked"))
+        print "a theme change rebuilds the editor, and the prose is sent to the new one"
+        th = "theme-dark"
+        if studio_ui.theme_of(G.app) = "dark" then
+            th = "theme-system"
+        end if
+        z = qt.invoke(win, qt_item(th), "trigger")
+        ed = studio_shell_qt.part_editor(did)
+        print "  " + G.last_action + ": " + qt_prose_report(win, ed)
+        print "  the text is untouched: " + string(qt.read(win, ed, "plainText") = text0)
         return nothing
     end if
 
@@ -4182,6 +4284,11 @@ function qt_sync_caret(app)
     app = r.app
     if r.changed then
         qt_note("section_selected", r.detail, "")
+    end if
+    ' A caret crossing into or out of a documentation run changes what the
+    ' editor shows (prose or comment) as much as a section crossing changes
+    ' the panes.
+    if r.changed or r.reveal then
         app = studio_view_qt.render_run(G.win, app)
     end if
     return app
