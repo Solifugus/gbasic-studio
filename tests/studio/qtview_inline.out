@@ -1,0 +1,16 @@
+this gBASIC draws blocks: true
+before any run: (no blocks)
+while sec-2 runs: res-sec-2@9 text
+after running all four: res-sec-2@9 text, res-sec-2-rows@9 table, res-sec-4@15 text
+  the text is untouched: true, unsaved: false
+the collapse control
+  pressed once: block-collapsed -> res-sec-2@9 text collapsed, res-sec-2-rows@9 table, res-sec-4@15 text
+  a click on the body changes nothing: res-sec-2@9 text collapsed, res-sec-2-rows@9 table, res-sec-4@15 text
+  pressed again: block-expanded -> res-sec-2@9 text, res-sec-2-rows@9 table, res-sec-4@15 text
+a line added at the top: every block is one line lower
+  res-sec-2@10 text, res-sec-2-rows@10 table, res-sec-4@16 text
+Settings > Show results under sections
+  inline-off: (no blocks), checked=false
+  inline-on: res-sec-2@10 text, res-sec-2-rows@10 table, res-sec-4@16 text, checked=true
+a theme change rebuilds the editor, and the blocks are sent to the new one
+  theme-set: res-sec-2@10 text, res-sec-2-rows@10 table, res-sec-4@16 text

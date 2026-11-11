@@ -24,10 +24,11 @@ Settings (settings)
   text-reset    Reset editor text size
   --
   show-whitespaceShow invisible characters
+  show-inline   Show results under sections
   --
   restore-sessionReopen last session on start
 == every item has a label and a hint, and no two share a label ==
-items=18 problems=0
+items=19 problems=0
 == an item nobody declared ==
   unknown -> no-such-item
   hint    -> []

@@ -1259,6 +1259,118 @@ program main(args)
     print "caption: " + o5.caption
   end if
 
+  ' ---- inline: each section's last result, under the section --------------
+  if mode = "inline" then
+    nf{file} = projdir + "/nb.bas"
+    write(nf, "function twice(x)\n  return x * 2\nend function\n\nprint \"twice 21 is \" + twice(21)\nprint \"second line\"\nrows = []\nrows = append(rows, { id: 1, name: \"a\" })\nrows = append(rows, { id: 2, name: \"b\" })\n\nfunction half(x)\n  return x / 2\nend function\n\ny = 1 / 0\n")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "nb.bas"))
+    app = r.app
+    app.clock_fixed = 1000
+    id = studio_docs.active_doc(app.dm).id
+
+    banner("nothing has run: no blocks")
+    p = studio_ui.inline_plan(app)
+    app = p.app
+    print "entries: " + count(p.entries) + "   shown: " + string(studio_ui.shows_inline(app))
+
+    banner("run every section, then the plan: one entry per section with a result")
+    for each l in [0, 4, 10, 14]
+      r = studio_ui.sync_cursor(app, id, l, 0)
+      app = r.app
+      r = studio_ui.run_section(app, l, 0)
+      app = drive(r.app)
+    end for
+    p = studio_ui.inline_plan(app)
+    app = p.app
+    for each e in p.entries
+      print "  " + e.id + " under line " + e.line + "  standing=" + e.standing
+    end for
+    sig1 = studio_ui.inline_signature(p)
+
+    banner("the blocks: printed output and errors as text, a table as a table")
+    print "  (a function that printed nothing gets no block)"
+    it = studio_ui.inline_items(app, p)
+    app = it.app
+    for each b in it.items
+      print "  " + b.id + " @" + b.line + " " + b.kind + "  [" + b.title + "]"
+      if b.kind = "text" then
+        for each cl in split(b.content, "\n")
+          print "    | " + cl
+        end for
+      else
+        print "    columns " + join(b.content.columns, ",") + ", " + count(b.content.rows) + " rows"
+      end if
+    end for
+
+    banner("asking again with nothing changed: the same signature")
+    p = studio_ui.inline_plan(app)
+    app = p.app
+    print "  same: " + string(studio_ui.inline_signature(p) = sig1)
+
+    banner("the collapse control folds a block, and only that one")
+    r = studio_ui.block_event(app, { id: "res-sec-2", action: "collapse", target: unknown })
+    app = r.app
+    print "  " + r.action + " " + r.detail
+    r = studio_ui.block_event(app, { id: "res-sec-2", action: "click", target: unknown })
+    app = r.app
+    print "  a click on the body: " + r.action
+    r = studio_ui.block_event(app, { id: "res-sec-2-rows", action: "collapse", target: unknown })
+    app = r.app
+    print "  " + r.action + " " + r.detail
+    p = studio_ui.inline_plan(app)
+    app = p.app
+    print "  folded: " + join(p.folded, ", ")
+    it = studio_ui.inline_items(app, p)
+    app = it.app
+    for each b in it.items
+      print "  " + b.id + " collapsed=" + string(b.collapsed)
+    end for
+    print "  signature moved: " + string(studio_ui.inline_signature(p) != sig1)
+    r = studio_ui.block_event(app, { id: "res-sec-2-rows", action: "collapse", target: unknown })
+    app = r.app
+    r = studio_ui.block_event(app, { id: "res-sec-2", action: "collapse", target: unknown })
+    app = r.app
+    print "  " + r.action + " " + r.detail
+
+    banner("editing a section marks its block stale, and a line typed above moves them all")
+    app = studio.edit_document(app, id, "' a heading\nfunction twice(x)\n  return x * 2\nend function\n\nprint \"twice 21 is \" + twice(21)\nprint \"second line, edited\"\nrows = []\nrows = append(rows, { id: 1, name: \"a\" })\nrows = append(rows, { id: 2, name: \"b\" })\n\nfunction half(x)\n  return x / 2\nend function\n\ny = 1 / 0\n")
+    p = studio_ui.inline_plan(app)
+    app = p.app
+    for each e in p.entries
+      print "  " + e.id + " under line " + e.line + "  standing=" + e.standing
+    end for
+    it = studio_ui.inline_items(app, p)
+    app = it.app
+    for each b in it.items
+      print "  " + b.id + "  [" + b.title + "]"
+    end for
+
+    banner("a long output is cut at the cap, and says where the rest is")
+    print "  cap " + studio_ui.inline_line_cap()
+    long = []
+    n = 0
+    while n < 205
+      long = append(long, "l" + n)
+      n = n + 1
+    end while
+    cut = split(studio_ui._cap_lines(join(long, "\n") + "\n"), "\n")
+    print "  " + count(cut) + " lines, last: " + cut[count(cut) - 1]
+
+    banner("the setting turns it off, and on")
+    r = studio_ui.toggle_inline(app)
+    app = r.app
+    print "  " + r.action + ": " + studio_ui.action_notice(r.action, r.detail)
+    p = studio_ui.inline_plan(app)
+    app = p.app
+    print "  entries: " + count(p.entries) + ", menu checked: " + string(studio_ui.menu_checked(app, "show-inline"))
+    r = studio_ui.toggle_inline(app)
+    app = r.app
+    print "  " + r.action + ": " + studio_ui.action_notice(r.action, r.detail)
+    app.model.settings.show_results_inline = "yes"
+    print "  a hand-edited \"yes\" reads as: " + string(studio_ui.shows_inline(app))
+  end if
+
   ' ---- cursor: the panes follow the caret, not the last run ----------------
   if mode = "cursor" then
     cf{file} = projdir + "/three.bas"

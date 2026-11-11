@@ -68,7 +68,7 @@ mode.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 210 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 212 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 30 cases, headless AND offline (scripted transport)
 ```
 
@@ -1071,6 +1071,50 @@ launcher.
   back off the widget (`slow.bas:6` for line 5).
 - **`env()` of an unset variable is `unknown`, and `unknown = "1"` makes an
   `if` refuse.** Written `default(env(...), "") = "1"`.
+
+#### Results under their sections (gBASIC §0.38, `qt.blocks`)
+
+`docs/gbasic-studio-research-teaching-publishing-ideas.md` §4, stage 2's first
+half: a section's last result shown UNDER THE SECTION, in the editor. gBASIC
+draws a block in a gap between two lines without touching the document.
+
+- **Every decision is in `studio_ui`** (`inline_plan`, `inline_items`,
+  `block_event`, `toggle_inline`); `ui_inline` asserts it headlessly and
+  `studio_view_qt._inline` sends it. `qtview_inline` reads the blocks back off
+  a real editor -- the line Qt has each on NOW -- and the editor's text after
+  every step: a result is display, never source.
+- **TWO HALVES, because the poller asks sixteen times a second.** The PLAN is
+  cheap (which result, which line, its standing, what is folded) and is what
+  the renderer compares; the ITEMS read captures, and are built only when the
+  plan moved. A result id stands for its content, which never changes under
+  one id.
+- **OR WHEN QT HOLDS A DIFFERENT NUMBER OF BLOCKS THAN WERE SENT.** A theme
+  change rebuilds the editor (the theme is in the page's name), and the new
+  one has no blocks while the plan is unchanged. Measured red with the count
+  check removed: `theme-set: (no blocks)`. A block Qt drops with its deleted
+  line is caught the same way.
+- **The line is the section's LAST, from the CANONICAL outline** (the text on
+  screen); the standing is judged against `branch_sections`, as the results
+  pane judges it, so an overlay does not mark its own results stale.
+- **Only a table the section MADE OR CHANGED.** The vars capture is the whole
+  scope after the run, replay included, so without `mark_changes`' "same"
+  filter a table built at the top was drawn under every section below it --
+  seen in the first `ui_inline` output. The comparison is shallow (kind,
+  type, count); a section that rewrote rows without changing how many is not
+  seen there, and the Tables pane still offers it.
+- **No block for a run with nothing to show.** A gap under every function
+  definition saying "(no output)" is noise; the results pane has the record.
+  A refused run filed no result and shows none: the strip and Errors say it.
+- **Collapse is PER BLOCK, keyed `doc_id:block id`, in memory only.** The
+  first version keyed it by section, so the collapse control on a section's
+  TABLE did nothing -- found by `qtview_inline`, not by reasoning.
+- **Older gBASIC: probed, not caught per call.** `qt_blocks_probe` asks
+  `qt.blocks` of a window never opened: "is not open" means the verb exists,
+  "does not define" means it does not. No window is built, so nothing flashes.
+  Without it no `block` handler is attached (an older `qt.check` would refuse
+  the signal) and the results stay in the panes; the tier SKIPs.
+- `qt.block_event()` does not say which editor; only the active one is sent
+  blocks, so the event is about the active document.
 
 #### Theming under Qt, which was a dead control
 

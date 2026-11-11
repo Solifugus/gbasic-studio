@@ -48,6 +48,15 @@ edge, with the whole arrangement remembered between launches. There is a real
 toolbar and status bar. The editor has a margin with line numbers and marks: one
 at the start of every runnable section, one on the line a syntax error is.
 
+**A section's last result is shown under it, in the editor** (gBASIC's
+`qt.blocks`): what it printed and any error as text, and each table it made or
+changed as a table of the rows the run kept, with a heading saying when it ran
+and whether the section has been edited since. The result is drawn in a gap
+between two lines and is never written into the file: the text, the undo
+history and the caret are untouched, and each block can be collapsed. A section
+that printed nothing and made no table gets no block. Settings ▸ *Show results
+under sections* turns it off, and the panes still follow the caret either way.
+
 **Run** runs the section the caret is in, and the strip names it before you
 press anything; a whole-file `.sql` run that stops part way moves the caret to
 the line it stopped at. **Force Stop** is there for a program that ignores a
@@ -812,7 +821,7 @@ resources or prompts.
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 210 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 212 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 30 cases, headless AND offline — no network, no key
 ```
 

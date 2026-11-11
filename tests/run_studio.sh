@@ -837,7 +837,7 @@ done
 for m in sqlconn rows open expand project bounds tabs edit save newproj refresh \
          newfile newfolder adopt exit \
          names rename delete closetab notice \
-         run runstop runerr runrefuse badsyntax filetypes projfile projpin newproj2 panes context menus settings projtabs anchors cursor drafts branch table overlay overlay_conflict; do
+         run runstop runerr runrefuse badsyntax filetypes projfile projpin newproj2 panes context menus settings projtabs anchors cursor drafts branch table overlay overlay_conflict inline; do
     run_ui "$m"
 done
 
@@ -1201,6 +1201,22 @@ fi
     rm -rf "$qh" "$qp"; mkdir -p "$qh" "$qp"
     printf 'print "first"\n\nfunction add(a, b)\n  return a + b\nend function\n\nprint add(2, 3)\n' > "$qp/run.bas"
     qt_mode_tier qtview_run run "$qh" "$qp" "a run read back off the window, following the caret"
+
+    # RESULTS UNDER THEIR SECTIONS (gBASIC §0.38 qt.blocks): every section
+    # run, the blocks read back off the editor with the line Qt has them on,
+    # the editor's text unchanged, collapse, the Settings toggle, and a theme
+    # change rebuilding the editor. Skipped on a gBASIC without the verb, whose
+    # window keeps its results in the panes.
+    qt_blkprobe="$tmproot/blocks_probe_qt.bas"
+    printf 'program main(args)\n    on error goto next\n    z = qt.blocks({ kind: "window", name: "p", options: {}, items: [] }, "e")\n    if error then\n        print error.message\n    end if\nend program\n' > "$qt_blkprobe"
+    if QT_QPA_PLATFORM=offscreen timeout 60 "$GBASIC" "$qt_blkprobe" 2>&1 | grep -q 'does not define'; then
+        printf 'SKIP qtview_inline (this gBASIC has no qt.blocks, before 59392001)\n'
+    else
+        qh="$tmproot/qtview_inline"; qp="$tmproot/qtview_inline_proj"
+        rm -rf "$qh" "$qp"; mkdir -p "$qh" "$qp"
+        printf 'function twice(x)\n  return x * 2\nend function\n\nprint "twice 21 is " + twice(21)\nprint "second line"\nrows = []\nrows = append(rows, { id: 1, name: "a" })\nrows = append(rows, { id: 2, name: "b" })\n\nfunction half(x)\n  return x / 2\nend function\n\ny = 1 / 0\n' > "$qp/nb.bas"
+        qt_mode_tier qtview_inline inline "$qh" "$qp" "each section's result under it, read back off the editor"
+    fi
 
     # A COLD HOME TO A FILE IN THE BROWSER (the retired ui_gui_cold): nothing
     # at all, New Project as the way in. The project argument is EMPTY.

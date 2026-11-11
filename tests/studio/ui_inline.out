@@ -1,0 +1,48 @@
+== nothing has run: no blocks ==
+entries: 0   shown: true
+== run every section, then the plan: one entry per section with a result ==
+   exec: run: finished [sec-1] — exit 0
+   exec: run: finished [sec-2] — exit 0
+   exec: run: finished [sec-3] — exit 0
+   exec: run: finished [sec-4] — exit 1
+  res-sec-1 under line 3  standing=current
+  res-sec-2 under line 9  standing=current
+  res-sec-3 under line 13  standing=current
+  res-sec-4 under line 15  standing=current
+== the blocks: printed output and errors as text, a table as a table ==
+  (a function that printed nothing gets no block)
+  res-sec-2 @9 text  [sec-2  finished exit 0  at 1969-12-31 19:16:40]
+    | twice 21 is 42
+    | second line
+  res-sec-2-rows @9 table  [rows: 2 rows]
+    columns id,name, 2 rows
+  res-sec-4 @15 text  [sec-4  finished exit 1  at 1969-12-31 19:16:40]
+    | 15:7  division by zero
+== asking again with nothing changed: the same signature ==
+  same: true
+== the collapse control folds a block, and only that one ==
+  block-collapsed res-sec-2
+  a click on the body: block-none
+  block-collapsed res-sec-2-rows
+  folded: res-sec-2, res-sec-2-rows
+  res-sec-2 collapsed=true
+  res-sec-2-rows collapsed=true
+  res-sec-4 collapsed=false
+  signature moved: true
+  block-expanded res-sec-2
+== editing a section marks its block stale, and a line typed above moves them all ==
+  res-sec-1 under line 4  standing=current
+  res-sec-2 under line 10  standing=stale-content
+  res-sec-3 under line 14  standing=current
+  res-sec-4 under line 16  standing=current
+  res-sec-2  [sec-2  finished exit 0  at 1969-12-31 19:16:40  [section edited since this run]]
+  res-sec-2-rows  [rows: 2 rows  [section edited since this run]]
+  res-sec-4  [sec-4  finished exit 1  at 1969-12-31 19:16:40]
+== a long output is cut at the cap, and says where the rest is ==
+  cap 200
+  201 lines, last: ... 5 more lines in the console
+== the setting turns it off, and on ==
+  inline-off: results shown in the panes only
+  entries: 0, menu checked: false
+  inline-on: results shown under their sections
+  a hand-edited "yes" reads as: true

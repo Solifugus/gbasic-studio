@@ -2837,7 +2837,7 @@ library studio_ui
         out = append(out, { id: "settings", label: "Settings",
                             items: ["theme-system", "theme-dark", "-",
                                     "text-bigger", "text-smaller", "text-reset", "-",
-                                    "show-whitespace", "-",
+                                    "show-whitespace", "show-inline", "-",
                                     "restore-session"] })
         return out
     end function
@@ -2913,6 +2913,9 @@ library studio_ui
         if action = "show-whitespace" then
             return "Show invisible characters"
         end if
+        if action = "show-inline" then
+            return "Show results under sections"
+        end if
         if action = "text-bigger" then
             return "Bigger editor text"
         end if
@@ -2963,6 +2966,9 @@ library studio_ui
         if action = "show-whitespace" then
             return true
         end if
+        if action = "show-inline" then
+            return true
+        end if
         return false
     end function
 
@@ -2979,6 +2985,9 @@ library studio_ui
         end if
         if action = "show-whitespace" then
             return studio_ui.shows_whitespace(app)
+        end if
+        if action = "show-inline" then
+            return studio_ui.shows_inline(app)
         end if
         return false
     end function
@@ -3060,6 +3069,9 @@ library studio_ui
         end if
         if action = "show-whitespace" then
             return "Draw spaces, tabs and line ends in the editor, so trailing blanks and a tab among spaces can be seen. Ctrl+Shift+8, or the ¶ on the toolbar."
+        end if
+        if action = "show-inline" then
+            return "Show each section's last result in the editor, under the section that made it. Display only: nothing is written into the file."
         end if
         ' All three say EDITOR, because the rest of the window follows your
         ' desktop's interface font and is not Studio's to resize -- setting it
@@ -3333,6 +3345,12 @@ library studio_ui
         end if
         if action = "whitespace-off" then
             return "invisible characters hidden"
+        end if
+        if action = "inline-on" then
+            return "results shown under their sections"
+        end if
+        if action = "inline-off" then
+            return "results shown in the panes only"
         end if
         ' ---- STU-20, the editor's text size.
         if action = "zoom-set" then
@@ -5438,6 +5456,302 @@ library studio_ui
         bs = studio_ui.branch_sections(app)
         app = bs.app
         return studio_results.view_with(app.paths.home, v.store, bs.st, v.sid, ab.id, studio_ui.viewers_of(app))
+    end function
+
+    ' ---- results under their sections (the notebook view) -------------------
+    '
+    ' docs/gbasic-studio-research-teaching-publishing-ideas.md §4: a section's
+    ' last result is shown UNDER THE SECTION, in the editor, rather than only in
+    ' a pane that follows the caret. gBASIC §0.38 draws a block in a gap between
+    ' two lines without touching the document, so the file on disk, the undo
+    ' stack and the caret are untouched: the result is display, never source.
+    '
+    ' Every decision is here; the renderer hands `inline_items` to `qt.blocks`.
+    ' Two halves, because the renderer asks sixteen times a second: the PLAN is
+    ' cheap (which result, where, how it stands, collapsed or not) and is what
+    ' the renderer compares, and the ITEMS read the captures, which happens only
+    ' when the plan moved.
+
+    ' Whether results are drawn under their sections. ON unless the settings
+    ' file says otherwise, and guarded like `shows_whitespace`.
+    function shows_inline(app)
+        v = app.model.settings["show_results_inline"]
+        if is_unknown(v) then
+            return true
+        end if
+        if not is_boolean(v) then
+            return true
+        end if
+        return v
+    end function
+
+    function toggle_inline(app)
+        st = app.model.settings
+        now = not studio_ui.shows_inline(app)
+        st.show_results_inline = now
+        app.model.settings = st
+        if now then
+            return { app: app, action: "inline-on", detail: "" }
+        end if
+        return { app: app, action: "inline-off", detail: "" }
+    end function
+
+    ' How many lines of printed output a block carries. The block scrolls
+    ' inside past its height; this bounds what is handed to it, because a
+    ' section that printed a million lines must not become a million-line
+    ' widget. The console and the results pane still have the whole capture.
+    function inline_line_cap()
+        return 200
+    end function
+
+    ' Collapsed blocks, per document, by block id. In memory only: which result
+    ' you folded away is not something worth a file.
+    function _inline_folded(app)
+        f = app["inline_folded"]
+        if is_unknown(f) then
+            return []
+        end if
+        return f
+    end function
+
+    function _fold_key(doc_id, id)
+        return doc_id + ":" + id
+    end function
+
+    ' The block's collapse control. Studio owns `collapsed:` and re-sends it,
+    ' which is how §0.38 is shaped: the control itself changes nothing.
+    function toggle_block(app, id)
+        doc = studio_docs.active_doc(app.dm)
+        if doc = nothing then
+            return { app: app, action: "block-none", detail: id }
+        end if
+        k = studio_ui._fold_key(doc.id, id)
+        was = studio_ui._inline_folded(app)
+        out = []
+        found = false
+        for each x in was
+            if x = k then
+                found = true
+            else
+                out = append(out, x)
+            end if
+        end for
+        if not found then
+            out = append(out, k)
+        end if
+        app["inline_folded"] = out
+        if found then
+            return { app: app, action: "block-expanded", detail: id }
+        end if
+        return { app: app, action: "block-collapsed", detail: id }
+    end function
+
+    ' A block event, decided: `collapse` toggles, anything else is not an act.
+    ' A click on a block's body is reading it, and selecting text in it is the
+    ' block's own business.
+    function block_event(app, ev)
+        if is_unknown(ev) then
+            return { app: app, action: "block-none", detail: "" }
+        end if
+        if ev.action = "collapse" then
+            return studio_ui.toggle_block(app, ev.id)
+        end if
+        return { app: app, action: "block-none", detail: ev.id }
+    end function
+
+    ' The cheap half: one entry per section that has something to show.
+    '
+    ' THE LINE IS THE SECTION'S LAST, from the CANONICAL outline, because that
+    ' is the text on screen; the STANDING is judged against what this branch
+    ' sees (`branch_sections`), as the results pane judges it, so an overlay
+    ' does not mark its own results stale. A section no parse has placed, or
+    ' one that is gone, has no line to hang a block on and gets none.
+    '
+    ' A run in flight shows as such under its own section. A refused run
+    ' recorded nothing and shows nothing here: the strip and the Errors pane
+    ' carry that sentence.
+    function inline_plan(app)
+        doc = studio_docs.active_doc(app.dm)
+        if doc = nothing then
+            return { app: app, doc_id: "", entries: [], folded: [] }
+        end if
+        shown = studio_ui.shows_inline(app)
+        v = studio_ui.view_for(app)
+        app = v.app
+        if not shown then
+            return { app: app, doc_id: doc.id, entries: [], folded: [] }
+        end if
+        if v.st = nothing then
+            return { app: app, doc_id: doc.id, entries: [], folded: [] }
+        end if
+        if v.store = nothing then
+            return { app: app, doc_id: doc.id, entries: [], folded: [] }
+        end if
+        ab = studio_ui.active_branch(app)
+        app = ab.app
+        bs = studio_ui.branch_sections(app)
+        app = bs.app
+        nlines = count(split(doc.content, "\n"))
+        live_sid = ""
+        sess = studio_ui.exec_session(app)
+        if sess != nothing then
+            ex = app.exec
+            if ex.doc_id = doc.id then
+                if studio_session.is_active(sess) then
+                    live_sid = sess.section_id
+                end if
+            end if
+        end if
+        ' The blocks folded in THIS document, by block id: a section's text and
+        ' each of its tables fold one at a time.
+        folded = []
+        for each k in studio_ui._inline_folded(app)
+            if starts_with(k, doc.id + ":") then
+                folded = append(folded, mid(k, len(doc.id) + 1, len(k) - len(doc.id) - 1))
+            end if
+        end for
+        entries = []
+        for each s in v.st.sections
+            usable = s.status != "stale"
+            if s.end_line < 1 then
+                usable = false
+            end if
+            if s.end_line > nlines then
+                usable = false
+            end if
+            if usable then
+                r = studio_results.latest_in(v.store, s.id, ab.id)
+                running = s.id = live_sid
+                if running or r != nothing then
+                    standing = ""
+                    rid = ""
+                    if r != nothing then
+                        standing = studio_results.standing_of(r, bs.st)
+                        rid = r.result_id
+                    end if
+                    entries = append(entries, { id: "res-" + s.id, sid: s.id, line: s.end_line,
+                                                running: running, result_id: rid,
+                                                standing: standing })
+                end if
+            end if
+        end for
+        return { app: app, doc_id: doc.id, entries: entries, folded: folded }
+    end function
+
+    ' What a plan is compared by. The result id stands for its content, which
+    ' never changes under one id.
+    function inline_signature(plan)
+        return plan.doc_id + json_encode(plan.entries) + json_encode(plan.folded)
+    end function
+
+    ' A run's one-line heading: which section, how it ended, when, and how it
+    ' stands now -- the same note the results pane prints.
+    function inline_title(sid, r, standing)
+        t = sid + "  " + r.outcome
+        if r.outcome != "refused" then
+            t = t + " exit " + r.exit_code
+        end if
+        t = t + "  at " + studio_results._when(r.started_epoch)
+        return t + studio_results._standing_note(standing)
+    end function
+
+    function _cap_lines(text)
+        if text = "" then
+            return ""
+        end if
+        lines = split(text, "\n")
+        n = count(lines)
+        ' A capture ends in a newline, which is not a line of output.
+        if lines[n - 1] = "" then
+            n = n - 1
+        end if
+        cap = studio_ui.inline_line_cap()
+        keep = n
+        if keep > cap then
+            keep = cap
+        end if
+        out = []
+        i = 0
+        while i < keep
+            out = append(out, lines[i])
+            i = i + 1
+        end while
+        if n > cap then
+            out = append(out, "... " + string(n - cap) + " more lines in the console")
+        end if
+        return join(out, "\n")
+    end function
+
+    ' The expensive half: the blocks themselves, as `qt.blocks` takes them.
+    '
+    ' A section's PRINTED output and its errors are one `text` block; each
+    ' tabular variable it left is a `table` block of the rows the run kept,
+    ' captioned as the grid is, so a sample never passes for the table. A run
+    ' that printed nothing, failed at nothing and left no table gets NO block:
+    ' a gap under every function definition saying "(no output)" is noise, and
+    ' the results pane still has the record.
+    function inline_items(app, plan)
+        items = []
+        v = studio_ui.view_for(app)
+        app = v.app
+        for each e in plan.entries
+            if e.running then
+                items = append(items, { id: e.id, line: e.line, kind: "text",
+                                        title: e.sid + "  running",
+                                        content: "(running)", collapsed: contains(plan.folded, e.id) })
+            else
+                r = nothing
+                for each x in v.store.results
+                    if x.result_id = e.result_id then
+                        r = x
+                    end if
+                end for
+                if r != nothing then
+                    o = { result: r, store: v.store }
+                    body = []
+                    out = studio_ui._capture_or(app, o, "out_target", "")
+                    if out != "" then
+                        body = append(body, studio_ui._cap_lines(out))
+                    end if
+                    for each a in r.attribution
+                        body = append(body, a.line + ":" + a.column + "  " + a.message)
+                    end for
+                    err = studio_ui._capture_or(app, o, "err_target", "")
+                    if err != "" then
+                        body = append(body, studio_ui._cap_lines(err))
+                    end if
+                    title = studio_ui.inline_title(e.sid, r, e.standing)
+                    if count(body) > 0 then
+                        items = append(items, { id: e.id, line: e.line, kind: "text",
+                                                title: title, content: join(body, "\n"),
+                                                collapsed: contains(plan.folded, e.id) })
+                    end if
+                    ' Only a table this section MADE OR CHANGED. The capture
+                    ' is the whole scope after the run, and the replay put
+                    ' every earlier section's variables in it -- without this,
+                    ' a table built at the top would be drawn again under
+                    ' every section below it. `mark_changes` judges on the
+                    ' shallow descriptor (kind, type, count), so a section
+                    ' that rewrote rows without changing how many is not
+                    ' seen here; the Tables pane still offers it.
+                    for each tv in studio_results.vars_of(app.paths.home, v.store, r)
+                        src = studio_table.from_preview(tv)
+                        made = default(tv["change"], "") != "same"
+                        if src.kind = "none" then
+                            made = false
+                        end if
+                        if made then
+                            tid = e.id + "-" + tv.name
+                            items = append(items, { id: tid, line: e.line, kind: "table",
+                                                    title: studio_table.caption(tv.name, src) + studio_results._standing_note(e.standing),
+                                                    content: { columns: src.cols, rows: src.rows },
+                                                    collapsed: contains(plan.folded, tid) })
+                        end if
+                    end for
+                end if
+            end if
+        end for
+        return { app: app, items: items }
     end function
 
     ' ---- STU-11: git, and staying quiet about it ----------------------------

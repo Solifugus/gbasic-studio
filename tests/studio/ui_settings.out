@@ -7,6 +7,7 @@
   text-reset      Reset editor text size
   --
   show-whitespace ○ Show invisible characters
+  show-inline     ● Show results under sections
   --
   restore-session ● Reopen last session on start
   recent_limit is offered: false

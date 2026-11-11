@@ -237,6 +237,7 @@ function render_run(win, app)
     z = qt.set(win, "results_body", "plainText", studio_ui.results_body(app))
 
     app = studio_view_qt._gutter(win, app)
+    app = studio_view_qt._inline(win, app)
 
     ' THE BRANCH PANE IS A TABLE, so it follows its subject the way the browser
     ' does -- read out of THIS frame by the name the record declares.
@@ -294,6 +295,50 @@ function _gutter(win, app)
     e = studio_ui.error_marks(app)
     app = e.app
     z = qt.mark(win, part, "error", studio_view_qt._one_based(e.lines))
+    return app
+end function
+
+' RESULTS UNDER THEIR SECTIONS (gBASIC §0.38 `qt.blocks`), in the active
+' editor. `studio_ui.inline_plan` decides which and where; this sends them.
+'
+' HERE AND NOT ONLY IN `render`, because a run's block appears when it starts
+' and is filled when it finishes, and both are the poller's. But the poller is
+' sixteen ticks a second and the items READ CAPTURES, so they are built only
+' when the PLAN moved -- or when Qt holds a different number of blocks than
+' were sent, which is how a rebuilt editor (a theme change) and a block Qt
+' dropped with its deleted line are both noticed. `qt.blocks` reconciles by
+' id, so an unchanged block keeps its widget either way.
+'
+' A gBASIC without the verb never gets here (`qt_blocks_ok`, the entry
+' point's probe): the results stay in the panes, as they were.
+function _inline(win, app)
+    if not default(app["qt_blocks_ok"], false) then
+        return app
+    end if
+    p = studio_ui.inline_plan(app)
+    app = p.app
+    if p.doc_id = "" then
+        return app
+    end if
+    part = studio_shell_qt.part_editor(p.doc_id)
+    sig = studio_ui.inline_signature(p)
+    sent = app["qt_inline_sent"]
+    if is_unknown(sent) then
+        sent = {}
+    end if
+    was = sent[p.doc_id]
+    if not is_unknown(was) then
+        if was.sig = sig then
+            if count(qt.blocks(win, part)) = was.n then
+                return app
+            end if
+        end if
+    end if
+    it = studio_ui.inline_items(app, p)
+    app = it.app
+    z = qt.blocks(win, part, it.items)
+    sent[p.doc_id] = { sig: sig, n: count(it.items) }
+    app["qt_inline_sent"] = sent
     return app
 end function
 

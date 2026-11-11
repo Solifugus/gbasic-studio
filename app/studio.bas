@@ -472,6 +472,39 @@ function on_qt_editor_wheel()
     return qt_took(r)
 end function
 
+' ---- results under their sections (gBASIC §0.38) ---------------------------
+'
+' A block's collapse control was pressed. Studio owns `collapsed:` and the
+' control changes nothing by itself, so this decides (`studio_ui.block_event`)
+' and the redraw sends the blocks again. A click on a block's body is reading
+' it, and is not an act. Only the active editor has blocks sent to it, so the
+' event is about the active document; `qt.block_event` does not say which.
+function on_qt_editor_block()
+    if G.redrawing then
+        return nothing
+    end if
+    r = studio_ui.block_event(G.app, qt.block_event())
+    if r.action = "block-none" then
+        return nothing
+    end if
+    return qt_took(r)
+end function
+
+' Does this gBASIC draw blocks between a source's lines? Asked of a window
+' that was never opened: a gBASIC that has the verb refuses it as "not open",
+' and one that predates §0.38 answers that the module does not define it.
+' No window is built, so nothing flashes on a desktop. Without the verb the
+' results stay in the panes, as before, and no `block` handler is attached --
+' an older `qt.check` would refuse a signal it does not know.
+function qt_blocks_probe()
+    on error goto next
+    z = qt.blocks({ kind: "window", name: "studio_blocks_probe", options: {}, items: [] }, "ed")
+    if error then
+        return not contains(error.message, "does not define")
+    end if
+    return true
+end function
+
 ' ---- the Tables pane and the grid window (STU-8) ---------------------------
 '
 ' A row of the Tables pane was selected: open it. `open_table` decides what is
@@ -890,6 +923,26 @@ function qt_caret_to_model()
 end function
 
 ' Two spaces before every line, so a block reads as belonging to its heading.
+' The blocks Qt holds in one editor, as "id@line kind" with the flags that
+' are not the default. Every value is Qt's own readback.
+function qt_inline_report(win, ed)
+    out = []
+    for each b in qt.blocks(win, ed)
+        t = b.id + "@" + string(b.line) + " " + b.kind
+        if b.collapsed then
+            t = t + " collapsed"
+        end if
+        if b.height <= 0 then
+            t = t + " NO-HEIGHT"
+        end if
+        out = append(out, t)
+    end for
+    if count(out) = 0 then
+        return "(no blocks)"
+    end if
+    return join(out, ", ")
+end function
+
 function qt_indent(text)
     out = []
     for each l in split(text, chr(10))
@@ -2101,6 +2154,10 @@ function on_qt_whitespace()
     return qt_took(studio_ui.toggle_whitespace(G.app))
 end function
 
+function on_qt_inline()
+    return qt_took(studio_ui.toggle_inline(G.app))
+end function
+
 ' ---- closing --------------------------------------------------------------
 
 ' THE WINDOW IS CLOSING, AND THIS IS THE ONLY MOMENT ITS LAYOUT CAN BE READ.
@@ -2210,6 +2267,7 @@ function qt_wire(win)
     win = qt_on(win, qt_item("text-reset"), "triggered", on_qt_text_reset)
     win = qt_on(win, qt_item("restore-session"), "triggered", on_qt_restore_session)
     win = qt_on(win, qt_item("show-whitespace"), "triggered", on_qt_whitespace)
+    win = qt_on(win, qt_item("show-inline"), "triggered", on_qt_inline)
     win = qt_on(win, studio_shell_qt.part_tb_whitespace(), "triggered", on_qt_whitespace)
 
     ' The browser's own menu. Every item dispatches to the SAME `studio_ui`
@@ -2371,7 +2429,11 @@ program main(args)
     ' EACH EDITOR'S HANDLERS, as data the renderer puts into every page --
     ' see `studio_view_qt.editor_handlers`. Before the window is built, so the
     ' editors open at launch carry them as well as every one built later.
+    G.app["qt_blocks_ok"] = qt_blocks_probe()
     G.app["qt_editor_handlers"] = [ { signal: "wheel", handler: on_qt_editor_wheel } ]
+    if G.app.qt_blocks_ok then
+        G.app["qt_editor_handlers"] = append(G.app.qt_editor_handlers, { signal: "block", handler: on_qt_editor_block })
+    end if
     win = qt_wire(studio_view_qt.with_editor_handlers(G.app, studio_shell_qt.window_for(G.app)))
     ' REFUSED BEFORE OPENED, always. `qt.open` validates too, but a validator
     ' nobody is obliged to call is necessary and not sufficient -- and a raise
@@ -3100,6 +3162,61 @@ program main(args)
         G.app = qt_sync_caret(G.app)
         z = qt_redraw()
         print qt_indent(qt.read(win, "results_body", "plainText"))
+        return nothing
+    end if
+
+    if mode = "inline" then
+        ' RESULTS UNDER THEIR SECTIONS, read back off the editor (gBASIC
+        ' §0.38). `qt.blocks(win, part)` answers what Qt holds -- the line
+        ' each block is on NOW, as laid out -- never what was sent. And the
+        ' editor's text is read back after every step, because the whole
+        ' promise is that a result is display and never source.
+        rows = studio_ui.nav_rows(G.app)
+        ro = studio_ui.activate_row(G.app, rows, studio_qt_row_index(rows, "file", "nb.bas"))
+        G.app = ro.app
+        G.app.clock_fixed = 1000
+        nav = studio_ui.nav_rows(G.app)
+        G.app = studio_view_qt.render(win, G.app, "")
+        did = studio_docs.active_doc(G.app.dm).id
+        ed = studio_shell_qt.part_editor(did)
+        text0 = qt.read(win, ed, "plainText")
+        print "this gBASIC draws blocks: " + string(G.app.qt_blocks_ok)
+        print "before any run: " + qt_inline_report(win, ed)
+        for each at in [1, 5, 11, 15]
+            z = qt.caret_to(win, ed, at, 1)
+            G.app = qt_sync_caret(G.app)
+            z = qt.invoke(win, "run_btn", "click")
+            if at = 5 then
+                print "while sec-2 runs: " + qt_inline_report(win, ed)
+            end if
+            went = qt_tables_wait()
+        end for
+        print "after running all four: " + qt_inline_report(win, ed)
+        print "  the text is untouched: " + string(qt.read(win, ed, "plainText") = text0) + ", unsaved: " + string(studio_docs.is_dirty(studio_docs.active_doc(G.app.dm)))
+        print "the collapse control"
+        z = qt.block_press(win, ed, "res-sec-2", "collapse")
+        print "  pressed once: " + G.last_action + " -> " + qt_inline_report(win, ed)
+        z = qt.block_press(win, ed, "res-sec-2", "click")
+        print "  a click on the body changes nothing: " + qt_inline_report(win, ed)
+        z = qt.block_press(win, ed, "res-sec-2", "collapse")
+        print "  pressed again: " + G.last_action + " -> " + qt_inline_report(win, ed)
+        print "a line added at the top: every block is one line lower"
+        G.app = studio.edit_document(G.app, did, "' a heading" + chr(10) + text0)
+        z = qt_redraw()
+        print "  " + qt_inline_report(win, ed)
+        print "Settings > Show results under sections"
+        z = qt.invoke(win, qt_item("show-inline"), "trigger")
+        print "  " + G.last_action + ": " + qt_inline_report(win, ed) + ", checked=" + string(qt.read(win, qt_item("show-inline"), "checked"))
+        z = qt.invoke(win, qt_item("show-inline"), "trigger")
+        print "  " + G.last_action + ": " + qt_inline_report(win, ed) + ", checked=" + string(qt.read(win, qt_item("show-inline"), "checked"))
+        print "a theme change rebuilds the editor, and the blocks are sent to the new one"
+        th = "theme-dark"
+        if studio_ui.theme_of(G.app) = "dark" then
+            th = "theme-system"
+        end if
+        z = qt.invoke(win, qt_item(th), "trigger")
+        ed = studio_shell_qt.part_editor(did)
+        print "  " + G.last_action + ": " + qt_inline_report(win, ed)
         return nothing
     end if
 
