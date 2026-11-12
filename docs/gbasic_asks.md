@@ -10,12 +10,6 @@ Checked against gBASIC `018f18f5` on 2026-11-11.
 
 ## Language
 
-- **An `assert`, or a `raise` statement.** A program has no way to fail on
-  purpose with a message except `exit(n)`, which carries no text. *Met by:*
-  lesson checks (`lib/studio_lesson.bas`), which rewrite each
-  `print <expression>` check line into a call that prints a pass/fail marker
-  Studio parses. With `assert(cond, msg)` a check could be the author's own
-  line, run as is.
 - **Line continuation after a binary operator.** A `+` at the end of a line is
   a parse error (`unexpected NEWLINE`), so a long string built over several
   lines has to be an array and a `join`. *Met by:* `studio_lesson.prelude`.
@@ -62,3 +56,12 @@ Not asks -- follow-ups on Studio's side, kept here so they are not re-asked.
 - **`qt.click` (a left click aimed like `qt.right_click`, after 0.10.0).** The
   browser's `itemClicked` single-click activation is the one handler with no
   tier (CLAUDE.md, "`itemClicked` has no tier"). It can have one now.
+
+## Considered and not asked
+
+- **An `assert` or `raise` statement.** Dropped (2026-11-11). A raise is a
+  program giving up, and the user's view is that reaching for one is usually
+  a failure to be robust. Lesson checks bear that out: Studio's rewrite of
+  `print <expression>` check lines reports every check, keeps going past a
+  failure, and returns a result as data -- which tells "not yet" apart from
+  "does not run" -- where an assert would stop at the first false claim.
