@@ -3245,6 +3245,11 @@ reimplementing it: `source_outline`, `try_decode`, `process.start`/`poll`/`read`
 requests Studio made by name (§0.27 onward in gBASIC's `qt_gui_design.md`). If something here wants a
 capability that is not about Studio, it belongs in gBASIC's stdlib, not here.
 
+**Asks for gBASIC are held in `docs/gbasic_asks.md`** while it is busy
+porting to other platforms (2026-11-11): add an ask there rather than sending
+it, with what Studio does meanwhile, and check gBASIC's HEAD before sending
+any of them.
+
 One coupling to know: gBASIC's `tests/run_pre_registration.sh` is a tripwire on
 the set of declarations its interpreter pre-registers, and it names
 `lib/studio_session.bas`'s `_hoistable_kind()` as what must change with it. If
