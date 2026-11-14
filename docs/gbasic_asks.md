@@ -23,6 +23,17 @@ Checked against gBASIC `018f18f5` on 2026-11-11 and 2026-11-14, and `5592db1e` (
   would see end-of-input at once, and the checker's `--- input` could be
   offered.
 
+- **An `exec`, or a child in the caller's process group.** A launcher
+  written in gBASIC cannot hand over to the program it starts: there is no
+  `exec`, and `process.start` puts the child in a group of its own --
+  measured, so a terminal's Ctrl+C (sent to the foreground group) ends the
+  launcher and orphans the child. *Met by:* `./studio` evals a plan
+  `app/launch.bas` prints and lets the shell exec it; `studio.cmd` runs a
+  child and Ctrl+C there is the Windows session's to measure. Either a
+  `process.exec(options)` (POSIX `execve`; on Windows run, wait, and leave
+  with the child's status) or a `group: "same"` option would let the
+  launcher be gBASIC alone.
+
 ## Across platforms (from `docs/windows_readiness.md`)
 
 - **`GBASIC_PATH` on Windows.** Both splitters cut at `:` (`src/main.c:417`,

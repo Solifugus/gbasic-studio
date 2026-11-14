@@ -19,6 +19,7 @@
 ' `QWidget` rule; see CLAUDE.md, "A STYLESHEET CANNOT REACH WHAT THE PALETTE
 ' PAINTS".
 library studio_style
+    load studio_paths
 
     ' The spacing unit, in pixels. Callers multiply; nobody writes a bare number.
     function unit()
@@ -304,7 +305,7 @@ library studio_style
     ' the same `GBASIC_STUDIO_SHARE` the licences and templates are found
     ' through, exported by `./studio` and by the test runner.
     function toolbar_icon_dir()
-        v = env("GBASIC_STUDIO_SHARE")
+        v = studio_paths.from_os(env("GBASIC_STUDIO_SHARE"))
         if is_string(v) then
             if v != "" then
                 return v + "/icons/toolbar"

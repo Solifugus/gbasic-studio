@@ -945,7 +945,7 @@ library studio_ui
     ' registry is, because an installed copy keeps `share/` somewhere else and
     ' Studio's own working directory is never the answer.
     function license_dir()
-        v = env("GBASIC_STUDIO_SHARE")
+        v = studio_paths.from_os(env("GBASIC_STUDIO_SHARE"))
         if is_string(v) then
             if v != "" then
                 return v + "/licenses"
@@ -3807,7 +3807,7 @@ library studio_ui
     end function
 
     function samples_dir()
-        v = env("GBASIC_STUDIO_SHARE")
+        v = studio_paths.from_os(env("GBASIC_STUDIO_SHARE"))
         if is_string(v) then
             if v != "" then
                 return v + "/samples"

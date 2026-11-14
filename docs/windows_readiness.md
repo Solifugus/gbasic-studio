@@ -104,14 +104,18 @@ separator rule: **gBASIC speaks `/`; on Windows the path splitters also read
    Studio's launcher could pass only a RELATIVE `lib` (it runs from the
    install tree) and let gBASIC find its stdlib unaided, which the port notes
    say it does.
-2. **The launcher is bash** (`./studio`, 198 lines): it finds the interpreter
+2. **DONE (2026-11-14): the launcher is gBASIC now** (`lib/studio_launch.bas`,
+   `app/launch.bas`, `studio.cmd`); the item as first written follows.
+   **The launcher is bash** (`./studio`, 198 lines): it finds the interpreter
    and stdlib, sets `GBASIC_PATH`, `GBASIC_STUDIO_SHARE`, `GBASIC_STUDIO_CWD`,
    the syntax path, `--line-buffered`, and routes modes. **Studio's.** The
    seamless answer is a launcher written in gBASIC itself -- it has
    `program_file()`, `platform()`, `join_path` and `process.run` with `env`
    now -- so ONE launcher runs on both, and only a two-line `studio.cmd` /
    shell stub is per-platform.
-3. **`HOME` is read for the home directory** (`studio_ui.home_dir`, and
+3. **DONE for Studio (2026-11-14): the default home on Windows is
+   `%LOCALAPPDATA%\gbasic-studio`.** As first written:
+   **`HOME` is read for the home directory** (`studio_ui.home_dir`, and
    `~/.gbasic-studio` as the default home). PowerShell and cmd do not set
    `HOME`, which gBASIC itself met and solved for its own state
    (`%LOCALAPPDATA%\gbasic`). **Both:** Studio should keep its home where

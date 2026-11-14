@@ -51,6 +51,7 @@ library studio_session
     load studio_results
     load studio_sections
     load persist
+    load studio_paths
     function schema_version()
         return 1
     end function
@@ -91,8 +92,10 @@ library studio_session
     ' path comes from the GBASIC environment variable, falling back to whatever
     ' `gbasic` resolves to on PATH (an installed one). A caller that needs a
     ' specific build sets session.interpreter directly, as the tests do.
+    ' In `/` form: gBASIC looks a command up on PATH when it holds no `/`, so
+    ' `C:\gb\gbasic.exe` as written would be searched for and not found.
     function default_interpreter()
-        v = env("GBASIC")
+        v = studio_paths.from_os(env("GBASIC"))
         if is_string(v) then
             if v != "" then
                 return v

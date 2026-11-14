@@ -1,0 +1,138 @@
+== linux, no arguments: the window, in ~/.gbasic-studio
+  export GBASIC='../gbasic/gbasic'
+  export GBASIC_PATH='lib:../gbasic/stdlib'
+  export GBASIC_STDLIB='../gbasic/stdlib'
+  export GBASIC_STUDIO_CWD='/home/u/work'
+  export GBASIC_STUDIO_SHARE='/opt/studio/share'
+  export GBASIC_STUDIO_VIEWERS='/opt/studio/viewers'
+  export GBASIC_SYNTAX_PATH='../gbasic/editors/kate'
+  export XDG_DATA_DIRS='/opt/studio/share:/usr/share'
+  exec '../gbasic/gbasic' 'app/studio.bas' 'gui' '/home/u/.gbasic-studio'
+  checks: ../gbasic/gbasic (file), ../gbasic/stdlib (dir); make: 
+== linux, a headless mode and a relative home
+  export GBASIC='../gbasic/gbasic'
+  export GBASIC_PATH='lib:../gbasic/stdlib'
+  export GBASIC_STDLIB='../gbasic/stdlib'
+  export GBASIC_STUDIO_CWD='/home/u/work'
+  export GBASIC_STUDIO_SHARE='/opt/studio/share'
+  export GBASIC_STUDIO_VIEWERS='/opt/studio/viewers'
+  export XDG_DATA_DIRS='/opt/studio/share:/usr/share'
+  exec '../gbasic/gbasic' 'app/studio_cli.bas' 'startup' '/home/u/work/h'
+  checks: ../gbasic/gbasic (file), ../gbasic/stdlib (dir); make: 
+== linux, qt is gui, a relative folder, and more for the mode
+  export GBASIC='/usr/local/bin/gbasic'
+  export GBASIC_PATH='lib:/usr/local/share/gbasic/stdlib'
+  export GBASIC_STDLIB='/usr/local/share/gbasic/stdlib'
+  export GBASIC_STUDIO_CWD='/home/u/work'
+  export GBASIC_STUDIO_SHARE='/opt/studio/share'
+  export GBASIC_STUDIO_VIEWERS='/opt/studio/viewers'
+  export GBASIC_SYNTAX_PATH='/usr/local/share/gbasic/editors/kate'
+  export XDG_DATA_DIRS='/opt/studio/share:/usr/local/share:/usr/share'
+  exec '/usr/local/bin/gbasic' 'app/studio.bas' 'gui' '/h' '/home/u/work/proj' 'main.bas' '3'
+  checks: /usr/local/bin/gbasic (file), /usr/local/share/gbasic/stdlib (dir); make: 
+== linux, shoot: a figure's world
+  export FONTCONFIG_FILE='/opt/studio/share/fonts/fonts.conf'
+  export GBASIC='../gbasic/gbasic'
+  export GBASIC_PATH='lib:../gbasic/stdlib'
+  export GBASIC_STDLIB='../gbasic/stdlib'
+  export GBASIC_STUDIO_CWD='/home/u/work'
+  export GBASIC_STUDIO_SHARE='/opt/studio/share'
+  export GBASIC_STUDIO_VIEWERS='/opt/studio/viewers'
+  export GBASIC_SYNTAX_PATH='../gbasic/editors/kate'
+  export GIT_CONFIG_GLOBAL='/dev/null'
+  export GIT_CONFIG_NOSYSTEM='1'
+  export HOME='/tmp/fig'
+  export QT_QPA_PLATFORM='offscreen'
+  export TZ='UTC'
+  export XDG_CACHE_HOME='/tmp/fig/.cache'
+  export XDG_CONFIG_HOME='/tmp/fig/.config'
+  export XDG_DATA_DIRS='/opt/studio/share:/usr/share'
+  export XDG_DATA_HOME='/tmp/fig/.local/share'
+  unset USER LOGNAME
+  trap 'rm -rf '\''/tmp/fig'\''' EXIT
+  '../gbasic/gbasic' 'app/studio.bas' 'shoot' '/tmp/fig/.gbasic-studio' '/home/u/work/s.shot' '/home/u/work/out'
+  exit $?
+  checks: ../gbasic/gbasic (file), ../gbasic/stdlib (dir); make: /home/u/work/out, /tmp/fig/.gbasic-studio
+== linux, shoot without its arguments
+  printf '%s\n' 'usage: ./studio shoot <script> <out-dir>' >&2
+  exit 2
+  checks: ../gbasic/gbasic (file), ../gbasic/stdlib (dir); make: 
+== linux, mcp in a fresh home
+  export FONTCONFIG_FILE='/opt/studio/share/fonts/fonts.conf'
+  export GBASIC='../gbasic/gbasic'
+  export GBASIC_PATH='lib:../gbasic/stdlib'
+  export GBASIC_STDLIB='../gbasic/stdlib'
+  export GBASIC_STUDIO_CWD='/home/u/work'
+  export GBASIC_STUDIO_MCP_FRESH='1'
+  export GBASIC_STUDIO_SHARE='/opt/studio/share'
+  export GBASIC_STUDIO_VIEWERS='/opt/studio/viewers'
+  export GBASIC_SYNTAX_PATH='../gbasic/editors/kate'
+  export GIT_CONFIG_GLOBAL='/dev/null'
+  export GIT_CONFIG_NOSYSTEM='1'
+  export HOME='/tmp/fig'
+  export QT_QPA_PLATFORM='offscreen'
+  export TZ='UTC'
+  export XDG_CACHE_HOME='/tmp/fig/.cache'
+  export XDG_CONFIG_HOME='/tmp/fig/.config'
+  export XDG_DATA_DIRS='/opt/studio/share:/usr/share'
+  export XDG_DATA_HOME='/tmp/fig/.local/share'
+  unset USER LOGNAME
+  trap 'rm -rf '\''/tmp/fig'\''' EXIT
+  '../gbasic/gbasic' '--line-buffered' 'app/studio.bas' 'mcp' '/tmp/fig/.gbasic-studio' ''
+  exit $?
+  checks: ../gbasic/gbasic (file), ../gbasic/stdlib (dir); make: /tmp/fig/.gbasic-studio
+== linux, mcp in a named home, offscreen already chosen
+  export GBASIC='../gbasic/gbasic'
+  export GBASIC_PATH='lib:../gbasic/stdlib'
+  export GBASIC_STDLIB='../gbasic/stdlib'
+  export GBASIC_STUDIO_CWD='/home/u/work'
+  export GBASIC_STUDIO_SHARE='/opt/studio/share'
+  export GBASIC_STUDIO_VIEWERS='/opt/studio/viewers'
+  export GBASIC_SYNTAX_PATH='../gbasic/editors/kate'
+  export XDG_DATA_DIRS='/opt/studio/share:/usr/local/share:/usr/share'
+  exec '../gbasic/gbasic' '--line-buffered' 'app/studio.bas' 'mcp' '/home/u/work/h' '/home/u/work/p'
+  checks: ../gbasic/gbasic (file), ../gbasic/stdlib (dir); make: /home/u/work/h
+== windows, no arguments: the home beside gBASIC's own per-user state
+  GBASIC=C:/gb/gbasic.exe
+  GBASIC_PATH=lib
+  GBASIC_STDLIB=C:/gb/stdlib
+  GBASIC_STUDIO_CWD=D:/work
+  GBASIC_STUDIO_SHARE=C:/studio/share
+  GBASIC_STUDIO_VIEWERS=C:/studio/viewers
+  GBASIC_SYNTAX_PATH=C:/gb/editors/kate
+  XDG_DATA_DIRS=C:/studio/share
+  run: C:/gb/gbasic.exe app/studio.bas gui C:/Users/u/AppData/Local/gbasic-studio
+== windows, a relative folder on another drive, and an absolute home
+  GBASIC=C:/gb/gbasic.exe
+  GBASIC_PATH=lib
+  GBASIC_STDLIB=C:/gb/stdlib
+  GBASIC_STUDIO_CWD=D:/work
+  GBASIC_STUDIO_SHARE=C:/studio/share
+  GBASIC_STUDIO_VIEWERS=C:/studio/viewers
+  GBASIC_SYNTAX_PATH=C:/gb/editors/kate
+  XDG_DATA_DIRS=C:/studio/share
+  run: C:/gb/gbasic.exe app/studio.bas gui E:/homes/h D:/work/proj
+== windows, no LOCALAPPDATA, no GBASIC
+  GBASIC=../gbasic/gbasic.exe
+  GBASIC_PATH=lib
+  GBASIC_STDLIB=../gbasic/stdlib
+  GBASIC_STUDIO_CWD=D:/work
+  GBASIC_STUDIO_SHARE=C:/studio/share
+  GBASIC_STUDIO_VIEWERS=C:/studio/viewers
+  XDG_DATA_DIRS=C:/studio/share
+  run: ../gbasic/gbasic.exe app/studio_cli.bas startup C:/Users/u/.gbasic-studio
+== windows, shoot
+  refused (2): shoot: figures are drawn on Linux -- their fonts are pinned through fontconfig, which Qt on Windows does not use
+== windows, mcp in a fresh home
+  refused (2): mcp: a fresh home is a figure's world, which is drawn on Linux -- name a home instead
+== windows, mcp in a named home
+  GBASIC=C:/gb/gbasic.exe
+  GBASIC_PATH=lib
+  GBASIC_STDLIB=C:/gb/stdlib
+  GBASIC_STUDIO_CWD=D:/work
+  GBASIC_STUDIO_SHARE=C:/studio/share
+  GBASIC_STUDIO_VIEWERS=C:/studio/viewers
+  GBASIC_SYNTAX_PATH=C:/gb/editors/kate
+  QT_QPA_PLATFORM=offscreen
+  XDG_DATA_DIRS=C:/studio/share
+  run: C:/gb/gbasic.exe --line-buffered app/studio.bas mcp D:/work/h 

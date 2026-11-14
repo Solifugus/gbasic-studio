@@ -35,6 +35,7 @@ library studio_projfile
     ' Dependencies, declared rather than assumed.
     load persist
     load studio_model
+    load studio_paths
 
     function filename()
         return ".gstudio.json"
@@ -127,7 +128,7 @@ library studio_projfile
         out.status = "ok"
         out.id = studio_projfile._string(raw, "id")
         out.name = studio_projfile._string(raw, "name")
-        out.interpreter = studio_projfile._string(raw, "interpreter")
+        out.interpreter = studio_paths.from_os(studio_projfile._string(raw, "interpreter"))
         out.gbasic_path = studio_projfile._string(raw, "gbasic_path")
         ' A DIRECTORY of `.templates` files this project ships, named rather
         ' than conventional. Studio reading a directory of your project because

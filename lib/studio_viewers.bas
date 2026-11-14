@@ -44,6 +44,7 @@
 ' specific means "requires more fields". A tie is broken by discovery order, which
 ' is stable because the search path is ordered and each directory is sorted.
 library studio_viewers
+    load studio_paths
 
 
 
@@ -79,7 +80,7 @@ library studio_viewers
     ' before any library ships theirs.
     function search_path(studio_dir)
         dirs = []
-        v = env("GBASIC_STDLIB")
+        v = studio_paths.from_os(env("GBASIC_STDLIB"))
         if is_string(v) then
             if v != "" then
                 dirs = append(dirs, v)
@@ -96,7 +97,7 @@ library studio_viewers
     ' a direct interpreter invocation from the checkout gets.
     function default_path()
         own = "viewers"
-        v = env("GBASIC_STUDIO_VIEWERS")
+        v = studio_paths.from_os(env("GBASIC_STUDIO_VIEWERS"))
         if is_string(v) then
             if v != "" then
                 own = v

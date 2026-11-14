@@ -728,6 +728,13 @@ a sibling checkout:
 GBASIC=/usr/local/bin/gbasic GBASIC_STDLIB=/usr/local/share/gbasic/stdlib ./studio
 ```
 
+On Windows, `studio` (`studio.cmd`) takes the same arguments, and the home
+defaults to `%LOCALAPPDATA%\gbasic-studio`. Both are thin stubs: every
+decision about how Studio starts is gBASIC, in `lib/studio_launch.bas`, so the
+two platforms cannot drift apart. Book figures (`shoot`, and `mcp` in a fresh
+home) are drawn on Linux, where their fonts can be pinned. A relative home or
+folder is relative to where you ran the launcher.
+
 An empty home renders `(no workspace open)`; click **New Project** and a window
 asks for a name, a location and which files to make — `main.bas` is ticked, so
 Create lands you on a file you can run. The directory goes under
@@ -873,7 +880,7 @@ resources or prompts.
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 218 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 220 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 30 cases, headless AND offline — no network, no key
 ```
 

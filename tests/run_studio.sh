@@ -818,6 +818,31 @@ run_ui() { # mode
     fi
 }
 
+# THE LAUNCH PLAN: every decision `./studio` and `studio.cmd` act on, made by
+# lib/studio_launch.bas from fixed inputs -- for Linux AND for Windows, so the
+# Windows plan is asserted here. `quote` is the shell quoting the POSIX stub
+# evals, read back by bash itself: a home or folder with a quote, a `$`, a
+# backtick or a newline in it must reach Studio as written.
+LAUNCHD=tests/drivers/launch.bas
+: >"$stdout_file"
+if ! timeout 60 "$GBASIC" "$LAUNCHD" plan >"$stdout_file" 2>&1; then
+    cat "$stdout_file"; fail "launch_plan (nonzero exit)"
+fi
+if diff -u tests/studio/launch_plan.out "$stdout_file"; then
+    printf 'PASS launch_plan\n'
+else
+    fail "launch_plan (output diff)"
+fi
+: >"$stdout_file"
+if ! timeout 60 "$GBASIC" "$LAUNCHD" quote 2>&1 | bash >"$stdout_file" 2>&1; then
+    cat "$stdout_file"; fail "launch_quote (nonzero exit)"
+fi
+if diff -u tests/studio/launch_quote.out "$stdout_file"; then
+    printf 'PASS launch_quote\n'
+else
+    fail "launch_quote (output diff)"
+fi
+
 # STU-14: the SQL statement scanner. It is the foundation the `.sql` document
 # type sits on -- split wrongly and every cell boundary, result and stable id is
 # filed against the wrong text -- and it needs no fixture at all.

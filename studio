@@ -1,198 +1,31 @@
 #!/usr/bin/env bash
 # Launch gBASIC Studio.
 #
-# Studio is written in gBASIC but is not the gBASIC project, so it has to be told
-# where the interpreter and its standard library are. Both default to a sibling
-# checkout and both are overridable:
+#   ./studio [mode] [home] [folder]          the window by default (`gui`/`qt`)
+#   ./studio shoot <script> <out-dir>        a book figure from a shot script
+#   ./studio mcp [home|-] [folder]           Studio over MCP on stdin/stdout
+#
+# The interpreter and stdlib default to a sibling gBASIC checkout and both are
+# overridable:
 #
 #   GBASIC=/usr/local/bin/gbasic GBASIC_STDLIB=/usr/local/share/gbasic/stdlib ./studio
 #
-# Usage:  ./studio [mode] [home] [folder]
-#   mode    defaults to `gui`, which opens the window (gBASIC's Qt GUI system;
-#           needs a gBASIC built with Qt, and a display). `qt` means the same.
-#           `startup`, `build` and the other headless modes run without one.
-#   home    where Studio keeps its workspace, session and settings
-#           (defaults to ~/.gbasic-studio, created on first run)
-#   folder  window only: an existing directory to open as a project, e.g.
-#             ./studio gui ~/.gbasic-studio ~/development/myproject
-#
-#         ./studio shoot <script> <out-dir>
-#   replays a shot script offscreen in a fresh home and writes the figures it
-#   captures into <out-dir> (see README, "Figures of Studio, from a script").
-#
-#         ./studio mcp [home|-] [folder]
-#   serves Studio over MCP on stdin/stdout, offscreen (see README, "Studio as
-#   an MCP server"). No home, or `-`, is a fresh one made for the session and
-#   removed after, set up as a figure's is.
+# Every decision -- the entry point, the environment, a figure's fresh home --
+# is gBASIC's, in lib/studio_launch.bas, shared with studio.cmd on Windows.
+# This stub only finds an interpreter and EXECS the plan app/launch.bas prints,
+# so Ctrl+C and the exit status reach Studio exactly as before. (gBASIC has no
+# exec, and a child it starts sits in a process group of its own, which a
+# terminal's Ctrl+C does not reach.)
 set -u
-# Remembered before the cd, because a folder argument the user typed is relative
-# to where THEY are, not to where Studio lives.
-orig_pwd="$PWD"
-cd "$(dirname "$0")"
-
+# Remembered before the cd: a path the user typed is relative to where THEY are.
+export GBASIC_STUDIO_CWD="$PWD"
+cd "$(dirname "$0")" || exit 1
 GBASIC="${GBASIC:-../gbasic/gbasic}"
-GBASIC_STDLIB="${GBASIC_STDLIB:-../gbasic/stdlib}"
-
 if [ ! -x "$GBASIC" ]; then
     printf 'no gbasic interpreter at %s\n' "$GBASIC" >&2
     printf 'set GBASIC=/path/to/gbasic (and GBASIC_STDLIB=/path/to/stdlib)\n' >&2
     exit 1
 fi
-if [ ! -d "$GBASIC_STDLIB" ]; then
-    printf 'no gBASIC stdlib at %s\n' "$GBASIC_STDLIB" >&2
-    printf 'Studio needs persist and filetree from it (the window itself is the qt module)\n' >&2
-    exit 1
-fi
-
-mode="${1:-gui}"
-home="${2:-$HOME/.gbasic-studio}"
-folder="${3:-}"
-case "$folder" in
-    ""|/*) ;;
-    *) folder="$orig_pwd/$folder" ;;
-esac
-
 export GBASIC
-# Where the USER was when they ran this, which is not where Studio runs. The cd
-# above moves into the install tree, so a relative path typed into the window's
-# name field would otherwise resolve against Studio's own source — the one
-# answer that is never what anyone meant. The third argument below already gets
-# this treatment; the field needs the same referent.
-export GBASIC_STUDIO_CWD="$orig_pwd"
-export GBASIC_PATH="lib:$GBASIC_STDLIB"
-# share/ holds the hicolor icon and the .desktop entry, found through
-# XDG_DATA_DIRS like any installed application's. An installed copy needs none
-# of this.
-export XDG_DATA_DIRS="$PWD/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
-# STU-8: a library ships viewer metadata for its own types beside itself, so the
-# registry has to know where the stdlib is -- and where Studio's bundled copies
-# are, since a stock install has no library-shipped sidecar yet.
-export GBASIC_STDLIB
-export GBASIC_STUDIO_VIEWERS="$PWD/viewers"
-# STU-12: New Project can write a LICENSE, and Studio does not author one -- it
-# copies the text out of share/licenses/. An installed copy keeps share/
-# somewhere else, and Studio's own working directory is never the answer, so the
-# location is supplied from out here like the viewer registry above.
-export GBASIC_STUDIO_SHARE="$PWD/share"
-# TWO ENTRY POINTS. The window is app/studio.bas; the headless lifecycle and
-# navigation modes are app/studio_cli.bas, which loads no toolkit at all, so
-# they keep running on a machine with no display. Anything that is not a
-# headless mode is the window's -- including its own test modes.
-case "$mode" in
-    startup|build|roundtrip|stress|cycles|stu1_*|stu2_*)
-        entry=app/studio_cli.bas
-        ;;
-    *)
-        entry=app/studio.bas
-        if [ "$mode" = "qt" ]; then
-            mode=gui
-        fi
-        # The syntax definition comes from the gBASIC checkout beside the
-        # stdlib, which is where the Kate file the editor highlights from lives.
-        export GBASIC_SYNTAX_PATH="${GBASIC_SYNTAX_PATH:-$(dirname "$GBASIC_STDLIB")/editors/kate}"
-        ;;
-esac
-
-# A FIGURE'S WORLD: a fresh home that is HOME too, and nothing of this
-# machine's that could reach a picture. Used by `shoot`, and by `mcp` in a
-# fresh home, so what an MCP client sees is what the script it records replays
-# to. Sets `shot_home`.
-figure_env() {
-    # The fresh home is HOME too, with Studio's at its default place -- so the
-    # New Project window says `~/.gbasic-studio/projects`, as it would for a
-    # reader, and not a temp path. git and the login are kept out for the same
-    # reason: the author field otherwise holds whoever ran the build.
-    shot_root="$(mktemp -d)" || exit 2
-    trap 'rm -rf "$shot_root"' EXIT
-    export HOME="$shot_root"
-    shot_home="$shot_root/.gbasic-studio"
-    mkdir -p "$shot_home" || exit 2
-    export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
-    unset USER LOGNAME
-    export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-offscreen}"
-    # UTC, because the Results pane prints when a run happened and the clock
-    # is pinned in UTC: a local zone put this machine's offset in a figure.
-    export TZ=UTC
-    # The per-user XDG places go under the fresh home as well, or a host's own
-    # Qt settings and syntax files would still reach the picture through them.
-    export XDG_CONFIG_HOME="$shot_root/.config" XDG_DATA_HOME="$shot_root/.local/share" \
-        XDG_CACHE_HOME="$shot_root/.cache"
-    # PINNED FONTS: the only fonts the figure can see are the ones Studio
-    # ships (share/fonts/README.md), so it is drawn the same on every machine.
-    if [ ! -f "$GBASIC_STUDIO_SHARE/fonts/fonts.conf" ]; then
-        printf 'shoot: no pinned fonts at %s/fonts -- a figure would use this machine'"'"'s\n' "$GBASIC_STUDIO_SHARE" >&2
-        exit 2
-    fi
-    export FONTCONFIG_FILE="$GBASIC_STUDIO_SHARE/fonts/fonts.conf"
-    # AND THE PIN MUST HAVE TAKEN. A fonts.conf fontconfig cannot parse is
-    # dropped with one line on stderr and the host's own config is used
-    # instead: the host's fonts in a figure, with nothing said. Measured: one
-    # stray double hyphen in a comment did exactly that. Asked as the pin's
-    # own claim -- EVERY font fontconfig can see is one Studio ships -- because
-    # "where does monospace resolve" passes on the fallback too: the host's
-    # default config also scans $XDG_DATA_DIRS/fonts, and share/ is on it.
-    if command -v fc-list >/dev/null 2>&1; then
-        stray="$(fc-list -f '%{file}\n' 2>/dev/null | grep -v "^$GBASIC_STUDIO_SHARE/fonts/" | head -1)"
-        if [ -n "$stray" ]; then
-            printf 'shoot: the pinned fonts did not take (fontconfig also sees %s); is %s valid XML?\n' \
-                "$stray" "$FONTCONFIG_FILE" >&2
-            exit 2
-        fi
-    fi
-}
-
-# `./studio shoot <script> <out-dir>`: a book figure from a shot script (see
-# lib/studio_shots.bas). Its own argument shape, because a figure must not
-# depend on whose home it ran in: every shot runs in a FRESH home, made here
-# and removed after, so the session is clean and no host path can reach the
-# picture. Offscreen unless QT_QPA_PLATFORM says otherwise; no display needed.
-if [ "$mode" = "shoot" ]; then
-    if [ "$#" -lt 3 ]; then
-        printf 'usage: ./studio shoot <script> <out-dir>\n' >&2
-        exit 2
-    fi
-    script="$2"
-    out="$3"
-    case "$script" in /*) ;; *) script="$orig_pwd/$script" ;; esac
-    case "$out" in /*) ;; *) out="$orig_pwd/$out" ;; esac
-    mkdir -p "$out" || exit 2
-    figure_env
-    "$GBASIC" "$entry" shoot "$shot_home" "$script" "$out"
-    exit $?
-fi
-
-# `./studio mcp [home|-] [folder]`: Studio over MCP on stdio. STDOUT IS THE
-# PROTOCOL, so it runs `--line-buffered` -- block-buffered, a reply waits in
-# the buffer while the client waits for it, and that is a deadlock. Offscreen
-# unless QT_QPA_PLATFORM says otherwise; external tools (save, delete, rename)
-# stay denied unless GBASIC_STUDIO_MCP_EXTERNAL=auto.
-if [ "$mode" = "mcp" ]; then
-    export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-offscreen}"
-    if [ -z "${2:-}" ] || [ "${2:-}" = "-" ]; then
-        figure_env || exit 2
-        export GBASIC_STUDIO_MCP_FRESH=1
-        mcp_home="$shot_home"
-    else
-        mcp_home="$2"
-        case "$mcp_home" in /*) ;; *) mcp_home="$orig_pwd/$mcp_home" ;; esac
-        mkdir -p "$mcp_home" || exit 2
-    fi
-    # Not `exec`: a fresh home is removed by the EXIT trap, which an exec'd
-    # shell never reaches.
-    "$GBASIC" --line-buffered "$entry" mcp "$mcp_home" "$folder"
-    exit $?
-fi
-
-# Only pass a third argument when there is one: several modes read args[2] as
-# their own parameter, and handing them an empty string is not the same as
-# handing them nothing.
-# Anything after the folder goes to the mode as it is: `showcase` takes a
-# file, a line and "table" (see app/studio.bas).
-if [ "$#" -gt 3 ]; then
-    shift 3
-    exec "$GBASIC" "$entry" "$mode" "$home" "$folder" "$@"
-fi
-if [ -n "$folder" ]; then
-    exec "$GBASIC" "$entry" "$mode" "$home" "$folder"
-fi
-exec "$GBASIC" "$entry" "$mode" "$home"
+plan="$(GBASIC_PATH=lib "$GBASIC" app/launch.bas --plan-sh "$@")" || exit $?
+eval "$plan"

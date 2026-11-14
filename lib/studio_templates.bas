@@ -35,6 +35,7 @@
 ' of edge cases to get right.
 library studio_templates
     load persist
+    load studio_paths
 
     function schema_version()
         return 1
@@ -103,8 +104,10 @@ library studio_templates
 
     ' `env` answers `unknown` for an unset variable and comparing one to a
     ' string raises, so every read of one goes through here.
+    ' Every variable read here names a directory, so it is taken to Studio's
+    ' `/` form (`studio_paths`).
     function _env(name)
-        v = env(name)
+        v = studio_paths.from_os(env(name))
         if is_string(v) then
             return v
         end if
