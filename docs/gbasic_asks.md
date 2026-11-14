@@ -6,7 +6,7 @@ none of them blocks anything. **Before sending one, check gBASIC's HEAD:** a
 request list is a snapshot and can be stale before it is read (CLAUDE.md,
 §0.33's lesson). Remove an entry when it lands, and say what Studio changed.
 
-Checked against gBASIC `018f18f5` on 2026-11-11.
+Checked against gBASIC `018f18f5` on 2026-11-11 and 2026-11-14.
 
 ## Language
 
@@ -22,6 +22,26 @@ Checked against gBASIC `018f18f5` on 2026-11-11.
   (10s) and refuse it. With `stdin: ""` (or a closed stdin) such a program
   would see end-of-input at once, and the checker's `--- input` could be
   offered.
+
+## Across platforms (from `docs/windows_readiness.md`)
+
+- **`GBASIC_PATH` on Windows.** Both splitters cut at `:` (`src/main.c:417`,
+  `src/eval.c:9577`; the reference says "colon-separated"), so any absolute
+  Windows entry (`C:\...`) comes apart at its drive letter. `;` on Windows,
+  as `PATH` does, would be the expected answer. *Meanwhile:* a relative `lib`
+  only, and gBASIC finding its own stdlib.
+- **"Is this path absolute?" as a builtin.** gBASIC has `path_is_absolute` in
+  C, reading both separators on Windows; programs test `left(p, 1) = "/"`,
+  which calls `C:\x` relative.
+- **A lexical path normaliser, and a same-file comparison.** `real_path`
+  needs the path to exist; an editor canonicalises paths it is about to
+  create, and decides whether two spellings are one open document. On Windows
+  that comparison also has to ignore case. Something like `normal_path(p)`
+  and `same_path(a, b)`.
+- **Where per-user data goes.** gBASIC solved this for itself
+  (`%LOCALAPPDATA%\gbasic` ahead of `HOME`, because PowerShell and cmd set no
+  `HOME`); every application has the same question. A builtin answering the
+  platform's per-user data directory would make it one answer.
 
 ## Qt
 
