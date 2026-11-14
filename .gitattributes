@@ -10,3 +10,7 @@
 
 *.png binary
 *.ttf binary
+
+# Except a Windows batch file: cmd.exe is known to misparse some LF-only
+# batch files, so studio.cmd is CRLF in every checkout.
+*.cmd text eol=crlf
