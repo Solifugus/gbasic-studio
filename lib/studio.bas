@@ -24,6 +24,7 @@ library studio
     ' missing load into a runtime failure deep inside a call, and it stops
     ' working entirely once these libraries live in separate projects.
     load studio_docs
+    load studio_paths
     load studio_drafts
     load studio_projects
     load studio_viewers
@@ -114,7 +115,9 @@ library studio
     ' appends a diagnostic. The result is the authoritative app object; the UI is
     ' built from it afterwards (studio_shell), keeping persistence and widgets apart.
     function startup(home)
-        p = studio.paths(home)
+        ' The home is the one path every other Studio path is built under, so
+        ' it is taken to `/` here, once (`studio_paths`).
+        p = studio.paths(studio_paths.from_os(home))
         persist.ensure_dir(p.home)
 
         diagnostics = []

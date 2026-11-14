@@ -873,7 +873,7 @@ resources or prompts.
 ## Tests
 
 ```sh
-tests/run_studio.sh           # 217 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh           # 218 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh     # 30 cases, headless AND offline — no network, no key
 ```
 

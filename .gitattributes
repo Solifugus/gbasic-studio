@@ -1,0 +1,12 @@
+# Every text file is LF in every checkout, whatever the local git says.
+#
+# Git for Windows defaults to core.autocrlf=true, and the first Windows run
+# checked out 343 of 354 text files with CRLF (docs/windows_findings.md,
+# item 7). The goldens are compared byte for byte, and a sample or a lesson
+# with CRLF made every driver edit that searches for "\n" match nothing.
+# Studio itself copes with a CRLF file a PERSON saved (studio_docs keeps the
+# ending); this is about the repository's own files.
+* text=auto eol=lf
+
+*.png binary
+*.ttf binary

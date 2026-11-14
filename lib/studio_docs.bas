@@ -33,6 +33,7 @@
 ' symlink with a regular file — verified). Studio's own metadata stores keep
 ' atomic_replace; user source files favor semantic preservation.
 library studio_docs
+    load studio_paths
 
     function create()
         return { docs: [], active: "", next_doc: 1 }
@@ -42,8 +43,30 @@ library studio_docs
 
     ' Lexical canonicalization for identity: drop "" and "." segments, resolve ".."
     ' against the accumulated stack, preserve a leading "/" for absolute paths.
+    '
+    ' A Windows path is taken to `/` first (`studio_paths.from_os`), and a
+    ' drive (`C:`) is its ROOT: kept in front, never popped by a `..`.
     function _canonical(path)
+        return studio_docs._canonical_on(path, studio_paths.os_name())
+    end function
+
+    ' On Linux a directory may really be called `C:`, so a drive is a root
+    ' only on Windows.
+    function _canonical_on(path, os)
+        path = studio_paths.from_os_on(path, os)
         absolute = false
+        drive = ""
+        if os = "windows" then
+            drive = studio_paths.drive_of(path)
+            ' A share, `//server/x`: one slash is the root's, kept in front,
+            ' and the other is the ordinary absolute one.
+            if drive = "" and starts_with(path, "//") then
+                drive = "/"
+            end if
+        end if
+        if drive != "" then
+            path = mid(path, len(drive), len(path) - len(drive))
+        end if
         first = mid(path, 0, 1)
         if first = "/" then
             absolute = true
@@ -78,7 +101,7 @@ library studio_docs
         end for
         joined = join(stack, "/")
         if absolute then
-            return "/" + joined
+            return drive + "/" + joined
         end if
         if joined = "" then
             return "."
@@ -177,10 +200,26 @@ library studio_docs
     end function
 
     ' Id of an already-open document with the same canonical path, or "".
+    ' What two spellings of ONE file have in common: the canonical path, and on
+    ' Windows, where `C:\A\b.bas` and `c:/a/B.bas` are the same file, its
+    ' lower case. Only for COMPARING: a document keeps the spelling it was
+    ' opened by, which is what the tab and the title show.
+    function _same_key(path)
+        return studio_docs._same_key_on(path, studio_paths.os_name())
+    end function
+
+    function _same_key_on(path, os)
+        c = studio_docs._canonical_on(path, os)
+        if os = "windows" then
+            return lower(c)
+        end if
+        return c
+    end function
+
     function find_open(dm, path)
-        want = studio_docs._canonical(path)
+        want = studio_docs._same_key(path)
         for each d in dm.docs
-            dc = studio_docs._canonical(d.path)
+            dc = studio_docs._same_key(d.path)
             if dc = want then
                 return d.id
             end if
@@ -256,8 +295,9 @@ library studio_docs
         end if
 
         ref{file} = path
-        text = read(ref)
-        doc = studio_docs._make_doc(id, project_id, path, name, text, false, st.size, st.mtime)
+        t = studio_docs._from_disk(read(ref))
+        doc = studio_docs._make_doc(id, project_id, path, name, t.text, false, st.size, st.mtime)
+        doc.eol = t.eol
         dm.docs = append(dm.docs, doc)
         dm.active = id
         return { dm: dm, id: id, status: "opened" }
@@ -276,8 +316,34 @@ library studio_docs
             fs_size: size,
             fs_mtime: mtime,
             cursor: { line: 0, column: 0 },
-            scroll: 0
+            scroll: 0,
+            eol: "lf"
         }
+    end function
+
+    ' ---- line endings ------------------------------------------------------
+    '
+    ' A buffer holds `\n` line ends, ALWAYS: sections, prose runs, lesson
+    ' markers and exports all split on it, and a `\r` left at the end of every
+    ' line made `' @end` fail to match on the first Windows run
+    ' (`docs/windows_findings.md`, item 7). gBASIC's `read` hands a CRLF file
+    ' over as it is, on every platform. So the ending is taken off at the door
+    ' and REMEMBERED on the document, and `save` puts it back: Studio does not
+    ' change a file's line endings by opening and saving it. A file with BOTH
+    ' kinds is remembered as CRLF and saved uniformly so -- the one case where
+    ' a save changes endings, and only toward the one the file already used.
+    function _from_disk(raw)
+        if contains(raw, "\r\n") then
+            return { text: replace(raw, "\r\n", "\n"), eol: "crlf" }
+        end if
+        return { text: raw, eol: "lf" }
+    end function
+
+    function _to_disk(text, eol)
+        if default(eol, "lf") = "crlf" then
+            return replace(text, "\n", "\r\n")
+        end if
+        return text
     end function
 
     ' ---- dirty state -------------------------------------------------------
@@ -345,7 +411,7 @@ library studio_docs
             return { dm: dm, status: "error" }
         end if
         target{file} = doc.path
-        write(target, doc.content)
+        write(target, studio_docs._to_disk(doc.content, doc.eol))
         doc.saved_content = doc.content
         doc.missing = false
         doc.external = "none"
@@ -479,9 +545,10 @@ library studio_docs
             return { dm: dm, status: "missing" }
         end if
         ref{file} = doc.path
-        text = read(ref)
-        doc.content = text
-        doc.saved_content = text
+        t = studio_docs._from_disk(read(ref))
+        doc.content = t.text
+        doc.saved_content = t.text
+        doc.eol = t.eol
         doc.missing = false
         doc.external = "none"
         doc.fs_size = st.size
@@ -559,8 +626,9 @@ library studio_docs
                     doc = studio_docs._make_doc(m.id, m.project_id, m.path, m.display_name, "", true, 0, 0)
                 else
                     ref{file} = m.path
-                    text = read(ref)
-                    doc = studio_docs._make_doc(m.id, m.project_id, m.path, m.display_name, text, false, st.size, st.mtime)
+                    t = studio_docs._from_disk(read(ref))
+                    doc = studio_docs._make_doc(m.id, m.project_id, m.path, m.display_name, t.text, false, st.size, st.mtime)
+                    doc.eol = t.eol
                 end if
                 doc.cursor = m.cursor
                 doc.scroll = m.scroll

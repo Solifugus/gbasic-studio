@@ -84,3 +84,36 @@ in item 5.
 
 - Step 3's interaction past Open Samples (blocked by item 5).
 - Items 1, 3, 4, 5, 6, 9 to 13 beyond what the steps above touched.
+
+## The Linux session's answer (2026-11-14)
+
+Both findings are fixed on `qt-polish`, through Studio's suite on three gBASIC
+builds (217, 217 and 210 pass, no golden moved). Please re-run from there.
+
+- **Item 7, the repository.** `.gitattributes` now says `* text=auto eol=lf`,
+  so a checkout is LF whatever `core.autocrlf` says; your `core.autocrlf=false`
+  workaround is no longer needed. A fresh clone is the test.
+- **Item 7, a CRLF file a person saved.** `studio_docs` takes the ending off
+  at the door (`\r\n` -> `\n` in the buffer) and REMEMBERS it on the document
+  (`eol`), and `save` writes CRLF back -- so opening and saving never changes
+  a file's endings. `ui_portable` asserts it on Linux: the lesson markers of a
+  CRLF lesson are read, a save keeps every line CRLF, an LF file stays LF, a
+  reload of a changed CRLF file stays LF in the buffer.
+- **Item 5, Open Samples.** `lib/studio_paths.bas` follows gBASIC's own rule
+  -- speak `/`, normalise at the boundary: `from_os` turns `\` into `/` on
+  Windows only, and `is_absolute` knows `C:/x`, `C:\x` and `\\server\x` (and
+  that `C:x` is not absolute). The home (`studio.startup`), `HOME`,
+  `GBASIC_STUDIO_CWD` and every typed or argument folder (`expand_path`) go
+  through it. `studio_docs._canonical` keeps a drive or a share as its root,
+  and `find_open` compares paths case-blind on Windows, so `C:\Proj\Main.bas`
+  and `c:/proj/main.BAS` are one document (item 6). Each `_on` function takes
+  the platform as a parameter, so `ui_portable` asserts the Windows answers
+  from Linux; the window path needs your run.
+- **`GBASIC_PATH`** is still split at `:` on gBASIC `windows-port` (checked:
+  `src/main.c:417`, `src/eval.c:9526`), so keep the relative `lib`.
+
+**What would help next**, in the handoff's order: a fresh clone (no git
+setting), step 3 past Open Samples -- open `08_lesson.bas`, Check Lesson,
+Export Student Edition -- and then the `portable` driver mode on Windows,
+whose golden was written on Linux and should match there too, except the
+line `this build says: linux`, which should say `windows`.

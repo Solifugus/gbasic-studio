@@ -381,6 +381,7 @@ program main(args)
   load studio_docs
   load studio
   load studio_lesson
+  load studio_paths
   load studio_ui
   load studio_table
   load studio_overlays
@@ -1533,6 +1534,64 @@ program main(args)
     app = r.app
     print "  a file that does not parse: " + r.action + ": " + studio_ui.action_notice(r.action, r.detail)
     print "  export path of a.b.bas: " + studio_ui._leaf(studio_ui.export_path("/x/a.b.bas"))
+  end if
+
+  if mode = "portable" then
+    banner("a path from the OS, on Windows and on Linux")
+    for each p in ["/home/a/b.bas", "C:\\gbt\\sc\\h5", "C:/gbt/sc", "c:\\x", "C:x", "\\\\srv\\share\\x", "a\\b.bas", "rel/x", "~/p"]
+      print "  " + p + "  windows: " + studio_paths.from_os_on(p, "windows") + " absolute=" + string(studio_paths.is_absolute_on(p, "windows")) + "  linux: " + studio_paths.from_os_on(p, "linux") + " absolute=" + string(studio_paths.is_absolute_on(p, "linux"))
+    end for
+    print "  this build says: " + studio_paths.os_name()
+
+    banner("one document per file, however the path was spelled")
+    for each p in ["\\\\srv\\share\\a\\..\\x", "C:\\gbt\\sc\\h5/samples", "C:/a/b/../c.bas", "C:/a/../../x", "c:\\A\\.\\b.bas", "/a/./b/../c", "C:/", "rel\\x/../y"]
+      print "  " + p + "  windows: " + studio_docs._canonical_on(p, "windows") + "  linux: " + studio_docs._canonical_on(p, "linux")
+    end for
+    a = "C:\\Proj\\Main.bas"
+    b = "c:/proj/./main.BAS"
+    print "  " + a + " and " + b + " are one file -- windows: " + string(studio_docs._same_key_on(a, "windows") = studio_docs._same_key_on(b, "windows")) + ", linux: " + string(studio_docs._same_key_on(a, "linux") = studio_docs._same_key_on(b, "linux"))
+
+    banner("a CRLF file: LF in the buffer, CRLF back on disk")
+    cr{file} = projdir + "/crlf.bas"
+    write(cr, "'' @exercise a\r\n' @check\r\nprint 1 = 1\r\n' @end\r\n")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "crlf.bas"))
+    app = r.app
+    d = studio_docs.active_doc(app.dm)
+    print "  buffer has a CR: " + string(contains(d.content, "\r")) + ", eol: " + d.eol + ", dirty: " + string(studio_docs.is_dirty(d))
+    l = studio_lesson.parse(d.content)
+    print "  the lesson markers are read: " + count(l.exercises) + " exercise, " + count(l.problems) + " problems"
+    app = studio.edit_document(app, d.id, d.content + "print 2 = 2\n")
+    sv = studio.save_document(app, d.id)
+    app = sv.app
+    raw = read_file_text(projdir + "/crlf.bas")
+    print "  saved: " + sv.status + "; on disk, every line ends CRLF: " + string(count(split(raw, "\r\n")) = 6 and not contains(replace(raw, "\r\n", ""), "\n"))
+    lf{file} = projdir + "/unix.bas"
+    write(lf, "print 1\n")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "unix.bas"))
+    app = r.app
+    d = studio_docs.active_doc(app.dm)
+    app = studio.edit_document(app, d.id, d.content + "print 2\n")
+    sv = studio.save_document(app, d.id)
+    app = sv.app
+    print "  an LF file stays LF: " + string(read_file_text(projdir + "/unix.bas") = "print 1\nprint 2\n") + ", eol: " + studio_docs.active_doc(app.dm).eol
+    mx{file} = projdir + "/mixed.bas"
+    write(mx, "print 1\r\nprint 2\n")
+    rows = studio_ui.nav_rows(app)
+    r = studio_ui.activate_row(app, rows, row_index(rows, "file", "mixed.bas"))
+    app = r.app
+    d = studio_docs.active_doc(app.dm)
+    print "  a file with both: eol " + d.eol + ", buffer has a CR: " + string(contains(d.content, "\r"))
+    wf{file} = projdir + "/crlf.bas"
+    write(wf, "print 9\r\n")
+    cp = studio.checkpoint_documents(app)
+    app = cp.app
+    for each x in app.dm.docs
+      if x.display_name = "crlf.bas" then
+        print "  changed on disk and reloaded: " + string(x.content = "print 9\n") + ", eol " + x.eol
+      end if
+    end for
   end if
 
   if mode = "lesson" then

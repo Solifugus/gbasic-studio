@@ -1,0 +1,28 @@
+== a path from the OS, on Windows and on Linux ==
+  /home/a/b.bas  windows: /home/a/b.bas absolute=true  linux: /home/a/b.bas absolute=true
+  C:\gbt\sc\h5  windows: C:/gbt/sc/h5 absolute=true  linux: C:\gbt\sc\h5 absolute=false
+  C:/gbt/sc  windows: C:/gbt/sc absolute=true  linux: C:/gbt/sc absolute=false
+  c:\x  windows: c:/x absolute=true  linux: c:\x absolute=false
+  C:x  windows: C:x absolute=false  linux: C:x absolute=false
+  \\srv\share\x  windows: //srv/share/x absolute=true  linux: \\srv\share\x absolute=false
+  a\b.bas  windows: a/b.bas absolute=false  linux: a\b.bas absolute=false
+  rel/x  windows: rel/x absolute=false  linux: rel/x absolute=false
+  ~/p  windows: ~/p absolute=false  linux: ~/p absolute=false
+  this build says: linux
+== one document per file, however the path was spelled ==
+  \\srv\share\a\..\x  windows: //srv/share/x  linux: \\srv\share\a\..\x
+  C:\gbt\sc\h5/samples  windows: C:/gbt/sc/h5/samples  linux: C:\gbt\sc\h5/samples
+  C:/a/b/../c.bas  windows: C:/a/c.bas  linux: C:/a/c.bas
+  C:/a/../../x  windows: C:/x  linux: x
+  c:\A\.\b.bas  windows: c:/A/b.bas  linux: c:\A\.\b.bas
+  /a/./b/../c  windows: /a/c  linux: /a/c
+  C:/  windows: C:/  linux: C:
+  rel\x/../y  windows: rel/y  linux: y
+  C:\Proj\Main.bas and c:/proj/./main.BAS are one file -- windows: true, linux: false
+== a CRLF file: LF in the buffer, CRLF back on disk ==
+  buffer has a CR: false, eol: crlf, dirty: false
+  the lesson markers are read: 1 exercise, 0 problems
+  saved: saved; on disk, every line ends CRLF: true
+  an LF file stays LF: true, eol: lf
+  a file with both: eol crlf, buffer has a CR: false
+  changed on disk and reloaded: true, eol crlf

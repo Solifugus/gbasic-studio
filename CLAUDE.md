@@ -68,7 +68,7 @@ mode.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 217 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 218 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 30 cases, headless AND offline (scripted transport)
 ```
 
@@ -268,6 +268,9 @@ lib/studio_mcp.bas      `./studio mcp`, the protocol half: a request line
                         decided, the tools offered under a policy, the reply,
                         and the session recorded as a shot script.
                         Toolkit-free; the `mcp` mode is the adapter
+lib/studio_paths.bas    a path from the OS in Studio's one inside form (`/`),
+                        and "is this absolute" for drives and shares -- the
+                        boundary on Windows. Toolkit-free
 lib/studio_lesson.bas   a teaching lesson in a gBASIC file: the @ markers,
                         the student edition (built by removal, then checked
                         for leaks), and the program that runs one exercise's
@@ -1226,6 +1229,36 @@ and `qtview_prose` presses the item.
 - **Known limit:** the child inherits Studio's stdin, so a program calling
   `input` waits out `measured_timeout()` (10s) and is refused. The checker's
   `--- input` is not offered.
+
+#### On Windows: paths and line endings (the first Windows run)
+
+The Windows session's first run (`docs/windows_findings.md`, from the handoff
+in `docs/windows_readiness.md`) passed the model load and two driver modes
+byte for byte, and found two things, both Studio's:
+
+- **A Windows path was RELATIVE to Studio**, because the only absolute test
+  was a leading `/`: Open Samples looked for `C:\gbt\sc\h5/samples` under the
+  launch directory. `lib/studio_paths.bas` is gBASIC's own rule (its
+  `windows_port_status.md` §29): speak `/`, normalise at the boundary.
+  `from_os` turns `\` into `/` ON WINDOWS ONLY (on POSIX a backslash is part
+  of a name); `is_absolute` knows drives and shares. The boundary is
+  `studio.startup`'s home, `home_dir`, `launch_cwd` and `expand_path`; inside,
+  `/` may be assumed. `studio_docs._canonical_on` keeps a drive or share as
+  the root, only on Windows (a Linux folder may be called `C:`), and
+  `_same_key_on` compares case-blind there, so two spellings of one file are
+  one document. Every `_on` function takes the platform, so `ui_portable`
+  asserts Windows answers from Linux.
+- **CRLF.** Git for Windows checked out 343 files CRLF and gBASIC's `read`
+  keeps the `\r` (on every platform), so driver edits searching for `\n`
+  matched nothing. `.gitattributes` makes every checkout LF. And a file a
+  PERSON saved with CRLF is LF in the buffer and CRLF again on disk:
+  `studio_docs._from_disk` / `_to_disk`, remembered as `doc.eol`. Opening and
+  saving never changes a file's endings, except that a file with BOTH kinds
+  is saved uniformly CRLF.
+- **Still open:** `GBASIC_PATH` is split at `:` in gBASIC (an ask), so the
+  Windows environment passes a relative `lib`; the per-platform data
+  directory for Studio's home; the launcher; KSyntaxHighlighting and fonts on
+  Windows; the bash test runners.
 
 #### A lesson: checks and a student edition (proposal §9, stage 4)
 

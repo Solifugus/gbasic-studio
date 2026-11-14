@@ -6,7 +6,7 @@ none of them blocks anything. **Before sending one, check gBASIC's HEAD:** a
 request list is a snapshot and can be stale before it is read (CLAUDE.md,
 §0.33's lesson). Remove an entry when it lands, and say what Studio changed.
 
-Checked against gBASIC `018f18f5` on 2026-11-11 and 2026-11-14.
+Checked against gBASIC `018f18f5` on 2026-11-11 and 2026-11-14, and `5592db1e` (with `windows-port`) on 2026-11-14.
 
 ## Language
 
@@ -30,6 +30,8 @@ Checked against gBASIC `018f18f5` on 2026-11-11 and 2026-11-14.
   Windows entry (`C:\...`) comes apart at its drive letter. `;` on Windows,
   as `PATH` does, would be the expected answer. *Meanwhile:* a relative `lib`
   only, and gBASIC finding its own stdlib.
+  (`studio_paths` now meets the next three in Studio, after the first
+  Windows run; a builtin would make them one answer for every program.)
 - **"Is this path absolute?" as a builtin.** gBASIC has `path_is_absolute` in
   C, reading both separators on Windows; programs test `left(p, 1) = "/"`,
   which calls `C:\x` relative.
@@ -57,21 +59,18 @@ Checked against gBASIC `018f18f5` on 2026-11-11 and 2026-11-14.
   carries `label: "Licence"` and shows none. Asked once; upstream has since
   fixed leaf labels in general (`qt_gui_design.md`, "`label:` had never
   reached any widget"), so **re-check first** -- this may be done.
-- **A stdin source in the event loop.** `./studio mcp` blocks on `input()`
-  and drives Qt call by call, so it is offscreen only; a visible window would
-  not repaint between requests. Needed for watching an assistant work in a
-  real window.
-
-## Standard library
-
-- **Content blocks in `mcp.handle` results.** Its tool result is text only,
-  and Studio's `capture` answers with an image block; `tools.dispatch` also
-  wants one function value per tool, which cannot close over the app. *Met
-  by:* `lib/studio_mcp.bas`, Studio's own protocol half.
-
 ## Built upstream, not yet used by Studio
 
 Not asks -- follow-ups on Studio's side, kept here so they are not re-asked.
+
+- **Content blocks in MCP results** (`mcp.content([mcp.text(t),
+  mcp.image(bytes, mime)])`, gBASIC 15dcdba5, 2026-11-10). Studio's own
+  protocol half (`lib/studio_mcp.bas`) could move onto `mcp.handle` now.
+  This was on the list as an open ask for four days after it landed -- the
+  stale-request lesson again.
+- **Standard input in the event loop** (`watch w(stdin.lines)`, same commit).
+  `./studio mcp` could serve a VISIBLE window, which is what watching an
+  assistant work needs.
 
 - **`qt.click` (a left click aimed like `qt.right_click`, after 0.10.0).** The
   browser's `itemClicked` single-click activation is the one handler with no

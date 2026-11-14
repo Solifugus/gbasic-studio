@@ -56,6 +56,7 @@ library studio_ui
     load studio_table
     load studio_git
     load studio_lesson
+    load studio_paths
 
     ' Entries the browser does not show.
     '
@@ -3704,8 +3705,8 @@ library studio_ui
         if raw = "" then
             return ""
         end if
-        p = studio_ui._expand_home(raw, home)
-        if left(p, 1) = "/" then
+        p = studio_ui._expand_home(studio_paths.from_os(raw), studio_paths.from_os(home))
+        if studio_paths.is_absolute(p) then
             return p
         end if
         if cwd = "" then
@@ -3715,7 +3716,7 @@ library studio_ui
         ' third command-line argument already uses. Relative to Studio's own
         ' working directory — the install tree — is the one answer that is never
         ' what anyone meant.
-        return cwd + "/" + p
+        return studio_paths.from_os(cwd) + "/" + p
     end function
 
     function _expand_home(raw, home)
@@ -3737,7 +3738,7 @@ library studio_ui
     ' HOME, and the directory `./studio` was invoked from. Both may be absent —
     ' an unset variable is `unknown`, not "", and string operations raise on it.
     function home_dir()
-        return studio_ui._env_string("HOME")
+        return studio_paths.from_os(studio_ui._env_string("HOME"))
     end function
 
     ' A path under `home`, written from `~`: the inverse of `expand_path`'s
@@ -3762,7 +3763,7 @@ library studio_ui
     end function
 
     function launch_dir()
-        return studio_ui._env_string("GBASIC_STUDIO_CWD")
+        return studio_paths.from_os(studio_ui._env_string("GBASIC_STUDIO_CWD"))
     end function
 
     function _env_string(name)
