@@ -57,11 +57,13 @@ Not asks -- follow-ups on Studio's side, kept here so they are not re-asked.
   browser's `itemClicked` single-click activation is the one handler with no
   tier (CLAUDE.md, "`itemClicked` has no tier"). It can have one now.
 
-## Considered and not asked
+## Undecided -- to discuss with the gBASIC session
 
-- **An `assert` or `raise` statement.** Dropped (2026-11-11). A raise is a
-  program giving up, and the user's view is that reaching for one is usually
-  a failure to be robust. Lesson checks bear that out: Studio's rewrite of
+- **An `assert` or `raise` statement.** Not an ask yet: the user is still
+  weighing it (2026-11-14) and wants to talk it over with the gBASIC session
+  once that one is free. The case against, as it stands: a raise is a program
+  giving up, and reaching for one is often a failure to be robust. Lesson
+  checks are one data point for that side: Studio's rewrite of
   `print <expression>` check lines reports every check, keeps going past a
-  failure, and returns a result as data -- which tells "not yet" apart from
+  false one, and returns the result as data -- telling "not yet" apart from
   "does not run" -- where an assert would stop at the first false claim.

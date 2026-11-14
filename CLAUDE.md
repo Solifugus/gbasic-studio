@@ -1246,9 +1246,10 @@ its "Try this" through the window.
   rewrites the line into `__gbstudio_check(<line>, <expression>)`, which
   prints `@@gbstudio-check pass|fail <line>`. gBASIC has no `assert` and no
   `raise` statement, which is why it is a rewrite and not a call the
-  author makes -- and the user's view (2026-11-11) is that an assert or raise
-  is a failure to be robust, which the rewrite bears out: every check reports,
-  a false one does not stop the rest, and the result is data. Measured on all three builds: `=` is a comparison inside a
+  author makes -- whether gBASIC should have one is UNDECIDED (the user, 2026-11-14,
+  to discuss with the gBASIC session; `docs/gbasic_asks.md`). The rewrite
+  stands either way: every check reports, a false one does not stop the
+  rest, and the result is data. Measured on all three builds: `=` is a comparison inside a
   call's arguments, and a function defined at the top of the file (the
   prelude) is visible to top-level statements below it. A check line cannot
   end in a comment (the comment would swallow the closing parenthesis), and
