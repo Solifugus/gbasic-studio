@@ -1,5 +1,84 @@
 # Studio on Windows: what will meet it, before anyone tries
 
+## For the Windows session: the handoff
+
+You are running gBASIC Studio (an IDE written in gBASIC) on Windows for the
+first time, to find what gBASIC needs for an application to move between
+platforms without changes. Studio is <https://github.com/Solifugus/gbasic-studio>,
+branch `qt-polish` (master is the same commit). Its `CLAUDE.md` is long; you
+need only this file, `README.md`'s first screens, and the sections a failure
+points you to.
+
+**Who changes what.**
+
+- **gBASIC fixes are yours**, as the porting session -- that is the point of
+  the exercise. `GBASIC_PATH` (item 1 below) is the obvious first one.
+- **Studio is changed by its own session on Linux**, which runs Studio's
+  suite on three gBASIC builds before every push. Please do not push to
+  `qt-polish` or `master`. Work on a branch named `windows`, and put what you
+  find in `docs/windows_findings.md` on it: for each failure, the command,
+  the exact output, and which item below it is (or "new"). Small Studio fixes
+  you need in order to get further are fine on that branch; say so in the
+  findings, and they will be taken across and tested on Linux.
+- Use a SCRATCH home for every run (an empty directory), never a real one.
+
+**The environment `./studio` (bash) would set**, as PowerShell, from the
+Studio checkout. `GBASIC_PATH` is the RELATIVE `lib` on purpose: an absolute
+Windows path in it is split at the drive letter's colon (item 1). gBASIC
+should find its own stdlib with no entry for it.
+
+```powershell
+$gb = "C:\path\to\gbasic"                 # the build with Qt
+$env:GBASIC = "$gb\gbasic.exe"
+$env:GBASIC_STDLIB = "$gb\stdlib"
+$env:GBASIC_PATH = "lib"
+$env:GBASIC_STUDIO_SHARE = "$PWD\share"
+$env:GBASIC_STUDIO_VIEWERS = "$PWD\viewers"
+$env:GBASIC_STUDIO_CWD = "$PWD"
+$env:GBASIC_SYNTAX_PATH = "$gb\editors\kate"
+$env:XDG_DATA_DIRS = "$PWD\share"         # Linux convention; see item 9
+```
+
+**The test fixture** the `ui` driver modes expect (Linux builds it with
+`mkproj_ui` in `tests/run_studio.sh`). Written with LF and no BOM, so a
+difference in the goldens is Studio's and not the file's -- CRLF is its own
+test, later (item 7):
+
+```powershell
+function New-Fixture($d) {
+  New-Item -ItemType Directory -Force "$d\src","$d\docs" | Out-Null
+  $f = @{ "main.bas"='print "main"'; "README.md"='# readme'; "src\a.bas"='x';
+          "src\b.bas"='y'; "docs\guide.md"='z'; ".hidden"='shh' }
+  foreach ($k in $f.Keys) { [IO.File]::WriteAllText("$d\$k", $f[$k] + "`n") }
+}
+```
+
+**The first run, in order, stopping at the first failure:**
+
+```powershell
+# 1. The model, no window, no paths from the OS.
+& $env:GBASIC app\studio_cli.bas startup C:\scratch\h1
+
+# 2. Two headless driver modes; compare with the goldens.
+New-Fixture C:\scratch\p2
+& $env:GBASIC tests\drivers\ui.bas measured C:\scratch\h2 C:\scratch\p2 > m.out 2>&1
+Compare-Object (Get-Content tests\studio\ui_measured.out) (Get-Content m.out)
+New-Fixture C:\scratch\p3
+& $env:GBASIC tests\drivers\ui.bas lesson C:\scratch\h3 C:\scratch\p3 > l.out 2>&1
+Compare-Object (Get-Content tests\studio\ui_lesson.out) (Get-Content l.out)
+
+# 3. The window, on the shipped samples.
+& $env:GBASIC app\studio.bas gui C:\scratch\h4
+#    then Project > Open Samples, open 08_lesson.bas, Lesson > Check Lesson.
+```
+
+The Linux goldens were made under `TZ=America/New_York` with a pinned clock;
+a run time differing by the zone is a known difference, not a finding. Paths
+in output are reduced by the drivers, so a Windows path appearing in a diff
+IS a finding.
+
+## The inventory
+
 Written 2026-11-14 from Linux, by reading, ahead of the first Windows run.
 gBASIC's Qt backend has just been ported to Windows and is not fully pushed;
 Studio has never run there. Nothing below is measured on Windows. Each item
