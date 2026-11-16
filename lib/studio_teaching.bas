@@ -195,17 +195,18 @@ library studio_teaching
         return join(lines, "\n") + "\n"
     end function
 
-    ' THE SAME TWO CUES FOR Qt, as a style sheet for ONE widget. Scoped by its
-    ' object name: a bare rule on a widget cascades to every child it has -- a
-    ' tree's header and scrollbars, a memo's viewport -- so `#name { … }` is
-    ' what makes the cue the widget's own. Same colour as the GTK sheet; a
-    ' border, because QSS has no `outline`.
-    function qss(gesture, name)
+    ' THE TWO CUES AS gBASIC's `emphasis` WORD: a highlight is an "outline",
+    ' a pulse is "strong", drawn in the theme's accent (#d08770, the colour
+    ' the cue always had). Under `qt.` this was a style sheet scoped by an
+    ' object name, `#name { border: ... }`, so the rule could not cascade into
+    ' a tree's header or a memo's viewport; the word carries that on its own,
+    ' and is readable back. "" for a gesture that is not drawn this way.
+    function emphasis(gesture)
         if gesture = "highlight" then
-            return "#" + name + " { border: 2px solid #d08770; }"
+            return "outline"
         end if
         if gesture = "pulse" then
-            return "#" + name + " { border: 3px solid #d08770; background-color: rgba(208, 135, 112, 38); }"
+            return "strong"
         end if
         return ""
     end function

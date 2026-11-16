@@ -7,5 +7,5 @@
 == and the same document with unsaved text ==
   tabs:   * main.bas
   title:  * main.bas — gBASIC Studio — ws
-  (the marker is in the CAPTION, which `qt.refresh` re-reads --
+  (the marker is in the CAPTION, which `ui.refresh` re-reads --
    so the tab is keyed on the document id, not on what it says)

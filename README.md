@@ -721,8 +721,9 @@ See `docs/gbasic_studio_design.md` for what Studio is meant to be, and
 ./studio startup /tmp/probe   # a headless mode, prints the model summary
 ```
 
-The launcher finds gBASIC through two overridable variables, both defaulting to
-a sibling checkout:
+Studio needs gBASIC with the `ui` module (`eb783aa8` or later; it releases
+as 0.12.0). The launcher finds gBASIC through two overridable variables, both
+defaulting to a sibling checkout:
 
 ```sh
 GBASIC=/usr/local/bin/gbasic GBASIC_STDLIB=/usr/local/share/gbasic/stdlib ./studio

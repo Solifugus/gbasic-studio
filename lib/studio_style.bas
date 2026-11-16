@@ -3,21 +3,21 @@
 
 '' studio_style.bas — how the window looks, decided in one place.
 '
-' Toolkit-free: no `qt.` call and nothing that loads a toolkit, so the shell
+' Toolkit-free: no `ui.` call and nothing that loads a toolkit, so the shell
 ' (which must stay callable with no Qt) can reach it. What is here:
 '
 '   * the SPACING UNIT, 6px -- every margin and padding is a multiple of it;
 '   * the DARK PALETTE (`dark_bg`, `dark_fg`, ...), the one set of colours
-'     Studio owns, rendered as a Qt style sheet by `dark_qss`;
+'     Studio owns, gathered as the theme record `ui.theme` takes;
 '   * the decisions that FOLLOW THE THEME -- which editor theme a `source` is
 '     built with, the toolbar's button style, which icon a toolbar entry wears
-'     -- and the editor's text size as a `font` property string.
+'     -- and the editor's text size in points.
 '
 ' The GTK half -- CSS providers, GtkSourceView schemes, a GtkTextTag tint --
-' went with the GTK window. A style sheet does not move Qt's PALETTE, which is
-' why `dark_qss` names every container it darkens rather than writing a bare
-' `QWidget` rule; see CLAUDE.md, "A STYLESHEET CANNOT REACH WHAT THE PALETTE
-' PAINTS".
+' went with the GTK window. So did Studio's Qt style sheet (2026-11-16):
+' gBASIC renders the theme record itself now and sets Qt's palette too, which
+' a sheet never could (CLAUDE.md, "A STYLESHEET CANNOT REACH WHAT THE PALETTE
+' PAINTS", is the history).
 library studio_style
     load studio_paths
 
@@ -43,7 +43,7 @@ library studio_style
     '
     ' Studio OWNS one look -- dark -- and otherwise defers to the platform. The
     ' colours were chosen by eye under GTK and carried across to Qt unchanged;
-    ' `dark_qss` is their Qt rendering.
+    ' `dark_palette` gathers them into the theme record.
 
     ' The palette, named once each. Literals, unavoidably -- a dark sheet IS a
     ' set of colours, and there is no token to defer to when the whole point is
@@ -121,7 +121,7 @@ library studio_style
     ' ======================================================================
     ' STU-22 -- THE SAME DARK, AS A QT STYLE SHEET.
     '
-    ' `qt.theme(sheet)` takes ONE sheet for the whole application, which is the
+    ' `ui.theme(sheet)` takes ONE sheet for the whole application, which is the
     ' display-wide GTK provider's counterpart and arrived for the same reason:
     ' it restyles nodes Studio never touches. What it is NOT is the same text.
     ' A QSS selects on Qt CLASS NAMES (`QMenuBar::item`) where `dark_css`
@@ -202,39 +202,38 @@ library studio_style
         return studio_style.qt_source_theme(t)
     end function
 
-    ' The application's sheet under `theme`: Studio's dark, the print sheet,
-    ' or "" -- no sheet of Studio's, the platform's look ("Follow the desktop").
-    function qt_sheet_for(theme)
+    ' What `ui.theme` is given under `theme`: Studio's dark palette, the print
+    ' palette, or "" -- no theme of Studio's, the platform's look ("Follow the
+    ' desktop"); an empty text clears a record too.
+    '
+    ' THE RECORD IS gBASIC's NOW (ui_design.md §7, push A, 2026-11-16): gBASIC
+    ' adopted this very record as its theme, renders the rules `sheet(p)` used
+    ' to render here -- ported verbatim, the `.QWidget` and indicator lessons
+    ' included -- AND sets Qt's palette, which a stylesheet never could, so
+    ' what Qt paints from the palette follows the theme too. Studio no longer
+    ' writes a line of QSS.
+    function qt_theme_for(theme)
         if studio_style.qt_dark_for(theme) then
-            return studio_style.dark_qss()
+            return studio_style.dark_palette()
         end if
         if theme = "print" then
-            return studio_style.print_qss()
+            return studio_style.print_palette()
         end if
         return ""
     end function
 
-    ' THE EDITOR'S TEXT SIZE UNDER Qt (STU-20), as a `font` property string.
+    ' THE EDITOR'S TEXT SIZE (STU-20): `base` points times the zoom.
     '
-    ' A Qt font reads back as `QFont::toString` -- "Hack,10,-1,7,400,..." --
-    ' so the size is field 1 of a comma list, and gBASIC's own cookbook zooms
-    ' exactly this way. `base` is the font a FRESH editor came with, which is
-    ' the desktop's fixed-width font at the desktop's size: the zoom stays a
+    ' `base` is the `font_size` a FRESH editor came with, which is the
+    ' desktop's fixed-width font at the desktop's size: the zoom stays a
     ' multiplier on what the user chose system-wide, the argument STU-20 made
-    ' for `font-size: <n>em` under GTK. Every other field is kept, so the
-    ' family and its fixed-pitch hint survive.
+    ' for `font-size: <n>em` under GTK. (Under `qt.` this was field 1 of a
+    ' `QFont::toString` list; `font_size` is a number, and fractional.)
     '
     ' Rounded to a tenth: 10 * 1.15 is 11.499999999999998 in binary, and a
     ' size compared against its own readback must not differ in the last bit.
     function qt_zoomed_size(base, zoom)
-        f = split(base, ",")
-        return round(number(f[1]) * zoom * 10) / 10
-    end function
-
-    function qt_font_sized(base, size)
-        f = split(base, ",")
-        f[1] = string(size)
-        return join(f, ",")
+        return round(base * zoom * 10) / 10
     end function
 
     ' THE TOOLBAR SHOWS TEXT WHILE DARK, AND ICONS OTHERWISE.
@@ -266,7 +265,7 @@ library studio_style
     ' So the dark theme gets files Studio ships, in a light stroke -- and
     ' `icon:` takes a path as readily as an `SP_` name ("a string that names an
     ' existing file is that file"). Measured settable AT RUN TIME:
-    ' `qt.set(win, part, "icon", path)` answers true and `qt.has_icon` stays
+    ' `ui.set(win, part, "icon", path)` answers true and `qt.has_icon` stays
     ' true, which is what lets the toolbar follow a theme change rather than
     ' wait for a relaunch -- a `toolbar` is NOT a container `qt.refresh` will
     ' rebuild.
@@ -388,207 +387,19 @@ library studio_style
     ' tier, which is the only reason it did not ship: the window would have
     ' looked merely odd rather than broken.
     '
-    ' The enum goes in as a NUMBER through the by-name route -- measured, a
-    ' `qt.set` of 2 reads back `ToolButtonTextBesideIcon`.
+    ' It is gBASIC's `toolbar_shows` word: "icons" or "text". (Under `qt.` it
+    ' was Qt's enum as a number, and 3 once read back as text UNDER icons.)
     function qt_tool_button_style(theme)
         ' Icons both ways WHEN Studio's dark set is on disk; labels only when
         ' it is not, because a dark strip of invisible icons is the defect this
         ' whole arrangement exists to remove and a row of words is not.
         if studio_style.qt_dark_for(theme) then
             if studio_style.dark_icons_available() then
-                return 0
+                return "icons"
             end if
-            return 1
+            return "text"
         end if
-        return 0
-    end function
-
-    function dark_qss()
-        return studio_style.sheet(studio_style.dark_palette())
-    end function
-
-    function print_qss()
-        return studio_style.sheet(studio_style.print_palette())
-    end function
-
-    ' ONE SHEET, TWO PALETTES. The rules below were written for the dark
-    ' theme and the comments say why each is there; the print theme is the
-    ' same rules over other colours, so the two cannot drift into styling
-    ' different widgets.
-    function sheet(p)
-        bg = p.bg
-        base = p.base
-        ctl = p.ctl
-        hi = p.hi
-        fg = p.fg
-        faint = p.faint
-        line = p.line
-        sel = p.sel
-        onsel = p.on_sel
-        l = []
-
-        ' NO BARE `QWidget` RULE, and that was the whole defect. Styling every
-        ' widget at once darkened two surfaces whose CONTENT Qt paints from the
-        ' palette rather than from the sheet -- so the content kept its
-        ' light-theme colours and became invisible. Measured: the tree was
-        ' still 256x216 with `▸ docs` at row 2, the toolbar still 39 high with
-        ' all five icons present and visible. Nothing had gone; it was being
-        ' drawn in dark-on-dark. So each container is named, and the two that
-        ' cannot be reached this way are left to the platform.
-        l = append(l, "QMainWindow { background: " + bg + "; }")
-        l = append(l, "QMainWindow::separator { background: " + line + "; width: 4px; height: 4px; }")
-        ' A LAYOUT `separator` is a QFrame line, drawn from the palette's LIGHT
-        ' colour -- a bright white rule across a dark console, seen in a capture.
-        ' frameShape 4 is HLine and 5 is VLine.
-        l = append(l, "QFrame[frameShape=\"4\"] { border: none; background: " + line + "; max-height: 1px; min-height: 1px; }")
-        l = append(l, "QFrame[frameShape=\"5\"] { border: none; background: " + line + "; max-width: 1px; min-width: 1px; }")
-        l = append(l, "QDialog { background: " + bg + "; }")
-        ' A SECOND WINDOW IS A PLAIN `QWidget` -- the grid, New Project, the
-        ' snippets, the schema -- so neither rule above reaches it, and a
-        ' capture showed the grid's caption as light text on a light window.
-        ' `.QWidget` matches that exact class and NO subclass, so it is not the
-        ' bare-`QWidget` trap: a view, a toolbar or a combo box is a subclass.
-        ' An item view's VIEWPORT is a plain QWidget too, so it is given back
-        ' to the view, whose own background rule paints it.
-        l = append(l, ".QWidget { background: " + bg + "; }")
-        l = append(l, "QAbstractScrollArea > .QWidget { background: transparent; }")
-        l = append(l, "QLabel { color: " + fg + "; background: transparent; }")
-
-        ' Text surfaces sit DARKER than the chrome, which is what `dark_base`
-        ' is for -- the same relationship the GTK sheet gives them.
-        l = append(l, "QPlainTextEdit, QTextEdit, QLineEdit {")
-        l = append(l, "  background: " + base + "; color: " + fg + ";")
-        l = append(l, "  border: 1px solid " + line + "; selection-background-color: " + sel + ";")
-        l = append(l, "  selection-color: " + onsel + "; }")
-
-        ' THE TREE AND THE TABLE, with their ITEM COLOUR SAID OUT LOUD. A
-        ' `color` on the view is not what paints a row: the delegate draws item
-        ' text, and on a dark background an unstated item colour is the thing
-        ' that disappeared. `::item` carries it, and `::branch` is left alone --
-        ' Studio draws its own expander glyphs and `itemsExpandable` is off, so
-        ' there is nothing of Qt's there to colour.
-        l = append(l, "QTreeView, QTableView, QListView {")
-        l = append(l, "  background: " + base + "; color: " + fg + ";")
-        l = append(l, "  border: 1px solid " + line + "; outline: 0; gridline-color: " + line + ";")
-        l = append(l, "  selection-background-color: " + sel + "; selection-color: " + onsel + "; }")
-        l = append(l, "QTreeView::item, QTableView::item, QListView::item {")
-        l = append(l, "  color: " + fg + "; background: transparent; padding: 2px; }")
-        l = append(l, "QTreeView::item:selected, QTableView::item:selected, QListView::item:selected {")
-        l = append(l, "  background: " + sel + "; color: " + onsel + "; }")
-        l = append(l, "QTreeView::item:hover, QTableView::item:hover, QListView::item:hover {")
-        l = append(l, "  background: " + hi + "; color: " + fg + "; }")
-        l = append(l, "QHeaderView { background: " + ctl + "; }")
-        l = append(l, "QHeaderView::section { background: " + ctl + "; color: " + fg + ";")
-        l = append(l, "  padding: 4px; border: 0px; border-bottom: 1px solid " + line + "; }")
-        ' The grid's top-left corner is a button of its own, white until named.
-        l = append(l, "QTableCornerButton::section { background: " + ctl + "; border: 0px; border-bottom: 1px solid " + line + "; }")
-
-        ' THE MENUS, which are the toolkit's own now and so need naming here.
-        ' A menu's text is the sheet's to colour, which is why these are safe
-        ' where the toolbar is not.
-        l = append(l, "QMenuBar { background: " + bg + "; color: " + fg + "; border-bottom: 1px solid " + line + "; }")
-        l = append(l, "QMenuBar::item { background: transparent; color: " + fg + "; padding: 4px 8px; }")
-        l = append(l, "QMenuBar::item:selected { background: " + hi + "; }")
-        l = append(l, "QMenu { background: " + ctl + "; color: " + fg + "; border: 1px solid " + line + "; }")
-        l = append(l, "QMenu::item { color: " + fg + "; padding: 4px 24px 4px 24px; }")
-        l = append(l, "QMenu::item:selected { background: " + sel + "; color: " + onsel + "; }")
-        l = append(l, "QMenu::item:disabled { color: " + faint + "; }")
-        l = append(l, "QMenu::separator { height: 1px; background: " + line + "; margin: 4px 8px; }")
-
-        ' THE TOOLBAR IS DARK AGAIN, and it is only safe because its buttons
-        ' show TEXT while dark -- see `qt_tool_button_style`. A label is the
-        ' sheet's to colour where a style-generated pixmap is not, so this rule
-        ' and that one are a pair: darkening the strip without switching to
-        ' text is what made five icons invisible.
-        l = append(l, "QToolBar { background: " + bg + "; border: 0px; spacing: 2px; padding: 2px; }")
-        l = append(l, "QToolBar::separator { background: " + line + "; width: 1px; margin: 4px 4px; }")
-        l = append(l, "QToolButton { background: transparent; color: " + fg + ";")
-        l = append(l, "  border: 1px solid transparent; padding: 4px 8px; border-radius: 3px; }")
-        l = append(l, "QToolButton:hover { background: " + hi + "; border: 1px solid " + line + "; }")
-        l = append(l, "QToolButton:pressed { background: " + sel + "; color: " + onsel + "; }")
-        ' A CHECKABLE button (the ¶) has to look ON, or a toggle is a button
-        ' that says nothing about its state -- the light style draws it sunk.
-        l = append(l, "QToolButton:checked { background: " + hi + "; border: 1px solid " + faint + "; }")
-        l = append(l, "QToolButton:disabled { color: " + faint + "; }")
-        l = append(l, "QStatusBar { background: " + bg + "; color: " + faint + "; border-top: 1px solid " + line + "; }")
-        l = append(l, "QStatusBar QLabel { color: " + fg + "; }")
-
-        ' The docks. Their title bar is the one piece of chrome a person drags,
-        ' so it reads as a handle rather than as more background. The close and
-        ' float buttons are the style's own pixmaps, so they are NOT hidden and
-        ' NOT recoloured -- same reason as the toolbar.
-        l = append(l, "QDockWidget { color: " + fg + "; }")
-        ' A palette that ships its own close and float art says so, and the
-        ' style's pixmaps -- tinted, and drawn by whichever Qt is installed --
-        ' are replaced. The print palette does; the dark one leaves them be.
-        if p.dock_close != "" and p.dock_float != "" then
-            l = append(l, "QDockWidget { titlebar-close-icon: url(" + p.dock_close + "); titlebar-normal-icon: url(" + p.dock_float + "); }")
-        end if
-        l = append(l, "QDockWidget::title { background: " + ctl + "; color: " + fg + ";")
-        l = append(l, "  padding: 4px 6px; border-bottom: 1px solid " + line + "; }")
-
-        ' The notebook. A selected tab is lifted to the EDITOR's own base, so
-        ' the page and its tab read as one surface.
-        l = append(l, "QTabWidget::pane { border: 1px solid " + line + "; background: " + bg + "; }")
-        l = append(l, "QTabBar { background: " + bg + "; }")
-        l = append(l, "QTabBar::tab { background: " + ctl + "; color: " + faint + ";")
-        l = append(l, "  padding: 5px 10px; border: 1px solid " + line + "; border-bottom: 0px; }")
-        l = append(l, "QTabBar::tab:selected { background: " + base + "; color: " + fg + "; }")
-        l = append(l, "QTabBar::tab:hover { background: " + hi + "; color: " + fg + "; }")
-
-        ' Controls whose text the sheet owns.
-        l = append(l, "QPushButton { background: " + ctl + "; color: " + fg + ";")
-        l = append(l, "  border: 1px solid " + line + "; padding: 4px 12px; border-radius: 3px; }")
-        l = append(l, "QPushButton:hover { background: " + hi + "; }")
-        l = append(l, "QPushButton:pressed { background: " + sel + "; color: " + onsel + "; }")
-        l = append(l, "QPushButton:disabled { color: " + faint + "; }")
-        l = append(l, "QCheckBox, QRadioButton { color: " + fg + "; background: transparent; }")
-        l = append(l, "QGroupBox { color: " + fg + "; border: 1px solid " + line + "; margin-top: 8px; padding-top: 6px; }")
-        l = append(l, "QGroupBox::title { color: " + fg + "; subcontrol-origin: margin; left: 8px; padding: 0px 4px; }")
-        l = append(l, "QSplitter::handle { background: " + line + "; }")
-        l = append(l, "QToolTip { background: " + ctl + "; color: " + fg + "; border: 1px solid " + line + "; }")
-        l = append(l, "QScrollArea { background: " + bg + "; border: 0px; }")
-
-        ' A `QComboBox`'s drop-down ARROW is a style pixmap like the toolbar's
-        ' icons, so the closed box is left near the platform's lightness and
-        ' only its popup list is darkened -- the list is item text, which the
-        ' sheet does own.
-        ' UNLESS STUDIO SHIPS ITS OWN ARROW, which it does
-        ' (`share/icons/controls/down.svg`): then the closed box is dark too, and
-        ' a white box in every second window -- the brightest thing on screen --
-        ' is gone. No file, no rule, and the platform's box stands.
-        arrow = p.arrow
-        if arrow != "" then
-            l = append(l, "QComboBox { background: " + ctl + "; color: " + fg + ";")
-            l = append(l, "  border: 1px solid " + line + "; border-radius: 3px; padding: 3px 8px; }")
-            l = append(l, "QComboBox:hover { background: " + hi + "; }")
-            l = append(l, "QComboBox::drop-down { border: 0px; width: 22px; }")
-            l = append(l, "QComboBox::down-arrow { image: url(" + arrow + "); width: 12px; height: 12px; }")
-        end if
-        ' A CHECK BOX'S BOX is painted from the palette too, and in a dark
-        ' window it vanished: the grid's "Descending" read as a bare word, seen
-        ' in a `./studio shoot` figure. With Studio's own tick shipped
-        ' (`controls/check.svg`) the box is drawn by the sheet; without it, the
-        ' platform's stands.
-        tick = p.tick
-        if tick != "" then
-            l = append(l, "QCheckBox::indicator { width: 13px; height: 13px; background: " + base + ";")
-            l = append(l, "  border: 1px solid " + faint + "; border-radius: 2px; }")
-            l = append(l, "QCheckBox::indicator:hover { border: 1px solid " + fg + "; }")
-            l = append(l, "QCheckBox::indicator:checked { image: url(" + tick + "); }")
-        end if
-        l = append(l, "QComboBox QAbstractItemView { background: " + ctl + "; color: " + fg + ";")
-        l = append(l, "  selection-background-color: " + sel + "; selection-color: " + onsel + "; }")
-
-        ' The scrollbars, which are the clearest sign a window was half-themed.
-        l = append(l, "QScrollBar:vertical { background: " + bg + "; width: 12px; margin: 0px; }")
-        l = append(l, "QScrollBar:horizontal { background: " + bg + "; height: 12px; margin: 0px; }")
-        l = append(l, "QScrollBar::handle { background: " + hi + "; border-radius: 4px; min-height: 24px; min-width: 24px; }")
-        l = append(l, "QScrollBar::handle:hover { background: " + faint + "; }")
-        l = append(l, "QScrollBar::add-line, QScrollBar::sub-line { height: 0px; width: 0px; }")
-        l = append(l, "QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }")
-
-        return join(l, "\n")
+        return "icons"
     end function
 
 end library

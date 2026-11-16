@@ -798,8 +798,8 @@ fi
 #               inches a headless test cannot reach: that the handler is
 #               connected, that the value it reads off the widget is the one the
 #               user chose, and that redrawing from inside a handler is safe.
-#               Controls are pressed for real (qt.invoke, qt.select, qt.key,
-#               qt.scroll, qt.right_click). They are further down this file.
+#               Controls are pressed for real (ui.invoke, ui.select, ui.key,
+#               ui.scroll, ui.right_click). They are further down this file.
 UI=tests/drivers/ui.bas
 run_ui() { # mode
     local mode="$1" home proj
@@ -908,7 +908,7 @@ done
 
 # gBASIC'S OWN VALIDATOR, over the record this shell builds.
 #
-# `qt.check` needs no Qt and no display -- it is a check on a DECLARATION, and
+# `ui.check` needs no Qt and no display -- it is a check on a DECLARATION, and
 # upstream deliberately put it outside the `#if HAVE_QT` guard for that reason.
 # But the `qt` MODULE still has to be in the build, which is a build option like
 # sqlite, so it is probed rather than assumed: a missing module would fail as
@@ -919,7 +919,7 @@ done
 # direction, an `item` somewhere things are laid out. It RAISES rather than
 # answering false, so a malformed window is a nonzero exit here.
 qtprobe="$tmproot/qt_probe.bas"
-printf 'program main(args)\n  print qt.check({ kind: "window", name: "w", options: {}, items: [] })\nend program\n' > "$qtprobe"
+printf 'program main(args)\n  print ui.check({ kind: "window", name: "w", options: {}, items: [] })\nend program\n' > "$qtprobe"
 if GBASIC_PATH="$GBASIC_STDLIB" timeout 60 "$GBASIC" "$qtprobe" >/dev/null 2>&1; then
     qh="$tmproot/qtshell_check"; qp="$tmproot/qtshell_check_proj"
     rm -rf "$qh" "$qp"; mkdir -p "$qh"
@@ -983,7 +983,7 @@ if GBASIC_PATH="$GBASIC_STDLIB" timeout 60 "$GBASIC" "$qtprobe" >/dev/null 2>&1;
     fi
 
     # THE NOTEBOOK, which was the one thing the Qt vocabulary could not express
-    # until gBASIC built `qt.refresh(win, name, items)` for it (its §0.27, from
+    # until gBASIC built `ui.refresh(win, name, items)` for it (its §0.27, from
     # Studio's own measurements).
     #
     # THE LOAD-BEARING CHECK IS THAT A KEPT EDITOR STILL HOLDS WHAT WAS TYPED
@@ -1033,7 +1033,7 @@ fi
 # the same code path with different data, and a tier that only ever sees an
 # empty window is the STU-2B dead end wearing a golden.
 qtprobe2="$tmproot/qt_probe2.bas"
-printf 'program main(args)\n  print qt.check({ kind: "window", name: "w", options: {}, items: [] })\nend program\n' > "$qtprobe2"
+printf 'program main(args)\n  print ui.check({ kind: "window", name: "w", options: {}, items: [] })\nend program\n' > "$qtprobe2"
 if GBASIC_PATH="$GBASIC_STDLIB" timeout 60 "$GBASIC" "$qtprobe2" >/dev/null 2>&1; then
     qh="$tmproot/qtview_probe"; qp="$tmproot/qtview_probe_proj"
     rm -rf "$qh" "$qp"; mkdir -p "$qh"
@@ -1080,7 +1080,7 @@ fi
     # EVERY CONTROL PRESSED, FOR REAL, WITH NO DISPLAY.
     #
     # This retired two GTK display tiers, and it is better than them in one
-    # specific way: `qt.invoke(win, item, "trigger")` fires a QAction the way a
+    # specific way: `ui.invoke(win, item, "trigger")` fires a QAction the way a
     # person does, where a GTK button inside a popover never shown silently
     # ignored `activate()` -- which cost STU-16 two rounds.
     #
@@ -1243,15 +1243,15 @@ fi
     printf 'print "first"\n\nfunction add(a, b)\n  return a + b\nend function\n\nprint add(2, 3)\n' > "$qp/run.bas"
     qt_mode_tier qtview_run run "$qh" "$qp" "a run read back off the window, following the caret"
 
-    # RESULTS UNDER THEIR SECTIONS (gBASIC §0.38 qt.blocks): every section
+    # RESULTS UNDER THEIR SECTIONS (gBASIC §0.38 ui.blocks): every section
     # run, the blocks read back off the editor with the line Qt has them on,
     # the editor's text unchanged, collapse, the Settings toggle, and a theme
     # change rebuilding the editor. Skipped on a gBASIC without the verb, whose
     # window keeps its results in the panes.
     qt_blkprobe="$tmproot/blocks_probe_qt.bas"
-    printf 'program main(args)\n    on error goto next\n    z = qt.blocks({ kind: "window", name: "p", options: {}, items: [] }, "e")\n    if error then\n        print error.message\n    end if\nend program\n' > "$qt_blkprobe"
+    printf 'program main(args)\n    on error goto next\n    z = ui.blocks({ kind: "window", name: "p", options: {}, items: [] }, "e")\n    if error then\n        print error.message\n    end if\nend program\n' > "$qt_blkprobe"
     if QT_QPA_PLATFORM=offscreen timeout 60 "$GBASIC" "$qt_blkprobe" 2>&1 | grep -q 'does not define'; then
-        printf 'SKIP qtview_inline (this gBASIC has no qt.blocks, before 59392001)\n'
+        printf 'SKIP qtview_inline (this gBASIC has no ui.blocks, before 59392001)\n'
     else
         qh="$tmproot/qtview_inline"; qp="$tmproot/qtview_inline_proj"
         rm -rf "$qh" "$qp"; mkdir -p "$qh" "$qp"
@@ -1264,7 +1264,7 @@ fi
     # prose, a paragraph typed above, the toggle, a theme change. Read back
     # off the editor; the text never moves.
     if QT_QPA_PLATFORM=offscreen timeout 60 "$GBASIC" "$qt_blkprobe" 2>&1 | grep -q 'does not define'; then
-        printf 'SKIP qtview_prose (this gBASIC has no qt.blocks, before 59392001)\n'
+        printf 'SKIP qtview_prose (this gBASIC has no ui.blocks, before 59392001)\n'
     else
         qh="$tmproot/qtview_prose"; qp="$tmproot/qtview_prose_proj"
         rm -rf "$qh" "$qp"; mkdir -p "$qh" "$qp"
@@ -1392,7 +1392,7 @@ fi
     elif grep -q 'Qt support is not available' "$qt_err"; then
         printf 'SKIP shoot_run (this gBASIC has no Qt backend)\n'
     elif grep -q "does not define 'capture'" "$qt_err"; then
-        printf 'SKIP shoot_run (this gBASIC predates qt.capture, cac666c)\n'
+        printf 'SKIP shoot_run (this gBASIC predates ui.capture, cac666c)\n'
     else
         cat "$stdout_file" "$qt_err"; fail "shoot_run (nonzero exit)"
     fi
@@ -1419,7 +1419,7 @@ fi
     elif grep -q 'Qt support is not available' "$qt_err"; then
         printf 'SKIP shoot_print_editor (this gBASIC has no Qt backend)\n'
     elif grep -q "does not define 'capture'" "$qt_err"; then
-        printf 'SKIP shoot_print_editor (this gBASIC predates qt.capture, cac666c)\n'
+        printf 'SKIP shoot_print_editor (this gBASIC predates ui.capture, cac666c)\n'
     else
         cat "$stdout_file" "$qt_err"; fail "shoot_print_editor (nonzero exit)"
     fi
@@ -1441,7 +1441,7 @@ fi
             -u QT_QPA_PLATFORM -u GBASIC_STUDIO_MCP_EXTERNAL \
             timeout 120 ./studio mcp <tests/mcp/session.jsonl >"$ms/out" 2>"$qt_err"; then
         if grep -q "does not define 'capture'" "$ms/out"; then
-            printf 'SKIP mcp_session (this gBASIC predates qt.capture, cac666c)\n'
+            printf 'SKIP mcp_session (this gBASIC predates ui.capture, cac666c)\n'
         else
             {
                 "$GBASIC" tests/drivers/mcp_lines.bas "$ms/out" "$ms"
@@ -1561,14 +1561,14 @@ fi
 printf 'PASS qt_no_gtk (no GTK anywhere in Studio)\n'
 
 # NOTHING IN THE QT SHELL TOUCHES A TOOLKIT, and that is a tripwire rather than
-# an intention. One `qt.read` in there would take the two tiers above down on a
+# an intention. One `ui.read` in there would take the two tiers above down on a
 # machine with no Qt -- and the whole value of the record is that the shape is
 # decidable without one. Comments are stripped first, because this file's own
 # header explains the rule by quoting it, which is the trap
 # `run_libcurl_floor.sh` records for `smtp.c`.
 qtpure="$tmproot/qt_shell_pure.txt"
 sed -e "s/'.*//" lib/studio_shell_qt.bas > "$qtpure"
-if grep -nE '(^|[^a-z_])(qt|gi|gtk|sourceeditor|datagrid)\.' "$qtpure"; then
+if grep -nE '(^|[^a-z_])(ui|qt|gi|gtk|sourceeditor|datagrid)\.' "$qtpure"; then
     fail "qt_shell_pure (studio_shell_qt reaches a toolkit)"
 fi
 # ... and the control, because a scanner that reads nothing passes everything.

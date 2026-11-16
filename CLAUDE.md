@@ -447,6 +447,51 @@ Two consequences worth knowing before you touch the shell:
   golden tiers capture stderr, so that is eleven failing tests and not a style
   question — which is exactly how `tool_call` was found.
 
+### `qt.` IS `ui.` NOW (gBASIC push A, 2026-11-16)
+
+gBASIC renamed its GUI module `ui` and gave it ONE VOCABULARY of its own
+(gBASIC `docs/ui_design.md` §3, §7; the words are its reference's "Words"
+section). Studio moved the same day, in one commit, against gBASIC
+`eb783aa8`. **The floor is now that commit** (it releases as 0.12.0): no
+earlier gBASIC can run Studio's window, so the installed 0.10.0 and the old
+pinned builds are not suite targets for the GUI tiers until a release carries
+`ui.`. Everything below this section that says `qt.` is the history it was
+written in; the verbs are the same with `ui.` in front.
+
+- **Every Qt name is refused now, naming the word to write** --
+  `plainText` → `text`, `click`/`trigger` → `press`, `clicked`/`triggered` →
+  `pressed`, `toolTip` → `tip`, a handler record's `signal:` → `event:`. The
+  table was checked against Studio's actual names BEFORE it was fixed, and
+  Studio's asks went into it: `chosen` (selection) and `activated` (a click
+  that opens) stay TWO events, which is the browser's arrow-keys-do-not-open
+  rule; `tip`, `select_all`, `fit_columns`, `max_height`, fractional
+  `font_size`, a readable `emphasis`, and a `colors` readback all exist
+  because Studio used them.
+- **The theme is the record**: `ui.theme(studio_style.dark_palette())`, the
+  record gBASIC adopted from Studio, icons included. gBASIC renders the rules
+  `studio_style.sheet` used to (ported verbatim) AND sets Qt's palette, which
+  a sheet never could. `sheet`, `dark_qss` and `print_qss` are gone; Studio
+  writes no QSS. `ui.theme()` answers the record last set, or the text, so a
+  tier asks `qt_theme_is_set()` / `qt_theme_is_ours()`, and checks what an
+  editor is DRAWN in with `colors`. Looked at, not just asserted: a dark
+  capture after the move shows the tree, all six toolbar icons, the check
+  box, the combo arrow and the bold heading.
+- **Per-part stylesheets are words**: the tree's arrows and branch lines are
+  `expanders: false` (with `headings: false` for the header), a heading is
+  `bold: true`, and the teaching cue is `emphasis` -- "outline" for a
+  highlight, "strong" for a pulse, "none" to clear -- readable back, so the
+  tier asserts the cue rather than a stylesheet's text. `objectName` is gone.
+- The zoom is `font_size` in points, not field 1 of a `QFont::toString`.
+- **THE MIGRATION'S OWN LESSON, the golden guard again.** The first suite
+  iteration applied 17 window-tier diffs that each REMOVED the whole golden:
+  the window refused to build (a handler record built from a VARIABLE still
+  said `signal:` -- the rewrite script only caught literals), every tier
+  printed nothing, and an apply-every-diff loop took the empty output as the
+  new truth. Caught on review, restored from git, fixed; the loop now stops
+  on any diff that removes more than it adds. With the fix, `qtview_probe`
+  matched its pre-migration golden byte for byte, and every other window
+  tier moved only by the renamed words.
+
 ### The Qt window (STU-22)
 
 **gBASIC grew a Qt GUI system and Studio moved to it; GTK was removed on

@@ -174,7 +174,7 @@ end function
 ' its allocation, and upstream measured 260/540 of an 800-wide splitter coming
 ' back 252/522. §0.22's own rule: every check is a proportion or a difference.
 ' The `tabs` container's items, out of a built window -- which is exactly what
-' `qt.refresh(win, name, items)` takes, so a redraw is "build the record again
+' `ui.refresh(win, name, items)` takes, so a redraw is "build the record again
 ' and hand over the part that changed".
 function tabs_items(node)
   if has(node, "word") then
@@ -224,7 +224,7 @@ end function
 ' never anything we remembered when it was built, because a pane in the wrong
 ' area is invisible from the language otherwise.
 function docked(win, name)
-  d = qt.dock(win, name)
+  d = ui.dock(win, name)
   if is_unknown(d) then
     return "(not docked)"
   end if
@@ -311,7 +311,7 @@ program main(args)
     win = studio_shell_qt.window_for(app)
     print "  tabs:   " + join(tab_captions(win), " | ")
     print "  title:  " + studio_shell_qt.title_for(app)
-    print "  (the marker is in the CAPTION, which `qt.refresh` re-reads --"
+    print "  (the marker is in the CAPTION, which `ui.refresh` re-reads --"
     print "   so the tab is keyed on the document id, not on what it says)"
   end if
 
@@ -346,7 +346,7 @@ program main(args)
 
     win = studio_shell_qt.window_for(app)
     print "== it checks, and it opens =="
-    print "  check: " + string(qt.check(win))
+    print "  check: " + string(ui.check(win))
     ' THE SUBJECT IS READ FROM THIS FRAME. `qt.open` resolves the browser's
     ' rows by the NAME the record declares, so the variable has to be called
     ' exactly that -- which is why `studio_shell_qt.nav_subject()` exists
@@ -354,30 +354,30 @@ program main(args)
     nav = studio_ui.nav_rows(app)
     branches = qt_branch_subject(app)
     tables = studio_shell_qt.table_subject(studio_ui.table_rows(app).rows)
-    print "  open:  " + string(qt.open(win))
+    print "  open:  " + string(ui.open(win))
 
     print "== what the window says about itself =="
-    print "  title:   " + qt.read(win, studio_shell_qt.window_name(), "windowTitle")
-    print "  tabs:    " + string(qt.read(win, studio_shell_qt.part_tabs(), "count"))
-    print "  status:  " + qt.read(win, studio_shell_qt.part_status(), "text")
+    print "  title:   " + ui.read(win, studio_shell_qt.window_name(), "title")
+    print "  tabs:    " + string(ui.read(win, studio_shell_qt.part_tabs(), "count"))
+    print "  status:  " + ui.read(win, studio_shell_qt.part_status(), "text")
 
     print "== the browser, which is a TREE with a depth the widget has =="
-    print "  heading: " + qt.heading(win, studio_shell_qt.part_browser(), 0)
+    print "  heading: " + ui.heading(win, studio_shell_qt.part_browser(), 0)
     ' THE DEPTH IS THE ORACLE. A populate that ignored it builds a flat tree
     ' whose every name, index, selection and heading reads back correctly, so
     ' nothing else here can see it -- and it is asked of the WIDGET, walked up
     ' the item's parents, rather than being the number the record carried.
     j = 0
     for each nr in nav
-      print "    " + string(qt.depth(win, studio_shell_qt.part_browser(), j)) + " [" + qt.cell(win, studio_shell_qt.part_browser(), j, "text") + "]"
+      print "    " + string(ui.depth(win, studio_shell_qt.part_browser(), j)) + " [" + ui.cell(win, studio_shell_qt.part_browser(), j, "text") + "]"
       j = j + 1
     end for
 
     print "== the menus are the toolkit's own now =="
-    print "  bar:     " + string(qt.menus(win))
+    print "  bar:     " + string(ui.menus(win))
     k = 0
     for each m in studio_ui.menus()
-      print "  " + m.label + ": " + string(qt.menus(win, k))
+      print "  " + m.label + ": " + string(ui.menus(win, k))
       k = k + 1
     end for
     print "  a separator has no caption, where an empty label would have one"
@@ -385,12 +385,12 @@ program main(args)
     print "== and a state item is CHECKABLE, not a glyph in its label =="
     for each a in ["theme-system", "theme-dark", "restore-session"]
       nm = studio_shell_qt.part_item(a)
-      print "  " + nm + ": checkable=" + string(qt.read(win, nm, "checkable")) + " checked=" + string(qt.read(win, nm, "checked"))
+      print "  " + nm + ": checkable=" + string(ui.read(win, nm, "checkable")) + " checked=" + string(ui.read(win, nm, "checked"))
     end for
     print "== the accelerators are the actions' own, not an event controller =="
     for each a in ["text-bigger", "text-smaller", "text-reset"]
       nm = studio_shell_qt.part_item(a)
-      print "  " + nm + ": " + qt.read(win, nm, "shortcut")
+      print "  " + nm + ": " + ui.read(win, nm, "shortcut")
     end for
 
     print "== the furniture, asked of the WINDOW rather than of the record =="
@@ -405,33 +405,33 @@ program main(args)
     print "== the editor round-trips the document =="
     doc = studio_docs.active_doc(app.dm)
     ed = studio_shell_qt.part_editor(doc.id)
-    z = qt.write(win, ed, doc.content)
-    print "  " + ed + ": [" + replace(qt.read(win, ed, "plainText"), chr(10), " / ") + "]"
+    z = ui.write(win, ed, doc.content)
+    print "  " + ed + ": [" + replace(ui.read(win, ed, "text"), chr(10), " / ") + "]"
     ' The syntax definition's PATH is a fact about the machine -- a definition
     ' the user installed in their own home shadows the repository's and
     ' reports the identical name -- so only the language is asserted.
-    print "  highlighted as: " + qt.highlighting(win, ed).language
+    print "  highlighted as: " + ui.highlighting(win, ed).language
 
     print "== and the whole arrangement saves and restores =="
     ' ONE OPAQUE BLOB, where the GTK shell stores three divider numbers: a
     ' QMainWindow saves which dock is at which edge, which are tabbed, which
     ' are closed or floating, and every size. Base64, because the blob is not
     ' valid UTF-8 and `session.json` is JSON.
-    blob = qt.layout(win)
+    blob = ui.layout(win)
     print "  saved:    " + string(count(blob) > 0)
-    print "  restored: " + string(qt.restore_layout(win, blob))
-    print "  unknown:  " + string(qt.restore_layout(win, "bm90aGluZw==")) + " (reported, not raised)"
+    print "  restored: " + string(ui.restore_layout(win, blob))
+    print "  unknown:  " + string(ui.restore_layout(win, "bm90aGluZw==")) + " (reported, not raised)"
 
-    z = qt.close(win)
+    z = ui.close(win)
     print "== closed, and every verb then refuses by name =="
-    print "  is_open: " + string(qt.is_open(win))
+    print "  is_open: " + string(ui.is_open(win))
   end if
 
   ' ---- reconcile: THE NOTEBOOK, which was the one blocking gap ------------
   '
   ' A container's set of children used to be fixed when the window opened, so a
   ' document opening meant a NEW WINDOW -- which cost per-document undo history
-  ' and the window's position on screen. gBASIC built `qt.refresh(win, name,
+  ' and the window's position on screen. gBASIC built `ui.refresh(win, name,
   ' items)` for this (§0.27, from Studio's own measurements), and this tier is
   ' the consumer's half of it.
   '
@@ -447,33 +447,33 @@ program main(args)
     branches = qt_branch_subject(app)
     tables = studio_shell_qt.table_subject(studio_ui.table_rows(app).rows)
     print "== one document, and something typed into it =="
-    print "  open:  " + string(qt.open(win))
-    print "  tabs:  " + string(qt.tabs(win, studio_shell_qt.part_tabs()))
+    print "  open:  " + string(ui.open(win))
+    print "  tabs:  " + string(ui.tabs(win, studio_shell_qt.part_tabs()))
     d1 = studio_docs.active_doc(app.dm)
     ed1 = studio_shell_qt.part_editor(d1.id)
-    z = qt.write(win, ed1, "typed by hand, never saved")
-    print "  typed: [" + qt.read(win, ed1, "plainText") + "]"
+    z = ui.write(win, ed1, "typed by hand, never saved")
+    print "  typed: [" + ui.read(win, ed1, "text") + "]"
 
     print "== a second document opens: the tab set GROWS =="
     o2 = studio.open_from_browser(app, "proj-1", projdir + "/README.md")
     app = o2.app
-    print "  reconciled: " + string(qt.refresh(win, studio_shell_qt.part_tabs(), tabs_items(studio_shell_qt.window_for(app))))
-    print "  tabs:  " + string(qt.tabs(win, studio_shell_qt.part_tabs()))
-    print "  KEPT:  [" + qt.read(win, ed1, "plainText") + "]"
+    print "  reconciled: " + string(ui.refresh(win, studio_shell_qt.part_tabs(), tabs_items(studio_shell_qt.window_for(app))))
+    print "  tabs:  " + string(ui.tabs(win, studio_shell_qt.part_tabs()))
+    print "  KEPT:  [" + ui.read(win, ed1, "text") + "]"
 
     print "== the first is edited: the CAPTION moves, the editor does not =="
     app.dm = studio_docs.edit(app.dm, d1.id, "edited in the model")
-    z = qt.refresh(win, studio_shell_qt.part_tabs(), tabs_items(studio_shell_qt.window_for(app)))
-    print "  tabs:  " + string(qt.tabs(win, studio_shell_qt.part_tabs()))
-    print "  KEPT:  [" + qt.read(win, ed1, "plainText") + "]"
+    z = ui.refresh(win, studio_shell_qt.part_tabs(), tabs_items(studio_shell_qt.window_for(app)))
+    print "  tabs:  " + string(ui.tabs(win, studio_shell_qt.part_tabs()))
+    print "  KEPT:  [" + ui.read(win, ed1, "text") + "]"
     print "  (the marker is in the caption, where the GTK notebook puts it --"
     print "   a reconcile re-reads it, and the tab is keyed on the document id)"
 
     print "== and the first closes: the tab set SHRINKS =="
     cl = studio_docs.close(app.dm, d1.id, "discard")
     app.dm = cl.dm
-    z = qt.refresh(win, studio_shell_qt.part_tabs(), tabs_items(studio_shell_qt.window_for(app)))
-    print "  tabs:  " + string(qt.tabs(win, studio_shell_qt.part_tabs()))
+    z = ui.refresh(win, studio_shell_qt.part_tabs(), tabs_items(studio_shell_qt.window_for(app)))
+    print "  tabs:  " + string(ui.tabs(win, studio_shell_qt.part_tabs()))
 
     print "== and reopening it mints a NEW document, so a new editor =="
     print "   (that a dropped widget is DELETED rather than hidden is gBASIC's"
@@ -481,18 +481,18 @@ program main(args)
     print "    name is unobservable from this side, which is why it has to be)"
     o3 = studio.open_from_browser(app, "proj-1", projdir + "/main.bas")
     app = o3.app
-    z = qt.refresh(win, studio_shell_qt.part_tabs(), tabs_items(studio_shell_qt.window_for(app)))
-    print "  tabs:  " + string(qt.tabs(win, studio_shell_qt.part_tabs()))
+    z = ui.refresh(win, studio_shell_qt.part_tabs(), tabs_items(studio_shell_qt.window_for(app)))
+    print "  tabs:  " + string(ui.tabs(win, studio_shell_qt.part_tabs()))
     back = studio_docs.active_doc(app.dm)
-    print "  " + studio_shell_qt.part_editor(back.id) + ": [" + qt.read(win, studio_shell_qt.part_editor(back.id), "plainText") + "]"
-    z = qt.close(win)
+    print "  " + studio_shell_qt.part_editor(back.id) + ": [" + ui.read(win, studio_shell_qt.part_editor(back.id), "text") + "]"
+    z = ui.close(win)
   end if
 
   ' ---- check: gBASIC's own validator, which needs no Qt and no display -----
   if mode = "check" then
-    print "== qt.check on the cold window =="
+    print "== ui.check on the cold window =="
     win = studio_shell_qt.window_for(app)
-    print "  " + string(qt.check(win))
+    print "  " + string(ui.check(win))
 
     rows = studio_ui.nav_rows(app)
     i = 0
@@ -509,6 +509,6 @@ program main(args)
     app = r.app
     print "== and with a document open =="
     win = studio_shell_qt.window_for(app)
-    print "  " + string(qt.check(win))
+    print "  " + string(ui.check(win))
   end if
 end program

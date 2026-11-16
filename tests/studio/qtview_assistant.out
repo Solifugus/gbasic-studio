@@ -11,10 +11,10 @@
   unresolved: 0 
   the registry and teachable() agree: true
 pointing at the Run button
-  its sheet: #run_btn { border: 2px solid #d08770; }
+  its emphasis: outline
 pulsing the name field (the Run button's highlight comes off)
-  run button sheet: []
-  name field pulsing: true
+  run button emphasis: none
+  name field emphasis: strong
   and the pulse took itself off: true
 revealing the Tables pane raises its dock
   action=point_at — reveal tables (pane)

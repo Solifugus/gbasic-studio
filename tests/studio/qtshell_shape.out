@@ -128,30 +128,30 @@ window studio
           stretch
 == and every option in it ==
   /studio                                             height=800 title=gBASIC Studio — ws width=1200
-  /studio/mi_new_project                              label=New Project… toolTip=Open the New Project window: name it, choose where it goes, and pick what to create.
-  /studio/mi_open_folder                              label=Open Folder toolTip=Open a folder you already have as a project. Type its path in the name field first; ~/ and relative paths work.
-  /studio/mi_open_samples                             label=Open Samples toolTip=Open a project of small sample programs, each saying what to try. Your own copy, made the first time, so edit them freely.
-  /studio/mi_project_file                             label=Add Project File toolTip=Write a .gstudio.json in this project: a stable id so its saved state survives the folder moving, plus a place to list what the browser should hide and pin which gBASIC it runs under. Studio never creates this on its own.
-  /studio/mi_close_project                            label=Close Project toolTip=Take this project out of the workspace and close its tabs. The folder is untouched and Open Folder puts it back.
-  /studio/mi_new_file                                 label=New File shortcut=Ctrl+N toolTip=Create a file named by the header field — in the selected folder, the folder holding the selected file, or the project root.
-  /studio/mi_new_folder                               label=New Folder toolTip=Create a folder named by the header field — in the selected folder, the folder holding the selected file, or the project root.
-  /studio/mi_rename                                   label=Rename Selected toolTip=Rename the selected file or folder to what the header field says.
-  /studio/mi_delete                                   label=Delete Selected toolTip=Delete the selected file or folder from disk. Press it twice: the first press arms it.
-  /studio/mi_reload                                   label=Reload Changed Files toolTip=Check every open document against the file on disk: re-read the ones you have not edited, and flag the ones you have as conflicts. Nothing you typed is discarded.
-  /studio/mi_close_tab                                label=Close Tab shortcut=Ctrl+W toolTip=Close the active document's tab. Unsaved text is discarded, so press it twice — the first press arms it.
-  /studio/mi_export_md                                label=Export as Markdown toolTip=Write the open file as one Markdown document beside it: the documentation comments as prose, the code as listings, and each section's last result under it. A result whose code changed since it ran is left out. The document opens in a tab.
-  /studio/mi_export_measured                          label=Export as Measured Program toolTip=Run the whole file twice, alone in an empty folder, and write it beside itself as one measured-program block with its output and exit status, which the book's check-measured.py re-runs against its pinned gBASIC. The block opens in a tab.
-  /studio/mi_check_lesson                             label=Check Lesson toolTip=Run each exercise's checks. In the instructor's file: does every solution pass, and does the student edition still fail them? In a student's copy: which exercises are done. The result is shown under each exercise.
-  /studio/mi_export_student                           label=Export Student Edition toolTip=Write the student edition beside this lesson: each solution replaced by its starter code, and the private checks removed from the file, not hidden. It opens in a tab.
-  /studio/mi_theme_system                             checkable=true checked=true label=Follow the desktop toolTip=Follow your desktop: Studio adds nothing and looks like the rest of your system.
-  /studio/mi_theme_dark                               checkable=true checked=false label=Dark toolTip=Studio's own dark look — the whole window, not just the editor — whatever your desktop is set to. Takes effect at once.
-  /studio/mi_text_bigger                              label=Bigger editor text shortcut=["Ctrl++","Ctrl+="] toolTip=Enlarge the code, and only the code. Ctrl and the mouse wheel do the same. The rest of the window follows your desktop's font setting.
-  /studio/mi_text_smaller                             label=Smaller editor text shortcut=Ctrl+- toolTip=Shrink the code, and only the code. Ctrl and the mouse wheel do the same.
-  /studio/mi_text_reset                               label=Reset editor text size shortcut=Ctrl+0 toolTip=Back to the size your desktop's font setting gives.
-  /studio/mi_show_whitespace                          checkable=true checked=false label=Show invisible characters shortcut=["Ctrl+Shift+8","Ctrl+*"] toolTip=Draw spaces, tabs and line ends in the editor, so trailing blanks and a tab among spaces can be seen. Ctrl+Shift+8, or the ¶ on the toolbar.
-  /studio/mi_show_inline                              checkable=true checked=true label=Show results under sections toolTip=Show each section's last result in the editor, under the section that made it. Display only: nothing is written into the file.
-  /studio/mi_show_prose                               checkable=true checked=true label=Show documentation comments as prose toolTip=Show comment lines that begin with '' as formatted Markdown, in place of the comment. Put the caret on one to edit it as text. The file keeps the comments.
-  /studio/mi_restore_session                          checkable=true checked=true label=Reopen last session on start toolTip=Whether Studio reopens the projects and files you had open. Read when Studio starts, so it takes effect on the next launch.
+  /studio/mi_new_project                              label=New Project… tip=Open the New Project window: name it, choose where it goes, and pick what to create.
+  /studio/mi_open_folder                              label=Open Folder tip=Open a folder you already have as a project. Type its path in the name field first; ~/ and relative paths work.
+  /studio/mi_open_samples                             label=Open Samples tip=Open a project of small sample programs, each saying what to try. Your own copy, made the first time, so edit them freely.
+  /studio/mi_project_file                             label=Add Project File tip=Write a .gstudio.json in this project: a stable id so its saved state survives the folder moving, plus a place to list what the browser should hide and pin which gBASIC it runs under. Studio never creates this on its own.
+  /studio/mi_close_project                            label=Close Project tip=Take this project out of the workspace and close its tabs. The folder is untouched and Open Folder puts it back.
+  /studio/mi_new_file                                 label=New File shortcut=Ctrl+N tip=Create a file named by the header field — in the selected folder, the folder holding the selected file, or the project root.
+  /studio/mi_new_folder                               label=New Folder tip=Create a folder named by the header field — in the selected folder, the folder holding the selected file, or the project root.
+  /studio/mi_rename                                   label=Rename Selected tip=Rename the selected file or folder to what the header field says.
+  /studio/mi_delete                                   label=Delete Selected tip=Delete the selected file or folder from disk. Press it twice: the first press arms it.
+  /studio/mi_reload                                   label=Reload Changed Files tip=Check every open document against the file on disk: re-read the ones you have not edited, and flag the ones you have as conflicts. Nothing you typed is discarded.
+  /studio/mi_close_tab                                label=Close Tab shortcut=Ctrl+W tip=Close the active document's tab. Unsaved text is discarded, so press it twice — the first press arms it.
+  /studio/mi_export_md                                label=Export as Markdown tip=Write the open file as one Markdown document beside it: the documentation comments as prose, the code as listings, and each section's last result under it. A result whose code changed since it ran is left out. The document opens in a tab.
+  /studio/mi_export_measured                          label=Export as Measured Program tip=Run the whole file twice, alone in an empty folder, and write it beside itself as one measured-program block with its output and exit status, which the book's check-measured.py re-runs against its pinned gBASIC. The block opens in a tab.
+  /studio/mi_check_lesson                             label=Check Lesson tip=Run each exercise's checks. In the instructor's file: does every solution pass, and does the student edition still fail them? In a student's copy: which exercises are done. The result is shown under each exercise.
+  /studio/mi_export_student                           label=Export Student Edition tip=Write the student edition beside this lesson: each solution replaced by its starter code, and the private checks removed from the file, not hidden. It opens in a tab.
+  /studio/mi_theme_system                             checkable=true checked=true label=Follow the desktop tip=Follow your desktop: Studio adds nothing and looks like the rest of your system.
+  /studio/mi_theme_dark                               checkable=true checked=false label=Dark tip=Studio's own dark look — the whole window, not just the editor — whatever your desktop is set to. Takes effect at once.
+  /studio/mi_text_bigger                              label=Bigger editor text shortcut=["Ctrl++","Ctrl+="] tip=Enlarge the code, and only the code. Ctrl and the mouse wheel do the same. The rest of the window follows your desktop's font setting.
+  /studio/mi_text_smaller                             label=Smaller editor text shortcut=Ctrl+- tip=Shrink the code, and only the code. Ctrl and the mouse wheel do the same.
+  /studio/mi_text_reset                               label=Reset editor text size shortcut=Ctrl+0 tip=Back to the size your desktop's font setting gives.
+  /studio/mi_show_whitespace                          checkable=true checked=false label=Show invisible characters shortcut=["Ctrl+Shift+8","Ctrl+*"] tip=Draw spaces, tabs and line ends in the editor, so trailing blanks and a tab among spaces can be seen. Ctrl+Shift+8, or the ¶ on the toolbar.
+  /studio/mi_show_inline                              checkable=true checked=true label=Show results under sections tip=Show each section's last result in the editor, under the section that made it. Display only: nothing is written into the file.
+  /studio/mi_show_prose                               checkable=true checked=true label=Show documentation comments as prose tip=Show comment lines that begin with '' as formatted Markdown, in place of the comment. Put the caret on one to edit it as text. The file keeps the comments.
+  /studio/mi_restore_session                          checkable=true checked=true label=Reopen last session on start tip=Whether Studio reopens the projects and files you had open. Read when Studio starts, so it takes effect on the next launch.
   /studio/nav_menu/ctx_open                           label=Open
   /studio/nav_menu/ctx_new_file_here                  label=New File here
   /studio/nav_menu/ctx_new_folder_here                label=New Folder here
@@ -161,12 +161,12 @@ window studio
   /studio/nav_menu/ctx_close_project                  label=Close project
   /studio/tab_menu/tabm_tab_close                     label=Close
   /studio/tab_menu/tabm_tab_copy_path                 label=Copy file path
-  /studio/toolbar/save                                icon=SP_DialogSaveButton label=Save toolTip=Write the active document to disk. Over a file that changed underneath, press twice — the first press arms it.
-  /studio/toolbar/tb_reload                           icon=SP_BrowserReload label=Reload toolTip=Check every open document against the file on disk: re-read the ones you have not edited, and flag the ones you have as conflicts. Nothing you typed is discarded.
-  /studio/toolbar/tb_open_folder                      icon=SP_DialogOpenButton label=Open Folder toolTip=Open a folder you already have as a project. Type its path in the name field first; ~/ and relative paths work.
-  /studio/toolbar/tb_new_file                         icon=SP_FileIcon label=New File toolTip=Create a file named by the header field — in the selected folder, the folder holding the selected file, or the project root.
-  /studio/toolbar/tb_new_folder                       icon=SP_FileDialogNewFolder label=New Folder toolTip=Create a folder named by the header field — in the selected folder, the folder holding the selected file, or the project root.
-  /studio/toolbar/tb_whitespace                       checkable=true label=¶ toolTip=Draw spaces, tabs and line ends in the editor, so trailing blanks and a tab among spaces can be seen. Ctrl+Shift+8, or the ¶ on the toolbar.
+  /studio/toolbar/save                                icon=SP_DialogSaveButton label=Save tip=Write the active document to disk. Over a file that changed underneath, press twice — the first press arms it.
+  /studio/toolbar/tb_reload                           icon=SP_BrowserReload label=Reload tip=Check every open document against the file on disk: re-read the ones you have not edited, and flag the ones you have as conflicts. Nothing you typed is discarded.
+  /studio/toolbar/tb_open_folder                      icon=SP_DialogOpenButton label=Open Folder tip=Open a folder you already have as a project. Type its path in the name field first; ~/ and relative paths work.
+  /studio/toolbar/tb_new_file                         icon=SP_FileIcon label=New File tip=Create a file named by the header field — in the selected folder, the folder holding the selected file, or the project root.
+  /studio/toolbar/tb_new_folder                       icon=SP_FileDialogNewFolder label=New Folder tip=Create a folder named by the header field — in the selected folder, the folder holding the selected file, or the project root.
+  /studio/toolbar/tb_whitespace                       checkable=true label=¶ tip=Draw spaces, tabs and line ends in the editor, so trailing blanks and a tab among spaces can be seen. Ctrl+Shift+8, or the ¶ on the toolbar.
   /studio/left/dock_files/files/text                  label=File
   /studio/left/dock_files/files/depth                 depth=true
   /studio/bottom/dock_console/console                 margin=6 spacing=6
@@ -176,8 +176,8 @@ window studio
   /studio/bottom/dock_console/console/run_strip/force_btnlabel=Force Stop
   /studio/bottom/dock_console/console/run_strip/snippet_btnlabel=Insert SQL…
   /studio/bottom/dock_console/console/run_strip/schema_btnlabel=Schema…
-  /studio/bottom/dock_console/console/run_strip/run_sectionlabel=section: (none) wordWrap=false
-  /studio/bottom/dock_console/console/run_strip/run_standinglabel= wordWrap=false
+  /studio/bottom/dock_console/console/run_strip/run_sectionlabel=section: (none) wrap=false
+  /studio/bottom/dock_console/console/run_strip/run_standinglabel= wrap=false
   /studio/bottom/dock_console/console/run_state       label=
   /studio/bottom/dock_console/console/run_branch      label=
   /studio/bottom/dock_console/console/prefix_head     label=Prefix output — sections replayed before the target
@@ -185,7 +185,7 @@ window studio
   /studio/bottom/dock_console/console/err_head        label=Errors
   /studio/right/dock_branch                           margin=0 spacing=6
   /studio/right/dock_branch/branch_list/line          label=Branch
-  /studio/right/dock_branch/bind_btn                  label=Bind name = value toolTip=Give the selected branch a value: type name = value in the name field first. The source is the same in every branch; only its bindings differ.
+  /studio/right/dock_branch/bind_btn                  label=Bind name = value tip=Give the selected branch a value: type name = value in the name field first. The source is the same in every branch; only its bindings differ.
   /studio/right/dock_branch                           margin=0 spacing=6
   /studio/right/dock_branch/ov_edit                   label=Overlay
   /studio/right/dock_branch/ov_save                   label=Save overlay
@@ -195,18 +195,18 @@ window studio
   /studio/right/dock_branch/ov_promote                label=Promote
   /studio/right/dock_branch/ov_discard                label=Discard
   /studio/right/dock_branch/ov_editor                 language=gBASIC line_numbers=true theme=light visible=false
-  /studio/right/dock_branch/ov_diff                   readOnly=true
+  /studio/right/dock_branch/ov_diff                   read_only=true
   /studio/right/dock_tables                           margin=0 spacing=6
   /studio/right/dock_tables/table_list/label          label=Table
   /studio/right/dock_tables/fetch_btn                 label=Fetch all rows (runs the section again)
   /studio/right/dock_agent                            margin=0 spacing=6
   /studio/right/dock_agent/agent_head                 label=Read-only: it can see your project, not change it.
   /studio/right/dock_agent/ask_btn                    label=Where was I?
-  /studio/right/dock_agent/agent_body                 readOnly=true
+  /studio/right/dock_agent/agent_body                 read_only=true
   /studio/status                                      label=ready — ws — 1 project(s) — 0 open
   /studio                                             margin=0 spacing=0
   /studio                                             margin=6 spacing=6
-  /studio/name_field                                  placeholderText=name or path toolTip=A name for New File / New Folder / Rename, or a folder path for Open Folder (~ works). New Project asks for its own.
+  /studio/name_field                                  hint=name or path tip=A name for New File / New Folder / Rename, or a folder path for Open Folder (~ works). New Project asks for its own.
   /studio/book/page_welcome                           margin=12 spacing=6
   /studio/book/page_welcome/welcome                   label=Open a file from the browser, or File ▸ New File.
 == every name it declares ==

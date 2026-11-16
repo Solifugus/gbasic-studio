@@ -28,7 +28,7 @@
 ' A window's SET of parts is fixed when `qt.open` reads the record. Measured on
 ' Qt 6.10.2 through this backend:
 '
-'   * `qt.read(win, "book", "count")` answers 2 for a two-tab `tabs` -- so the
+'   * `ui.read(win, "book", "count")` answers 2 for a two-tab `tabs` -- so the
 '     set is observable;
 '   * `qt.refresh` is `table`s and form subjects only. Asked of a `tabs` it
 '     refuses by name: "declares no table named `book`";
@@ -42,18 +42,18 @@
 ' called once per GENERATION. Measured end to end: close the window, build a
 ' record with one more tab, open it, write the buffers back, restore
 ' `currentIndex`, the window geometry and the pane sizes -- all four carried,
-' and `qt.run()` entered and returned twice in one process (§0.17 records that
+' and `ui.run()` entered and returned twice in one process (§0.17 records that
 ' closing the last window returns from the loop, and that reopening is bounded
 ' at a 1.01 memory ratio over 2000 cycles).
 '
 ' AND THEN gBASIC BUILT THE VERB (§0.27, 2026-10-19), so the paragraph that
 ' used to be here is history worth keeping: the tab set is NOT frozen any more.
 '
-' `qt.refresh(win, name, items)` reconciles a named container's children by
+' `ui.refresh(win, name, items)` reconciles a named container's children by
 ' NAME AND WORD -- a child whose name is unchanged is KEPT with its widget, its
 ' text, its caret and its undo stack; a new one is built through the same door
 ' `qt.open` uses; an absent one is deleted and its name purged. So opening a
-' document is `qt.refresh(win, part_tabs(), <the new items>)` and nothing is
+' document is `ui.refresh(win, part_tabs(), <the new items>)` and nothing is
 ' rebuilt but the tab that arrived.
 '
 ' TWO THINGS FOLLOW, and both were measured rather than read:
@@ -518,7 +518,7 @@ end function
 ' That is the GTK shell's arrangement kept deliberately, and the reason is the
 ' same: minting widgets inside a selection handler is the doubling `ui_gui_solo`
 ' exists to catch one level up, and under Qt it would additionally need a
-' reconcile where `qt.set(... "visible" ...)` does. `studio_ui.context_actions`
+' reconcile where `ui.set(... "visible" ...)` does. `studio_ui.context_actions`
 ' decides which a row offers and `studio_ui.context_all` is the closed list, so
 ' nothing here knows what a row is.
 '
@@ -580,9 +580,9 @@ function table_window(caption, note, cols, numeric)
     body = []
     ' THE CAPTION READS AS A TITLE.
     body = append(body, part("text", "grid_caption",
-                             { label: caption, styleSheet: studio_shell_qt.heading_style() }))
+                             { label: caption, bold: true }))
     ' What a SAMPLE means and where the rest is -- empty for a whole table.
-    body = append(body, part("text", "grid_note", { label: note, wordWrap: true }))
+    body = append(body, part("text", "grid_note", { label: note, wrap: true }))
     if count(fields) > 0 then
         ' SORTING IS STUDIO'S (see `studio_table.sort_rows`): gBASIC turns
         ' header-click sorting off on an asking table, so the order is chosen
@@ -657,14 +657,14 @@ function snippet_window(rows, engine, conn_name)
         if f.secret then
             ' NOT masked: the value is about to be written into the document in
             ' plain text, and a masked field would say the opposite.
-            opts = { toolTip: "This is written into your document in plain text — the statement carries it, so there is nowhere else for it to go." }
+            opts = { tip: "This is written into your document in plain text — the statement carries it, so there is nowhere else for it to go." }
         end if
         lines = append(lines, named("row", f.line, [
             part("text", f.part + "_label", { label: f.label }),
             part("field", f.part, opts) ]))
     end for
     body = [
-        part("text", "sn_head", { label: "Write a statement into this file", styleSheet: studio_shell_qt.heading_style() }),
+        part("text", "sn_head", { label: "Write a statement into this file", bold: true }),
         ' WHICH database, said out loud: a form offering `create login` without
         ' saying it means SQL Server on `erp` is one you must already understand.
         part("text", "sn_where", { label: conn_name + " — " + engine }),
@@ -703,10 +703,10 @@ function schema_window(conn_name, driver)
     return { kind: "window", name: studio_shell_qt.schema_window_name(),
              options: { title: "gBASIC Studio — schema", width: 600, height: 520 },
              items: [ box("column", { margin: u * 2, spacing: u }, [
-                 part("text", "sc_head", { label: "What this database says about itself", styleSheet: studio_shell_qt.heading_style() }),
+                 part("text", "sc_head", { label: "What this database says about itself", bold: true }),
                  part("text", "sc_where", { label: conn_name + " — " + driver }),
                  part("choice", "sc_pick", {}),
-                 part("memo", "sc_cols", { readOnly: true }),
+                 part("memo", "sc_cols", { read_only: true }),
                  part("text", "sc_asked_head", { label: "Studio asked" }),
                  part("text", "sc_asked", { label: "" }),
                  part("text", "sc_note", { label: "" }),
@@ -715,14 +715,14 @@ function schema_window(conn_name, driver)
                      part("button", "sc_close", { label: "Close" }),
                      part("button", "sc_insert",
                           { label: "Insert a select",
-                            toolTip: "Write `select <every column> from <this table>;` into your document, at the caret. Naming the columns rather than `select *` is the habit worth keeping." }) ]) ]) ] }
+                            tip: "Write `select <every column> from <this table>;` into your document, at the caret. Naming the columns rather than `select *` is the habit worth keeping." }) ]) ]) ] }
 end function
 
 function new_project_name()
     return "newproj"
 end function
 
-' The subject the form edits. `qt.subject(win, "opts")` IS the whole of the
+' The subject the form edits. `ui.subject(win, "opts")` IS the whole of the
 ' widget-to-value read, which is what makes this window so much smaller than
 ' the GTK one.
 function newproj_subject()
@@ -756,21 +756,21 @@ function new_project_window(opts, license_ids)
              options: { title: "gBASIC Studio — new project",
                         width: 560, height: 420 },
              items: [ box("column", { margin: u * 2, spacing: u }, [
-                 part("text", "np_head", { label: "New project", styleSheet: studio_shell_qt.heading_style() }),
+                 part("text", "np_head", { label: "New project", bold: true }),
                  { kind: "container", word: "form", direction: "edit",
                    subject: studio_shell_qt.newproj_subject(), items: [
                      part("field", "name",
                           { label: "Name",
-                            toolTip: "What the project is called. The DIRECTORY is a slug of this, so \"My Thing\" lands in my-thing." }),
+                            tip: "What the project is called. The DIRECTORY is a slug of this, so \"My Thing\" lands in my-thing." }),
                      part("field", "location",
                           { label: "Location",
-                            toolTip: "The directory the project directory is made inside. ~/ and relative paths work." }),
+                            tip: "The directory the project directory is made inside. ~/ and relative paths work." }),
                      part("field", "author",
                           { label: "Author",
-                            toolTip: "Who a licence names as the copyright holder. Taken from git's user.name when there is one." }),
+                            tip: "Who a licence names as the copyright holder. Taken from git's user.name when there is one." }),
                      part("choice", "license",
                           { label: "Licence",
-                            toolTip: "Studio does not write a licence of its own: it copies the text from share/licenses/ and fills in the year and the author." }),
+                            tip: "Studio does not write a licence of its own: it copies the text from share/licenses/ and fills in the year and the author." }),
                      ' THE FOUR FILES, in the order a project usually acquires
                      ' them. ONLY main.bas IS ON: a project with nothing in it
                      ' scans to zero browser rows and there is nowhere to
@@ -801,7 +801,7 @@ end function
 ' A menu and its items. A `menu`'s slot carries a CAPTION and not a name
 ' (§0.7, asserted both ways upstream so a menu and a table cannot drift
 ' together), and an ITEM is a QAction addressed by name -- which is what makes
-' `qt.invoke(win, name, "trigger")` a real press rather than a call to the
+' `ui.invoke(win, name, "press")` a real press rather than a call to the
 ' handler, and so what finally gives the menu items a display tier that
 ' presses what a person presses.
 function _menu_for(app, spec)
@@ -821,7 +821,7 @@ end function
 ' THE ●/○ MARKS RETIRE HERE. Under GTK a popover of plain `Gtk.Button`s cannot
 ' draw a radio mark, so `studio_ui.menu_text` prefixes a glyph -- a trade, not
 ' a limitation, taken to keep every item pressable by a test. A QAction is
-' `checkable:` and `qt.set(win, item, "checked", true)` moves it, so the mark
+' `checkable:` and `ui.set(win, item, "checked", true)` moves it, so the mark
 ' becomes the toolkit's own and the label becomes just the label. `menu_mark`
 ' is still the one place that decides WHICH item is the current one; only its
 ' rendering changed.
@@ -831,7 +831,7 @@ function _item_for(app, action)
     if hint != "" then
         ' A QAction's tooltip is where the sentence a toolbar button had no
         ' room for goes -- the whole argument of STU-16, kept.
-        opts.toolTip = hint
+        opts.tip = hint
     end if
     state = studio_ui.menu_checkable(action)
     if state then
@@ -923,20 +923,20 @@ function _toolbar(app)
     return toolbar(studio_shell_qt.part_toolbar(), [
         part("item", studio_shell_qt.part_save(),
              { label: "Save", icon: "SP_DialogSaveButton",
-               toolTip: "Write the active document to disk. Over a file that changed underneath, press twice — the first press arms it." }),
+               tip: "Write the active document to disk. Over a file that changed underneath, press twice — the first press arms it." }),
         part("item", "tb_reload",
              { label: "Reload", icon: "SP_BrowserReload",
-               toolTip: studio_ui.menu_hint("reload") }),
+               tip: studio_ui.menu_hint("reload") }),
         bare("separator"),
         part("item", "tb_open_folder",
              { label: "Open Folder", icon: "SP_DialogOpenButton",
-               toolTip: studio_ui.menu_hint("open-folder") }),
+               tip: studio_ui.menu_hint("open-folder") }),
         part("item", "tb_new_file",
              { label: "New File", icon: "SP_FileIcon",
-               toolTip: studio_ui.menu_hint("new-file") }),
+               tip: studio_ui.menu_hint("new-file") }),
         part("item", "tb_new_folder",
              { label: "New Folder", icon: "SP_FileDialogNewFolder",
-               toolTip: studio_ui.menu_hint("new-folder") }),
+               tip: studio_ui.menu_hint("new-folder") }),
         bare("separator"),
         ' ONE PRESS, and that was the request: Notepad++ keeps this deep in a
         ' menu. Checkable, so the button itself says whether they are shown.
@@ -946,7 +946,7 @@ function _toolbar(app)
         ' as it sets the dark set; until then, or without the file, it is ¶.
         part("item", studio_shell_qt.part_tb_whitespace(),
              { label: "¶", checkable: true,
-               toolTip: studio_ui.menu_hint("show-whitespace") }) ])
+               tip: studio_ui.menu_hint("show-whitespace") }) ])
 end function
 
 ' The five panes that were a scrolled column on the right, each now a dock with
@@ -978,7 +978,7 @@ function _branch_body(app)
                    [ column_of("line", "Branch") ]),
         part("button", "bind_btn",
              { label: "Bind name = value",
-               toolTip: "Give the selected branch a value: type name = value in the name field first. The source is the same in every branch; only its bindings differ." }),
+               tip: "Give the selected branch a value: type name = value in the name field first. The source is the same in every branch; only its bindings differ." }),
         box("row", { margin: 0, spacing: u }, [
             part("button", "ov_edit", { label: "Overlay" }),
             part("button", "ov_save", { label: "Save overlay" }),
@@ -991,7 +991,7 @@ function _branch_body(app)
              { language: "gBASIC", line_numbers: true, visible: false,
                theme: studio_style.qt_source_theme(app.model.settings.theme) }),
         ' Where Compare prints and a conflict is spelled out.
-        part("memo", "ov_diff", { readOnly: true }) ])
+        part("memo", "ov_diff", { read_only: true }) ])
 end function
 
 ' THE ASSISTANT PANE (STU-6): read-only, and it says so. One question --
@@ -1003,7 +1003,7 @@ function _agent_body()
         part("text", "agent_head",
              { label: "Read-only: it can see your project, not change it." }),
         part("button", "ask_btn", { label: "Where was I?" }),
-        part("memo", "agent_body", { readOnly: true }) ])
+        part("memo", "agent_body", { read_only: true }) ])
 end function
 
 function _side_docks(app)
@@ -1051,8 +1051,8 @@ function _central(app)
     return box("column", { margin: 0, spacing: 0 }, [
         box("row", { margin: u, spacing: u }, [
             part("field", studio_shell_qt.part_name_field(),
-                 { placeholderText: "name or path",
-                   toolTip: "A name for New File / New Folder / Rename, or a folder path for Open Folder (~ works). New Project asks for its own." }),
+                 { hint: "name or path",
+                   tip: "A name for New File / New Folder / Rename, or a folder path for Open Folder (~ works). New Project asks for its own." }),
             bare("stretch") ]),
         studio_shell_qt._editors(app) ])
 end function
@@ -1193,7 +1193,7 @@ function _console(app)
     ' Three of the five buttons are HIDDEN rather than absent, which is the
     ' rule the GTK strip already follows: a control that is added and removed
     ' is a control whose parent can be destroyed under a live window, and under
-    ' Qt it would additionally need a reconcile where `qt.set(… "visible" …)`
+    ' Qt it would additionally need a reconcile where `ui.set(… "visible" …)`
     ' does.
     ' NAMED, so the assistant can point at it (`teach_target`); a named row
     ' carries no options, so it takes the default spacing.
@@ -1209,8 +1209,8 @@ function _console(app)
         ' NOT wrapped: a `text` part wraps by default, and in a row with a
         ' stretch a wrapping label is squeezed -- "section: sec-1 statements"
         ' came out on two lines beside an empty half-row, seen in a capture.
-        part("text", "run_section", { label: "section: (none)", wordWrap: false }),
-        part("text", "run_standing", { label: "", wordWrap: false }),
+        part("text", "run_section", { label: "section: (none)", wrap: false }),
+        part("text", "run_standing", { label: "", wrap: false }),
         bare("stretch") ])
     panes = [ strip,
               part("text", "run_state", { label: "" }),

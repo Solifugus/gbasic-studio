@@ -2464,9 +2464,9 @@ program main(args)
     app.model.settings.theme = "dark"
     print "  and under dark, probed: " + studio_style.editor_theme(app)
     app.model.settings.theme = "print"
-    sh = studio_style.qt_sheet_for("print")
-    print "  sheet is the print one: " + string(contains(sh, studio_style.print_palette().bg)) + "   not the dark one: " + string(not contains(sh, studio_style.dark_bg()))
-    print "  system sets no sheet: " + string(studio_style.qt_sheet_for("system") = "")
+    th = studio_style.qt_theme_for("print")
+    print "  theme is the print one: " + string(th.bg = studio_style.print_palette().bg) + "   not the dark one: " + string(th.bg != studio_style.dark_bg())
+    print "  system sets no theme: " + string(studio_style.qt_theme_for("system") = "")
     pal = studio_style.print_palette()
     grays = []
     for each k in ["bg", "base", "ctl", "hi", "fg", "faint", "line", "sel", "on_sel"]
@@ -2481,7 +2481,7 @@ program main(args)
     app.model.settings.theme = "dark"
 
     banner("the editor's text size")
-    print "  starts at " + studio_ui.zoom_label(studio_ui.editor_zoom(app)) + "   a 10pt editor is " + string(studio_style.qt_zoomed_size("monospace,10", studio_ui.editor_zoom(app))) + "pt"
+    print "  starts at " + studio_ui.zoom_label(studio_ui.editor_zoom(app)) + "   a 10pt editor is " + string(studio_style.qt_zoomed_size(10, studio_ui.editor_zoom(app))) + "pt"
     for each d in [1, 1, 1]
       r = studio_ui.zoom_by(app, d)
       app = r.app

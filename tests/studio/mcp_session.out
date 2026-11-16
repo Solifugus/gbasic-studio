@@ -50,7 +50,7 @@ frame offered: false
 -- run_state later  finished=true
 -- section_output  {"section_id":"sec-2","ran":true,"prefix":"","target":"woke\n","errors":""}
 -- capture  REFUSED
-   qt.capture: this window has no `nosuch`; its parts are agent_body, agent_head, ask_btn, bind_btn,...
+   ui.capture: this window has no `nosuch`; its parts are agent_body, agent_head, ask_btn, bind_btn,...
 -- delete_path  REFUSED
    delete_path is not offered in this session: it is external, and external tools are denied
 -- no_such_tool  REFUSED

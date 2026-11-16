@@ -18,7 +18,7 @@
 ' do not -- so each reads the program global `G`, the same two-line wrapper
 ' shape the agent tool adapters use.
 '
-' `qt.run()` IS CALLED FROM THE TOP LEVEL OF `program`, and that is load-bearing
+' `ui.run()` IS CALLED FROM THE TOP LEVEL OF `program`, and that is load-bearing
 ' rather than tidy: from inside a function every loop-delivered source is
 ' silently starved -- a timer tick is appended to `timer.ticks` and never
 ' delivered, the schedule advances so it looks like it is working, and the
@@ -56,7 +56,7 @@ end function
 ' The same, with a sentence `studio_ui` has no vocabulary for. ONE caller: the
 ' Run button, until a `source`'s caret is readable. See `on_qt_run`.
 function qt_redraw_saying(notice)
-    if not qt.is_open(G.win) then
+    if not ui.is_open(G.win) then
         return nothing
     end if
     ' THE RE-ENTRANCY GUARD, and leaving it out SEGFAULTED.
@@ -87,7 +87,7 @@ function qt_redraw_saying(notice)
     nav = studio_ui.nav_rows(G.app)
     G.app = studio_view_qt.render(G.win, G.app, notice)
     if studio_ui.clears_name(G.last_action) then
-        z = qt.write(G.win, studio_shell_qt.part_name_field(), "")
+        z = ui.write(G.win, studio_shell_qt.part_name_field(), "")
     end if
     G.redrawing = false
     return nothing
@@ -110,7 +110,7 @@ end function
 ' about three runs in five and, when it does not, answers `unknown` for a row
 ' that was just selected. Reported upstream with a thirty-line reproduction.
 function qt_redraw_selection()
-    if not qt.is_open(G.win) then
+    if not ui.is_open(G.win) then
         return nothing
     end if
     if G.redrawing then
@@ -136,7 +136,7 @@ function qt_redraw_selection()
     if line = "" then
         line = studio_ui.status_text(G.app)
     end if
-    z = qt.set(G.win, studio_shell_qt.part_status(), "text", line)
+    z = ui.set(G.win, studio_shell_qt.part_status(), "text", line)
     G.redrawing = false
     return nothing
 end function
@@ -144,7 +144,7 @@ end function
 ' What the header's name field currently holds. The whole of the
 ' widget-to-value read for every naming action.
 function qt_typed_name()
-    return qt.read(G.win, studio_shell_qt.part_name_field(), "text")
+    return ui.read(G.win, studio_shell_qt.part_name_field(), "text")
 end function
 
 function qt_note(kind, target, detail)
@@ -172,7 +172,7 @@ function on_qt_nav_selected()
     if G.redrawing then
         return nothing
     end if
-    idx = qt.selected(G.win, studio_shell_qt.part_browser())
+    idx = ui.selected(G.win, studio_shell_qt.part_browser())
     if is_unknown(idx) then
         return nothing
     end if
@@ -198,7 +198,7 @@ end function
 ' exception Ctrl+wheel already carries: the logic is tested and only the wiring
 ' is not.
 function on_qt_nav_clicked()
-    idx = qt.selected(G.win, studio_shell_qt.part_browser())
+    idx = ui.selected(G.win, studio_shell_qt.part_browser())
     if is_unknown(idx) then
         return nothing
     end if
@@ -231,7 +231,7 @@ end function
 ' rather than on whatever is selected when the item is pressed. That is the same
 ' reason the GTK shell keeps `G.ctx_index`.
 function on_qt_nav_context()
-    idx = qt.selected(G.win, studio_shell_qt.part_browser())
+    idx = ui.selected(G.win, studio_shell_qt.part_browser())
     if is_unknown(idx) then
         return nothing
     end if
@@ -239,14 +239,14 @@ function on_qt_nav_context()
     rows = studio_ui.nav_rows(G.app)
     offered = studio_ui.context_actions(rows, idx)
     for each action in studio_ui.context_all()
-        z = qt.set(G.win, studio_shell_qt.part_ctx(action), "visible",
+        z = ui.set(G.win, studio_shell_qt.part_ctx(action), "visible",
                    contains(offered, action))
     end for
     ' AN EMPTY MENU IS NOT SHOWN, and Qt is what refuses: an all-hidden QMenu
     ' is `isEmpty()` and `popup()` leaves it invisible, so this answers false
     ' for a row that offers nothing -- which is an ordinary outcome and not a
     ' failure, exactly as the GTK `context_for` reports it.
-    G.ctx_shown = qt.popup(G.win, studio_shell_qt.part_nav_menu())
+    G.ctx_shown = ui.popup(G.win, studio_shell_qt.part_nav_menu())
     return nothing
 end function
 
@@ -291,14 +291,14 @@ function on_qt_ctx_rename()
     if r = nothing then
         return nothing
     end if
-    z = qt.write(G.win, studio_shell_qt.part_name_field(), r.name)
+    z = ui.write(G.win, studio_shell_qt.part_name_field(), r.name)
     ' FOCUS IT AND SELECT WHAT IS IN IT, so the next keystroke replaces the
     ' name rather than appending to it -- which is what the GTK handler's
     ' `grab_focus` + `select_region(0, -1)` does. `qt.select` is a TABLE's verb
     ' and raises on a field; `selectAll` is an ordinary zero-argument method,
     ' which is what `qt.invoke` passes.
-    z = qt.invoke(G.win, studio_shell_qt.part_name_field(), "setFocus")
-    z = qt.invoke(G.win, studio_shell_qt.part_name_field(), "selectAll")
+    z = ui.invoke(G.win, studio_shell_qt.part_name_field(), "focus")
+    z = ui.invoke(G.win, studio_shell_qt.part_name_field(), "select_all")
     G.last_action = "rename-ready"
     G.last_detail = r.name
     return qt_redraw()
@@ -340,7 +340,7 @@ function on_qt_branch_row()
     if G.redrawing then
         return nothing
     end if
-    idx = qt.selected(G.win, studio_shell_qt.part_branches())
+    idx = ui.selected(G.win, studio_shell_qt.part_branches())
     if is_unknown(idx) then
         return nothing
     end if
@@ -358,7 +358,7 @@ function on_qt_tab_changed()
     if G.redrawing then
         return nothing
     end if
-    at = qt.read(G.win, studio_shell_qt.part_tabs(), "currentIndex")
+    at = ui.read(G.win, studio_shell_qt.part_tabs(), "index")
     return qt_took(studio_ui.select_tab(G.app, studio_ui.tab_rows(G.app), at))
 end function
 
@@ -371,14 +371,14 @@ end function
 ' AND THAT IS WHY `currentIndex` IS THE WRONG QUESTION HERE. Measured upstream
 ' (gBASIC §0.33): a right-press moves a tree's current row but correctly does
 ' NOT move a tab bar's current index, so reading it would close whichever tab
-' was already active, in silence. `qt.which_tab()` answers the tab the event is
+' was already active, in silence. `ui.which_tab()` answers the tab the event is
 ' about -- or `unknown` for a right-click that landed on no tab, which gets no
 ' menu, as under GTK where the gesture lives on the tab label only.
 '
 ' The DOCUMENT is remembered, not the index: a redraw between the click and the
 ' press can move the tab set, and an index would then name a neighbour.
 function on_qt_tab_context()
-    idx = qt.which_tab()
+    idx = ui.which_tab()
     if is_unknown(idx) then
         return nothing
     end if
@@ -387,7 +387,7 @@ function on_qt_tab_context()
         return nothing
     end if
     G.tab_ctx_doc = id
-    G.tab_ctx_shown = qt.popup(G.win, studio_shell_qt.part_tab_menu())
+    G.tab_ctx_shown = ui.popup(G.win, studio_shell_qt.part_tab_menu())
     return nothing
 end function
 
@@ -409,7 +409,7 @@ end function
 function on_qt_tab_copy_path()
     r = studio_ui.tab_path(G.app, G.tab_ctx_doc)
     if r.ok then
-        z = qt.copy(r.text)
+        z = ui.copy(r.text)
     end if
     ' Not `qt_took`: `tab_path` changes nothing, so it hands back no app.
     G.last_action = r.action
@@ -419,9 +419,9 @@ end function
 
 ' ---- Ctrl+wheel: the editor's text size (STU-20) ---------------------------
 '
-' A WHEEL IS AN EVENT, NOT A SIGNAL, so the handler asks `qt.wheel()` for it.
+' A WHEEL IS AN EVENT, NOT A SIGNAL, so the handler asks `ui.wheel()` for it.
 ' Ctrl held: one step along the same ladder the menu items climb, through the
-' same `studio_ui.zoom_by` -- and `qt.swallow()`, or the editor ALSO scrolls,
+' same `studio_ui.zoom_by` -- and `ui.swallow()`, or the editor ALSO scrolls,
 ' faster than a plain wheel, while the text resizes under it. No Ctrl: decline
 ' and leave it alone, which is what keeps ordinary scrolling working.
 '
@@ -442,11 +442,11 @@ end function
 ' Every editor's wheel lands here and none of them needs telling apart: the
 ' size is the application's, not one tab's.
 function on_qt_editor_wheel()
-    ev = qt.wheel()
+    ev = ui.wheel()
     if not ev.ctrl then
         return nothing
     end if
-    z = qt.swallow()
+    z = ui.swallow()
     turn = ev.dy
     if has(ev, "dy_exact") then
         turn = ev.dy_exact
@@ -483,7 +483,7 @@ function on_qt_editor_block()
     if G.redrawing then
         return nothing
     end if
-    r = studio_ui.block_event(G.app, qt.block_event())
+    r = studio_ui.block_event(G.app, ui.block_event())
     if r.action = "block-none" then
         return nothing
     end if
@@ -503,8 +503,8 @@ function qt_prose_edit(r)
         return nothing
     end if
     part = studio_shell_qt.part_editor(doc.id)
-    z = qt.caret_to(G.win, part, r.line, 1)
-    z = qt.invoke(G.win, part, "setFocus")
+    z = ui.caret_to(G.win, part, r.line, 1)
+    z = ui.invoke(G.win, part, "focus")
     G.app = qt_sync_caret(G.app)
     return nothing
 end function
@@ -517,7 +517,7 @@ end function
 ' an older `qt.check` would refuse a signal it does not know.
 function qt_blocks_probe()
     on error goto next
-    z = qt.blocks({ kind: "window", name: "studio_blocks_probe", options: {}, items: [] }, "ed")
+    z = ui.blocks({ kind: "window", name: "studio_blocks_probe", options: {}, items: [] }, "ed")
     if error then
         return not contains(error.message, "does not define")
     end if
@@ -543,7 +543,7 @@ function on_qt_table_row()
     if G.redrawing then
         return nothing
     end if
-    idx = qt.selected(G.win, studio_shell_qt.part_tables())
+    idx = ui.selected(G.win, studio_shell_qt.part_tables())
     if is_unknown(idx) then
         return nothing
     end if
@@ -561,48 +561,48 @@ function on_qt_table_row()
     ' same offer again. Inside the guard, because clearing it is a selection
     ' change too and echoes straight back here.
     G.redrawing = true
-    z = qt.select(G.win, studio_shell_qt.part_tables(), unknown)
+    z = ui.select(G.win, studio_shell_qt.part_tables(), unknown)
     G.redrawing = false
     return nothing
 end function
 
 function qt_open_grid(caption, src)
     if G.tablewin != nothing then
-        if qt.is_open(G.tablewin) then
-            z = qt.close(G.tablewin)
+        if ui.is_open(G.tablewin) then
+            z = ui.close(G.tablewin)
         end if
     end if
     G.table_src = src
     w = studio_shell_qt.table_window(caption, studio_table.caption_note(src), src.cols,
                                      studio_table.numeric_columns(src))
     if count(src.cols) > 0 then
-        w = qt_on(w, "grid_sort", "currentIndexChanged", qt_grid_sort)
-        w = qt_on(w, "grid_desc", "toggled", qt_grid_sort)
+        w = qt_on(w, "grid_sort", "changed", qt_grid_sort)
+        w = qt_on(w, "grid_desc", "changed", qt_grid_sort)
     end if
     G.tablewin = w
-    z = qt.open(G.tablewin)
+    z = ui.open(G.tablewin)
     ' FOCUS GOES TO THE CONTENT. Left to Qt it lands on the first focusable
     ' part, which is the caption -- a keyboard-selectable label, so the window
     ' opened with a text caret blinking after its title.
     if count(src.cols) > 0 then
-        z = qt.invoke(G.tablewin, studio_shell_qt.part_grid(), "setFocus")
+        z = ui.invoke(G.tablewin, studio_shell_qt.part_grid(), "focus")
     end if
     if count(src.cols) > 0 then
         ' The choice's list is DATA (the columns), so it is filled after the
         ' open -- and inside the guard, because filling it is a change too.
         G.redrawing = true
-        z = qt.options(G.tablewin, "grid_sort", studio_shell_qt.sort_choices(src.cols))
+        z = ui.options(G.tablewin, "grid_sort", studio_shell_qt.sort_choices(src.cols))
         G.redrawing = false
         ' HOW MANY ROWS, which is the one thing a `to ask` table is told rather
         ' than asks: `known` is what the source can actually show -- the
         ' sample's rows, or an export's lines -- and never the run's total,
         ' which the caption states beside it.
-        z = qt.rows(G.tablewin, studio_shell_qt.part_grid(), src.known)
+        z = ui.rows(G.tablewin, studio_shell_qt.part_grid(), src.known)
         ' COLUMNS SIZED TO WHAT THEY HOLD. Qt measures the rows in view rather
         ' than the whole table, so this costs a screenful whatever the size;
         ' a table wider than the window scrolls sideways (the asking table's
         ' scrollbars are "as needed").
-        z = qt.invoke(G.tablewin, studio_shell_qt.part_grid(), "resizeColumnsToContents")
+        z = ui.invoke(G.tablewin, studio_shell_qt.part_grid(), "fit_columns")
     end if
     return nothing
 end function
@@ -614,23 +614,23 @@ function qt_grid_sort()
     if G.redrawing then
         return nothing
     end if
-    pick = qt.read(G.tablewin, "grid_sort", "currentIndex")
-    desc = qt.read(G.tablewin, "grid_desc", "checked")
+    pick = ui.read(G.tablewin, "grid_sort", "index")
+    desc = ui.read(G.tablewin, "grid_desc", "checked")
     if pick <= 0 then
         G.table_src = studio_table.unsorted(G.table_src)
-        z = qt.set(G.tablewin, "grid_note", "text", studio_table.caption_note(G.table_src))
+        z = ui.set(G.tablewin, "grid_note", "text", studio_table.caption_note(G.table_src))
     else
         r = studio_table.sort_rows(G.table_src, pick - 1, desc)
         G.table_src = r.src
         if not r.ok then
-            z = qt.set(G.tablewin, "grid_note", "text", r.why)
+            z = ui.set(G.tablewin, "grid_note", "text", r.why)
             return nothing
         end if
-        z = qt.set(G.tablewin, "grid_note", "text", studio_table.caption_note(G.table_src))
+        z = ui.set(G.tablewin, "grid_note", "text", studio_table.caption_note(G.table_src))
     end if
     ' "The data changed": resetting the count is how an asking table is told,
     ' and Qt asks again for what is in view.
-    return qt.rows(G.tablewin, studio_shell_qt.part_grid(), G.table_src.known)
+    return ui.rows(G.tablewin, studio_shell_qt.part_grid(), G.table_src.known)
 end function
 
 ' THE GRID'S CELL FUNCTION, resolved BY NAME (`studio_shell_qt.grid_cell_fn`)
@@ -668,7 +668,7 @@ function qt_tables_wait()
 end function
 
 ' The run in flight, ticked to its end under a deadline of `secs` -- the
-' poller's work, done in line because nothing here is inside `qt.run()`.
+' poller's work, done in line because nothing here is inside `ui.run()`.
 ' Answers the run's final action, or "TIMED OUT" with the run still going.
 function qt_run_wait(secs)
     deadline = monotonic() + secs
@@ -694,14 +694,14 @@ end function
 function qt_tables_report()
     tw = G.tablewin
     g = studio_shell_qt.part_grid()
-    print "  caption: " + qt.read(tw, "grid_caption", "text")
-    print "  note:    [" + qt.read(tw, "grid_note", "text") + "]"
-    n = qt.rows(tw, g)
+    print "  caption: " + ui.read(tw, "grid_caption", "text")
+    print "  note:    [" + ui.read(tw, "grid_note", "text") + "]"
+    n = ui.rows(tw, g)
     print "  rows:    " + string(n)
-    print "  columns: " + qt.heading(tw, g, 0) + ", " + qt.heading(tw, g, 1) + ", " + qt.heading(tw, g, 2)
-    print "  aligned: " + qt.alignment(tw, g, 0, "c0") + " | " + qt.alignment(tw, g, 0, "c1") + " | " + qt.alignment(tw, g, 0, "c2")
-    print "  first:   " + qt.cell(tw, g, 0, "c0") + " | " + qt.cell(tw, g, 0, "c1") + " | " + qt.cell(tw, g, 0, "c2")
-    print "  last:    " + qt.cell(tw, g, n - 1, "c0") + " | " + qt.cell(tw, g, n - 1, "c1") + " | " + qt.cell(tw, g, n - 1, "c2")
+    print "  columns: " + ui.heading(tw, g, 0) + ", " + ui.heading(tw, g, 1) + ", " + ui.heading(tw, g, 2)
+    print "  aligned: " + ui.alignment(tw, g, 0, "c0") + " | " + ui.alignment(tw, g, 0, "c1") + " | " + ui.alignment(tw, g, 0, "c2")
+    print "  first:   " + ui.cell(tw, g, 0, "c0") + " | " + ui.cell(tw, g, 0, "c1") + " | " + ui.cell(tw, g, 0, "c2")
+    print "  last:    " + ui.cell(tw, g, n - 1, "c0") + " | " + ui.cell(tw, g, n - 1, "c1") + " | " + ui.cell(tw, g, n - 1, "c2")
     return nothing
 end function
 
@@ -712,7 +712,7 @@ end function
 ' it; this is the adapter, plus the show/hide of the picked snippet's fields.
 function on_qt_snippet()
     if G.snipwin != nothing then
-        if qt.is_open(G.snipwin) then
+        if ui.is_open(G.snipwin) then
             return nothing
         end if
     end if
@@ -724,33 +724,33 @@ function on_qt_snippet()
     end if
     G.snip_rows = r.rows
     G.snipwin = qt_wire_snippet(studio_shell_qt.snippet_window(r.rows, r.engine, r.name))
-    z = qt.open(G.snipwin)
-    z = qt.invoke(G.snipwin, "sn_pick", "setFocus")
+    z = ui.open(G.snipwin)
+    z = ui.invoke(G.snipwin, "sn_pick", "focus")
     names = []
     for each row in r.rows
         names = append(names, row.name)
     end for
-    z = qt.options(G.snipwin, "sn_pick", names)
+    z = ui.options(G.snipwin, "sn_pick", names)
     ' DEFAULTS ARE STATE, written after the open like an editor's text.
     for each f in studio_shell_qt.snippet_fields(r.rows)
-        z = qt.write(G.snipwin, f.part, f.default)
+        z = ui.write(G.snipwin, f.part, f.default)
     end for
     if count(names) > 0 then
-        z = qt.write(G.snipwin, "sn_pick", names[0])
+        z = ui.write(G.snipwin, "sn_pick", names[0])
     end if
     return qt_snip_show()
 end function
 
 function qt_wire_snippet(win)
-    win = qt_on(win, "sn_pick", "currentIndexChanged", qt_snip_show)
-    win = qt_on(win, "sn_insert", "clicked", on_qt_snip_insert)
-    win = qt_on(win, "sn_cancel", "clicked", on_qt_snip_cancel)
+    win = qt_on(win, "sn_pick", "changed", qt_snip_show)
+    win = qt_on(win, "sn_insert", "pressed", on_qt_snip_insert)
+    win = qt_on(win, "sn_cancel", "pressed", on_qt_snip_cancel)
     return win
 end function
 
 ' Which snippet is picked: an index into `G.snip_rows`, or -1.
 function qt_snip_index()
-    at = qt.read(G.snipwin, "sn_pick", "currentIndex")
+    at = ui.read(G.snipwin, "sn_pick", "index")
     if at < 0 then
         return 0 - 1
     end if
@@ -765,13 +765,13 @@ end function
 function qt_snip_show()
     sel = qt_snip_index()
     for each f in studio_shell_qt.snippet_fields(G.snip_rows)
-        z = qt.set(G.snipwin, f.line, "visible", f.row = sel)
+        z = ui.set(G.snipwin, f.line, "visible", f.row = sel)
     end for
     desc = ""
     if sel >= 0 then
         desc = G.snip_rows[sel].description
     end if
-    z = qt.set(G.snipwin, "sn_desc", "text", desc)
+    z = ui.set(G.snipwin, "sn_desc", "text", desc)
     return nothing
 end function
 
@@ -781,7 +781,7 @@ function qt_snip_values(sel)
     vals = {}
     for each f in studio_shell_qt.snippet_fields(G.snip_rows)
         if f.row = sel then
-            vals[f.name] = qt.read(G.snipwin, f.part, "text")
+            vals[f.name] = ui.read(G.snipwin, f.part, "text")
         end if
     end for
     return vals
@@ -797,23 +797,23 @@ function on_qt_snip_insert()
     end if
     r = studio_ui.insert_snippet(G.app, G.snip_rows[sel].id, qt_snip_values(sel))
     if r.action != "inserted" then
-        z = qt.set(G.snipwin, "sn_note", "text", studio_ui.action_notice(r.action, r.detail))
+        z = ui.set(G.snipwin, "sn_note", "text", studio_ui.action_notice(r.action, r.detail))
         return nothing
     end if
-    z = qt.close(G.snipwin)
+    z = ui.close(G.snipwin)
     z = qt_took(r)
     return qt_caret_to_model()
 end function
 
 function on_qt_snip_cancel()
-    return qt.close(G.snipwin)
+    return ui.close(G.snipwin)
 end function
 
 ' The names of the fields the snippet window is SHOWING, read off the window.
 function qt_snip_shown()
     out = []
     for each f in studio_shell_qt.snippet_fields(G.snip_rows)
-        if qt.read(G.snipwin, f.line, "visible") then
+        if ui.read(G.snipwin, f.line, "visible") then
             out = append(out, f.name)
         end if
     end for
@@ -828,7 +828,7 @@ end function
 ' table on screen. `insert_schema_select` writes `select <every column>`.
 function on_qt_schema()
     if G.schemawin != nothing then
-        if qt.is_open(G.schemawin) then
+        if ui.is_open(G.schemawin) then
             return nothing
         end if
     end if
@@ -842,13 +842,13 @@ function on_qt_schema()
     G.schema_tables = r.tables
     G.schema_columns = []
     w = studio_shell_qt.schema_window(c.name, c.conn.driver)
-    w = qt_on(w, "sc_pick", "currentIndexChanged", qt_schema_pick)
-    w = qt_on(w, "sc_insert", "clicked", on_qt_schema_insert)
-    w = qt_on(w, "sc_close", "clicked", on_qt_schema_close)
+    w = qt_on(w, "sc_pick", "changed", qt_schema_pick)
+    w = qt_on(w, "sc_insert", "pressed", on_qt_schema_insert)
+    w = qt_on(w, "sc_close", "pressed", on_qt_schema_close)
     G.schemawin = w
-    z = qt.open(G.schemawin)
-    z = qt.invoke(G.schemawin, "sc_pick", "setFocus")
-    z = qt.set(G.schemawin, "sc_asked", "text", r.source)
+    z = ui.open(G.schemawin)
+    z = ui.invoke(G.schemawin, "sc_pick", "focus")
+    z = ui.set(G.schemawin, "sc_asked", "text", r.source)
     names = []
     for each t in r.tables
         names = append(names, studio_schema.table_label(t))
@@ -856,12 +856,12 @@ function on_qt_schema()
     ' Filling the list picks its first entry, which fires the pick handler --
     ' so the window opens on the first table's columns and not a blank pane
     ' that reads as still loading.
-    z = qt.options(G.schemawin, "sc_pick", names)
+    z = ui.options(G.schemawin, "sc_pick", names)
     return qt_schema_pick()
 end function
 
 function qt_schema_index()
-    at = qt.read(G.schemawin, "sc_pick", "currentIndex")
+    at = ui.read(G.schemawin, "sc_pick", "index")
     if at < 0 then
         return 0 - 1
     end if
@@ -878,8 +878,8 @@ function qt_schema_pick()
     end if
     r = studio_ui.schema_columns(G.app, G.schema_tables[i])
     if not r.ok then
-        z = qt.write(G.schemawin, "sc_cols", "")
-        z = qt.set(G.schemawin, "sc_note", "text", studio_ui.action_notice(r.why, r.detail))
+        z = ui.write(G.schemawin, "sc_cols", "")
+        z = ui.set(G.schemawin, "sc_note", "text", studio_ui.action_notice(r.why, r.detail))
         G.schema_columns = []
         return nothing
     end if
@@ -892,9 +892,9 @@ function qt_schema_pick()
         ' An empty answer means the name did not match, which is worth saying.
         text = "(the database returned no columns for this table)"
     end if
-    z = qt.write(G.schemawin, "sc_cols", text)
-    z = qt.set(G.schemawin, "sc_asked", "text", r.source)
-    z = qt.set(G.schemawin, "sc_note", "text", "")
+    z = ui.write(G.schemawin, "sc_cols", text)
+    z = ui.set(G.schemawin, "sc_asked", "text", r.source)
+    z = ui.set(G.schemawin, "sc_note", "text", "")
     G.schema_columns = r.columns
     return nothing
 end function
@@ -908,16 +908,16 @@ function on_qt_schema_insert()
     end if
     r = studio_ui.insert_schema_select(G.app, t, G.schema_columns)
     if r.action != "inserted" then
-        z = qt.set(G.schemawin, "sc_note", "text", studio_ui.action_notice(r.action, r.detail))
+        z = ui.set(G.schemawin, "sc_note", "text", studio_ui.action_notice(r.action, r.detail))
         return nothing
     end if
-    z = qt.close(G.schemawin)
+    z = ui.close(G.schemawin)
     z = qt_took(r)
     return qt_caret_to_model()
 end function
 
 function on_qt_schema_close()
-    return qt.close(G.schemawin)
+    return ui.close(G.schemawin)
 end function
 
 ' PUT THE WIDGET'S CARET WHERE THE MODEL SAYS. An insert moves the caret in the
@@ -936,7 +936,7 @@ function qt_caret_to_model()
     if col < 1 then
         col = 1
     end if
-    z = qt.caret_to(G.win, studio_shell_qt.part_editor(doc.id), line, col)
+    z = ui.caret_to(G.win, studio_shell_qt.part_editor(doc.id), line, col)
     G.app = qt_sync_caret(G.app)
     return nothing
 end function
@@ -946,7 +946,7 @@ end function
 ' are not the default. Every value is Qt's own readback.
 function qt_inline_report(win, ed)
     out = []
-    for each b in qt.blocks(win, ed)
+    for each b in ui.blocks(win, ed)
         t = b.id + "@" + string(b.line) + " " + b.kind
         if b.collapsed then
             t = t + " collapsed"
@@ -964,7 +964,7 @@ end function
 
 function qt_fold_report(win, ed)
     out = []
-    for each f in qt.fold(win, ed)
+    for each f in ui.fold(win, ed)
         out = append(out, string(f.from) + "-" + string(f.to))
     end for
     if count(out) = 0 then
@@ -1007,21 +1007,21 @@ function on_qt_overlay_edit()
         opened = true
     end if
     if opened then
-        z = qt.write(G.win, "ov_editor", r.text)
-        z = qt.set(G.win, "ov_editor", "visible", true)
+        z = ui.write(G.win, "ov_editor", r.text)
+        z = ui.set(G.win, "ov_editor", "visible", true)
     end if
     return qt_took(r)
 end function
 
 ' Save what the OVERLAY editor holds -- never the source editor's text.
 function on_qt_overlay_save()
-    return qt_took(studio_ui.save_overlay(G.app, qt.read(G.win, "ov_editor", "plainText")))
+    return qt_took(studio_ui.save_overlay(G.app, ui.read(G.win, "ov_editor", "text")))
 end function
 
 function on_qt_overlay_compare()
     d = studio_ui.overlay_diff(G.app)
     G.app = d.app
-    z = qt.write(G.win, "ov_diff", join(d.lines, chr(10)))
+    z = ui.write(G.win, "ov_diff", join(d.lines, chr(10)))
     G.last_action = "overlay-compared"
     G.last_detail = string(count(d.lines)) + " line(s)"
     return qt_redraw()
@@ -1039,7 +1039,7 @@ function on_qt_overlay_promote()
     ' editor would be left showing an overlay that no longer exists -- which
     ' the GTK window does, and which reads as one still waiting to be saved.
     if r.action = "overlay-promoted" then
-        z = qt.set(G.win, "ov_editor", "visible", false)
+        z = ui.set(G.win, "ov_editor", "visible", false)
     end if
     return qt_took(r)
 end function
@@ -1047,7 +1047,7 @@ end function
 function on_qt_overlay_discard()
     r = studio_ui.discard_overlay(G.app)
     if r.action = "overlay-discarded" then
-        z = qt.set(G.win, "ov_editor", "visible", false)
+        z = ui.set(G.win, "ov_editor", "visible", false)
     end if
     return qt_took(r)
 end function
@@ -1082,7 +1082,7 @@ function on_qt_ask()
     if not r.ok then
         text = "(not configured — " + r.why + ")"
     else
-        z = qt.write(G.win, "agent_body", "(asking…)")
+        z = ui.write(G.win, "agent_body", "(asking…)")
         m = studio_agent.model(r.handle, qt_agent_tools())
         a = studio_agent.ask(m, G.app, G.log, studio_agent.default_question())
         if a.ok then
@@ -1275,7 +1275,7 @@ function qt_nav_cells(win)
     out = []
     i = 0
     for each r in studio_ui.nav_rows(G.app)
-        out = append(out, string(qt.depth(win, studio_shell_qt.part_browser(), i)) + " " + qt.cell(win, studio_shell_qt.part_browser(), i, "text"))
+        out = append(out, string(ui.depth(win, studio_shell_qt.part_browser(), i)) + " " + ui.cell(win, studio_shell_qt.part_browser(), i, "text"))
         i = i + 1
     end for
     return out
@@ -1284,14 +1284,14 @@ end function
 ' A choice's items, read back off the widget.
 function qt_choice_items(win, part)
     out = []
-    n = qt.read(win, part, "count")
+    n = ui.read(win, part, "count")
     i = 0
     while i < n
-        z = qt.set(win, part, "currentIndex", i)
-        out = append(out, qt.read(win, part))
+        z = ui.set(win, part, "index", i)
+        out = append(out, ui.read(win, part))
         i = i + 1
     end while
-    z = qt.set(win, part, "currentIndex", 0)
+    z = ui.set(win, part, "index", 0)
     return out
 end function
 
@@ -1320,7 +1320,7 @@ function qt_lesson_notes(ed)
     end for
     if default(G.app["qt_blocks_ok"], false) then
         n = 0
-        for each b in qt.blocks(G.win, ed)
+        for each b in ui.blocks(G.win, ed)
             if starts_with(b.id, "lesson-") then
                 n = n + 1
             end if
@@ -1343,7 +1343,7 @@ end function
 ' The 1-based line of the first line that STARTS with `prefix`, or 0.
 function qt_line_of(ed, prefix)
     n = 1
-    for each l in split(qt.read(G.win, ed, "plainText"), chr(10))
+    for each l in split(ui.read(G.win, ed, "text"), chr(10))
         if starts_with(l, prefix) then
             return n
         end if
@@ -1353,13 +1353,13 @@ function qt_line_of(ed, prefix)
 end function
 
 function qt_sample_caret(ed, prefix)
-    z = qt.caret_to(G.win, ed, qt_line_of(ed, prefix), 1)
+    z = ui.caret_to(G.win, ed, qt_line_of(ed, prefix), 1)
     G.app = qt_sync_caret(G.app)
     return nothing
 end function
 
 function qt_sample_run()
-    z = qt.invoke(G.win, "run_btn", "click")
+    z = ui.invoke(G.win, "run_btn", "press")
     G.polling = false
     return qt_tables_wait()
 end function
@@ -1368,7 +1368,7 @@ function qt_table_offers(win)
     out = []
     i = 0
     for each r in studio_ui.table_rows(G.app).rows
-        out = append(out, qt.cell(win, studio_shell_qt.part_tables(), i, "label"))
+        out = append(out, ui.cell(win, studio_shell_qt.part_tables(), i, "label"))
         i += 1
     end for
     return out
@@ -1396,7 +1396,7 @@ function qt_shoot(win, dir)
         if sh.part != "" then
             opts.part = sh.part
         end if
-        r = qt.capture(win, dir + "/" + sh.file, opts)
+        r = ui.capture(win, dir + "/" + sh.file, opts)
         print sh.file + "  " + string(r.width) + "x" + string(r.height)
     end for
     return nothing
@@ -1483,7 +1483,7 @@ function qt_step(plan, tool, a)
         return qt_did(string(f.width) + "x" + string(f.height) + " " + f.theme + " zoom " + string(f.zoom) + " whitespace " + string(f.whitespace))
     end if
     if tool = "open_samples" then
-        z = qt.invoke(G.win, qt_item("open-samples"), "trigger")
+        z = ui.invoke(G.win, qt_item("open-samples"), "press")
         if G.last_action != "samples-opened" then
             return qt_failed(G.last_action + " " + G.last_detail)
         end if
@@ -1503,17 +1503,17 @@ function qt_step(plan, tool, a)
             return qt_failed("no document is open")
         end if
         ed = studio_shell_qt.part_editor(doc.id)
-        n = studio_shots.line_of(qt.read(G.win, ed, "plainText"), a.text)
+        n = studio_shots.line_of(ui.read(G.win, ed, "text"), a.text)
         if n = 0 then
             return qt_failed("no line of " + doc.display_name + " starts with \"" + a.text + "\"")
         end if
         col = default(a["column"], 1)
-        z = qt.caret_to(G.win, ed, n, col)
+        z = ui.caret_to(G.win, ed, n, col)
         G.app = qt_sync_caret(G.app)
         return qt_did(doc.display_name + ":" + string(n) + "  " + studio_ui.section_label(studio_ui.view_for(G.app).app))
     end if
     if tool = "raise" then
-        z = qt.invoke(G.win, studio_shell_qt.part_side_dock(a.pane), "raise")
+        z = ui.invoke(G.win, studio_shell_qt.part_side_dock(a.pane), "raise")
         return qt_did(a.pane)
     end if
     if tool = "open_window" then
@@ -1528,16 +1528,16 @@ end function
 function qt_shot_window(a)
     w = a.window
     if w = "table" then
-        z = qt.select(G.win, studio_shell_qt.part_tables(), default(a["row"], 0))
+        z = ui.select(G.win, studio_shell_qt.part_tables(), default(a["row"], 0))
     end if
     if w = "newproject" then
-        z = qt.invoke(G.win, qt_item("new-project"), "trigger")
+        z = ui.invoke(G.win, qt_item("new-project"), "press")
     end if
     if w = "snippet" then
-        z = qt.invoke(G.win, "snippet_btn", "click")
+        z = ui.invoke(G.win, "snippet_btn", "press")
     end if
     if w = "schema" then
-        z = qt.invoke(G.win, "schema_btn", "click")
+        z = ui.invoke(G.win, "schema_btn", "press")
     end if
     if is_nothing(qt_shot_win(w)) then
         return qt_failed("the " + w + " window did not open: " + G.last_action + " " + G.last_detail)
@@ -1569,7 +1569,7 @@ function qt_shot_if_open(w)
     if is_nothing(w) then
         return nothing
     end if
-    if not qt.is_open(w) then
+    if not ui.is_open(w) then
         return nothing
     end if
     return w
@@ -1591,7 +1591,7 @@ function qt_shot_capture(plan, a)
         opts.part = part
     end if
     on error goto next
-    r = qt.capture(w, plan.out + "/" + a.file, opts)
+    r = ui.capture(w, plan.out + "/" + a.file, opts)
     if error then
         return qt_failed(error.message)
     end if
@@ -1651,7 +1651,7 @@ function qt_shot_tool(plan, tool, a)
                 ' the editor follows. Line 0 is "never placed": just opened.
                 text = doc.display_name
                 if doc.cursor.line > 0 then
-                    c = qt.caret(G.win, studio_shell_qt.part_editor(doc.id))
+                    c = ui.caret(G.win, studio_shell_qt.part_editor(doc.id))
                     text = text + ":" + string(c.line)
                 end if
             end if
@@ -1679,7 +1679,7 @@ function qt_shot_push_caret()
     if doc.cursor.line > n then
         return "line " + string(doc.cursor.line) + " is past the end of " + doc.display_name + " (" + string(n) + " lines)"
     end if
-    z = qt.caret_to(G.win, studio_shell_qt.part_editor(doc.id), max([doc.cursor.line, 1]), max([doc.cursor.column, 1]))
+    z = ui.caret_to(G.win, studio_shell_qt.part_editor(doc.id), max([doc.cursor.line, 1]), max([doc.cursor.column, 1]))
     G.app = qt_sync_caret(G.app)
     return ""
 end function
@@ -1689,10 +1689,10 @@ function qt_shot_close()
     for each w in ["table", "newproject", "snippet", "schema"]
         o = qt_shot_win(w)
         if not is_nothing(o) then
-            z = qt.close(o)
+            z = ui.close(o)
         end if
     end for
-    z = qt.close(G.win)
+    z = ui.close(G.win)
     return nothing
 end function
 
@@ -1708,13 +1708,13 @@ function qt_print_theme_probe()
           items: [ studio_shell_qt.part("source", "probe_ed",
                        { language: "gBASIC", theme: studio_style.print_editor_theme() }) ] }
     on error goto next
-    z = qt.open(w)
+    z = ui.open(w)
     if error then
         print to error "Studio: the print editor theme is not available here (" + error.message + "); the editor is drawn light"
         return false
     end if
     on error stop
-    z = qt.close(w)
+    z = ui.close(w)
     return true
 end function
 
@@ -1727,7 +1727,7 @@ end function
 ' stdout IS the protocol: every line printed there is read by the client as
 ' JSON-RPC. Notes go to stderr.
 '
-' The window is offscreen and there is no `qt.run()`: the loop blocks on
+' The window is offscreen and there is no `ui.run()`: the loop blocks on
 ' `input()`, so Qt is driven call by call exactly as `shoot` drives it, and a
 ' run is ticked in line (`qt_run_wait`). It must run under `--line-buffered`
 ' or a reply sits in a block buffer while the client waits for it -- a
@@ -1832,7 +1832,7 @@ function qt_mcp_call(plan, c)
         ' one goes on the status line has not caught up with it.
         if studio_tools.is_act(name) or studio_mcp.is_verb(name) then
             if name != "execute_section" then
-                text = text + chr(10) + "status: " + qt.read(G.win, studio_shell_qt.part_status(), "text")
+                text = text + chr(10) + "status: " + ui.read(G.win, studio_shell_qt.part_status(), "text")
             end if
         end if
     end if
@@ -1857,8 +1857,8 @@ function qt_mcp_refused(plan, c, why)
 end function
 
 function qt_first_layout(win)
-    z = qt.invoke(win, studio_shell_qt.part_side_dock("results"), "raise")
-    z = qt.set(win, studio_shell_qt.part_console_dock(), "maximumHeight", 230)
+    z = ui.invoke(win, studio_shell_qt.part_side_dock("results"), "raise")
+    z = ui.set(win, studio_shell_qt.part_console_dock(), "max_height", 230)
     G.console_capped = 16
     return nothing
 end function
@@ -1908,7 +1908,7 @@ function qt_caret_now()
     if doc = nothing then
         return nothing
     end if
-    c = qt.caret(G.win, studio_shell_qt.part_editor(doc.id))
+    c = ui.caret(G.win, studio_shell_qt.part_editor(doc.id))
     if is_unknown(c) then
         return nothing
     end if
@@ -1968,13 +1968,13 @@ function on_qt_new_project()
     ' `qt.open` binds a `form to edit` out of the frame that calls it.
     opts = studio_ui.default_options(G.app, G.app.paths.home)
     G.npwin = qt_wire_newproj(studio_shell_qt.new_project_window(opts, studio_ui.license_ids()))
-    z = qt.open(G.npwin)
-    z = qt.invoke(G.npwin, "name", "setFocus")
+    z = ui.open(G.npwin)
+    z = ui.invoke(G.npwin, "name", "focus")
     ' A `choice`'s own list, which is data rather than declaration -- the
     ' licences Studio actually SHIPS, so an id whose text is missing cannot be
     ' offered in the first place.
-    z = qt.options(G.npwin, "license", studio_ui.license_ids())
-    z = qt.write(G.npwin, "license", opts.license)
+    z = ui.options(G.npwin, "license", studio_ui.license_ids())
+    z = ui.write(G.npwin, "license", opts.license)
     return nothing
 end function
 
@@ -1986,12 +1986,12 @@ function on_qt_np_create()
     ' ONE VERB IS THE WHOLE WIDGET-TO-VALUE READ. The GTK shell walks eight
     ' widgets and maps a drop-down index back to a licence id; a `form to edit`
     ' binds the record and `qt.subject` hands it back.
-    opts = qt.subject(G.npwin, studio_shell_qt.newproj_subject())
+    opts = ui.subject(G.npwin, studio_shell_qt.newproj_subject())
     r = studio_ui.create_project(G.app, opts)
     if r.action = "project-created" then
         G.app = r.app
         qt_note("project_created", r.detail, "")
-        z = qt.close(G.npwin)
+        z = ui.close(G.npwin)
         G.last_action = r.action
         G.last_detail = r.detail
         return qt_redraw()
@@ -1999,12 +1999,12 @@ function on_qt_np_create()
     ' REFUSED: the window stays open with what was typed still in it, and the
     ' reason goes in the note beside the fields rather than in a status line
     ' behind the window.
-    z = qt.set(G.npwin, "np_note", "text", studio_ui.action_notice(r.action, r.detail))
+    z = ui.set(G.npwin, "np_note", "text", studio_ui.action_notice(r.action, r.detail))
     return nothing
 end function
 
 function on_qt_np_cancel()
-    return qt.close(G.npwin)
+    return ui.close(G.npwin)
 end function
 
 ' Whether the New Project window is up.
@@ -2016,12 +2016,12 @@ function qt_np_is_open()
     if G.npwin = nothing then
         return false
     end if
-    return qt.is_open(G.npwin)
+    return ui.is_open(G.npwin)
 end function
 
 function qt_wire_newproj(win)
-    win = qt_on(win, "np_create", "clicked", on_qt_np_create)
-    win = qt_on(win, "np_cancel", "clicked", on_qt_np_cancel)
+    win = qt_on(win, "np_create", "pressed", on_qt_np_create)
+    win = qt_on(win, "np_cancel", "pressed", on_qt_np_cancel)
     return win
 end function
 
@@ -2128,7 +2128,7 @@ function qt_apply_toolbar(app)
     for each ti in studio_style.toolbar_icons()
         want = studio_style.toolbar_icon(ti.part, theme)
         if want != "" then
-            z = qt.set(G.win, ti.part, "icon", want)
+            z = ui.set(G.win, ti.part, "icon", want)
             if error then
                 print to error "Studio (Qt): this Qt cannot read " + want + " — falling back to labels"
                 error.clear()
@@ -2138,14 +2138,33 @@ function qt_apply_toolbar(app)
     end for
     on error stop
     if not ok then
-        style = 1
+        style = "text"
     end if
-    z = qt.set(G.win, studio_shell_qt.part_toolbar(), "toolButtonStyle", style)
+    z = ui.set(G.win, studio_shell_qt.part_toolbar(), "toolbar_shows", style)
     return ok
 end function
 
+' What `ui.theme()` answers is the record last set, or the text last set
+' ("" when nothing): a theme is SET when it is a record or a non-empty text.
+function qt_theme_is_set()
+    t = ui.theme()
+    if is_string(t) then
+        return len(t) > 0
+    end if
+    return true
+end function
+
+' And it is Studio's dark when it is the record with Studio's dark ground.
+function qt_theme_is_ours()
+    t = ui.theme()
+    if is_string(t) then
+        return false
+    end if
+    return t.bg = studio_style.dark_bg()
+end function
+
 function qt_apply_theme(app)
-    return qt.theme(studio_style.qt_sheet_for(app.model.settings.theme))
+    return ui.theme(studio_style.qt_theme_for(app.model.settings.theme))
 end function
 
 ' The two theme items. Each one is still an ADAPTER -- `studio_ui.set_theme`
@@ -2244,25 +2263,25 @@ end function
 ' its geometry in `close-request`, because the loop returns only once the
 ' window is gone.
 function on_qt_closed()
-    if not qt.is_open(G.win) then
+    if not ui.is_open(G.win) then
         return nothing
     end if
     ' The grid window goes with the main one: it shows a result of THIS
     ' window's run, and left open it would keep the loop alive after the
     ' window the user closed -- with the session not yet written.
     if G.tablewin != nothing then
-        if qt.is_open(G.tablewin) then
-            z = qt.close(G.tablewin)
+        if ui.is_open(G.tablewin) then
+            z = ui.close(G.tablewin)
         end if
     end if
-    w = qt.read(G.win, studio_shell_qt.window_name(), "width")
-    h = qt.read(G.win, studio_shell_qt.window_name(), "height")
+    w = ui.read(G.win, studio_shell_qt.window_name(), "width")
+    h = ui.read(G.win, studio_shell_qt.window_name(), "height")
     session = G.app.model.session
     session.window.width = w
     session.window.height = h
     ' The whole arrangement, base64 -- see `studio_model.qt_layout_of` for why
     ' it is one opaque string and not a record of numbers.
-    session.qt_layout = qt.layout(G.win)
+    session.qt_layout = ui.layout(G.win)
     G.app.model.session = session
     return nothing
 end function
@@ -2277,90 +2296,90 @@ end function
 ' a machine with no Qt can call, and the wiring is one readable list -- the same
 ' arrangement `app/studio.bas`'s single `connect_signals` has, for the same
 ' reason.
-function qt_on(win, target, signal, fn)
+function qt_on(win, target, event, fn)
     win.items = append(win.items, { kind: "handler", target: target,
-                                    signal: signal, handler: fn })
+                                    event: event, handler: fn })
     return win
 end function
 
 function qt_wire(win)
     files = studio_shell_qt.part_browser()
-    win = qt_on(win, files, "itemSelectionChanged", on_qt_nav_selected)
-    win = qt_on(win, files, "itemClicked", on_qt_nav_clicked)
-    win = qt_on(win, files, "customContextMenuRequested", on_qt_nav_context)
-    win = qt_on(win, studio_shell_qt.part_branches(), "itemSelectionChanged", on_qt_branch_row)
-    win = qt_on(win, studio_shell_qt.part_tables(), "itemSelectionChanged", on_qt_table_row)
-    win = qt_on(win, studio_shell_qt.part_fetch(), "clicked", on_qt_fetch)
-    win = qt_on(win, studio_shell_qt.part_tabs(), "currentChanged", on_qt_tab_changed)
+    win = qt_on(win, files, "chosen", on_qt_nav_selected)
+    win = qt_on(win, files, "activated", on_qt_nav_clicked)
+    win = qt_on(win, files, "context", on_qt_nav_context)
+    win = qt_on(win, studio_shell_qt.part_branches(), "chosen", on_qt_branch_row)
+    win = qt_on(win, studio_shell_qt.part_tables(), "chosen", on_qt_table_row)
+    win = qt_on(win, studio_shell_qt.part_fetch(), "pressed", on_qt_fetch)
+    win = qt_on(win, studio_shell_qt.part_tabs(), "changed", on_qt_tab_changed)
     ' Naming the handler is what asks for the context-menu policy, as for the
     ' browser.
-    win = qt_on(win, studio_shell_qt.part_tabs(), "customContextMenuRequested", on_qt_tab_context)
-    win = qt_on(win, studio_shell_qt.part_tab_item("tab-close"), "triggered", on_qt_tab_close)
-    win = qt_on(win, studio_shell_qt.part_tab_item("tab-copy-path"), "triggered", on_qt_tab_copy_path)
+    win = qt_on(win, studio_shell_qt.part_tabs(), "context", on_qt_tab_context)
+    win = qt_on(win, studio_shell_qt.part_tab_item("tab-close"), "pressed", on_qt_tab_close)
+    win = qt_on(win, studio_shell_qt.part_tab_item("tab-copy-path"), "pressed", on_qt_tab_copy_path)
     ' SAVE IS A `QAction` ON THE TOOLBAR NOW, so its signal is `triggered`
     ' rather than `clicked` -- the part name is unchanged, which is what kept
     ' every other reference to it working.
-    win = qt_on(win, studio_shell_qt.part_save(), "triggered", on_qt_save)
-    win = qt_on(win, "tb_reload", "triggered", on_qt_reload)
-    win = qt_on(win, "tb_open_folder", "triggered", on_qt_open_folder)
-    win = qt_on(win, "tb_new_file", "triggered", on_qt_new_file)
-    win = qt_on(win, "tb_new_folder", "triggered", on_qt_new_folder)
+    win = qt_on(win, studio_shell_qt.part_save(), "pressed", on_qt_save)
+    win = qt_on(win, "tb_reload", "pressed", on_qt_reload)
+    win = qt_on(win, "tb_open_folder", "pressed", on_qt_open_folder)
+    win = qt_on(win, "tb_new_file", "pressed", on_qt_new_file)
+    win = qt_on(win, "tb_new_folder", "pressed", on_qt_new_folder)
     win = qt_on(win, studio_shell_qt.window_name(), "closed", on_qt_closed)
-    win = qt_on(win, "run_btn", "clicked", on_qt_run)
-    win = qt_on(win, "run_all_btn", "clicked", on_qt_run_all)
-    win = qt_on(win, "stop_btn", "clicked", on_qt_stop)
-    win = qt_on(win, "force_btn", "clicked", on_qt_force_stop)
-    win = qt_on(win, "snippet_btn", "clicked", on_qt_snippet)
-    win = qt_on(win, "schema_btn", "clicked", on_qt_schema)
-    win = qt_on(win, "bind_btn", "clicked", on_qt_bind)
-    win = qt_on(win, "ask_btn", "clicked", on_qt_ask)
-    win = qt_on(win, "ov_edit", "clicked", on_qt_overlay_edit)
-    win = qt_on(win, "ov_save", "clicked", on_qt_overlay_save)
-    win = qt_on(win, "ov_compare", "clicked", on_qt_overlay_compare)
-    win = qt_on(win, "ov_rebase", "clicked", on_qt_overlay_rebase)
-    win = qt_on(win, "ov_promote", "clicked", on_qt_overlay_promote)
-    win = qt_on(win, "ov_discard", "clicked", on_qt_overlay_discard)
+    win = qt_on(win, "run_btn", "pressed", on_qt_run)
+    win = qt_on(win, "run_all_btn", "pressed", on_qt_run_all)
+    win = qt_on(win, "stop_btn", "pressed", on_qt_stop)
+    win = qt_on(win, "force_btn", "pressed", on_qt_force_stop)
+    win = qt_on(win, "snippet_btn", "pressed", on_qt_snippet)
+    win = qt_on(win, "schema_btn", "pressed", on_qt_schema)
+    win = qt_on(win, "bind_btn", "pressed", on_qt_bind)
+    win = qt_on(win, "ask_btn", "pressed", on_qt_ask)
+    win = qt_on(win, "ov_edit", "pressed", on_qt_overlay_edit)
+    win = qt_on(win, "ov_save", "pressed", on_qt_overlay_save)
+    win = qt_on(win, "ov_compare", "pressed", on_qt_overlay_compare)
+    win = qt_on(win, "ov_rebase", "pressed", on_qt_overlay_rebase)
+    win = qt_on(win, "ov_promote", "pressed", on_qt_overlay_promote)
+    win = qt_on(win, "ov_discard", "pressed", on_qt_overlay_discard)
 
-    ' A QAction's signal is `triggered`, and `qt.invoke(win, item, "trigger")`
+    ' A QAction's signal is `triggered`, and `ui.invoke(win, item, "press")`
     ' is a REAL PRESS -- where an unmapped `Gtk.Button` inside a popover
     ' silently ignores `activate()`, which cost STU-16 two rounds.
-    win = qt_on(win, qt_item("new-project"), "triggered", on_qt_new_project)
-    win = qt_on(win, qt_item("open-folder"), "triggered", on_qt_open_folder)
-    win = qt_on(win, qt_item("open-samples"), "triggered", on_qt_open_samples)
-    win = qt_on(win, qt_item("project-file"), "triggered", on_qt_project_file)
-    win = qt_on(win, qt_item("close-project"), "triggered", on_qt_close_project)
-    win = qt_on(win, qt_item("new-file"), "triggered", on_qt_new_file)
-    win = qt_on(win, qt_item("new-folder"), "triggered", on_qt_new_folder)
-    win = qt_on(win, qt_item("rename"), "triggered", on_qt_rename)
-    win = qt_on(win, qt_item("delete"), "triggered", on_qt_delete)
-    win = qt_on(win, qt_item("reload"), "triggered", on_qt_reload)
-    win = qt_on(win, qt_item("close-tab"), "triggered", on_qt_close_tab)
-    win = qt_on(win, qt_item("theme-system"), "triggered", on_qt_theme_system)
-    win = qt_on(win, qt_item("theme-dark"), "triggered", on_qt_theme_dark)
-    win = qt_on(win, qt_item("text-bigger"), "triggered", on_qt_text_bigger)
-    win = qt_on(win, qt_item("text-smaller"), "triggered", on_qt_text_smaller)
-    win = qt_on(win, qt_item("text-reset"), "triggered", on_qt_text_reset)
-    win = qt_on(win, qt_item("restore-session"), "triggered", on_qt_restore_session)
-    win = qt_on(win, qt_item("show-whitespace"), "triggered", on_qt_whitespace)
-    win = qt_on(win, qt_item("show-inline"), "triggered", on_qt_inline)
-    win = qt_on(win, qt_item("show-prose"), "triggered", on_qt_prose)
-    win = qt_on(win, qt_item("export-md"), "triggered", on_qt_export_md)
-    win = qt_on(win, qt_item("export-measured"), "triggered", on_qt_export_measured)
-    win = qt_on(win, qt_item("check-lesson"), "triggered", on_qt_check_lesson)
-    win = qt_on(win, qt_item("export-student"), "triggered", on_qt_export_student)
-    win = qt_on(win, studio_shell_qt.part_tb_whitespace(), "triggered", on_qt_whitespace)
+    win = qt_on(win, qt_item("new-project"), "pressed", on_qt_new_project)
+    win = qt_on(win, qt_item("open-folder"), "pressed", on_qt_open_folder)
+    win = qt_on(win, qt_item("open-samples"), "pressed", on_qt_open_samples)
+    win = qt_on(win, qt_item("project-file"), "pressed", on_qt_project_file)
+    win = qt_on(win, qt_item("close-project"), "pressed", on_qt_close_project)
+    win = qt_on(win, qt_item("new-file"), "pressed", on_qt_new_file)
+    win = qt_on(win, qt_item("new-folder"), "pressed", on_qt_new_folder)
+    win = qt_on(win, qt_item("rename"), "pressed", on_qt_rename)
+    win = qt_on(win, qt_item("delete"), "pressed", on_qt_delete)
+    win = qt_on(win, qt_item("reload"), "pressed", on_qt_reload)
+    win = qt_on(win, qt_item("close-tab"), "pressed", on_qt_close_tab)
+    win = qt_on(win, qt_item("theme-system"), "pressed", on_qt_theme_system)
+    win = qt_on(win, qt_item("theme-dark"), "pressed", on_qt_theme_dark)
+    win = qt_on(win, qt_item("text-bigger"), "pressed", on_qt_text_bigger)
+    win = qt_on(win, qt_item("text-smaller"), "pressed", on_qt_text_smaller)
+    win = qt_on(win, qt_item("text-reset"), "pressed", on_qt_text_reset)
+    win = qt_on(win, qt_item("restore-session"), "pressed", on_qt_restore_session)
+    win = qt_on(win, qt_item("show-whitespace"), "pressed", on_qt_whitespace)
+    win = qt_on(win, qt_item("show-inline"), "pressed", on_qt_inline)
+    win = qt_on(win, qt_item("show-prose"), "pressed", on_qt_prose)
+    win = qt_on(win, qt_item("export-md"), "pressed", on_qt_export_md)
+    win = qt_on(win, qt_item("export-measured"), "pressed", on_qt_export_measured)
+    win = qt_on(win, qt_item("check-lesson"), "pressed", on_qt_check_lesson)
+    win = qt_on(win, qt_item("export-student"), "pressed", on_qt_export_student)
+    win = qt_on(win, studio_shell_qt.part_tb_whitespace(), "pressed", on_qt_whitespace)
 
     ' The browser's own menu. Every item dispatches to the SAME `studio_ui`
     ' function the header item does -- which is what keeps Delete armed from
     ' here, because a second implementation would quietly undo the two-click
     ' rule on the same file from a different control.
-    win = qt_on(win, qt_ctx("open"), "triggered", on_qt_ctx_open)
-    win = qt_on(win, qt_ctx("new-file-here"), "triggered", on_qt_ctx_new_file)
-    win = qt_on(win, qt_ctx("new-folder-here"), "triggered", on_qt_ctx_new_folder)
-    win = qt_on(win, qt_ctx("rename"), "triggered", on_qt_ctx_rename)
-    win = qt_on(win, qt_ctx("delete"), "triggered", on_qt_ctx_delete)
-    win = qt_on(win, qt_ctx("project-file"), "triggered", on_qt_ctx_project_file)
-    win = qt_on(win, qt_ctx("close-project"), "triggered", on_qt_ctx_close_project)
+    win = qt_on(win, qt_ctx("open"), "pressed", on_qt_ctx_open)
+    win = qt_on(win, qt_ctx("new-file-here"), "pressed", on_qt_ctx_new_file)
+    win = qt_on(win, qt_ctx("new-folder-here"), "pressed", on_qt_ctx_new_folder)
+    win = qt_on(win, qt_ctx("rename"), "pressed", on_qt_ctx_rename)
+    win = qt_on(win, qt_ctx("delete"), "pressed", on_qt_ctx_delete)
+    win = qt_on(win, qt_ctx("project-file"), "pressed", on_qt_ctx_project_file)
+    win = qt_on(win, qt_ctx("close-project"), "pressed", on_qt_ctx_close_project)
     return win
 end function
 
@@ -2510,9 +2529,9 @@ program main(args)
     ' see `studio_view_qt.editor_handlers`. Before the window is built, so the
     ' editors open at launch carry them as well as every one built later.
     G.app["qt_blocks_ok"] = qt_blocks_probe()
-    G.app["qt_editor_handlers"] = [ { signal: "wheel", handler: on_qt_editor_wheel } ]
+    G.app["qt_editor_handlers"] = [ { event: "wheel", handler: on_qt_editor_wheel } ]
     if G.app.qt_blocks_ok then
-        G.app["qt_editor_handlers"] = append(G.app.qt_editor_handlers, { signal: "block", handler: on_qt_editor_block })
+        G.app["qt_editor_handlers"] = append(G.app.qt_editor_handlers, { event: "block", handler: on_qt_editor_block })
     end if
     win = qt_wire(studio_view_qt.with_editor_handlers(G.app, studio_shell_qt.window_for(G.app)))
     ' REFUSED BEFORE OPENED, always. `qt.open` validates too, but a validator
@@ -2533,7 +2552,7 @@ program main(args)
     ' is a bug in the record, and catching one is how a window renders half of
     ' itself and says nothing.
     on error goto next
-    ok = qt.check(win)
+    ok = ui.check(win)
     if error then
         print to error "gBASIC Studio: this window will not build — " + error.message
         return nothing
@@ -2559,7 +2578,7 @@ program main(args)
     ' reason for that design: refusing until a window existed would make the
     ' first window appear unthemed and then change under the user.
     themed = qt_apply_theme(G.app)
-    z = qt.open(win)
+    z = ui.open(win)
     G.win = win
 
     ' THE FIRST PAINT AND EVERY LATER ONE ARE THE SAME CODE. The record carries
@@ -2589,7 +2608,7 @@ program main(args)
     saved_layout = studio_model.qt_layout_of(G.app.model.session)
     restored = false
     if saved_layout != "" then
-        took = qt.restore_layout(win, saved_layout)
+        took = ui.restore_layout(win, saved_layout)
         if not took then
             print to error "Studio (Qt): the saved window layout was not recognised — starting from the declaration"
         end if
@@ -2626,20 +2645,20 @@ program main(args)
         print "rows as drawn:"
         print qt_indent(join(qt_branch_cells(win), chr(10)))
         print "typing a name and clicking +"
-        z = qt.write(win, studio_shell_qt.part_name_field(), "Low")
-        z = qt.select(win, bl, count(qt_branch_cells(win)) - 1)
-        print "action=" + G.last_action + " status=" + qt.read(win, studio_shell_qt.part_status(), "text")
-        print "  " + qt.read(win, "run_branch", "text")
+        z = ui.write(win, studio_shell_qt.part_name_field(), "Low")
+        z = ui.select(win, bl, count(qt_branch_cells(win)) - 1)
+        print "action=" + G.last_action + " status=" + ui.read(win, studio_shell_qt.part_status(), "text")
+        print "  " + ui.read(win, "run_branch", "text")
         print "binding a value onto it"
-        z = qt.write(win, studio_shell_qt.part_name_field(), "threshold = 0.25")
-        z = qt.invoke(win, "bind_btn", "click")
-        print "action=" + G.last_action + " status=" + qt.read(win, studio_shell_qt.part_status(), "text")
+        z = ui.write(win, studio_shell_qt.part_name_field(), "threshold = 0.25")
+        z = ui.invoke(win, "bind_btn", "press")
+        print "action=" + G.last_action + " status=" + ui.read(win, studio_shell_qt.part_status(), "text")
         print "rows now:"
         print qt_indent(join(qt_branch_cells(win), chr(10)))
         print "clicking Baseline"
-        z = qt.select(win, bl, 0)
-        print "action=" + G.last_action + " status=" + qt.read(win, studio_shell_qt.part_status(), "text")
-        print "  " + qt.read(win, "run_branch", "text")
+        z = ui.select(win, bl, 0)
+        print "action=" + G.last_action + " status=" + ui.read(win, studio_shell_qt.part_status(), "text")
+        print "  " + ui.read(win, "run_branch", "text")
         return nothing
     end if
 
@@ -2650,55 +2669,55 @@ program main(args)
         ' only once it is promoted, as an unsaved edit.
         ed = studio_shell_qt.part_editor(studio_docs.active_doc(G.app.dm).id)
         print "an overlay needs a branch: the baseline is the file"
-        z = qt.invoke(win, "ov_edit", "click")
+        z = ui.invoke(win, "ov_edit", "press")
         print "  action=" + G.last_action + " — " + G.last_detail
-        print "  the overlay editor is hidden=" + string(not qt.read(win, "ov_editor", "visible"))
+        print "  the overlay editor is hidden=" + string(not ui.read(win, "ov_editor", "visible"))
         print "making a branch, then overlaying the section below it"
-        z = qt.write(win, studio_shell_qt.part_name_field(), "Robust")
-        z = qt.select(win, studio_shell_qt.part_branches(), count(qt_branch_cells(win)) - 1)
+        z = ui.write(win, studio_shell_qt.part_name_field(), "Robust")
+        z = ui.select(win, studio_shell_qt.part_branches(), count(qt_branch_cells(win)) - 1)
         print "  action=" + G.last_action
-        z = qt.caret_to(win, ed, 3, 1)
+        z = ui.caret_to(win, ed, 3, 1)
         G.app = qt_sync_caret(G.app)
-        z = qt.invoke(win, "ov_edit", "click")
+        z = ui.invoke(win, "ov_edit", "press")
         print "  action=" + G.last_action + " on " + G.last_detail
-        print "the overlay editor opened, visible=" + string(qt.read(win, "ov_editor", "visible")) + ", with the canonical text:"
-        print qt_bar(qt.read(win, "ov_editor", "plainText"))
+        print "the overlay editor opened, visible=" + string(ui.read(win, "ov_editor", "visible")) + ", with the canonical text:"
+        print qt_bar(ui.read(win, "ov_editor", "text"))
         print "typing into it, for real"
-        z = qt.write(win, "ov_editor", "function score(t)" + chr(10) + "  return t * 1000" + chr(10) + "end function")
-        z = qt.invoke(win, "ov_save", "click")
+        z = ui.write(win, "ov_editor", "function score(t)" + chr(10) + "  return t * 1000" + chr(10) + "end function")
+        z = ui.invoke(win, "ov_save", "press")
         print "  action=" + G.last_action
         print "the selector marks it experimental:"
-        z = qt.caret_to(win, ed, 1, 1)
+        z = ui.caret_to(win, ed, 1, 1)
         G.app = qt_sync_caret(G.app)
         z = qt_redraw()
         print qt_indent(join(qt_branch_cells(win), chr(10)))
         print "comparing"
-        z = qt.invoke(win, "ov_compare", "click")
-        print qt_bar(qt.read(win, "ov_diff", "plainText"))
+        z = ui.invoke(win, "ov_compare", "press")
+        print qt_bar(ui.read(win, "ov_diff", "text"))
         print "running the branch"
-        z = qt.caret_to(win, ed, 7, 1)
+        z = ui.caret_to(win, ed, 7, 1)
         G.app = qt_sync_caret(G.app)
-        z = qt.invoke(win, "run_btn", "click")
+        z = ui.invoke(win, "run_btn", "press")
         went = qt_tables_wait()
-        print "  target=<" + qt.read(win, "target_body", "plainText") + ">"
+        print "  target=<" + ui.read(win, "target_body", "text") + ">"
         print "the source editor still shows the FILE:"
-        print qt_bar(qt.read(win, ed, "plainText"))
+        print qt_bar(ui.read(win, ed, "text"))
         print "promoting"
-        z = qt.invoke(win, "ov_promote", "click")
+        z = ui.invoke(win, "ov_promote", "press")
         print "  action=" + G.last_action + " — " + G.last_detail
         print "and NOW the source editor shows it, as an unsaved edit:"
-        print qt_bar(qt.read(win, ed, "plainText"))
-        print "  the title says unsaved=" + string(starts_with(qt.read(win, studio_shell_qt.window_name(), "windowTitle"), "* "))
-        print "  promoting consumed the overlay, so its editor is hidden=" + string(not qt.read(win, "ov_editor", "visible"))
+        print qt_bar(ui.read(win, ed, "text"))
+        print "  the title says unsaved=" + string(starts_with(ui.read(win, studio_shell_qt.window_name(), "title"), "* "))
+        print "  promoting consumed the overlay, so its editor is hidden=" + string(not ui.read(win, "ov_editor", "visible"))
         ' DISCARD acts on the section UNDER THE CARET, so the caret goes back
         ' into score() and a fresh overlay is begun there to throw away.
         print "a fresh overlay on score(), then Discard"
-        z = qt.caret_to(win, ed, 3, 1)
+        z = ui.caret_to(win, ed, 3, 1)
         G.app = qt_sync_caret(G.app)
-        z = qt.invoke(win, "ov_edit", "click")
-        print "  action=" + G.last_action + ", visible=" + string(qt.read(win, "ov_editor", "visible"))
-        z = qt.invoke(win, "ov_discard", "click")
-        print "  action=" + G.last_action + ", hidden=" + string(not qt.read(win, "ov_editor", "visible"))
+        z = ui.invoke(win, "ov_edit", "press")
+        print "  action=" + G.last_action + ", visible=" + string(ui.read(win, "ov_editor", "visible"))
+        z = ui.invoke(win, "ov_discard", "press")
+        print "  action=" + G.last_action + ", hidden=" + string(not ui.read(win, "ov_editor", "visible"))
         return nothing
     end if
 
@@ -2712,32 +2731,32 @@ program main(args)
         nav = studio_ui.nav_rows(G.app)
         G.app = studio_view_qt.render(win, G.app, "")
         print "opening the .sql file"
-        print "Schema is visible on a .sql document=" + string(qt.read(win, "schema_btn", "visible"))
+        print "Schema is visible on a .sql document=" + string(ui.read(win, "schema_btn", "visible"))
         print "clicking Schema…"
-        z = qt.invoke(win, "schema_btn", "click")
+        z = ui.invoke(win, "schema_btn", "press")
         sw = G.schemawin
-        print "the window is open=" + string(qt.is_open(sw))
+        print "the window is open=" + string(ui.is_open(sw))
         print "found " + string(count(G.schema_tables)) + " table(s)/view(s)"
         for each t in G.schema_tables
             print "  " + studio_schema.table_label(t)
         end for
         print "-- the first one, which opened with it --"
-        print "asked: " + qt.read(sw, "sc_asked", "text")
-        print qt_indent(qt.read(sw, "sc_cols", "plainText"))
+        print "asked: " + ui.read(sw, "sc_asked", "text")
+        print qt_indent(ui.read(sw, "sc_cols", "text"))
         print "picking the third"
-        z = qt.write(sw, "sc_pick", studio_schema.table_label(G.schema_tables[2]))
-        print "now showing " + qt.read(sw, "sc_pick")
-        print "asked: " + qt.read(sw, "sc_asked", "text")
-        print qt_indent(qt.read(sw, "sc_cols", "plainText"))
+        z = ui.write(sw, "sc_pick", studio_schema.table_label(G.schema_tables[2]))
+        print "now showing " + ui.read(sw, "sc_pick")
+        print "asked: " + ui.read(sw, "sc_asked", "text")
+        print qt_indent(ui.read(sw, "sc_cols", "text"))
         print "back to the first, and inserting a select"
-        z = qt.write(sw, "sc_pick", studio_schema.table_label(G.schema_tables[0]))
-        z = qt.invoke(sw, "sc_insert", "click")
-        print "action=" + G.last_action + " status=" + qt.read(win, studio_shell_qt.part_status(), "text")
-        print "the window closed=" + string(not qt.is_open(sw))
+        z = ui.write(sw, "sc_pick", studio_schema.table_label(G.schema_tables[0]))
+        z = ui.invoke(sw, "sc_insert", "press")
+        print "action=" + G.last_action + " status=" + ui.read(win, studio_shell_qt.part_status(), "text")
+        print "the window closed=" + string(not ui.is_open(sw))
         print "-- the document now --"
-        print qt.read(win, studio_shell_qt.part_editor(studio_docs.active_doc(G.app.dm).id), "plainText")
+        print ui.read(win, studio_shell_qt.part_editor(studio_docs.active_doc(G.app.dm).id), "text")
         print "-- and the strip names what was written --"
-        print qt.read(win, "run_section", "text")
+        print ui.read(win, "run_section", "text")
         return nothing
     end if
 
@@ -2751,43 +2770,43 @@ program main(args)
         nav = studio_ui.nav_rows(G.app)
         G.app = studio_view_qt.render(win, G.app, "")
         print "opening the .sql file"
-        print "Insert SQL is visible on a .sql document=" + string(qt.read(win, "snippet_btn", "visible"))
-        print "Run All is too=" + string(qt.read(win, "run_all_btn", "visible"))
+        print "Insert SQL is visible on a .sql document=" + string(ui.read(win, "snippet_btn", "visible"))
+        print "Run All is too=" + string(ui.read(win, "run_all_btn", "visible"))
         print "clicking Insert SQL…"
-        z = qt.invoke(win, "snippet_btn", "click")
+        z = ui.invoke(win, "snippet_btn", "press")
         sw = G.snipwin
-        print "the window is open=" + string(qt.is_open(sw))
+        print "the window is open=" + string(ui.is_open(sw))
         print "offered " + string(count(G.snip_rows)) + " snippet(s) for this connection"
-        print "the first is " + qt.read(sw, "sn_pick")
-        print "description: " + qt.read(sw, "sn_desc", "text")
+        print "the first is " + ui.read(sw, "sn_pick")
+        print "description: " + ui.read(sw, "sn_desc", "text")
         print "fields shown: " + join(qt_snip_shown(), ", ")
         print "pressing Insert with a required field empty"
-        z = qt.invoke(sw, "sn_insert", "click")
-        print "note: " + qt.read(sw, "sn_note", "text")
-        print "the window stayed open=" + string(qt.is_open(sw))
+        z = ui.invoke(sw, "sn_insert", "press")
+        print "note: " + ui.read(sw, "sn_note", "text")
+        print "the window stayed open=" + string(ui.is_open(sw))
         print "picking the third snippet instead"
-        z = qt.write(sw, "sn_pick", G.snip_rows[2].name)
-        print "now offering " + qt.read(sw, "sn_pick")
+        z = ui.write(sw, "sn_pick", G.snip_rows[2].name)
+        print "now offering " + ui.read(sw, "sn_pick")
         print "fields shown: " + join(qt_snip_shown(), ", ")
         print "back to the first, and filling it in"
-        z = qt.write(sw, "sn_pick", G.snip_rows[0].name)
+        z = ui.write(sw, "sn_pick", G.snip_rows[0].name)
         for each f in studio_shell_qt.snippet_fields(G.snip_rows)
             if f.row = 0 then
                 if f.name = "role" then
-                    z = qt.write(sw, f.part, "reporting")
+                    z = ui.write(sw, f.part, "reporting")
                 end if
                 if f.name = "password" then
-                    z = qt.write(sw, f.part, "hunter2")
+                    z = ui.write(sw, f.part, "hunter2")
                 end if
             end if
         end for
-        z = qt.invoke(sw, "sn_insert", "click")
-        print "action=" + G.last_action + " status=" + qt.read(win, studio_shell_qt.part_status(), "text")
-        print "the window closed=" + string(not qt.is_open(sw))
+        z = ui.invoke(sw, "sn_insert", "press")
+        print "action=" + G.last_action + " status=" + ui.read(win, studio_shell_qt.part_status(), "text")
+        print "the window closed=" + string(not ui.is_open(sw))
         print "-- the document now --"
-        print qt.read(win, studio_shell_qt.part_editor(studio_docs.active_doc(G.app.dm).id), "plainText")
+        print ui.read(win, studio_shell_qt.part_editor(studio_docs.active_doc(G.app.dm).id), "text")
         print "-- and the strip names the statement just written --"
-        print qt.read(win, "run_section", "text")
+        print ui.read(win, "run_section", "text")
         return nothing
     end if
 
@@ -2801,19 +2820,19 @@ program main(args)
         nav = studio_ui.nav_rows(G.app)
         G.app = studio_view_qt.render(win, G.app, "")
         print "-- before anything is asked --"
-        print "  " + qt.read(win, "agent_body", "plainText")
+        print "  " + ui.read(win, "agent_body", "text")
         print "-- Where was I?, with no key anywhere --"
-        z = qt.invoke(win, "ask_btn", "click")
-        print "  " + qt.read(win, "agent_body", "plainText")
+        z = ui.invoke(win, "ask_btn", "press")
+        print "  " + ui.read(win, "agent_body", "text")
         print "-- every read tool the assistant is offered has a callable --"
         print "  read tools " + string(qt_read_tool_count()) + ", wrapped " + string(count(qt_agent_tools()))
         print "-- Where was I?, against a scripted provider that calls git_status first --"
         G.agent_round = 0
         h = llm.with_transport(llm.anthropic("claude-sonnet-4-6", "sk-offline"), qt_scripted_reply)
         G.app["agent_handle"] = h
-        z = qt.invoke(win, "ask_btn", "click")
+        z = ui.invoke(win, "ask_btn", "press")
         print "  rounds: " + string(G.agent_round)
-        print "  " + qt.read(win, "agent_body", "plainText")
+        print "  " + ui.read(win, "agent_body", "text")
 
         print "-- every name the agent may point at resolves in THIS window --"
         missing = []
@@ -2826,23 +2845,23 @@ program main(args)
         print "  the registry and teachable() agree: " + string(join(studio_teaching.names(), ",") = join(studio_shell_qt.teachable(), ","))
         print "pointing at the Run button"
         z = qt_point("run_button", "highlight", "")
-        print "  its sheet: " + qt.read(win, "run_btn", "styleSheet")
+        print "  its emphasis: " + ui.read(win, "run_btn", "emphasis")
         print "pulsing the name field (the Run button's highlight comes off)"
         z = qt_point("name_field", "pulse", "")
-        print "  run button sheet: [" + qt.read(win, "run_btn", "styleSheet") + "]"
-        print "  name field pulsing: " + string(len(qt.read(win, studio_shell_qt.part_name_field(), "styleSheet")) > 0)
+        print "  run button emphasis: " + ui.read(win, "run_btn", "emphasis")
+        print "  name field emphasis: " + ui.read(win, studio_shell_qt.part_name_field(), "emphasis")
         G.app = qt_expire_pulse(G.app, monotonic() + 60)
-        print "  and the pulse took itself off: " + string(qt.read(win, studio_shell_qt.part_name_field(), "styleSheet") = "")
+        print "  and the pulse took itself off: " + string(ui.read(win, studio_shell_qt.part_name_field(), "emphasis") = "none")
         print "revealing the Tables pane raises its dock"
         z = qt_point("tables", "reveal", "")
         print "  action=" + G.last_action + " — " + G.last_detail
         ed = studio_shell_qt.part_editor(studio_docs.active_doc(G.app.dm).id)
         print "annotating line 1 of the editor"
         z = qt_point("editor", "annotate", "1")
-        print "  note marks: " + string(qt.marks(win, ed, "note"))
+        print "  note marks: " + string(ui.marks(win, ed, "note"))
         print "pointing somewhere else takes the notes away"
         z = qt_point("branches", "highlight", "")
-        print "  note marks: " + string(qt.marks(win, ed, "note"))
+        print "  note marks: " + string(ui.marks(win, ed, "note"))
         print "pointing at something that is not there"
         z = qt_point("run_panel", "highlight", "")
         print "  action=" + G.last_action + " — " + G.last_detail
@@ -2868,7 +2887,7 @@ program main(args)
                 G.app.clock_fixed = 1767607200
             end if
         end if
-        z = qt.invoke(win, qt_item("open-samples"), "trigger")
+        z = ui.invoke(win, qt_item("open-samples"), "press")
         sfile = "01_sections.bas"
         if count(args) > 3 then
             sfile = args[3]
@@ -2882,16 +2901,16 @@ program main(args)
         end if
         if count(args) > 5 then
             if args[5] = "table" then
-                z = qt.select(win, studio_shell_qt.part_tables(), 0)
+                z = ui.select(win, studio_shell_qt.part_tables(), 0)
             end if
             if args[5] = "newproject" then
-                z = qt.invoke(win, qt_item("new-project"), "trigger")
+                z = ui.invoke(win, qt_item("new-project"), "press")
             end if
             if args[5] = "snippet" then
-                z = qt.invoke(win, "snippet_btn", "click")
+                z = ui.invoke(win, "snippet_btn", "press")
             end if
             if args[5] = "schema" then
-                z = qt.invoke(win, "schema_btn", "click")
+                z = ui.invoke(win, "schema_btn", "press")
             end if
         end if
         G.polling = false
@@ -2904,9 +2923,9 @@ program main(args)
             if shot != "" then
                 z = qt_shoot(win, shot)
                 ' Ended like every test mode, BEFORE the loop: a window closed
-                ' and then handed to `qt.run()` left it waiting with nothing to
+                ' and then handed to `ui.run()` left it waiting with nothing to
                 ' wait for -- measured, a hang with the prints lost.
-                z = qt.close(win)
+                z = ui.close(win)
                 return nothing
             end if
         end if
@@ -2941,125 +2960,125 @@ program main(args)
         ' like code. Lines are found by their TEXT (`qt_line_of`), so rewording a
         ' sample's comments does not move what the tier checks.
         G.app.clock_fixed = 1000
-        z = qt.invoke(win, qt_item("open-samples"), "trigger")
+        z = ui.invoke(win, qt_item("open-samples"), "press")
         print "Open Samples: " + G.last_action + ", on top: " + studio_docs.active_doc(G.app.dm).display_name
         print qt_indent(join(qt_nav_cells(win), chr(10)))
 
         print "== 01_sections.bas"
         ed = qt_sample_open("01_sections.bas")
         z = qt_sample_caret(ed, "greeting =")
-        print "  " + qt.read(win, "run_section", "text")
+        print "  " + ui.read(win, "run_section", "text")
         z = qt_sample_run()
-        print "  target: <" + qt.read(win, "target_body", "plainText") + ">"
+        print "  target: <" + ui.read(win, "target_body", "text") + ">"
         z = qt_sample_caret(ed, "print shout")
-        print "  " + qt.read(win, "run_section", "text")
+        print "  " + ui.read(win, "run_section", "text")
         z = qt_sample_run()
-        print "  prefix: <" + qt.read(win, "prefix_body", "plainText") + ">"
-        print "  target: <" + qt.read(win, "target_body", "plainText") + ">"
+        print "  prefix: <" + ui.read(win, "prefix_body", "text") + ">"
+        print "  target: <" + ui.read(win, "target_body", "text") + ">"
 
         print "== 02_tables.bas"
         ed = qt_sample_open("02_tables.bas")
         z = qt_sample_caret(ed, "sales = []")
         z = qt_sample_run()
         print "  the pane offers: " + join(qt_table_offers(win), " | ")
-        z = qt.select(win, studio_shell_qt.part_tables(), 0)
-        print "  " + qt.read(G.tablewin, "grid_caption", "text")
-        z = qt.set(G.tablewin, "grid_desc", "checked", true)
-        z = qt.write(G.tablewin, "grid_sort", "units")
-        print "  most units first: " + qt.cell(G.tablewin, studio_shell_qt.part_grid(), 0, "c3")
-        z = qt.close(G.tablewin)
+        z = ui.select(win, studio_shell_qt.part_tables(), 0)
+        print "  " + ui.read(G.tablewin, "grid_caption", "text")
+        z = ui.set(G.tablewin, "grid_desc", "checked", true)
+        z = ui.write(G.tablewin, "grid_sort", "units")
+        print "  most units first: " + ui.cell(G.tablewin, studio_shell_qt.part_grid(), 0, "c3")
+        z = ui.close(G.tablewin)
 
         print "== 03_errors.bas"
         ed = qt_sample_open("03_errors.bas")
         z = qt_sample_caret(ed, "print describe")
         z = qt_sample_run()
-        print "  " + qt.read(win, "err_head", "text") + ": " + studio_qt_first_line(qt.read(win, "err_body", "plainText"))
+        print "  " + ui.read(win, "err_head", "text") + ": " + studio_qt_first_line(ui.read(win, "err_body", "text"))
         print "  the failing line in the file: " + string(qt_line_of(ed, "print describe"))
         print "  step 3, the then deleted: a syntax error is marked before anything runs"
-        z = qt.write(win, ed, replace(qt.read(win, ed, "plainText"), "count(list) > 2 then", "count(list) > 2"))
+        z = ui.write(win, ed, replace(ui.read(win, ed, "text"), "count(list) > 2 then", "count(list) > 2"))
         G.app = qt_sync_buffer(G.app)
         z = qt_redraw()
-        print "  marked: " + string(qt.marks(win, ed, "error")) + " (the if is line " + string(qt_line_of(ed, "    if count(list)")) + ")"
+        print "  marked: " + string(ui.marks(win, ed, "error")) + " (the if is line " + string(qt_line_of(ed, "    if count(list)")) + ")"
         z = qt_sample_caret(ed, "print describe")
-        z = qt.invoke(win, "run_btn", "click")
-        print "  Run Section: " + G.last_action + " -- " + qt.read(win, studio_shell_qt.part_status(), "text")
+        z = ui.invoke(win, "run_btn", "press")
+        print "  Run Section: " + G.last_action + " -- " + ui.read(win, studio_shell_qt.part_status(), "text")
 
         print "== 04_records.bas"
         ed = qt_sample_open("04_records.bas")
         z = qt_sample_caret(ed, "book =")
         z = qt_sample_run()
-        print qt_indent(qt.read(win, "results_body", "plainText"))
+        print qt_indent(ui.read(win, "results_body", "text"))
 
         print "== 05_branches.bas"
         ed = qt_sample_open("05_branches.bas")
         z = qt_sample_caret(ed, "print string(passing")
         z = qt_sample_run()
-        print "  baseline: " + qt.read(win, "target_body", "plainText")
-        z = qt.write(win, studio_shell_qt.part_name_field(), "Strict")
-        z = qt.select(win, studio_shell_qt.part_branches(), count(qt_branch_cells(win)) - 1)
-        print "  " + G.last_action + " -- " + qt.read(win, "run_branch", "text")
-        z = qt.write(win, studio_shell_qt.part_name_field(), "threshold = 0.9")
-        z = qt.invoke(win, "bind_btn", "click")
+        print "  baseline: " + ui.read(win, "target_body", "text")
+        z = ui.write(win, studio_shell_qt.part_name_field(), "Strict")
+        z = ui.select(win, studio_shell_qt.part_branches(), count(qt_branch_cells(win)) - 1)
+        print "  " + G.last_action + " -- " + ui.read(win, "run_branch", "text")
+        z = ui.write(win, studio_shell_qt.part_name_field(), "threshold = 0.9")
+        z = ui.invoke(win, "bind_btn", "press")
         print "  " + G.last_action + " " + G.last_detail
         z = qt_sample_caret(ed, "print string(passing")
         z = qt_sample_run()
-        print "  on Strict: " + qt.read(win, "target_body", "plainText")
-        z = qt.select(win, studio_shell_qt.part_branches(), 0)
-        print "  " + G.last_action + ", and the file still says: " + string(contains(qt.read(win, ed, "plainText"), "threshold = 0.5"))
+        print "  on Strict: " + ui.read(win, "target_body", "text")
+        z = ui.select(win, studio_shell_qt.part_branches(), 0)
+        print "  " + G.last_action + ", and the file still says: " + string(contains(ui.read(win, ed, "text"), "threshold = 0.5"))
 
         print "== 06_overlays.bas"
         ed = qt_sample_open("06_overlays.bas")
         z = qt_sample_caret(ed, "multiplier = 2")
-        z = qt.write(win, studio_shell_qt.part_name_field(), "Squared")
-        z = qt.select(win, studio_shell_qt.part_branches(), count(qt_branch_cells(win)) - 1)
+        z = ui.write(win, studio_shell_qt.part_name_field(), "Squared")
+        z = ui.select(win, studio_shell_qt.part_branches(), count(qt_branch_cells(win)) - 1)
         print "  " + G.last_action
         z = qt_sample_caret(ed, "    return t * multiplier")
-        z = qt.invoke(win, "ov_edit", "click")
+        z = ui.invoke(win, "ov_edit", "press")
         print "  " + G.last_action
-        z = qt.write(win, "ov_editor", replace(qt.read(win, "ov_editor", "plainText"), "t * multiplier", "t * t"))
-        z = qt.invoke(win, "ov_save", "click")
+        z = ui.write(win, "ov_editor", replace(ui.read(win, "ov_editor", "text"), "t * multiplier", "t * t"))
+        z = ui.invoke(win, "ov_save", "press")
         print "  " + G.last_action
         z = qt_sample_caret(ed, "for each t")
         z = qt_sample_run()
-        print "  on Squared: " + replace(qt.read(win, "target_body", "plainText"), chr(10), " / ")
-        print "  the file still says t * multiplier: " + string(contains(qt.read(win, ed, "plainText"), "t * multiplier"))
-        z = qt.invoke(win, "ov_compare", "click")
-        print qt_indent(qt.read(win, "ov_diff", "plainText"))
+        print "  on Squared: " + replace(ui.read(win, "target_body", "text"), chr(10), " / ")
+        print "  the file still says t * multiplier: " + string(contains(ui.read(win, ed, "text"), "t * multiplier"))
+        z = ui.invoke(win, "ov_compare", "press")
+        print qt_indent(ui.read(win, "ov_diff", "text"))
 
         print "== 07_sql.sql"
         ed = qt_sample_open("07_sql.sql")
-        z = qt.invoke(win, "run_all_btn", "click")
+        z = ui.invoke(win, "run_all_btn", "press")
         G.polling = false
         went = qt_tables_wait()
         print "  Run All: " + went
         z = qt_sample_caret(ed, "select name")
         z = qt_sample_run()
         print "  the pane offers: " + join(qt_table_offers(win), " | ")
-        z = qt.invoke(win, "schema_btn", "click")
+        z = ui.invoke(win, "schema_btn", "press")
         names = []
         for each t in G.schema_tables
             names = append(names, studio_schema.table_label(t))
         end for
-        print "  Schema… finds: " + join(names, ", ") + " -- asked: " + qt.read(G.schemawin, "sc_asked", "text")
-        z = qt.close(G.schemawin)
+        print "  Schema… finds: " + join(names, ", ") + " -- asked: " + ui.read(G.schemawin, "sc_asked", "text")
+        z = ui.close(G.schemawin)
 
         print "== 08_lesson.bas"
         ed = qt_sample_open("08_lesson.bas")
-        z = qt.invoke(win, qt_item("check-lesson"), "trigger")
+        z = ui.invoke(win, qt_item("check-lesson"), "press")
         print "  Check Lesson: " + studio_ui.action_notice(G.last_action, G.last_detail)
         z = qt_lesson_notes(ed)
-        z = qt.invoke(win, qt_item("export-student"), "trigger")
+        z = ui.invoke(win, qt_item("export-student"), "press")
         print "  Export Student Edition: " + studio_ui.action_notice(G.last_action, G.last_detail)
         sd = studio_docs.active_doc(G.app.dm)
         sed = studio_shell_qt.part_editor(sd.id)
-        stext = qt.read(win, sed, "plainText")
+        stext = ui.read(win, sed, "text")
         print "  the active tab: " + sd.display_name + "; a solution line in it: " + string(contains(stext, "total / count(xs)")) + "; a private check in it: " + string(contains(stext, "= mean(commute)"))
-        z = qt.invoke(win, qt_item("check-lesson"), "trigger")
+        z = ui.invoke(win, qt_item("check-lesson"), "press")
         print "  Check Lesson there: " + studio_ui.action_notice(G.last_action, G.last_detail)
         done = replace(stext, "function average(xs)" + chr(10) + "    return 0", "function average(xs)" + chr(10) + "    return sum(xs) / count(xs)")
         G.app = studio.edit_document(G.app, sd.id, done)
         z = qt_redraw()
-        z = qt.invoke(win, qt_item("check-lesson"), "trigger")
+        z = ui.invoke(win, qt_item("check-lesson"), "press")
         print "  average written, checked again: " + studio_ui.action_notice(G.last_action, G.last_detail)
         z = qt_lesson_notes(sed)
         return nothing
@@ -3083,25 +3102,25 @@ program main(args)
         G.app = studio_view_qt.render(win, G.app, "")
         bk = studio_shell_qt.part_tabs()
         print "-- two files open, the second on top --"
-        print "  tabs: " + string(qt.tabs(win, bk)) + "  on top: " + string(qt.read(win, bk, "currentIndex"))
+        print "  tabs: " + string(ui.tabs(win, bk)) + "  on top: " + string(ui.read(win, bk, "index"))
         print "switching to the first tab through the tab widget itself"
-        z = qt.set(win, bk, "currentIndex", 0)
+        z = ui.set(win, bk, "index", 0)
         print "  action=" + G.last_action + ", active: " + studio_docs.active_doc(G.app.dm).display_name
         print "typing into it"
         ed = studio_shell_qt.part_editor(studio_docs.active_doc(G.app.dm).id)
-        z = qt.write(win, ed, "print \"edited\"" + chr(10))
+        z = ui.write(win, ed, "print \"edited\"" + chr(10))
         G.app = qt_sync_buffer(G.app)
-        print "  tabs: " + string(qt.tabs(win, bk))
+        print "  tabs: " + string(ui.tabs(win, bk))
         print "Save, from the toolbar"
-        z = qt.invoke(win, studio_shell_qt.part_save(), "trigger")
+        z = ui.invoke(win, studio_shell_qt.part_save(), "press")
         mf{file} = args[2] + "/main.bas"
-        print "  action=" + G.last_action + ", tabs: " + string(qt.tabs(win, bk))
+        print "  action=" + G.last_action + ", tabs: " + string(ui.tabs(win, bk))
         print "  on disk: " + replace(read(mf), chr(10), "/")
         print "Reload"
-        z = qt.invoke(win, qt_item("reload"), "trigger")
-        print "  action=" + G.last_action + ", tabs: " + string(qt.tabs(win, bk))
+        z = ui.invoke(win, qt_item("reload"), "press")
+        print "  action=" + G.last_action + ", tabs: " + string(ui.tabs(win, bk))
         print "New Folder, with the field empty"
-        z = qt.invoke(win, qt_item("new-folder"), "trigger")
+        z = ui.invoke(win, qt_item("new-folder"), "press")
         print "  action=" + G.last_action
         print qt_indent(join(qt_nav_cells(win), chr(10)))
         print "each editor highlights as its OWN language"
@@ -3110,7 +3129,7 @@ program main(args)
             o = studio_ui.activate_row(G.app, rr, studio_qt_row_index(rr, "file", f))
             G.app = o.app
             z = qt_redraw()
-            hl = qt.highlighting(win, studio_shell_qt.part_editor(studio_docs.active_doc(G.app.dm).id))
+            hl = ui.highlighting(win, studio_shell_qt.part_editor(studio_docs.active_doc(G.app.dm).id))
             hname = "(plain)"
             if not is_unknown(hl) then
                 hname = hl.language
@@ -3120,22 +3139,24 @@ program main(args)
         ' A PLAIN FILE IN A DARK STUDIO: no highlighter, but the theme's own
         ' colours -- the same pair a highlighted editor gets, read back off Qt
         ' (`palette` is "text on background").
-        z = qt.write(win, studio_shell_qt.part_name_field(), "notes.txt")
-        z = qt.invoke(win, qt_item("new-file"), "trigger")
+        z = ui.write(win, studio_shell_qt.part_name_field(), "notes.txt")
+        z = ui.invoke(win, qt_item("new-file"), "press")
         plain = studio_shell_qt.part_editor(studio_docs.active_doc(G.app.dm).id)
-        hl = qt.highlighting(win, plain)
+        hl = ui.highlighting(win, plain)
         print "  notes.txt: " + string(is_unknown(hl)) + " (no highlighter)"
         z = qt_theme_to("dark")
         rr = studio_ui.nav_rows(G.app)
         o = studio_ui.activate_row(G.app, rr, studio_qt_row_index(rr, "file", "main.bas"))
         G.app = o.app
         z = qt_redraw()
-        mp = qt.read(win, studio_shell_qt.part_editor(studio_docs.active_doc(G.app.dm).id), "palette")
+        mc = ui.read(win, studio_shell_qt.part_editor(studio_docs.active_doc(G.app.dm).id), "colors")
+        mp = mc.fg + " on " + mc.base
         rr = studio_ui.nav_rows(G.app)
         o = studio_ui.activate_row(G.app, rr, studio_qt_row_index(rr, "file", "notes.txt"))
         G.app = o.app
         z = qt_redraw()
-        tp = qt.read(win, studio_shell_qt.part_editor(studio_docs.active_doc(G.app.dm).id), "palette")
+        tc = ui.read(win, studio_shell_qt.part_editor(studio_docs.active_doc(G.app.dm).id), "colors")
+        tp = tc.fg + " on " + tc.base
         print "  in Dark, main.bas is " + mp + "; notes.txt the same: " + string(mp = tp)
         return nothing
     end if
@@ -3156,35 +3177,35 @@ program main(args)
         print qt_indent(join(qt_nav_cells(win), chr(10)))
         active_before = G.app.model.workspace.active_project
         print "Add project file, from the menu on BETA's row"
-        z = qt.right_click(win, studio_shell_qt.part_browser(), qt_row_of("project", "beta"))
-        z = qt.invoke(win, studio_shell_qt.part_nav_menu(), "hide")
-        z = qt.invoke(win, qt_ctx("project-file"), "trigger")
+        z = ui.right_click(win, studio_shell_qt.part_browser(), qt_row_of("project", "beta"))
+        z = ui.invoke(win, studio_shell_qt.part_nav_menu(), "hide")
+        z = ui.invoke(win, qt_ctx("project-file"), "press")
         print "  action=" + G.last_action
         bf{file} = args[3] + "/.gstudio.json"
         print "  beta got the file=" + string(exists(bf))
         print "  the active project did not move=" + string(G.app.model.workspace.active_project = active_before)
         print "Delete, from the menu on main.bas -- it ARMS, as the header's does"
-        z = qt.right_click(win, studio_shell_qt.part_browser(), qt_row_of("file", "main.bas"))
-        z = qt.invoke(win, studio_shell_qt.part_nav_menu(), "hide")
-        z = qt.invoke(win, qt_ctx("delete"), "trigger")
+        z = ui.right_click(win, studio_shell_qt.part_browser(), qt_row_of("file", "main.bas"))
+        z = ui.invoke(win, studio_shell_qt.part_nav_menu(), "hide")
+        z = ui.invoke(win, qt_ctx("delete"), "press")
         mf{file} = args[2] + "/main.bas"
         print "  action=" + G.last_action + ", main.bas is still there=" + string(exists(mf))
         print "Rename from the header: select main.bas, type a name, Rename"
-        z = qt.select(win, studio_shell_qt.part_browser(), qt_row_of("file", "main.bas"))
-        z = qt.write(win, studio_shell_qt.part_name_field(), "start.bas")
-        z = qt.invoke(win, qt_item("rename"), "trigger")
+        z = ui.select(win, studio_shell_qt.part_browser(), qt_row_of("file", "main.bas"))
+        z = ui.write(win, studio_shell_qt.part_name_field(), "start.bas")
+        z = ui.invoke(win, qt_item("rename"), "press")
         sf{file} = args[2] + "/start.bas"
         print "  action=" + G.last_action + ", start.bas exists=" + string(exists(sf)) + ", main.bas gone=" + string(not exists(mf))
         print "Close project, from the menu on ALPHA's row"
-        z = qt.right_click(win, studio_shell_qt.part_browser(), qt_row_of("project", "alpha"))
-        z = qt.invoke(win, studio_shell_qt.part_nav_menu(), "hide")
-        z = qt.invoke(win, qt_ctx("close-project"), "trigger")
+        z = ui.right_click(win, studio_shell_qt.part_browser(), qt_row_of("project", "alpha"))
+        z = ui.invoke(win, studio_shell_qt.part_nav_menu(), "hide")
+        z = ui.invoke(win, qt_ctx("close-project"), "press")
         print "  action=" + G.last_action
         print qt_indent(join(qt_nav_cells(win), chr(10)))
         print "  alpha's folder is untouched=" + string(exists(sf))
         print "the session toggle in Settings"
-        z = qt.invoke(win, qt_item("restore-session"), "trigger")
-        print "  action=" + G.last_action + ", checked=" + string(qt.read(win, qt_item("restore-session"), "checked"))
+        z = ui.invoke(win, qt_item("restore-session"), "press")
+        print "  action=" + G.last_action + ", checked=" + string(ui.read(win, qt_item("restore-session"), "checked"))
         return nothing
     end if
 
@@ -3197,26 +3218,26 @@ program main(args)
         print "-- a cold home --"
         print qt_indent(join(qt_nav_cells(win), chr(10)))
         print "typing the folder path into the name field, then Open Folder"
-        z = qt.write(win, studio_shell_qt.part_name_field(), args[3])
-        z = qt.invoke(win, qt_item("open-folder"), "trigger")
-        print "  action=" + G.last_action + ", the field is now [" + qt.read(win, studio_shell_qt.part_name_field(), "text") + "]"
+        z = ui.write(win, studio_shell_qt.part_name_field(), args[3])
+        z = ui.invoke(win, qt_item("open-folder"), "press")
+        print "  action=" + G.last_action + ", the field is now [" + ui.read(win, studio_shell_qt.part_name_field(), "text") + "]"
         print qt_indent(join(qt_nav_cells(win), chr(10)))
         print "Open Folder again on the same path"
-        z = qt.write(win, studio_shell_qt.part_name_field(), args[3])
-        z = qt.invoke(win, qt_item("open-folder"), "trigger")
+        z = ui.write(win, studio_shell_qt.part_name_field(), args[3])
+        z = ui.invoke(win, qt_item("open-folder"), "press")
         print "  action=" + G.last_action + " -- activated, not duplicated: " + string(count(qt_nav_cells(win))) + " rows"
         pf{file} = args[3] + "/.gstudio.json"
         print "  the folder holds a project file: " + string(exists(pf))
         print "Project File"
-        z = qt.invoke(win, qt_item("project-file"), "trigger")
+        z = ui.invoke(win, qt_item("project-file"), "press")
         print "  action=" + G.last_action + ", written: " + string(exists(pf))
         print qt_indent(join(qt_nav_cells(win), chr(10)))
         print "Project File again"
-        z = qt.invoke(win, qt_item("project-file"), "trigger")
+        z = ui.invoke(win, qt_item("project-file"), "press")
         print "  action=" + G.last_action
         print "Open Folder on a path that is not there"
-        z = qt.write(win, studio_shell_qt.part_name_field(), args[3] + "/nowhere")
-        z = qt.invoke(win, qt_item("open-folder"), "trigger")
+        z = ui.write(win, studio_shell_qt.part_name_field(), args[3] + "/nowhere")
+        z = ui.invoke(win, qt_item("open-folder"), "press")
         print "  action=" + G.last_action
         return nothing
     end if
@@ -3236,38 +3257,38 @@ program main(args)
         G.app = studio_view_qt.render(win, G.app, "")
         ed = studio_shell_qt.part_editor(studio_docs.active_doc(G.app.dm).id)
         for each at in [1, 3, 7]
-            z = qt.caret_to(win, ed, at, 1)
+            z = ui.caret_to(win, ed, at, 1)
             G.app = qt_sync_caret(G.app)
-            print "caret on line " + string(at) + "  " + qt.read(win, "run_section", "text")
+            print "caret on line " + string(at) + "  " + ui.read(win, "run_section", "text")
         end for
         print "clicking Run Section"
-        z = qt.invoke(win, "run_btn", "click")
+        z = ui.invoke(win, "run_btn", "press")
         went = qt_tables_wait()
-        print "  strip:   " + qt.read(win, "run_state", "text")
-        print "  status:  " + qt.read(win, studio_shell_qt.part_status(), "text")
-        print "  prefix:  <" + qt.read(win, "prefix_body", "plainText") + ">"
-        print "  target:  <" + qt.read(win, "target_body", "plainText") + ">"
-        print "  errors:  " + qt.read(win, "err_head", "text") + " <" + qt.read(win, "err_body", "plainText") + ">"
+        print "  strip:   " + ui.read(win, "run_state", "text")
+        print "  status:  " + ui.read(win, studio_shell_qt.part_status(), "text")
+        print "  prefix:  <" + ui.read(win, "prefix_body", "text") + ">"
+        print "  target:  <" + ui.read(win, "target_body", "text") + ">"
+        print "  errors:  " + ui.read(win, "err_head", "text") + " <" + ui.read(win, "err_body", "text") + ">"
         print "the results pane, caret on the section that ran:"
-        print qt_indent(qt.read(win, "results_body", "plainText"))
+        print qt_indent(ui.read(win, "results_body", "text"))
         print "moving the caret to the first section -- the pane follows it"
-        z = qt.caret_to(win, ed, 1, 1)
+        z = ui.caret_to(win, ed, 1, 1)
         G.app = qt_sync_caret(G.app)
-        print qt_indent(qt.read(win, "results_body", "plainText"))
+        print qt_indent(ui.read(win, "results_body", "text"))
         print "editing the section that ran, then putting the caret back on it"
         did = studio_docs.active_doc(G.app.dm).id
         G.app = studio.edit_document(G.app, did, "print \"first\"" + chr(10) + chr(10) + "function add(a, b)" + chr(10) + "  return a + b" + chr(10) + "end function" + chr(10) + chr(10) + "print add(2, 4)" + chr(10))
         z = qt_redraw()
-        z = qt.caret_to(win, ed, 7, 1)
+        z = ui.caret_to(win, ed, 7, 1)
         G.app = qt_sync_caret(G.app)
         z = qt_redraw()
-        print qt_indent(qt.read(win, "results_body", "plainText"))
+        print qt_indent(ui.read(win, "results_body", "text"))
         return nothing
     end if
 
     if mode = "inline" then
         ' RESULTS UNDER THEIR SECTIONS, read back off the editor (gBASIC
-        ' §0.38). `qt.blocks(win, part)` answers what Qt holds -- the line
+        ' §0.38). `ui.blocks(win, part)` answers what Qt holds -- the line
         ' each block is on NOW, as laid out -- never what was sent. And the
         ' editor's text is read back after every step, because the whole
         ' promise is that a result is display and never source.
@@ -3279,42 +3300,42 @@ program main(args)
         G.app = studio_view_qt.render(win, G.app, "")
         did = studio_docs.active_doc(G.app.dm).id
         ed = studio_shell_qt.part_editor(did)
-        text0 = qt.read(win, ed, "plainText")
+        text0 = ui.read(win, ed, "text")
         print "this gBASIC draws blocks: " + string(G.app.qt_blocks_ok)
         print "before any run: " + qt_inline_report(win, ed)
         for each at in [1, 5, 11, 15]
-            z = qt.caret_to(win, ed, at, 1)
+            z = ui.caret_to(win, ed, at, 1)
             G.app = qt_sync_caret(G.app)
-            z = qt.invoke(win, "run_btn", "click")
+            z = ui.invoke(win, "run_btn", "press")
             if at = 5 then
                 print "while sec-2 runs: " + qt_inline_report(win, ed)
             end if
             went = qt_tables_wait()
         end for
         print "after running all four: " + qt_inline_report(win, ed)
-        print "  the text is untouched: " + string(qt.read(win, ed, "plainText") = text0) + ", unsaved: " + string(studio_docs.is_dirty(studio_docs.active_doc(G.app.dm)))
+        print "  the text is untouched: " + string(ui.read(win, ed, "text") = text0) + ", unsaved: " + string(studio_docs.is_dirty(studio_docs.active_doc(G.app.dm)))
         print "the collapse control"
-        z = qt.block_press(win, ed, "res-sec-2", "collapse")
+        z = ui.block_press(win, ed, "res-sec-2", "collapse")
         print "  pressed once: " + G.last_action + " -> " + qt_inline_report(win, ed)
-        z = qt.block_press(win, ed, "res-sec-2", "click")
+        z = ui.block_press(win, ed, "res-sec-2", "click")
         print "  a click on the body changes nothing: " + qt_inline_report(win, ed)
-        z = qt.block_press(win, ed, "res-sec-2", "collapse")
+        z = ui.block_press(win, ed, "res-sec-2", "collapse")
         print "  pressed again: " + G.last_action + " -> " + qt_inline_report(win, ed)
         print "a line added at the top: every block is one line lower"
         G.app = studio.edit_document(G.app, did, "' a heading" + chr(10) + text0)
         z = qt_redraw()
         print "  " + qt_inline_report(win, ed)
         print "Settings > Show results under sections"
-        z = qt.invoke(win, qt_item("show-inline"), "trigger")
-        print "  " + G.last_action + ": " + qt_inline_report(win, ed) + ", checked=" + string(qt.read(win, qt_item("show-inline"), "checked"))
-        z = qt.invoke(win, qt_item("show-inline"), "trigger")
-        print "  " + G.last_action + ": " + qt_inline_report(win, ed) + ", checked=" + string(qt.read(win, qt_item("show-inline"), "checked"))
+        z = ui.invoke(win, qt_item("show-inline"), "press")
+        print "  " + G.last_action + ": " + qt_inline_report(win, ed) + ", checked=" + string(ui.read(win, qt_item("show-inline"), "checked"))
+        z = ui.invoke(win, qt_item("show-inline"), "press")
+        print "  " + G.last_action + ": " + qt_inline_report(win, ed) + ", checked=" + string(ui.read(win, qt_item("show-inline"), "checked"))
         print "a theme change rebuilds the editor, and the blocks are sent to the new one"
         th = "theme-dark"
         if studio_ui.theme_of(G.app) = "dark" then
             th = "theme-system"
         end if
-        z = qt.invoke(win, qt_item(th), "trigger")
+        z = ui.invoke(win, qt_item(th), "press")
         ed = studio_shell_qt.part_editor(did)
         print "  " + G.last_action + ": " + qt_inline_report(win, ed)
         return nothing
@@ -3331,74 +3352,74 @@ program main(args)
         G.app = studio_view_qt.render(win, G.app, "")
         did = studio_docs.active_doc(G.app.dm).id
         ed = studio_shell_qt.part_editor(did)
-        text0 = qt.read(win, ed, "plainText")
+        text0 = ui.read(win, ed, "text")
         print "this gBASIC reads comments: " + string(studio_ui.prose_possible())
         G.app = qt_sync_caret(G.app)
-        c = qt.caret(win, ed)
+        c = ui.caret(win, ed)
         print "opened, the caret on line " + string(c.line) + ", in the first run: " + qt_prose_report(win, ed)
-        z = qt.caret_to(win, ed, 8, 1)
+        z = ui.caret_to(win, ed, 8, 1)
         G.app = qt_sync_caret(G.app)
         print "the caret on code, line 8: " + qt_prose_report(win, ed)
-        print "  the text is untouched: " + string(qt.read(win, ed, "plainText") = text0) + ", unsaved: " + string(studio_docs.is_dirty(studio_docs.active_doc(G.app.dm)))
-        z = qt.caret_to(win, ed, 6, 1)
+        print "  the text is untouched: " + string(ui.read(win, ed, "text") = text0) + ", unsaved: " + string(studio_docs.is_dirty(studio_docs.active_doc(G.app.dm)))
+        z = ui.caret_to(win, ed, 6, 1)
         G.app = qt_sync_caret(G.app)
         print "the caret into the second run: " + qt_prose_report(win, ed)
-        z = qt.caret_to(win, ed, 8, 1)
+        z = ui.caret_to(win, ed, 8, 1)
         G.app = qt_sync_caret(G.app)
         print "a click on the first run's prose"
-        z = qt.block_press(win, ed, "doc-1", "click")
-        c = qt.caret(win, ed)
+        z = ui.block_press(win, ed, "doc-1", "click")
+        c = ui.caret(win, ed)
         print "  the caret is on line " + string(c.line) + ": " + qt_prose_report(win, ed)
-        z = qt.caret_to(win, ed, 8, 1)
+        z = ui.caret_to(win, ed, 8, 1)
         G.app = qt_sync_caret(G.app)
         print "the collapse control on prose"
-        z = qt.block_press(win, ed, "doc-5", "collapse")
+        z = ui.block_press(win, ed, "doc-5", "collapse")
         print "  pressed once: " + G.last_action + " -> " + qt_prose_report(win, ed)
-        z = qt.block_press(win, ed, "doc-5", "collapse")
+        z = ui.block_press(win, ed, "doc-5", "collapse")
         print "  pressed again: " + G.last_action + " -> " + qt_prose_report(win, ed)
         print "a paragraph typed at the top, as the editor would: the prose moves with its lines"
         G.app = studio.edit_document(G.app, did, "'' A new paragraph." + chr(10) + chr(10) + text0)
         z = qt_redraw()
-        z = qt.caret_to(win, ed, 10, 1)
+        z = ui.caret_to(win, ed, 10, 1)
         G.app = qt_sync_caret(G.app)
         print "  " + qt_prose_report(win, ed)
         G.app = studio.edit_document(G.app, did, text0)
         z = qt_redraw()
-        z = qt.caret_to(win, ed, 8, 1)
+        z = ui.caret_to(win, ed, 8, 1)
         G.app = qt_sync_caret(G.app)
         print "Settings > Show documentation comments as prose"
-        z = qt.invoke(win, qt_item("show-prose"), "trigger")
-        print "  " + G.last_action + ": " + qt_prose_report(win, ed) + ", checked=" + string(qt.read(win, qt_item("show-prose"), "checked"))
-        z = qt.invoke(win, qt_item("show-prose"), "trigger")
-        print "  " + G.last_action + ": " + qt_prose_report(win, ed) + ", checked=" + string(qt.read(win, qt_item("show-prose"), "checked"))
+        z = ui.invoke(win, qt_item("show-prose"), "press")
+        print "  " + G.last_action + ": " + qt_prose_report(win, ed) + ", checked=" + string(ui.read(win, qt_item("show-prose"), "checked"))
+        z = ui.invoke(win, qt_item("show-prose"), "press")
+        print "  " + G.last_action + ": " + qt_prose_report(win, ed) + ", checked=" + string(ui.read(win, qt_item("show-prose"), "checked"))
         print "a theme change rebuilds the editor, and the prose is sent to the new one"
         th = "theme-dark"
         if studio_ui.theme_of(G.app) = "dark" then
             th = "theme-system"
         end if
-        z = qt.invoke(win, qt_item(th), "trigger")
+        z = ui.invoke(win, qt_item(th), "press")
         ed = studio_shell_qt.part_editor(did)
         print "  " + G.last_action + ": " + qt_prose_report(win, ed)
-        print "  the text is untouched: " + string(qt.read(win, ed, "plainText") = text0)
+        print "  the text is untouched: " + string(ui.read(win, ed, "text") = text0)
         print "File > Export as Markdown"
-        z = qt.invoke(win, qt_item("export-md"), "trigger")
+        z = ui.invoke(win, qt_item("export-md"), "press")
         print "  " + G.last_action + ": " + studio_ui.action_notice(G.last_action, G.last_detail)
         mdf{file} = studio_ui.export_path(studio_docs.active_doc(G.app.dm).path)
         md = read(mdf)
-        print "  the status line says so: " + string(qt.read(win, studio_shell_qt.part_status(), "text") = studio_ui.action_notice(G.last_action, G.last_detail))
+        print "  the status line says so: " + string(ui.read(win, studio_shell_qt.part_status(), "text") = studio_ui.action_notice(G.last_action, G.last_detail))
         print "  its first paragraph: " + split(md, chr(10))[2]
-        print "  the text is untouched: " + string(qt.read(win, ed, "plainText") = text0)
+        print "  the text is untouched: " + string(ui.read(win, ed, "text") = text0)
         mdoc = studio_docs.active_doc(G.app.dm)
-        print "  it opened as the active tab: " + mdoc.display_name + ", the tab shows it: " + string(qt.read(win, studio_shell_qt.part_editor(mdoc.id), "plainText") = md)
+        print "  it opened as the active tab: " + mdoc.display_name + ", the tab shows it: " + string(ui.read(win, studio_shell_qt.part_editor(mdoc.id), "text") = md)
         G.app = studio.set_active_document(G.app, did)
         z = qt_redraw()
         print "File > Export as Measured Program"
         msf{file} = studio_ui.measured_path(studio_docs.active_doc(G.app.dm).path)
-        z = qt.invoke(win, qt_item("export-measured"), "trigger")
+        z = ui.invoke(win, qt_item("export-measured"), "press")
         print "  " + G.last_action + ": " + studio_ui.action_notice(G.last_action, G.last_detail)
         print "  its block opens: " + split(read(msf), chr(10))[2]
         print "  and is the active tab: " + studio_docs.active_doc(G.app.dm).display_name
-        print "  the status line says so: " + string(qt.read(win, studio_shell_qt.part_status(), "text") = studio_ui.action_notice(G.last_action, G.last_detail))
+        print "  the status line says so: " + string(ui.read(win, studio_shell_qt.part_status(), "text") = studio_ui.action_notice(G.last_action, G.last_detail))
         return nothing
     end if
 
@@ -3408,12 +3429,12 @@ program main(args)
         ' at all, New Project as the way in, and a project with a file to click.
         print "-- a cold home --"
         print qt_indent(join(qt_nav_cells(win), chr(10)))
-        print "  tabs: " + string(qt.tabs(win, studio_shell_qt.part_tabs()))
+        print "  tabs: " + string(ui.tabs(win, studio_shell_qt.part_tabs()))
         print "pressing New Project"
-        z = qt.invoke(win, qt_item("new-project"), "trigger")
+        z = ui.invoke(win, qt_item("new-project"), "press")
         print "  its window is open=" + string(qt_np_is_open())
         print "pressing Create, with the window's defaults"
-        z = qt.invoke(G.npwin, "np_create", "click")
+        z = ui.invoke(G.npwin, "np_create", "press")
         print "  action=" + G.last_action + ", window closed=" + string(not qt_np_is_open())
         print "-- after New Project --"
         print qt_indent(join(qt_nav_cells(win), chr(10)))
@@ -3427,14 +3448,14 @@ program main(args)
         ' not use git never sees it -- and that is only checkable in a window.
         gd = studio_shell_qt.part_side_dock("git")
         print "a project that is NOT a repository:"
-        print "  pane visible: " + string(qt.read(win, gd, "visible"))
+        print "  pane visible: " + string(ui.read(win, gd, "visible"))
         print "opening a repository as a second project, the way the header field does it"
-        z = qt.write(win, studio_shell_qt.part_name_field(), args[3])
-        z = qt.invoke(win, qt_item("open-folder"), "trigger")
+        z = ui.write(win, studio_shell_qt.part_name_field(), args[3])
+        z = ui.invoke(win, qt_item("open-folder"), "press")
         print "  action=" + G.last_action
-        print "  pane visible: " + string(qt.read(win, gd, "visible"))
+        print "  pane visible: " + string(ui.read(win, gd, "visible"))
         print "what the pane says:"
-        print qt_indent(qt.read(win, "git_body", "plainText"))
+        print qt_indent(ui.read(win, "git_body", "text"))
         return nothing
     end if
 
@@ -3455,36 +3476,36 @@ program main(args)
         nav = studio_ui.nav_rows(G.app)
         G.app = studio_view_qt.render(win, G.app, "")
         print "-- before any run --"
-        print "  the pane offers: " + qt.cell(win, studio_shell_qt.part_tables(), 0, "label")
+        print "  the pane offers: " + ui.cell(win, studio_shell_qt.part_tables(), 0, "label")
         r = studio_ui.run_section(G.app, 0, 0)
         G.app = r.app
         print "-- Run: " + r.action
         went = qt_tables_wait()
         print "  finished: " + went
-        print "  the pane offers: " + qt.cell(win, studio_shell_qt.part_tables(), 0, "label")
+        print "  the pane offers: " + ui.cell(win, studio_shell_qt.part_tables(), 0, "label")
 
         print "-- selecting the offer opens the grid window --"
-        z = qt.select(win, studio_shell_qt.part_tables(), 0)
+        z = ui.select(win, studio_shell_qt.part_tables(), 0)
         print "  action:  " + G.last_action
         z = qt_tables_report()
 
         print "-- Fetch all rows, which RUNS THE SECTION AGAIN --"
-        z = qt.invoke(win, studio_shell_qt.part_fetch(), "click")
+        z = ui.invoke(win, studio_shell_qt.part_fetch(), "press")
         print "  action:  " + G.last_action + " (" + G.last_detail + ")"
         went = qt_tables_wait()
         print "  finished: " + went
-        z = qt.select(win, studio_shell_qt.part_tables(), 0)
+        z = ui.select(win, studio_shell_qt.part_tables(), 0)
         print "  reopened: " + G.last_action
         z = qt_tables_report()
 
         print "-- Sort by score, descending, through the window's own controls --"
         tw = G.tablewin
         print "  offered: " + join(qt_choice_items(tw, "grid_sort"), " | ")
-        z = qt.set(tw, "grid_desc", "checked", true)
-        z = qt.write(tw, "grid_sort", "score")
+        z = ui.set(tw, "grid_desc", "checked", true)
+        z = ui.write(tw, "grid_sort", "score")
         z = qt_tables_report()
         print "-- and back to the order the run made them --"
-        z = qt.write(tw, "grid_sort", studio_shell_qt.sort_choices([])[0])
+        z = ui.write(tw, "grid_sort", studio_shell_qt.sort_choices([])[0])
         z = qt_tables_report()
 
         print "-- the nothing-to-offer row opens nothing --"
@@ -3493,10 +3514,10 @@ program main(args)
         r = studio_ui.run_section(G.app, 0, 0)
         G.app = r.app
         went = qt_tables_wait()
-        print "  the pane offers: " + qt.cell(win, studio_shell_qt.part_tables(), 0, "label")
-        z = qt.select(win, studio_shell_qt.part_tables(), 0)
+        print "  the pane offers: " + ui.cell(win, studio_shell_qt.part_tables(), 0, "label")
+        z = ui.select(win, studio_shell_qt.part_tables(), 0)
         print "  action:  " + G.last_action
-        z = qt.close(G.tablewin)
+        z = ui.close(G.tablewin)
         return nothing
     end if
 
@@ -3506,39 +3527,39 @@ program main(args)
         ' because a loop needs somebody to close the window and offscreen has
         ' no window manager.
         print "-- the Qt shell, opened and rendered --"
-        print "  title:    " + qt.read(win, studio_shell_qt.window_name(), "windowTitle")
-        print "  status:   " + qt.read(win, studio_shell_qt.part_status(), "text")
+        print "  title:    " + ui.read(win, studio_shell_qt.window_name(), "title")
+        print "  status:   " + ui.read(win, studio_shell_qt.part_status(), "text")
         ' A TREE, not a table, so there is no `rowCount` to read -- and asking
         ' it for the DEPTH of a row is the better assertion anyway: a populate
         ' that ignored the depth builds a flat tree whose every name, index,
         ' selection and heading reads back correctly, so the depth is the one
         ' thing nothing else in this probe can see.
         print "  rows:     " + string(count(studio_ui.nav_rows(G.app)))
-        print "  heading:  " + qt.heading(win, studio_shell_qt.part_browser(), 0)
+        print "  heading:  " + ui.heading(win, studio_shell_qt.part_browser(), 0)
         i = 0
         for each nr in studio_ui.nav_rows(G.app)
-            cell = qt.cell(win, studio_shell_qt.part_browser(), i, "text")
-            print "    " + string(qt.depth(win, studio_shell_qt.part_browser(), i)) + " [" + studio_qt_scrub(cell, G.app) + "]"
+            cell = ui.cell(win, studio_shell_qt.part_browser(), i, "text")
+            print "    " + string(ui.depth(win, studio_shell_qt.part_browser(), i)) + " [" + studio_qt_scrub(cell, G.app) + "]"
             i = i + 1
         end for
-        print "  tabs:     " + string(qt.tabs(win, studio_shell_qt.part_tabs()))
-        print "  section:  " + qt.read(win, "run_section", "text")
-        print "  state:    [" + qt.read(win, "run_state", "text") + "]"
-        print "  standing: [" + qt.read(win, "run_standing", "text") + "]"
-        print "  run all:  " + string(qt.read(win, "run_all_btn", "visible"))
-        print "  snippets: " + string(qt.read(win, "snippet_btn", "visible"))
-        print "  prefix:   [" + qt.read(win, "prefix_body", "plainText") + "]"
-        print "  target:   [" + qt.read(win, "target_body", "plainText") + "]"
-        print "  errors:   " + qt.read(win, "err_head", "text") + " [" + qt.read(win, "err_body", "plainText") + "]"
-        print "  results:  [" + studio_qt_first_line(qt.read(win, "results_body", "plainText")) + "]"
+        print "  tabs:     " + string(ui.tabs(win, studio_shell_qt.part_tabs()))
+        print "  section:  " + ui.read(win, "run_section", "text")
+        print "  state:    [" + ui.read(win, "run_state", "text") + "]"
+        print "  standing: [" + ui.read(win, "run_standing", "text") + "]"
+        print "  run all:  " + string(ui.read(win, "run_all_btn", "visible"))
+        print "  snippets: " + string(ui.read(win, "snippet_btn", "visible"))
+        print "  prefix:   [" + ui.read(win, "prefix_body", "text") + "]"
+        print "  target:   [" + ui.read(win, "target_body", "text") + "]"
+        print "  errors:   " + ui.read(win, "err_head", "text") + " [" + ui.read(win, "err_body", "text") + "]"
+        print "  results:  [" + studio_qt_first_line(ui.read(win, "results_body", "text")) + "]"
         ' THE BRANCH PANE IS A TABLE now, so there is no body to read: its
         ' rows are what it holds, and a row is `studio_ui.branch_line`.
         print "  branches: " + string(qt_branch_cells(win))
         ' A TABLE now as well; its first row is the offer, or the sentence saying
         ' there is none.
-        print "  tables:   [" + qt.cell(win, studio_shell_qt.part_tables(), 0, "label") + "]"
-        print "  git:      [" + qt.read(win, "git_body", "plainText") + "]"
-        print "  dark is checked: " + string(qt.read(win, studio_shell_qt.part_item("theme-dark"), "checked"))
+        print "  tables:   [" + ui.cell(win, studio_shell_qt.part_tables(), 0, "label") + "]"
+        print "  git:      [" + ui.read(win, "git_body", "text") + "]"
+        print "  dark is checked: " + string(ui.read(win, studio_shell_qt.part_item("theme-dark"), "checked"))
 
         print "-- the furniture: which EDGE did each dock land on? --"
         ' ASKED OF THE WINDOW (`dockWidgetArea`) rather than of anything we
@@ -3547,23 +3568,23 @@ program main(args)
         ' wrong area is INVISIBLE from the language otherwise, since every part
         ' inside it reads back by name whichever edge it ended up on and
         ' `visible` is true either way.
-        print "  " + padto_qt("files", 10) + qt.dock(win, studio_shell_qt.part_browser_dock()).area
-        print "  " + padto_qt("console", 10) + qt.dock(win, studio_shell_qt.part_console_dock()).area
+        print "  " + padto_qt("files", 10) + ui.dock(win, studio_shell_qt.part_browser_dock()).area
+        print "  " + padto_qt("console", 10) + ui.dock(win, studio_shell_qt.part_console_dock()).area
         for each sp in studio_shell_qt.side_panes()
-            d = qt.dock(win, studio_shell_qt.part_side_dock(sp.id))
+            d = ui.dock(win, studio_shell_qt.part_side_dock(sp.id))
             print "  " + padto_qt(sp.id, 10) + d.area + ", tabbed with " + string(d.tabbed_with)
         end for
         print "  (Qt TABS the docks sharing an edge, which is what stops the"
         print "   last of five panes sitting below the fold)"
         print "-- and the toolbar's items are QActions with real icons --"
         for each ti in [studio_shell_qt.part_save(), "tb_reload", "tb_open_folder", "tb_new_file", "tb_new_folder"]
-            print "  " + padto_qt(ti, 16) + "icon=" + string(qt.has_icon(win, ti))
+            print "  " + padto_qt(ti, 16) + "icon=" + string(ui.has_icon(win, ti))
         end for
         print "-- the layout round-trips, which is what a dragged dock needs --"
-        blob = qt.layout(win)
+        blob = ui.layout(win)
         print "  saved:    " + string(count(blob) > 0) + " (base64, because the blob is not UTF-8)"
-        print "  restored: " + string(qt.restore_layout(win, blob))
-        print "  a blob it does not know is REPORTED, not raised: " + string(qt.restore_layout(win, "bm90aGluZw=="))
+        print "  restored: " + string(ui.restore_layout(win, blob))
+        print "  a blob it does not know is REPORTED, not raised: " + string(ui.restore_layout(win, "bm90aGluZw=="))
 
         ' AND THEN A DOCUMENT OPENS, through the same `studio_ui.activate_row`
         ' a browser click calls -- so this half asserts the row model reaching
@@ -3579,31 +3600,31 @@ program main(args)
         print "  action:   " + r.action
         nav = studio_ui.nav_rows(G.app)
         G.app = studio_view_qt.render(win, G.app, "")
-        print "  title:    " + qt.read(win, studio_shell_qt.window_name(), "windowTitle")
-        print "  status:   " + qt.read(win, studio_shell_qt.part_status(), "text")
-        print "  tabs:     " + string(qt.tabs(win, studio_shell_qt.part_tabs()))
-        print "  on top:   " + string(qt.read(win, studio_shell_qt.part_tabs(), "currentIndex"))
-        print "  section:  " + qt.read(win, "run_section", "text")
+        print "  title:    " + ui.read(win, studio_shell_qt.window_name(), "title")
+        print "  status:   " + ui.read(win, studio_shell_qt.part_status(), "text")
+        print "  tabs:     " + string(ui.tabs(win, studio_shell_qt.part_tabs()))
+        print "  on top:   " + string(ui.read(win, studio_shell_qt.part_tabs(), "index"))
+        print "  section:  " + ui.read(win, "run_section", "text")
         doc = studio_docs.active_doc(G.app.dm)
         ed = studio_shell_qt.part_editor(doc.id)
-        print "  " + ed + ": [" + replace(qt.read(win, ed, "plainText"), chr(10), " / ") + "]"
-        print "  highlighted as: " + qt.highlighting(win, ed).language
+        print "  " + ed + ": [" + replace(ui.read(win, ed, "text"), chr(10), " / ") + "]"
+        print "  highlighted as: " + ui.highlighting(win, ed).language
         ' `line_numbers` is a CONSTRUCTION option and not a Q_PROPERTY, so it
         ' has its own reader -- which also answers the margin's width, and
         ' `unknown` for a part that has no margin at all.
-        print "  margin:         " + string(qt.gutter(win, ed).line_numbers) + " numbers, " + string(qt.gutter(win, ed).marks) + " marks"
+        print "  margin:         " + string(ui.gutter(win, ed).line_numbers) + " numbers, " + string(ui.gutter(win, ed).marks) + " marks"
         ' THE GUTTER, which is the second thing gBASIC built for this consumer
         ' by name. `section` is the whole notebook affordance -- a cell
         ' boundary is otherwise invisible -- and the lines are 1-based here
         ' where `studio_ui` keeps them 0-based for a Gtk.TextBuffer.
-        print "  section marks:  " + string(qt.marks(win, ed, "section"))
-        print "  error marks:    " + string(qt.marks(win, ed, "error"))
+        print "  section marks:  " + string(ui.marks(win, ed, "section"))
+        print "  error marks:    " + string(ui.marks(win, ed, "error"))
         ' THE BRANCH PANE POPULATES once there is a section to branch at --
         ' cold it is empty, because a branch point is a section and there was
         ' no document. `*` is the selected one and `+` is the row that makes a
         ' new one, which is why this pane had to be a table and not a memo.
         print "  branches:       " + string(qt_branch_cells(win))
-        z = qt.select(win, studio_shell_qt.part_branches(), 0)
+        z = ui.select(win, studio_shell_qt.part_branches(), 0)
         print "  chose Baseline: " + G.last_action
 
         ' AND EDITED IN THE MODEL, which is where the marker comes from. The
@@ -3614,10 +3635,10 @@ program main(args)
         G.app.dm = studio_docs.edit(G.app.dm, doc.id, "print \"typed\"" + chr(10))
         nav = studio_ui.nav_rows(G.app)
         G.app = studio_view_qt.render(win, G.app, "saved nothing; this is a probe")
-        print "  tabs:     " + string(qt.tabs(win, studio_shell_qt.part_tabs()))
-        print "  title:    " + qt.read(win, studio_shell_qt.window_name(), "windowTitle")
-        print "  status:   " + qt.read(win, studio_shell_qt.part_status(), "text")
-        print "  " + ed + ": [" + replace(qt.read(win, ed, "plainText"), chr(10), " / ") + "]"
+        print "  tabs:     " + string(ui.tabs(win, studio_shell_qt.part_tabs()))
+        print "  title:    " + ui.read(win, studio_shell_qt.window_name(), "title")
+        print "  status:   " + ui.read(win, studio_shell_qt.part_status(), "text")
+        print "  " + ed + ": [" + replace(ui.read(win, ed, "text"), chr(10), " / ") + "]"
 
         ' AND A FILE THAT DOES NOT PARSE, which is the half of the gutter that
         ' matters: the run strip says only that a file is broken, and the
@@ -3630,11 +3651,11 @@ program main(args)
         nav = studio_ui.nav_rows(G.app)
         G.app = studio_view_qt.render(win, G.app, "")
         print "  parses:        " + string(studio_ui.parses(studio_ui.view_for(G.app).st))
-        print "  error marks:   " + string(qt.marks(win, ed, "error"))
-        print "  section marks: " + string(qt.marks(win, ed, "section"))
-        print "  errors pane:   " + studio_qt_first_line(qt.read(win, "err_body", "plainText"))
+        print "  error marks:   " + string(ui.marks(win, ed, "error"))
+        print "  section marks: " + string(ui.marks(win, ed, "section"))
+        print "  errors pane:   " + studio_qt_first_line(ui.read(win, "err_body", "text"))
 
-        z = qt.close(win)
+        z = ui.close(win)
         return nothing
     end if
 
@@ -3658,23 +3679,23 @@ program main(args)
         print "  workspace present:  " + string(G.app.model.workspace != nothing)
         print "  documents restored: " + string(count(G.app.dm.docs))
         print "-- the window, built from that model --"
-        print "  opened:   " + string(qt.is_open(win))
-        print "  tabs:     " + string(qt.tabs(win, studio_shell_qt.part_tabs()))
-        print "  title:    " + studio_qt_scrub(qt.read(win, studio_shell_qt.window_name(), "windowTitle"), G.app)
+        print "  opened:   " + string(ui.is_open(win))
+        print "  tabs:     " + string(ui.tabs(win, studio_shell_qt.part_tabs()))
+        print "  title:    " + studio_qt_scrub(ui.read(win, studio_shell_qt.window_name(), "title"), G.app)
         print "  rows:     " + string(count(studio_ui.nav_rows(G.app)))
         ' THE ARRANGEMENT the last launch left: launch 1 floats the Files dock
         ' before it closes, so launch 2 answering `true` is a CHANGED layout
         ' surviving a relaunch -- not only the default being rebuilt (the
         ' retired `ui_gui_layout`'s claim, for dividers it dragged).
-        print "  files dock floating: " + string(qt.dock(win, studio_shell_qt.part_browser_dock()).floating)
+        print "  files dock floating: " + string(ui.dock(win, studio_shell_qt.part_browser_dock()).floating)
         ' A RESTORED editor is built by `qt.open`, not by a refresh, so its
         ' handlers come from the window record (`with_editor_handlers`) -- the
         ' one path the press tier, which starts from nothing open, cannot reach.
         if count(G.app.dm.docs) > 0 then
             rdoc0 = studio_docs.active_doc(G.app.dm)
-            took = qt.scroll(win, studio_shell_qt.part_editor(rdoc0.id), 1, "ctrl")
-            print "  Ctrl+wheel on the editor qt.open built: claimed=" + string(took) + ", " + studio_ui.zoom_label(studio_ui.editor_zoom(G.app))
-            z = qt.invoke(win, qt_item("text-reset"), "trigger")
+            took = ui.scroll(win, studio_shell_qt.part_editor(rdoc0.id), 1, "ctrl")
+            print "  Ctrl+wheel on the editor ui.open built: claimed=" + string(took) + ", " + studio_ui.zoom_label(studio_ui.editor_zoom(G.app))
+            z = ui.invoke(win, qt_item("text-reset"), "press")
         end if
 
         ' OPEN ONE FILE, so the next launch has a document to restore and the
@@ -3688,18 +3709,18 @@ program main(args)
             G.app = studio_view_qt.render(win, G.app, "")
             print "-- with main.bas open --"
             print "  action:   " + r.action
-            print "  tabs:     " + string(qt.tabs(win, studio_shell_qt.part_tabs()))
+            print "  tabs:     " + string(ui.tabs(win, studio_shell_qt.part_tabs()))
             doc = studio_docs.active_doc(G.app.dm)
             ed = studio_shell_qt.part_editor(doc.id)
-            print "  gutter:   " + string(qt.gutter(win, ed).line_numbers)
-            print "  language: " + qt.highlighting(win, ed).language
+            print "  gutter:   " + string(ui.gutter(win, ed).line_numbers)
+            print "  language: " + ui.highlighting(win, ed).language
         end if
 
         ' THE THEME, which is the other half of what the user reported. The
         ' sheet is the application's and needs no part to ask about.
         print "-- the application's own sheet --"
         print "  setting:      " + studio_ui.theme_of(G.app)
-        print "  dark applied: " + string(len(qt.theme()) > 0)
+        print "  dark applied: " + string(qt_theme_is_set())
         ' AND THE WHOLE LOOP, pressed rather than reasoned about: the menu item
         ' goes through the same `qt_theme_to` a click calls, the sheet lands on
         ' the QApplication, the setting is written, and the SECOND run of this
@@ -3711,10 +3732,11 @@ program main(args)
         ' sheet is set and is the one we meant, and no more than that.
         pressed = qt_theme_to("dark")
         print "  after Dark:   " + G.last_action + " — " + G.last_detail
-        print "  sheet set:    " + string(len(qt.theme()) > 0)
-        print "  it is OURS:   " + string(contains(qt.theme(), studio_style.dark_bg()))
+        print "  theme set:    " + string(qt_theme_is_set())
+        print "  it is OURS:   " + string(qt_theme_is_ours())
+        print "  the editor is drawn in it: " + string(ui.read(win, studio_shell_qt.part_editor(studio_docs.active_doc(G.app.dm).id), "colors").base = studio_style.dark_base())
         print "  editor would be built: " + studio_style.qt_source_theme(studio_ui.theme_of(G.app))
-        print "  toolbar style:        " + string(qt.read(win, studio_shell_qt.part_toolbar(), "toolButtonStyle"))
+        print "  toolbar style:        " + string(ui.read(win, studio_shell_qt.part_toolbar(), "toolbar_shows"))
         print "  every toolbar icon arrived: " + string(qt_all_icons(win))
         ' AND THE REBUILT EDITOR, which is the load-bearing half. Pressing Dark
         ' renames every page, so `qt.refresh` builds a new `source` -- and the
@@ -3726,14 +3748,14 @@ program main(args)
         if at >= 0 then
             doc2 = studio_docs.active_doc(G.app.dm)
             ed2 = studio_shell_qt.part_editor(doc2.id)
-            print "  after the rebuild, the editor still holds its text: " + string(len(qt.read(win, ed2, "plainText")) > 0)
+            print "  after the rebuild, the editor still holds its text: " + string(len(ui.read(win, ed2, "text")) > 0)
             ' A rebuilt editor is a NEW widget, so its wheel handler has to
             ' arrive with it -- the refresh connects what it builds.
-            took = qt.scroll(win, ed2, 1, "ctrl")
+            took = ui.scroll(win, ed2, 1, "ctrl")
             print "  ... Ctrl+wheel reaches it: claimed=" + string(took) + ", " + studio_ui.zoom_label(studio_ui.editor_zoom(G.app))
-            z = qt.invoke(win, qt_item("text-reset"), "trigger")
-            print "  ... its margin:    " + string(qt.gutter(win, ed2).line_numbers)
-            print "  ... its language:  " + qt.highlighting(win, ed2).language
+            z = ui.invoke(win, qt_item("text-reset"), "press")
+            print "  ... its margin:    " + string(ui.gutter(win, ed2).line_numbers)
+            print "  ... its language:  " + ui.highlighting(win, ed2).language
         end if
 
         ' AND BOTH WAYS. A theme that only goes dark is half a control, and the
@@ -3743,8 +3765,8 @@ program main(args)
         print "-- and Follow the desktop puts it all back --"
         back = qt_theme_to("system")
         print "  action:        " + G.last_action
-        print "  sheet cleared: " + string(len(qt.theme()) = 0)
-        print "  toolbar style: " + string(qt.read(win, studio_shell_qt.part_toolbar(), "toolButtonStyle"))
+        print "  theme cleared: " + string(not qt_theme_is_set())
+        print "  toolbar style: " + string(ui.read(win, studio_shell_qt.part_toolbar(), "toolbar_shows"))
         print "  every icon arrived: " + string(qt_all_icons(win))
         print "  editor built:  " + studio_style.qt_source_theme(studio_ui.theme_of(G.app))
         ' Back to dark, so the NEXT launch of this mode starts themed -- which
@@ -3752,8 +3774,8 @@ program main(args)
         again = qt_theme_to("dark")
         print "  and back to dark for the next launch: " + G.last_action
 
-        z = qt.set(win, studio_shell_qt.part_browser_dock(), "floating", true)
-        z = qt.close(win)
+        z = ui.set(win, studio_shell_qt.part_browser_dock(), "floating", true)
+        z = ui.close(win)
         ' PERSISTED, unlike `probe` and `press`, because the whole point of
         ' this mode is what the NEXT launch finds -- and `persist`, not
         ' `shutdown`, for the reason the exit path below now states.
@@ -3766,53 +3788,53 @@ program main(args)
         ' PRESSING EVERY CONTROL, FOR REAL, WITH NO DISPLAY.
         '
         ' This is what replaces `ui_gui_menus` and `ui_gui_name`, and it is
-        ' better than what it replaces in one specific way: `qt.invoke(win,
-        ' item, "trigger")` fires a QAction the way a person does, where a
+        ' better than what it replaces in one specific way: `ui.invoke(win,
+        ' item, "press")` fires a QAction the way a person does, where a
         ' `Gtk.Button` inside a popover that has never been shown silently
         ' ignores `activate()` -- which cost STU-16 two rounds and is why the
         ' GTK tier has to pop each menu up first.
         print "-- the name field is where every naming action reads from --"
-        z = qt.write(win, studio_shell_qt.part_name_field(), "from_the_menu.bas")
-        print "  typed: " + qt.read(win, studio_shell_qt.part_name_field(), "text")
+        z = ui.write(win, studio_shell_qt.part_name_field(), "from_the_menu.bas")
+        print "  typed: " + ui.read(win, studio_shell_qt.part_name_field(), "text")
 
         print "-- a browser row SELECTED, which does not activate --"
         picked = qt_pick("dir", "src")
-        print "  action: " + G.last_action + " | " + studio_qt_scrub(qt.read(win, studio_shell_qt.part_status(), "text"), G.app)
+        print "  action: " + G.last_action + " | " + studio_qt_scrub(ui.read(win, studio_shell_qt.part_status(), "text"), G.app)
 
         print "-- New File, from the menu --"
-        z = qt.invoke(win, qt_item("new-file"), "trigger")
-        print "  action: " + G.last_action + " | " + studio_qt_scrub(qt.read(win, studio_shell_qt.part_status(), "text"), G.app)
-        print "  the field was consumed: [" + qt.read(win, studio_shell_qt.part_name_field(), "text") + "]"
+        z = ui.invoke(win, qt_item("new-file"), "press")
+        print "  action: " + G.last_action + " | " + studio_qt_scrub(ui.read(win, studio_shell_qt.part_status(), "text"), G.app)
+        print "  the field was consumed: [" + ui.read(win, studio_shell_qt.part_name_field(), "text") + "]"
 
         print "-- Delete Selected still arms, and the arm is keyed to the file --"
         picked = qt_pick("file", "from_the_menu.bas")
-        z = qt.invoke(win, qt_item("delete"), "trigger")
-        print "  first:  " + G.last_action + " | " + studio_qt_scrub(qt.read(win, studio_shell_qt.part_status(), "text"), G.app)
-        z = qt.invoke(win, qt_item("delete"), "trigger")
-        print "  second: " + G.last_action + " | " + studio_qt_scrub(qt.read(win, studio_shell_qt.part_status(), "text"), G.app)
+        z = ui.invoke(win, qt_item("delete"), "press")
+        print "  first:  " + G.last_action + " | " + studio_qt_scrub(ui.read(win, studio_shell_qt.part_status(), "text"), G.app)
+        z = ui.invoke(win, qt_item("delete"), "press")
+        print "  second: " + G.last_action + " | " + studio_qt_scrub(ui.read(win, studio_shell_qt.part_status(), "text"), G.app)
 
         print "-- the theme, which is a CHECKABLE action and not a glyph --"
-        z = qt.invoke(win, qt_item("theme-dark"), "trigger")
+        z = ui.invoke(win, qt_item("theme-dark"), "press")
         print "  action: " + G.last_action
-        print "  dark checked:   " + string(qt.read(win, qt_item("theme-dark"), "checked"))
-        print "  system checked: " + string(qt.read(win, qt_item("theme-system"), "checked"))
+        print "  dark checked:   " + string(ui.read(win, qt_item("theme-dark"), "checked"))
+        print "  system checked: " + string(ui.read(win, qt_item("theme-system"), "checked"))
         print "  pressing it again is not a change:"
-        z = qt.invoke(win, qt_item("theme-dark"), "trigger")
+        z = ui.invoke(win, qt_item("theme-dark"), "press")
         print "    " + G.last_action
 
         print "-- the editor's text size, on the ladder --"
         for each a in ["text-bigger", "text-bigger", "text-smaller", "text-reset"]
-            z = qt.invoke(win, qt_item(a), "trigger")
+            z = ui.invoke(win, qt_item(a), "press")
             print "  " + padto_qt(a, 14) + G.last_action + " " + G.last_detail
         end for
 
         print "-- Reload, which is about the FILES and not the window --"
-        z = qt.invoke(win, qt_item("reload"), "trigger")
+        z = ui.invoke(win, qt_item("reload"), "press")
         print "  action: " + G.last_action
 
         print "-- Save with nothing open refuses by name --"
-        z = qt.invoke(win, studio_shell_qt.part_save(), "trigger")
-        print "  action: " + G.last_action + " | " + studio_qt_scrub(qt.read(win, studio_shell_qt.part_status(), "text"), G.app)
+        z = ui.invoke(win, studio_shell_qt.part_save(), "press")
+        print "  action: " + G.last_action + " | " + studio_qt_scrub(ui.read(win, studio_shell_qt.part_status(), "text"), G.app)
 
         ' RUN, PRESSED FOR REAL, WITH THE CARET DECIDING WHICH SECTION.
         '
@@ -3823,7 +3845,7 @@ program main(args)
         ' would have answered the FIRST section whatever the caret said, which
         ' is exactly the plausible wrong answer the refusal existed to avoid.
         print "-- Run, and the CARET is what picks the section --"
-        z = qt.invoke(win, studio_shell_qt.part_item("new-file"), "trigger")
+        z = ui.invoke(win, studio_shell_qt.part_item("new-file"), "press")
         rows = studio_ui.nav_rows(G.app)
         atf = studio_qt_row_index(rows, "file", "main.bas")
         if atf >= 0 then
@@ -3840,17 +3862,17 @@ program main(args)
         ' old text back over the editor, every other tick, forever. Several
         ' ticks, because one would pass on an oscillation.
         print "-- typing into a clean file, and the poller leaves it typed --"
-        z = qt.write(win, red, "x")
+        z = ui.write(win, red, "x")
         k = 0
         seen = []
         while k < 4
             G.app = qt_sync_buffer(G.app)
             G.app = qt_sync_caret(G.app)
-            seen = append(seen, "[" + qt.read(win, red, "plainText") + "]")
+            seen = append(seen, "[" + ui.read(win, red, "text") + "]")
             k = k + 1
         end while
         print "  editor over four ticks: " + join(seen, " ")
-        print "  title: " + studio_qt_scrub(qt.read(win, studio_shell_qt.window_name(), "windowTitle"), G.app)
+        print "  title: " + studio_qt_scrub(ui.read(win, studio_shell_qt.window_name(), "title"), G.app)
         ' Two sections, so "which one" is a question with a wrong answer.
         G.app.dm = studio_docs.edit(G.app.dm, rdoc.id,
             "function one()" + chr(10) + "  return 1" + chr(10) + "end function" + chr(10) +
@@ -3858,22 +3880,22 @@ program main(args)
             "function two()" + chr(10) + "  return 2" + chr(10) + "end function" + chr(10))
         nav = studio_ui.nav_rows(G.app)
         G.app = studio_view_qt.render(win, G.app, "")
-        z = qt.caret_to(win, red, 1, 1)
+        z = ui.caret_to(win, red, 1, 1)
         G.app = qt_sync_caret(G.app)
-        print "  caret at line 1 — strip says: " + qt.read(win, "run_section", "text")
-        z = qt.caret_to(win, red, 6, 3)
+        print "  caret at line 1 — strip says: " + ui.read(win, "run_section", "text")
+        z = ui.caret_to(win, red, 6, 3)
         G.app = qt_sync_caret(G.app)
-        print "  caret at line 6 — strip says: " + qt.read(win, "run_section", "text")
-        c = qt.caret(win, red)
+        print "  caret at line 6 — strip says: " + ui.read(win, "run_section", "text")
+        c = ui.caret(win, red)
         print "  and the caret reads back 1-based: line=" + string(c.line) + " column=" + string(c.column) + " selecting=" + string(c.selecting)
-        z = qt.invoke(win, "run_btn", "click")
+        z = ui.invoke(win, "run_btn", "press")
         print "  Run answered: " + G.last_action + " (" + G.last_detail + ")"
-        print "  status: " + studio_qt_scrub(qt.read(win, studio_shell_qt.part_status(), "text"), G.app)
+        print "  status: " + studio_qt_scrub(ui.read(win, studio_shell_qt.part_status(), "text"), G.app)
         ' A LINE PAST THE END IS REFUSED, naming the real length -- which is
         ' what makes `qt.caret_to` safe to drive from a diagnostic, and why
         ' `qt_go_to_stopped` checks the length rather than catching.
         on error goto next
-        z = qt.caret_to(win, red, 999, 1)
+        z = ui.caret_to(win, red, 999, 1)
         if error then
             print "  a line past the end is refused, as it should be"
             error.clear()
@@ -3884,12 +3906,12 @@ program main(args)
         ' STOPPED, so the tier leaves no child behind it. A run launched and
         ' abandoned is a process outliving the test that made it, and this mode
         ' has no poller to finish it.
-        z = qt.invoke(win, "stop_btn", "click")
+        z = ui.invoke(win, "stop_btn", "press")
         print "  stopped: " + G.last_action
         ' AND FORCE STOP, on a second run: the escalation a child that ignores
         ' the polite stop needs, pressed for real.
-        z = qt.invoke(win, "run_btn", "click")
-        z = qt.invoke(win, "force_btn", "click")
+        z = ui.invoke(win, "run_btn", "press")
+        z = ui.invoke(win, "force_btn", "press")
         print "  force-stopped: " + G.last_action
 
         print "-- a tab's own right-click menu acts on the tab CLICKED --"
@@ -3908,17 +3930,17 @@ program main(args)
             end if
             i = i + 1
         end for
-        print "  the menu holds: " + join(qt.menus(win, studio_shell_qt.part_tab_menu()), ", ")
+        print "  the menu holds: " + join(ui.menus(win, studio_shell_qt.part_tab_menu()), ", ")
         if bg < 0 then
             print "  (no background tab -- the fixture changed under this tier)"
         else
             bgdoc = studio_docs.doc_by_id(G.app.dm, trows[bg].doc_id)
-            z = qt.right_click(win, studio_shell_qt.part_tabs(), bg)
+            z = ui.right_click(win, studio_shell_qt.part_tabs(), bg)
             print "  right-clicked " + bgdoc.display_name + ": shown=" + string(G.tab_ctx_shown) + ", about the clicked one=" + string(G.tab_ctx_doc = bgdoc.id)
-            z = qt.invoke(win, studio_shell_qt.part_tab_menu(), "hide")
-            z = qt.invoke(win, studio_shell_qt.part_tab_item("tab-copy-path"), "trigger")
-            print "  Copy file path: " + G.last_action + " | clipboard holds that file=" + string(qt.clipboard() = bgdoc.path)
-            print "  status names the whole path: " + string(qt.read(win, studio_shell_qt.part_status(), "text") = "copied " + bgdoc.path)
+            z = ui.invoke(win, studio_shell_qt.part_tab_menu(), "hide")
+            z = ui.invoke(win, studio_shell_qt.part_tab_item("tab-copy-path"), "press")
+            print "  Copy file path: " + G.last_action + " | clipboard holds that file=" + string(ui.clipboard() = bgdoc.path)
+            print "  status names the whole path: " + string(ui.read(win, studio_shell_qt.part_status(), "text") = "copied " + bgdoc.path)
             print "  the active tab did not move: " + string(studio_docs.active_doc(G.app.dm).id = active_id)
             ' The ACTIVE tab holds unsaved text, so Close from its menu ARMS --
             ' through the same slot the header's Close Tab uses.
@@ -3930,16 +3952,16 @@ program main(args)
                 end if
                 i = i + 1
             end for
-            z = qt.right_click(win, studio_shell_qt.part_tabs(), atab)
-            z = qt.invoke(win, studio_shell_qt.part_tab_menu(), "hide")
-            z = qt.invoke(win, studio_shell_qt.part_tab_item("tab-close"), "trigger")
+            z = ui.right_click(win, studio_shell_qt.part_tabs(), atab)
+            z = ui.invoke(win, studio_shell_qt.part_tab_menu(), "hide")
+            z = ui.invoke(win, studio_shell_qt.part_tab_item("tab-close"), "press")
             print "  Close on the unsaved tab: " + G.last_action + ", still open=" + string(studio_docs.doc_by_id(G.app.dm, active_id) != nothing)
             ' And the background one, which closes without becoming active.
             n_before = count(studio_ui.tab_rows(G.app))
-            z = qt.right_click(win, studio_shell_qt.part_tabs(), bg)
-            z = qt.invoke(win, studio_shell_qt.part_tab_menu(), "hide")
-            z = qt.invoke(win, studio_shell_qt.part_tab_item("tab-close"), "trigger")
-            print "  Close on " + bgdoc.display_name + ": " + G.last_action + ", tabs " + string(n_before) + " -> " + string(count(qt.tabs(win, studio_shell_qt.part_tabs()))) + ", active still the same=" + string(studio_docs.active_doc(G.app.dm).id = active_id)
+            z = ui.right_click(win, studio_shell_qt.part_tabs(), bg)
+            z = ui.invoke(win, studio_shell_qt.part_tab_menu(), "hide")
+            z = ui.invoke(win, studio_shell_qt.part_tab_item("tab-close"), "press")
+            print "  Close on " + bgdoc.display_name + ": " + G.last_action + ", tabs " + string(n_before) + " -> " + string(count(ui.tabs(win, studio_shell_qt.part_tabs()))) + ", active still the same=" + string(studio_docs.active_doc(G.app.dm).id = active_id)
         end if
 
         print "-- the text size reaches the EDITOR, not just the setting --"
@@ -3952,28 +3974,28 @@ program main(args)
         ' arrives at the desktop size and has to be caught by the next render.
         zdoc = studio_docs.active_doc(G.app.dm)
         zed = studio_shell_qt.part_editor(zdoc.id)
-        zbase = number(split(G.app["qt_font_base"], ",")[1])
+        zbase = G.app["qt_font_base"]
         for each a in ["text-bigger", "text-bigger", "text-smaller", "text-reset"]
-            z = qt.invoke(win, qt_item(a), "trigger")
-            zsize = number(split(qt.read(win, zed, "font"), ",")[1])
+            z = ui.invoke(win, qt_item(a), "press")
+            zsize = ui.read(win, zed, "font_size")
             print "  " + padto_qt(a, 14) + G.last_detail + " -> the editor is at " + string(round(zsize / zbase * 20) * 5) + "%"
         end for
-        z = qt.invoke(win, qt_item("text-bigger"), "trigger")
+        z = ui.invoke(win, qt_item("text-bigger"), "press")
         zlabel = G.last_detail
-        z = qt.write(win, studio_shell_qt.part_name_field(), "zoomed.bas")
-        z = qt.invoke(win, qt_item("new-file"), "trigger")
+        z = ui.write(win, studio_shell_qt.part_name_field(), "zoomed.bas")
+        z = ui.invoke(win, qt_item("new-file"), "press")
         ndoc = studio_docs.active_doc(G.app.dm)
-        nsize = number(split(qt.read(win, studio_shell_qt.part_editor(ndoc.id), "font"), ",")[1])
+        nsize = ui.read(win, studio_shell_qt.part_editor(ndoc.id), "font_size")
         print "  a tab opened at " + zlabel + ": " + ndoc.display_name + " is at " + string(round(nsize / zbase * 20) * 5) + "%"
-        z = qt.invoke(win, qt_item("text-reset"), "trigger")
-        print "  shortcuts: " + join(qt.shortcuts(win, qt_item("text-bigger")), " or ") + " / " + join(qt.shortcuts(win, qt_item("text-smaller")), " or ") + " / " + join(qt.shortcuts(win, qt_item("text-reset")), " or ")
+        z = ui.invoke(win, qt_item("text-reset"), "press")
+        print "  shortcuts: " + join(ui.shortcuts(win, qt_item("text-bigger")), " or ") + " / " + join(ui.shortcuts(win, qt_item("text-smaller")), " or ") + " / " + join(ui.shortcuts(win, qt_item("text-reset")), " or ")
         ' AND PRESSED, with the editor focused, which is where a person's hands
         ' are. `qt.key` delivers the key Qt would deliver, not a physical one:
         ' a real Ctrl+Shift+= arrives as "Ctrl++" through the layout, and a
         ' plain Ctrl+= as "Ctrl+=", so those are the two pressed. Before the
         ' list, the second of them reached nothing -- the user's report.
         for each k in ["Ctrl++", "Ctrl+=", "Ctrl+-", "Ctrl+-", "Ctrl+0"]
-            took = qt.key(win, zed, k)
+            took = ui.key(win, zed, k)
             print "  key " + padto_qt(k, 7) + "took=" + string(took) + ", " + studio_ui.zoom_label(studio_ui.editor_zoom(G.app))
         end for
 
@@ -3984,42 +4006,42 @@ program main(args)
         ' and every line below would read 100%. `claimed` is whether anything
         ' took the event -- a plain wheel is declined, so the editor scrolls.
         wed = studio_shell_qt.part_editor(ndoc.id)
-        took = qt.scroll(win, wed, 1)
+        took = ui.scroll(win, wed, 1)
         print "  plain wheel on " + ndoc.display_name + ": claimed=" + string(took) + ", " + studio_ui.zoom_label(studio_ui.editor_zoom(G.app))
-        took = qt.scroll(win, wed, 1, "ctrl")
+        took = ui.scroll(win, wed, 1, "ctrl")
         print "  Ctrl+wheel away:   claimed=" + string(took) + ", " + studio_ui.zoom_label(studio_ui.editor_zoom(G.app))
-        took = qt.scroll(win, zed, 0 - 1, "ctrl")
+        took = ui.scroll(win, zed, 0 - 1, "ctrl")
         print "  Ctrl+wheel toward, on " + zdoc.display_name + ": " + studio_ui.zoom_label(studio_ui.editor_zoom(G.app))
         ' A TRACKPAD: quarter-notches add up, and four make one step. Before
         ' gBASIC 1963388 each one arrived as a whole notch and this read 160%.
         quarters = []
         for each q in [1, 2, 3, 4]
-            took = qt.scroll(win, wed, 0.25, "ctrl")
+            took = ui.scroll(win, wed, 0.25, "ctrl")
             quarters = append(quarters, studio_ui.zoom_label(studio_ui.editor_zoom(G.app)))
         end for
         print "  four quarter-notches (a trackpad): " + join(quarters, " ")
-        wsize = number(split(qt.read(win, wed, "font"), ",")[1])
+        wsize = ui.read(win, wed, "font_size")
         print "  and the editor followed: " + string(round(wsize / zbase * 20) * 5) + "%"
-        z = qt.invoke(win, qt_item("text-reset"), "trigger")
+        z = ui.invoke(win, qt_item("text-reset"), "press")
 
         print "-- invisible characters, read back off the editors --"
         ' The SETTING is not the claim (the zoom's lesson): each line reads
         ' `whitespace` off a real editor, which gBASIC answers from Qt's own
         ' text option. Two editors -- one open before the toggle and one opened
         ' while it is on, which only the next render can catch.
-        print "  at launch: " + string(qt.read(win, zed, "whitespace")) + ", the toolbar's ¶ checked=" + string(qt.read(win, studio_shell_qt.part_tb_whitespace(), "checked"))
-        z = qt.invoke(win, qt_item("show-whitespace"), "trigger")
-        print "  the menu item: " + G.last_action + " -> " + zdoc.display_name + " " + string(qt.read(win, zed, "whitespace")) + ", " + ndoc.display_name + " " + string(qt.read(win, wed, "whitespace")) + ", ¶ checked=" + string(qt.read(win, studio_shell_qt.part_tb_whitespace(), "checked"))
-        z = qt.write(win, studio_shell_qt.part_name_field(), "spaces.bas")
-        z = qt.invoke(win, qt_item("new-file"), "trigger")
+        print "  at launch: " + string(ui.read(win, zed, "whitespace")) + ", the toolbar's ¶ checked=" + string(ui.read(win, studio_shell_qt.part_tb_whitespace(), "checked"))
+        z = ui.invoke(win, qt_item("show-whitespace"), "press")
+        print "  the menu item: " + G.last_action + " -> " + zdoc.display_name + " " + string(ui.read(win, zed, "whitespace")) + ", " + ndoc.display_name + " " + string(ui.read(win, wed, "whitespace")) + ", ¶ checked=" + string(ui.read(win, studio_shell_qt.part_tb_whitespace(), "checked"))
+        z = ui.write(win, studio_shell_qt.part_name_field(), "spaces.bas")
+        z = ui.invoke(win, qt_item("new-file"), "press")
         sdoc = studio_docs.active_doc(G.app.dm)
-        print "  a tab opened while shown: " + sdoc.display_name + " " + string(qt.read(win, studio_shell_qt.part_editor(sdoc.id), "whitespace"))
-        z = qt.invoke(win, studio_shell_qt.part_tb_whitespace(), "trigger")
-        print "  the toolbar's ¶: " + G.last_action + " -> " + zdoc.display_name + " " + string(qt.read(win, zed, "whitespace")) + ", menu checked=" + string(qt.read(win, qt_item("show-whitespace"), "checked"))
-        print "  shortcuts: " + join(qt.shortcuts(win, qt_item("show-whitespace")), " or ")
+        print "  a tab opened while shown: " + sdoc.display_name + " " + string(ui.read(win, studio_shell_qt.part_editor(sdoc.id), "whitespace"))
+        z = ui.invoke(win, studio_shell_qt.part_tb_whitespace(), "press")
+        print "  the toolbar's ¶: " + G.last_action + " -> " + zdoc.display_name + " " + string(ui.read(win, zed, "whitespace")) + ", menu checked=" + string(ui.read(win, qt_item("show-whitespace"), "checked"))
+        print "  shortcuts: " + join(ui.shortcuts(win, qt_item("show-whitespace")), " or ")
         for each k in ["Ctrl+Shift+8", "Ctrl+*"]
-            took = qt.key(win, zed, k)
-            print "  key " + padto_qt(k, 13) + "took=" + string(took) + ", " + G.last_action + " -> " + string(qt.read(win, zed, "whitespace"))
+            took = ui.key(win, zed, k)
+            print "  key " + padto_qt(k, 13) + "took=" + string(took) + ", " + G.last_action + " -> " + string(ui.read(win, zed, "whitespace"))
         end for
 
         print "-- the browser's own right-click menu, per row --"
@@ -4037,7 +4059,7 @@ program main(args)
                 ' offering open, rename, delete, and nobody noticed for a phase.
                 G.ctx_shown = false
                 G.ctx_index = 0 - 1
-                z = qt.right_click(win, studio_shell_qt.part_browser(), at)
+                z = ui.right_click(win, studio_shell_qt.part_browser(), at)
                 offers = "(none)"
                 if G.ctx_index >= 0 then
                     got = studio_ui.context_actions(studio_ui.nav_rows(G.app), G.ctx_index)
@@ -4046,7 +4068,7 @@ program main(args)
                     end if
                 end if
                 print "  " + padto_qt(want, 8) + "raised on row " + string(at) + "=" + string(G.ctx_index = at) + " shown=" + string(G.ctx_shown) + " offers: " + offers
-                z = qt.invoke(win, studio_shell_qt.part_nav_menu(), "hide")
+                z = ui.invoke(win, studio_shell_qt.part_nav_menu(), "hide")
             end if
         end for
         print "  (an all-hidden menu is not shown, which is Qt refusing rather"
@@ -4068,29 +4090,29 @@ program main(args)
         ' claim ("Rename fills the field with the row you right-clicked") and
         ' is true at any row height.
         at = qt_row_of_kind("file")
-        z = qt.right_click(win, studio_shell_qt.part_browser(), at)
+        z = ui.right_click(win, studio_shell_qt.part_browser(), at)
         raised = qt_ctx_row()
-        z = qt.invoke(win, qt_ctx("rename"), "trigger")
-        filled = qt.read(win, studio_shell_qt.part_name_field(), "text")
+        z = ui.invoke(win, qt_ctx("rename"), "press")
+        filled = ui.read(win, studio_shell_qt.part_name_field(), "text")
         print "  action: " + G.last_action
         print "  raised on a " + raised.kind + ", and the field holds that row: " + string(filled = raised.name)
         print "  field is a file in the project: " + string(contains(filled, ".") and filled != "")
 
         print "-- New Project opens its own window, filled and pressed for real --"
-        z = qt.invoke(win, qt_item("new-project"), "trigger")
+        z = ui.invoke(win, qt_item("new-project"), "press")
         print "  open:     " + string(qt_np_is_open())
-        print "  name:     [" + qt.read(G.npwin, "name", "text") + "]"
-        print "  main.bas ticked by default: " + string(qt.read(G.npwin, "main", "checked"))
-        print "  .gstudio.json is NOT:       " + string(qt.read(G.npwin, "projfile", "checked"))
+        print "  name:     [" + ui.read(G.npwin, "name", "text") + "]"
+        print "  main.bas ticked by default: " + string(ui.read(G.npwin, "main", "checked"))
+        print "  .gstudio.json is NOT:       " + string(ui.read(G.npwin, "projfile", "checked"))
         print "  (a box you had to untick is not consent)"
         print "  a second press presents the one that is open, not a second:"
-        z = qt.invoke(win, qt_item("new-project"), "trigger")
+        z = ui.invoke(win, qt_item("new-project"), "press")
         print "    still one window: " + string(qt_np_is_open())
 
         print "-- a refusal keeps the window open, with what was typed in it --"
-        z = qt.write(G.npwin, "name", "")
-        z = qt.invoke(G.npwin, "np_create", "click")
-        print "  note:     " + qt.read(G.npwin, "np_note", "text")
+        z = ui.write(G.npwin, "name", "")
+        z = ui.invoke(G.npwin, "np_create", "press")
+        print "  note:     " + ui.read(G.npwin, "np_note", "text")
         print "  open:     " + string(qt_np_is_open())
 
         print "-- and a licence with no author refuses by its own name --"
@@ -4100,33 +4122,33 @@ program main(args)
         ' an index -- `qt.write` refuses one that is not in the choice's list
         ' by name, so a licence Studio does not ship cannot be chosen at all,
         ' where the GTK window maps a drop-down index back through `_index_of`.
-        z = qt.write(G.npwin, "name", "A Fine Project")
-        z = qt.write(G.npwin, "author", "")
-        z = qt.write(G.npwin, "license", "MIT")
-        z = qt.invoke(G.npwin, "np_create", "click")
-        print "  note:     " + qt.read(G.npwin, "np_note", "text")
+        z = ui.write(G.npwin, "name", "A Fine Project")
+        z = ui.write(G.npwin, "author", "")
+        z = ui.write(G.npwin, "license", "MIT")
+        z = ui.invoke(G.npwin, "np_create", "press")
+        print "  note:     " + ui.read(G.npwin, "np_note", "text")
 
         print "-- filled in properly, Create makes the project --"
-        z = qt.write(G.npwin, "author", "A Person")
-        z = qt.write(G.npwin, "license", "none")
-        z = qt.invoke(G.npwin, "np_create", "click")
+        z = ui.write(G.npwin, "author", "A Person")
+        z = ui.write(G.npwin, "license", "none")
+        z = ui.invoke(G.npwin, "np_create", "press")
         print "  action:   " + G.last_action
         print "  window:   " + string(qt_np_is_open()) + " (closed on success)"
         print "  projects: " + string(count(G.app.model.workspace.projects))
 
         print "-- Close Project, which had no toolbar button at all --"
-        z = qt.invoke(win, qt_item("close-project"), "trigger")
+        z = ui.invoke(win, qt_item("close-project"), "press")
         ' The project is CLOSED by now, so its name is out of the workspace and
         ' `studio_qt_scrub` can no longer find it -- the notice is taken while
         ' the name is still known instead.
-        print "  action: " + G.last_action + " | " + replace(qt.read(win, studio_shell_qt.part_status(), "text"), G.last_detail, "(project)")
+        print "  action: " + G.last_action + " | " + replace(ui.read(win, studio_shell_qt.part_status(), "text"), G.last_detail, "(project)")
         print "  projects: " + string(count(G.app.model.workspace.projects))
 
-        z = qt.close(win)
+        z = ui.close(win)
         return nothing
     end if
 
-    ' THE RUN POLLER. gBASIC's own timer, which fires while `qt.run()` holds
+    ' THE RUN POLLER. gBASIC's own timer, which fires while `ui.run()` holds
     ' the thread -- measured, eight ticks of a 50ms timer delivered inside the
     ' loop, each one writing into the window. The GTK shell uses `gi.timeout`
     ' at the same rate and for the same reason, and only the FINAL tick of a
@@ -4139,7 +4161,7 @@ program main(args)
             ' A WINDOW CAN CLOSE WITHOUT THE PROGRAM ASKING, so every verb
             ' starts refusing for a reason that is nobody's mistake. `is_open`
             ' is the question that answers where the others raise.
-            if qt.is_open(G.win) then
+            if ui.is_open(G.win) then
                 ' A FLAG AND NOT A QUERY. There is no `studio_ui.is_running` --
                 ' I wrote one into this loop before checking, and it would have
                 ' raised the first time a run started. The GTK shell has no such
@@ -4155,9 +4177,9 @@ program main(args)
                         ' preferred size (measured: 259 -> 606). Its layout
                         ' saved while capped records 259, so restoring that
                         ' after the lift keeps it -- and it drags freely.
-                        capped = qt.layout(G.win)
-                        z = qt.set(G.win, studio_shell_qt.part_console_dock(), "maximumHeight", 16777215)
-                        z = qt.restore_layout(G.win, capped)
+                        capped = ui.layout(G.win)
+                        z = ui.set(G.win, studio_shell_qt.part_console_dock(), "max_height", 16777215)
+                        z = ui.restore_layout(G.win, capped)
                     end if
                 end if
                 if G.polling then
@@ -4204,7 +4226,7 @@ program main(args)
         end while
     end watch
 
-    rc = qt.run()
+    rc = ui.run()
     ' CANCEL THE BEAT, OR THE PROCESS NEVER EXITS. A `timer.every` is a live
     ' source in gBASIC's own event loop, and that loop outlives `program`: with
     ' the timer still registered the interpreter sat at 2% CPU forever after
@@ -4217,7 +4239,7 @@ program main(args)
     beat_off = timer.cancel(beat)
     ' The session is written on the way out, exactly as the GTK path writes it
     ' from `close-request`. Here the window has already gone by the time
-    ' `qt.run()` returns, so anything that has to be read off it is read in the
+    ' `ui.run()` returns, so anything that has to be read off it is read in the
     ' `closed` handler -- which is what §0.17 built that handler for.
     ' `persist`, NOT `shutdown`, and this was the same mistake as `startup`
     ' versus `launch` one line of this program apart. `shutdown` is the STU-0
@@ -4319,7 +4341,7 @@ function qt_go_to_stopped(detail)
     if ln > count(split(doc.content, chr(10))) then
         return false
     end if
-    z = qt.caret_to(G.win, studio_shell_qt.part_editor(doc.id), ln, 1)
+    z = ui.caret_to(G.win, studio_shell_qt.part_editor(doc.id), ln, 1)
     ' The model follows the widget, or the next poll would read the new caret,
     ' decide it moved, and redraw a second time for nothing.
     r = studio_ui.sync_cursor(G.app, doc.id, ln - 1, 0)
@@ -4349,7 +4371,7 @@ function qt_sync_caret(app)
     if doc = nothing then
         return app
     end if
-    c = qt.caret(G.win, studio_shell_qt.part_editor(doc.id))
+    c = ui.caret(G.win, studio_shell_qt.part_editor(doc.id))
     if is_unknown(c) then
         return app
     end if
@@ -4380,7 +4402,7 @@ function qt_sync_buffer(app)
         return app
     end if
     part = studio_shell_qt.part_editor(doc.id)
-    have = qt.read(G.win, part, "plainText")
+    have = ui.read(G.win, part, "text")
     if have = doc.content then
         return app
     end if
@@ -4413,7 +4435,7 @@ function qt_branch_cells(win)
     out = []
     i = 0
     for each r in studio_ui.branch_rows(G.app).rows
-        out = append(out, qt.cell(win, studio_shell_qt.part_branches(), i, "line"))
+        out = append(out, ui.cell(win, studio_shell_qt.part_branches(), i, "line"))
         i = i + 1
     end for
     return out
@@ -4459,7 +4481,7 @@ function qt_pick(kind, name)
         print "  (no browser row for " + kind + " " + name + ")"
         return false
     end if
-    z = qt.select(G.win, studio_shell_qt.part_browser(), at)
+    z = ui.select(G.win, studio_shell_qt.part_browser(), at)
     return true
 end function
 
@@ -4471,7 +4493,7 @@ end function
 ' filesystem changes between a render and a click.
 ' Whether every toolbar item has an icon on it.
 '
-' `qt.has_icon` is the ONLY way to ask -- `qt.read(win, part, "icon")` refuses
+' `qt.has_icon` is the ONLY way to ask -- `ui.read(win, part, "icon")` refuses
 ' by name ("an icon has no text form"), which is right: a QIcon is an object
 ' and there is nothing truthful to render as a string. That refusal is also
 ' why this is the assertion a tier can make and "is it the RIGHT icon" is not.
@@ -4479,7 +4501,7 @@ end function
 ' icons are drawn from a palette, present and invisible.
 function qt_all_icons(win)
     for each ti in studio_style.toolbar_icons()
-        if not qt.has_icon(win, ti.part) then
+        if not ui.has_icon(win, ti.part) then
             return false
         end if
     end for

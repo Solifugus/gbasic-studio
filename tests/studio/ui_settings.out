@@ -37,8 +37,8 @@
   editor built: light (probe refused it)
   editor built: gBASIC Studio Print (probe took it)
   and under dark, probed: dark
-  sheet is the print one: true   not the dark one: true
-  system sets no sheet: true
+  theme is the print one: true   not the dark one: true
+  system sets no theme: true
   gray: bg, base, ctl, hi, fg, faint, line, sel, on_sel
 == the editor's text size ==
   starts at 100%   a 10pt editor is 10pt
