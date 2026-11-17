@@ -3239,6 +3239,27 @@ program main(args)
         z = ui.write(win, studio_shell_qt.part_name_field(), args[3] + "/nowhere")
         z = ui.invoke(win, qt_item("open-folder"), "press")
         print "  action=" + G.last_action
+
+        ' A LEFT CLICK ON A ROW, for real (`ui.click`, a press and a release
+        ' where a mouse would land). Until it existed, single-click-opens was
+        ' the one handler no tier could reach (CLAUDE.md, "`itemClicked` has
+        ' no tier"): every tier opened rows through `activate_row` directly.
+        ' And the half that makes two events necessary: an ARROW KEY moves the
+        ' selection (`chosen`) and must open nothing (`activated` does not
+        ' fire), or arrowing down the tree would open every file on the way.
+        print "a left click on the src folder row"
+        z = ui.click(win, studio_shell_qt.part_browser(), qt_row_of("dir", "src"))
+        print "  action=" + G.last_action
+        print qt_indent(join(qt_nav_cells(win), chr(10)))
+        print "a left click on inner.bas"
+        z = ui.click(win, studio_shell_qt.part_browser(), qt_row_of("file", "inner.bas"))
+        print "  action=" + G.last_action + ", tabs: " + string(ui.tabs(win, studio_shell_qt.part_tabs()))
+        print "the Down arrow on the tree: the selection moves, nothing opens"
+        before = string(ui.tabs(win, studio_shell_qt.part_tabs()))
+        z = qt_pick("file", ".gstudio.json")
+        took = ui.key(win, studio_shell_qt.part_browser(), "Down")
+        now = ui.selected(win, studio_shell_qt.part_browser())
+        print "  took=" + string(took) + ", now on: " + trim(studio_ui.nav_rows(G.app)[now].label) + ", action=" + G.last_action + ", tabs unchanged: " + string(string(ui.tabs(win, studio_shell_qt.part_tabs())) = before)
         return nothing
     end if
 

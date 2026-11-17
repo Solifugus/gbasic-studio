@@ -673,13 +673,14 @@ were written as the port went; "under GTK" in them is history.
   click and an arrow key alike, so activating on it would open every file you
   passed on the way down the tree — it goes to `select_row`. `itemClicked` is
   single-click activation, matching GTK, and goes to `activate_row`.
-- **`itemClicked` has no tier, and that is a stated exception.** Measured: all
-  three tree signals connect and only `itemSelectionChanged` is drivable —
-  `qt.select` fires it and nothing can synthesise a click. gBASIC added
-  `qt.right_click` for exactly this argument, so a left-click helper is asked
-  for upstream. What keeps it honest meanwhile is that it is an adapter over
-  `activate_row`, which four tiers cover: the logic is tested and only the
-  wiring is not.
+- **A LEFT CLICK ON A ROW IS TESTED NOW (`ui.click`, 2026-11-16).** For a
+  phase it had no tier: only the selection signal was drivable, so every tier
+  opened rows through `activate_row` directly and the click's WIRING was the
+  stated exception. `qtview_open` now clicks for real -- a folder row expands,
+  a file row opens a tab -- and presses Down on the tree: the selection moves
+  (`chosen`), nothing opens. Measured red both ways: wiring `chosen` to the
+  open handler dies at the arrow key, and with no `activated` handler a click
+  only selects. Those are the two events gBASIC kept apart at Studio's ask.
 - **THE BUFFER SYNC IS A POLL.** It was built when a per-editor `textChanged`
   could NOT be connected — the reconcile built a new child's widget without
   connecting its handler records. gBASIC fixed that (3d3f7d9; Ctrl+wheel uses

@@ -22,3 +22,15 @@ Project File again
   action=exists
 Open Folder on a path that is not there
   action=no-folder
+a left click on the src folder row
+  action=expand
+  0 Workspace: workspace
+  0 ● opened
+  1 ▾ src
+  2   inner.bas
+  1   .gstudio.json
+  1   thing.bas
+a left click on inner.bas
+  action=open, tabs: ["inner.bas"]
+the Down arrow on the tree: the selection moves, nothing opens
+  took=true, now on: thing.bas, action=selected, tabs unchanged: true

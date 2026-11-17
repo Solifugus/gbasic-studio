@@ -1014,9 +1014,9 @@ if GBASIC_PATH="$GBASIC_STDLIB" timeout 60 "$GBASIC" "$qtprobe" >/dev/null 2>&1;
         fi
     fi
 else
-    printf 'SKIP qtshell_check (this gBASIC has no qt module)\n'
-    printf 'SKIP qtshell_open (this gBASIC has no qt module)\n'
-    printf 'SKIP qtshell_reconcile (this gBASIC has no qt module)\n'
+    printf 'SKIP qtshell_check (this gBASIC has no ui module)\n'
+    printf 'SKIP qtshell_open (this gBASIC has no ui module)\n'
+    printf 'SKIP qtshell_reconcile (this gBASIC has no ui module)\n'
 fi
 
 # THE QT SHELL, OPENED AND RENDERED FOR REAL, through its own entry point.
@@ -1056,25 +1056,25 @@ if GBASIC_PATH="$GBASIC_STDLIB" timeout 60 "$GBASIC" "$qtprobe2" >/dev/null 2>&1
         fi
     fi
 else
-    printf 'SKIP qtview_probe (this gBASIC has no qt module)\n'
-    printf 'SKIP qtview_press (this gBASIC has no qt module)\n'
-    printf 'SKIP qtview_tables (this gBASIC has no qt module)\n'
-    printf 'SKIP qtview_snippet (this gBASIC has no qt module)\n'
-    printf 'SKIP qtview_schema (this gBASIC has no qt module)\n'
-    printf 'SKIP qtview_branch (this gBASIC has no qt module)\n'
-    printf 'SKIP qtview_overlay (this gBASIC has no qt module)\n'
-    printf 'SKIP qtview_assistant (this gBASIC has no qt module)\n'
-    printf 'SKIP qtview_git (this gBASIC has no qt module)\n'
-    printf 'SKIP qtview_run (this gBASIC has no qt module)\n'
-    printf 'SKIP qtview_cold (this gBASIC has no qt module)\n'
-    printf 'SKIP qtview_open (this gBASIC has no qt module)\n'
-    printf 'SKIP qtview_ctx (this gBASIC has no qt module)\n'
-    printf 'SKIP qtview_edit (this gBASIC has no qt module)\n'
-    printf 'SKIP qtview_samples (this gBASIC has no qt module)\n'
-    printf 'SKIP shoot_run (this gBASIC has no qt module)\n'
-    printf 'SKIP mcp_session (this gBASIC has no qt module)\n'
-    printf 'SKIP shoot_print_editor (this gBASIC has no qt module)\n'
-    printf 'SKIP qtview_reopen (this gBASIC has no qt module)\n'
+    printf 'SKIP qtview_probe (this gBASIC has no ui module)\n'
+    printf 'SKIP qtview_press (this gBASIC has no ui module)\n'
+    printf 'SKIP qtview_tables (this gBASIC has no ui module)\n'
+    printf 'SKIP qtview_snippet (this gBASIC has no ui module)\n'
+    printf 'SKIP qtview_schema (this gBASIC has no ui module)\n'
+    printf 'SKIP qtview_branch (this gBASIC has no ui module)\n'
+    printf 'SKIP qtview_overlay (this gBASIC has no ui module)\n'
+    printf 'SKIP qtview_assistant (this gBASIC has no ui module)\n'
+    printf 'SKIP qtview_git (this gBASIC has no ui module)\n'
+    printf 'SKIP qtview_run (this gBASIC has no ui module)\n'
+    printf 'SKIP qtview_cold (this gBASIC has no ui module)\n'
+    printf 'SKIP qtview_open (this gBASIC has no ui module)\n'
+    printf 'SKIP qtview_ctx (this gBASIC has no ui module)\n'
+    printf 'SKIP qtview_edit (this gBASIC has no ui module)\n'
+    printf 'SKIP qtview_samples (this gBASIC has no ui module)\n'
+    printf 'SKIP shoot_run (this gBASIC has no ui module)\n'
+    printf 'SKIP mcp_session (this gBASIC has no ui module)\n'
+    printf 'SKIP shoot_print_editor (this gBASIC has no ui module)\n'
+    printf 'SKIP qtview_reopen (this gBASIC has no ui module)\n'
 fi
 
     # EVERY CONTROL PRESSED, FOR REAL, WITH NO DISPLAY.
@@ -1285,6 +1285,7 @@ fi
     qh="$tmproot/qtview_open"; qo="$tmproot/qtview_open_at/opened"
     rm -rf "$qh" "$tmproot/qtview_open_at"; mkdir -p "$qh" "$qo/src"
     printf 'x\n' > "$qo/thing.bas"
+    printf 'y\n' > "$qo/src/inner.bas"
     qt_mode_tier qtview_open open "$qh" "" "a folder opened by path, activated, given a project file" "$qo"
 
     # THE BROWSER MENU ON PROJECT AND FILE ROWS, AND THE HEADER ACTS IT SHARES

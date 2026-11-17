@@ -83,10 +83,6 @@ Not asks -- follow-ups on Studio's side, kept here so they are not re-asked.
   `./studio mcp` could serve a VISIBLE window, which is what watching an
   assistant work needs.
 
-- **`qt.click` (a left click aimed like `qt.right_click`, after 0.10.0).** The
-  browser's `itemClicked` single-click activation is the one handler with no
-  tier (CLAUDE.md, "`itemClicked` has no tier"). It can have one now.
-
 ## Undecided -- to discuss with the gBASIC session
 
 - **An `assert` or `raise` statement.** Not an ask yet: the user is still
