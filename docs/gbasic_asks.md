@@ -79,10 +79,6 @@ Not asks -- follow-ups on Studio's side, kept here so they are not re-asked.
   protocol half (`lib/studio_mcp.bas`) could move onto `mcp.handle` now.
   This was on the list as an open ask for four days after it landed -- the
   stale-request lesson again.
-- **Standard input in the event loop** (`watch w(stdin.lines)`, same commit).
-  `./studio mcp` could serve a VISIBLE window, which is what watching an
-  assistant work needs.
-
 ## Undecided -- to discuss with the gBASIC session
 
 - **An `assert` or `raise` statement.** Not an ask yet: the user is still

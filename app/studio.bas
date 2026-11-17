@@ -1727,11 +1727,12 @@ end function
 ' stdout IS the protocol: every line printed there is read by the client as
 ' JSON-RPC. Notes go to stderr.
 '
-' The window is offscreen and there is no `ui.run()`: the loop blocks on
-' `input()`, so Qt is driven call by call exactly as `shoot` drives it, and a
-' run is ticked in line (`qt_run_wait`). It must run under `--line-buffered`
-' or a reply sits in a block buffer while the client waits for it -- a
-' deadlock -- which the launcher sees to.
+' Requests arrive through a watch on standard input inside `ui.run()`, so the
+' window is LIVE between them and may be visible (see the `mcp` branch in the
+' program block); a run a call waits for is still ticked in line
+' (`qt_run_wait`). It must run under `--line-buffered` or a reply sits in a
+' block buffer while the client waits for it -- a deadlock -- which the
+' launcher sees to.
 
 ' The plan a session runs under: what a relative path is relative to (where
 ' `./studio mcp` was started), where captures go, and the policy.
@@ -1760,37 +1761,48 @@ function qt_mcp_frame(app)
              whitespace: studio_ui.shows_whitespace(app) }
 end function
 
-function qt_mcp_serve(plan)
-    while true
-        line = input()
-        ' A BLANK LINE ENDS THE SESSION: `input()` answers "" for end of input
-        ' and for a blank line alike, and JSON-RPC never sends a blank line.
-        if line = "" then
-            return nothing
+' ONE REQUEST LINE, answered. Called from the stdin watch in the program
+' block, so the window goes on painting between requests -- it used to be a
+' loop blocked on `input()`, which drove Qt only call by call and so had to be
+' offscreen. Answers false when the session is over: a BLANK line ends it,
+' because JSON-RPC never sends one.
+function qt_mcp_line(line)
+    if line = "" then
+        return false
+    end if
+    ' A run left going by a call that stopped waiting for it moves on with
+    ' every request, as the poller would move it.
+    t = studio_ui.tick_run(G.app)
+    G.app = t.app
+    if not t.active then
+        if t.action != "idle" then
+            G.last_action = t.action
+            G.last_detail = t.detail
+            z = qt_redraw()
         end if
-        ' A run left going by a call that stopped waiting for it moves on with
-        ' every request, as the poller would move it.
-        t = studio_ui.tick_run(G.app)
-        G.app = t.app
-        if not t.active then
-            if t.action != "idle" then
-                G.last_action = t.action
-                G.last_detail = t.detail
-                z = qt_redraw()
+    end if
+    plan = G.mcp
+    d = studio_mcp.request(plan.policy, line)
+    if has(d, "reply") then
+        if d.reply != "" then
+            print d.reply
+        end if
+    else
+        r = qt_mcp_call(plan, d.call)
+        plan.steps = r.steps
+        G.mcp = plan
+        print r.reply
+        ' A run the call stopped waiting for is the POLLER's from here, as
+        ' a pressed Run's is: the window shows it finishing on its own, with
+        ' no request needed to move it -- which is what watching is for.
+        sess = studio_ui.exec_session(G.app)
+        if sess != nothing then
+            if studio_session.is_active(sess) then
+                G.polling = true
             end if
         end if
-        d = studio_mcp.request(plan.policy, line)
-        if has(d, "reply") then
-            if d.reply != "" then
-                print d.reply
-            end if
-        else
-            r = qt_mcp_call(plan, d.call)
-            plan.steps = r.steps
-            print r.reply
-        end if
-    end while
-    return nothing
+    end if
+    return true
 end function
 
 ' One tools/call, performed. Answers { reply, steps }: the reply line, and
@@ -2495,7 +2507,10 @@ program main(args)
           ' Whether a run is in flight. The GTK shell lets its timer remove
           ' itself by returning `active`; a `timer.every` keeps ticking, so the
           ' flag is what stops the poller doing work between runs.
-          polling: false }
+          polling: false,
+          ' The MCP session's plan while `./studio mcp` serves -- see
+          ' `qt_mcp_line`; `nothing` in every other mode.
+          mcp: nothing }
 
     ' SHOOT: the script is read and CHECKED before the window exists, because
     ' its first step can say what the window is -- size, theme, text size,
@@ -2931,16 +2946,29 @@ program main(args)
         end if
     end if
 
+    ' MCP: STANDARD INPUT IS AN EVENT SOURCE (gBASIC's `watch(stdin.lines)`),
+    ' so each request is answered from inside `ui.run()` and the window keeps
+    ' painting between them -- VISIBLE, if the platform is: a person can watch
+    ' an assistant work. End of input, or a blank line, closes the windows, and
+    ' `ui.run()` below returns. Falls through to the poller and the loop.
     if mode = "mcp" then
         G.polling = false
-        z = qt_mcp_serve(qt_mcp_plan(qt_mcp_frame(G.app)))
-        z = qt_shot_close()
-        ' A home somebody named is kept as the window keeps it at close; a
-        ' fresh one is about to be removed, and there is nothing to keep.
-        if default(env("GBASIC_STUDIO_MCP_FRESH"), "") != "1" then
-            saved = studio.persist(G.app)
-        end if
-        return nothing
+        G.mcp = qt_mcp_plan(qt_mcp_frame(G.app))
+        watch requests(stdin.lines)
+            while count(stdin.lines) > 0
+                line = take_first(stdin.lines)
+                if not qt_mcp_line(line) then
+                    if ui.is_open(G.win) then
+                        z = qt_shot_close()
+                    end if
+                end if
+            end while
+            if stdin.closed then
+                if ui.is_open(G.win) then
+                    z = qt_shot_close()
+                end if
+            end if
+        end watch
     end if
 
     if mode = "shoot" then
@@ -4276,6 +4304,17 @@ program main(args)
     ' across an edit, and a state rebuilt from scratch numbers sections in FILE
     ' order -- which is the STU-3 misattribution, re-entering through the exit
     ' path. `app/studio.bas` has called `persist` here since STU-2.
+    ' MCP's ending. STDOUT IS THE PROTOCOL, so nothing is printed; a home
+    ' somebody named is kept as the window keeps it, a fresh one is about to be
+    ' removed. And it EXITS: when the person closes the window the client may
+    ' still hold standard input open, and a live stdin source would keep the
+    ' process waiting for it (measured: as long as the client's pipe lasted).
+    if mode = "mcp" then
+        if default(env("GBASIC_STUDIO_MCP_FRESH"), "") != "1" then
+            saved = studio.persist(G.app)
+        end if
+        exit(0)
+    end if
     saved = studio.persist(G.app)
     logged = studio_history.save(home, G.log)
     print "saved: " + join(saved, ", ")

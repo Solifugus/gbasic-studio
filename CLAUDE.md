@@ -1140,11 +1140,21 @@ launcher.
   comes out at exit. `mcp_client.bas` talks one request at a time through
   `mcp.connect`. Measured red with the flag removed from the launcher: *"the
   server did not answer within 10 seconds"*.
-- **No `qt.run()`.** The loop blocks on `input()` and Qt is driven call by
-  call, as `shoot` drives it. A run is ticked in line (`qt_run_wait`), and one
-  left going is ticked again at every request. So the server is offscreen
-  only: a visible window would not repaint between requests. Watching an AI
-  work needs a stdin source in gBASIC's event loop.
+- **REQUESTS ARE AN EVENT SOURCE (2026-11-16).** It was a loop blocked on
+  `input()` with no `ui.run()`, Qt driven call by call, so offscreen only: a
+  visible window would not repaint between requests. gBASIC's
+  `watch(stdin.lines)` delivers each line inside `ui.run()`, so the `mcp`
+  branch registers that watch and falls through to the SAME poller and loop
+  the window uses (`qt_mcp_line` answers one line). A named home's window is
+  therefore VISIBLE (the launcher no longer forces offscreen there; a fresh
+  home still is), and a run a call stopped waiting for is handed to the
+  poller (`G.polling`), so it finishes on screen with no request to move it
+  -- measured with a probe in the poller's final tick, then removed. End of
+  input or a blank line closes the windows; after `ui.run()` the mode saves a
+  named home, prints NOTHING (stdout is the protocol) and EXITS -- a person
+  can close the window while the client still holds stdin, and a live stdin
+  source would keep the process waiting for it (measured). `mcp_session`
+  passed unchanged through the new path, captures byte-identical included.
 - **The external tier is DENIED and NOT LISTED** unless
   `GBASIC_STUDIO_MCP_EXTERNAL=auto`. Then it is `auto`, not `confirm`: a token
   the model hands back to itself confirms nothing, and the client's own

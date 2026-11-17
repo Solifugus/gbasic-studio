@@ -189,15 +189,15 @@ library studio_launch
 
         ' `./studio mcp [home|-] [folder]`: stdout IS the protocol, so
         ' `--line-buffered`; no home, or `-`, is a fresh one, made like a
-        ' figure's and removed after.
+        ' figure's (offscreen) and removed after.
         folder = ""
         if count(a) > 2 then
             folder = studio_launch._against(a[2], cwd, os)
         end if
+        ' A named home's window is VISIBLE (the platform's own), so a person
+        ' can watch an assistant work in it; a fresh home is a figure's world
+        ' and stays offscreen (`with_figure`). QT_QPA_PLATFORM wins either way.
         if mode = "mcp" then
-            if studio_launch._get(env, "QT_QPA_PLATFORM") = "" then
-                p.env.QT_QPA_PLATFORM = "offscreen"
-            end if
             h = ""
             if count(a) > 1 then
                 h = a[1]

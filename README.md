@@ -834,8 +834,14 @@ otherwise put coloured edges on every letter.
 ```sh
 ./studio mcp                      # a fresh home, offscreen, on stdin/stdout
 ./studio mcp - ~/src/myproject    # the same, with a folder open as a project
-./studio mcp ~/.gbasic-studio     # in a home of your own
+./studio mcp ~/.gbasic-studio     # in a home of your own, in a VISIBLE window
 ```
+
+In a home of your own the window opens on your desktop and stays live while
+the client works: you can watch it open files, move the caret and run
+sections, and a run the client stopped waiting for finishes on screen by
+itself. Closing the window ends the session. A fresh home is a figure's world
+and stays offscreen; `QT_QPA_PLATFORM` overrides either.
 
 `./studio mcp` serves Studio over the **Model Context Protocol** on stdio, so
 an AI client can start Studio and use it: open files, put the caret in a
@@ -866,8 +872,8 @@ Claude Desktop takes the same command in its `mcpServers` configuration
   own per-tool approval is then the confirmation. Everything else (open, type,
   run) is Studio's to put back and runs without asking.
 - **A run is waited for up to 30 seconds** (`GBASIC_STUDIO_MCP_WAIT` to
-  change it). A longer one is answered as still running. It goes on, and
-  `run_state` and the output tools report it as later requests arrive.
+  change it). A longer one is answered as still running. It goes on, the
+  window shows it finishing, and `run_state` and the output tools report it.
 - **In a home of your own**, the session is saved when it ends, as the window
   saves it at close. Do not serve a home that an open Studio window is using:
   both write the same session at exit. A fresh home is removed afterwards;

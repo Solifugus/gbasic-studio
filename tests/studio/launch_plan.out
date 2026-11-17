@@ -133,6 +133,5 @@
   GBASIC_STUDIO_SHARE=C:/studio/share
   GBASIC_STUDIO_VIEWERS=C:/studio/viewers
   GBASIC_SYNTAX_PATH=C:/gb/editors/kate
-  QT_QPA_PLATFORM=offscreen
   XDG_DATA_DIRS=C:/studio/share
   run: C:/gb/gbasic.exe --line-buffered app/studio.bas mcp D:/work/h 
