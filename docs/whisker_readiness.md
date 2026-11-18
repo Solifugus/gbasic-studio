@@ -18,7 +18,7 @@ schema windows, and the lesson's notes).
 |---|---|---|---|
 | `highlighting` | every editor's `language:` and `theme:` (10 sites) | **does not start**: the overlay editor's `language:` is refused at window build | Declare `language:`/`theme:` only when `ui.can`; a plain editor otherwise. Small. |
 | `docking` | the whole main window: Files left, Console bottom, five panes right, and the saved layout (12 sites) | **does not start**: the `docks` is refused | The biggest item. Either Whisker gets docking, or Studio has a second layout (splits and tabs, the shape it had before §0.30) chosen by `ui.can`. Worth deciding with the Whisker work rather than guessing now. |
-| `stylesheet` | nothing -- Studio writes no QSS -- except CLEARING a theme, `ui.theme("")` | **does not start** on the default theme | gBASIC's to settle: clearing should be every backend's. Asked 2026-11-18. |
+| `stylesheet` | nothing -- Studio writes no QSS -- except CLEARING a theme, `ui.theme("")` | **does not start** on the default theme | **Settled by gBASIC (2026-11-18), before the 0.12.0 tag**: `ui.theme("")` is every backend's and clears; only non-empty text needs `stylesheet`. Nothing for Studio to guard. |
 | `figures` | `ui.capture` in `shoot` and the MCP `capture` tool | starts and runs; only a capture would refuse, by name | Already right: figures are a Linux, Qt thing (fonts pinned through fontconfig). `shoot` could check `ui.can` and say so before building anything. |
 | `notebook` | results and prose under their sections (`ui.blocks`, `ui.fold`), the `block` event on every editor, the lesson's notes (22 sites) | **does not start**: `on <editor>.block` is refused | Small: `qt_blocks_probe` (which matches an error's WORDING) becomes `ui.can("notebook")`, and the block handler is attached only then. The results stay in their panes, as on an older gBASIC. |
 | `icons` | the toolbar's five `SP_` standard pixmaps in the light theme (18 sites) | **does not start**: `SP_DialogSaveButton` is refused | Studio already ships SVG icons for the dark theme; a light set, used whenever `ui.can("icons")` is false (an icon that is a FILE is every backend's). Small. |
@@ -41,6 +41,14 @@ schema windows, and the lesson's notes).
   per group, run with it withheld, is how a guard is proven before Whisker
   exists. A program that passes with groups withheld has not been run on
   Whisker, which lays out and draws differently -- gBASIC says so itself.
+
+## Agreed with gBASIC (2026-11-18)
+
+gBASIC recorded Whisker's requirements for 0.13.0 from this list: a source
+editor with highlighting, blocks between lines and folds, a tree, and an
+asking table. Docking and second windows stay open until Whisker work starts.
+Studio's own guards (highlighting, notebook, icons, figures) come after the
+0.12.0 tag, each with a tier run under `GBASIC_UI_WITHHOLD`.
 
 ## Not measured
 
