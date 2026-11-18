@@ -509,19 +509,14 @@ function qt_prose_edit(r)
     return nothing
 end function
 
-' Does this gBASIC draw blocks between a source's lines? Asked of a window
-' that was never opened: a gBASIC that has the verb refuses it as "not open",
-' and one that predates §0.38 answers that the module does not define it.
-' No window is built, so nothing flashes on a desktop. Without the verb the
-' results stay in the panes, as before, and no `block` handler is attached --
-' an older `qt.check` would refuse a signal it does not know.
+' Does this backend draw blocks between a source's lines? gBASIC 0.12.0's
+' `notebook` group says so directly. It replaced a probe that called the verb
+' on a window never opened and matched the refusal's WORDING ("does not
+' define"), which answered yes on a backend that has the verb and not the
+' group. Without it the results stay in their panes, as they always did, and
+' no `block` handler is attached -- the handler itself is the group's.
 function qt_blocks_probe()
-    on error goto next
-    z = ui.blocks({ kind: "window", name: "studio_blocks_probe", options: {}, items: [] }, "ed")
-    if error then
-        return not contains(error.message, "does not define")
-    end if
-    return true
+    return studio_ui.ui_can(G.app, "notebook")
 end function
 
 ' ---- the Tables pane and the grid window (STU-8) ---------------------------
@@ -1520,6 +1515,9 @@ function qt_step(plan, tool, a)
         return qt_shot_window(a)
     end if
     if tool = "capture" then
+        if not studio_ui.ui_can(G.app, "figures") then
+            return qt_failed("capture: this backend draws no figures -- ui.can(\"figures\") is false")
+        end if
         return qt_shot_capture(plan, a)
     end if
     return qt_shot_tool(plan, tool, a)
@@ -2138,7 +2136,7 @@ function qt_apply_toolbar(app)
     ok = true
     on error goto next
     for each ti in studio_style.toolbar_icons()
-        want = studio_style.toolbar_icon(ti.part, theme)
+        want = studio_style.toolbar_icon(ti.part, theme, studio_ui.ui_can(G.app, "icons"))
         if want != "" then
             z = ui.set(G.win, ti.part, "icon", want)
             if error then
@@ -2517,7 +2515,20 @@ program main(args)
     ' invisible characters -- and an editor's theme is construction-only. A
     ' script that will not run is refused here, whole, with its line numbers,
     ' and nothing is opened (see `studio_shots`).
+    ' WHAT THIS BACKEND CAN DO, asked once (gBASIC 0.12.0's `ui.can`) and
+    ' carried on the app, so the shell decides by it without calling `ui.`
+    ' (`studio_ui.ui_can`). Qt has every group; a smaller backend -- or Qt with
+    ' groups withheld by GBASIC_UI_WITHHOLD -- gets a plain editor, file icons,
+    ' results kept in their panes, and no figures (docs/whisker_readiness.md).
+    G.app["ui_can"] = { highlighting: ui.can("highlighting"), notebook: ui.can("notebook"),
+                        icons: ui.can("icons"), figures: ui.can("figures") }
     shot_plan = nothing
+    ' A FIGURE IS A CAPTURE, so a backend that draws none is told before the
+    ' script is read, the window built, or anything written.
+    if mode = "shoot" and not studio_ui.ui_can(G.app, "figures") then
+        print to error "shoot: the " + default(ui.backend(), "(no)") + " backend draws no figures here -- ui.can(\"figures\") is false"
+        exit(2)
+    end if
     if mode = "shoot" then
         shot_plan = qt_shot_load(args)
         if is_nothing(shot_plan) then
@@ -2536,7 +2547,7 @@ program main(args)
 
     ' THE PRINT EDITOR'S THEME, if this gBASIC can have it -- see
     ' `qt_print_theme_probe`. Only under `print`, which only a figure asks for.
-    if studio_ui.theme_of(G.app) = "print" then
+    if studio_ui.theme_of(G.app) = "print" and studio_ui.ui_can(G.app, "highlighting") then
         G.app["qt_print_theme_ok"] = qt_print_theme_probe()
     end if
 
@@ -3234,6 +3245,44 @@ program main(args)
         print "the session toggle in Settings"
         z = ui.invoke(win, qt_item("restore-session"), "press")
         print "  action=" + G.last_action + ", checked=" + string(ui.read(win, qt_item("restore-session"), "checked"))
+        return nothing
+    end if
+
+    if mode = "lean" then
+        ' STUDIO ON A SMALLER BACKEND, measured on Qt with groups withheld
+        ' (GBASIC_UI_WITHHOLD="highlighting notebook icons figures"): what a
+        ' second backend without them would meet. Each of those groups, withheld
+        ' before the guards, stopped Studio before its window was built
+        ' (docs/whisker_readiness.md). Now it starts, opens a file, runs a
+        ' section and changes theme -- and says what it decided. Nothing here
+        ' asks Qt for a group's state: that would be refused, correctly.
+        print "this backend can: highlighting=" + string(studio_ui.ui_can(G.app, "highlighting")) + " notebook=" + string(studio_ui.ui_can(G.app, "notebook")) + " icons=" + string(studio_ui.ui_can(G.app, "icons")) + " figures=" + string(studio_ui.ui_can(G.app, "figures"))
+        rows = studio_ui.nav_rows(G.app)
+        ro = studio_ui.activate_row(G.app, rows, studio_qt_row_index(rows, "file", "main.bas"))
+        G.app = ro.app
+        z = qt_redraw()
+        doc = studio_docs.active_doc(G.app.dm)
+        eo = studio_shell_qt._editor_options(G.app, doc.id)
+        print "main.bas is a plain editor: " + string(not has(eo, "language") and not has(eo, "theme")) + ", its text: " + replace(ui.read(win, studio_shell_qt.part_editor(doc.id), "text"), chr(10), " / ")
+        icons = []
+        for each ti in studio_style.toolbar_icons()
+            want = studio_style.toolbar_icon(ti.part, studio_ui.theme_of(G.app), studio_ui.ui_can(G.app, "icons"))
+            icons = append(icons, ti.part + "=" + studio_ui._leaf(want))
+        end for
+        print "toolbar icons are Studio's files: " + join(icons, " ")
+        print "blocks drawn: " + string(G.app.qt_blocks_ok)
+        z = ui.caret_to(win, studio_shell_qt.part_editor(doc.id), 1, 1)
+        G.app = qt_sync_caret(G.app)
+        z = ui.invoke(win, "run_btn", "press")
+        went = qt_tables_wait()
+        print "Run Section: " + went + ", the result is in the pane: " + trim(ui.read(win, "target_body", "text"))
+        z = qt_theme_to("dark")
+        print "Dark: " + G.last_action + ", the theme is ours: " + string(qt_theme_is_ours())
+        doc = studio_docs.active_doc(G.app.dm)
+        print "the rebuilt editor still holds its text: " + replace(ui.read(win, studio_shell_qt.part_editor(doc.id), "text"), chr(10), " / ")
+        r = qt_step({}, "capture", { part: "editor" })
+        print "an MCP or shot capture: " + r.why
+        z = ui.close(win)
         return nothing
     end if
 

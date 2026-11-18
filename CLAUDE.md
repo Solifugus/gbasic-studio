@@ -103,7 +103,7 @@ directory with `GBASIC_PATH=lib`.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 220 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 222 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 30 cases, headless AND offline (scripted transport)
 ```
 
@@ -452,10 +452,9 @@ Two consequences worth knowing before you touch the shell:
 gBASIC renamed its GUI module `ui` and gave it ONE VOCABULARY of its own
 (gBASIC `docs/ui_design.md` §3, §7; the words are its reference's "Words"
 section). Studio moved the same day, in one commit, against gBASIC
-`eb783aa8`. **The floor is now that commit** (it releases as 0.12.0): no
-earlier gBASIC can run Studio's window, so the installed 0.10.0 and the old
-pinned builds are not suite targets for the GUI tiers until a release carries
-`ui.`. Everything below this section that says `qt.` is the history it was
+`eb783aa8`. **The floor is gBASIC 0.12.0** (signed tag `v0.12.0`, published
+2026-11-18, on which the whole suite passes): no earlier gBASIC can run
+Studio's window. Everything below this section that says `qt.` is the history it was
 written in; the verbs are the same with `ui.` in front.
 
 - **Every Qt name is refused now, naming the word to write** --
@@ -491,6 +490,35 @@ written in; the verbs are the same with `ui.` in front.
   on any diff that removes more than it adds. With the fix, `qtview_probe`
   matched its pre-migration golden byte for byte, and every other window
   tier moved only by the renamed words.
+
+### A SMALLER BACKEND: `ui.can` (gBASIC 0.12.0, 2026-11-18)
+
+gBASIC 0.12.0 names what one backend can do and another may not as eight
+capability groups, asked with `ui.can(group)`; Qt has all eight, and Whisker
+(0.13.0) may not. `GBASIC_UI_WITHHOLD` takes groups away from Qt, so every
+guard below was MEASURED first: each group Studio leans on, withheld, stopped
+it before its window was built (`docs/whisker_readiness.md`).
+
+- **Asked once, at launch, carried on the app** (`app.ui_can`, read through
+  `studio_ui.ui_can`): the shell must not call `ui.` (the `qt_shell_pure`
+  tripwire), so it decides by the record. A caller that never probed -- every
+  headless tier -- gets Qt's answer, every group, which is why no golden moved.
+- `highlighting`: editors declare `language:`/`theme:` only with it. `notebook`:
+  `qt_blocks_probe` IS `ui.can("notebook")` now -- it used to match an error's
+  WORDING and answered yes for a backend with the verb but not the group.
+  `icons`: no icon NAME is declared without it, and the light theme wears the
+  dark-stroked `*-light.svg` files the print theme already had. `figures`:
+  `shoot` refuses before reading its script (exit 2, nothing written) and the
+  `capture` step refuses by name.
+- `qtview_lean` runs Studio with all four withheld: it starts, opens a file,
+  runs a section into the console, takes the dark theme record and rebuilds the
+  editor -- and asks Qt for no group's state, which would be refused correctly.
+  The `probe` tier still asks (`ui.highlighting`, `ui.has_icon`), so it is a
+  Qt tier, not a contract tier.
+- Not done, because it is design: `docking` (the whole main window) and
+  `windows` (New Project, the grid, Insert SQL, Schema). `stylesheet` needed
+  nothing: gBASIC made `ui.theme("")` every backend's before the tag, at
+  Studio's ask.
 
 ### The Qt window (STU-22)
 

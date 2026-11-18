@@ -6667,6 +6667,27 @@ library studio_ui
                  detail: studio_ui._leaf(path) + " " + string(runs[0].exit_code) + " " + string(m.lines) + " " + m.mode }
     end function
 
+    ' ---- what this window's backend can do (gBASIC 0.12.0's capability groups)
+    '
+    ' `ui.can(group)` is asked ONCE, at launch, by the entry point, and the
+    ' answers ride on the app as `ui_can`, so the shell -- which must not call
+    ' `ui.` (the `qt_shell_pure` tripwire) -- can decide by them. A caller that
+    ' never probed (every headless tier) gets Qt's answer, every group, which is
+    ' why no golden moved. Measured with `GBASIC_UI_WITHHOLD` first
+    ' (docs/whisker_readiness.md): each group Studio leans on, withheld,
+    ' stopped it before its window was built.
+    function ui_can(app, group)
+        c = app["ui_can"]
+        if is_unknown(c) then
+            return true
+        end if
+        v = c[group]
+        if is_unknown(v) then
+            return true
+        end if
+        return v
+    end function
+
     ' ---- a lesson: its checks and its student edition (proposal §9, stage 4) -
     '
     ' The markers and the edition are `studio_lesson`'s; what a press MEANS is

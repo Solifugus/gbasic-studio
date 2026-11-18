@@ -342,10 +342,21 @@ library studio_style
 
     ' The icon string to put on one toolbar item under `theme`, or "" for
     ' "leave it alone". Light is the declared `SP_` name, so a switch BACK
-    ' restores the icons rather than leaving Studio's own on a light strip.
-    function toolbar_icon(part, theme)
+    ' restores the icons rather than leaving Studio's own on a light strip --
+    ' unless `named` is false: a backend without gBASIC's `icons` group cannot
+    ' take a NAME at all, so light wears Studio's own dark-stroked files too.
+    function toolbar_icon(part, theme, named)
         for each e in studio_style.toolbar_icons()
             if e.part = part then
+                if not named and theme != "print" and not studio_style.qt_dark_for(theme) then
+                    light = studio_style.toolbar_icon_dir() + "/" + e.file + "-light.svg"
+                    if studio_style.toolbar_icon_dir() != "" then
+                        if exists({file} light) then
+                            return light
+                        end if
+                    end if
+                    return ""
+                end if
                 ' PRINT WEARS STUDIO'S OWN ICONS, dark-stroked and gray only:
                 ' an `SP_` pixmap is the platform style's, coloured, and a
                 ' figure must not depend on which Qt drew it.

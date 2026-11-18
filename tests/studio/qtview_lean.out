@@ -1,0 +1,8 @@
+this backend can: highlighting=false notebook=false icons=false figures=false
+main.bas is a plain editor: true, its text: print "main" / 
+toolbar icons are Studio's files: save=save-light.svg tb_reload=reload-light.svg tb_open_folder=open-folder-light.svg tb_new_file=new-file-light.svg tb_new_folder=new-folder-light.svg tb_whitespace=whitespace-light.svg
+blocks drawn: false
+Run Section: ran, the result is in the pane: main
+Dark: theme-set, the theme is ours: true
+the rebuilt editor still holds its text: print "main" / 
+an MCP or shot capture: capture: this backend draws no figures -- ui.can("figures") is false

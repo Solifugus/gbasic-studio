@@ -919,24 +919,31 @@ end function
 ' Run button next to "section: sec-1 statements" says what it will run, and one
 ' on a global toolbar does not. Two routes to one verb is also the thing Save
 ' is deliberately spared.
+' A toolbar item. An icon given by NAME (a standard pixmap) is the `icons`
+' group's: without it the item is declared with NO icon key at all, and the
+' entry point's `qt_apply_toolbar` gives it Studio's own file once the window
+' is open -- a file is every backend's.
+function _tb_item(app, name, label, sp, tip)
+    opts = { label: label, tip: tip }
+    if studio_ui.ui_can(app, "icons") then
+        opts.icon = sp
+    end if
+    return part("item", name, opts)
+end function
+
 function _toolbar(app)
     return toolbar(studio_shell_qt.part_toolbar(), [
-        part("item", studio_shell_qt.part_save(),
-             { label: "Save", icon: "SP_DialogSaveButton",
-               tip: "Write the active document to disk. Over a file that changed underneath, press twice — the first press arms it." }),
-        part("item", "tb_reload",
-             { label: "Reload", icon: "SP_BrowserReload",
-               tip: studio_ui.menu_hint("reload") }),
+        studio_shell_qt._tb_item(app, studio_shell_qt.part_save(), "Save", "SP_DialogSaveButton",
+                                 "Write the active document to disk. Over a file that changed underneath, press twice — the first press arms it."),
+        studio_shell_qt._tb_item(app, "tb_reload", "Reload", "SP_BrowserReload",
+                                 studio_ui.menu_hint("reload")),
         bare("separator"),
-        part("item", "tb_open_folder",
-             { label: "Open Folder", icon: "SP_DialogOpenButton",
-               tip: studio_ui.menu_hint("open-folder") }),
-        part("item", "tb_new_file",
-             { label: "New File", icon: "SP_FileIcon",
-               tip: studio_ui.menu_hint("new-file") }),
-        part("item", "tb_new_folder",
-             { label: "New Folder", icon: "SP_FileDialogNewFolder",
-               tip: studio_ui.menu_hint("new-folder") }),
+        studio_shell_qt._tb_item(app, "tb_open_folder", "Open Folder", "SP_DialogOpenButton",
+                                 studio_ui.menu_hint("open-folder")),
+        studio_shell_qt._tb_item(app, "tb_new_file", "New File", "SP_FileIcon",
+                                 studio_ui.menu_hint("new-file")),
+        studio_shell_qt._tb_item(app, "tb_new_folder", "New Folder", "SP_FileDialogNewFolder",
+                                 studio_ui.menu_hint("new-folder")),
         bare("separator"),
         ' ONE PRESS, and that was the request: Notepad++ keeps this deep in a
         ' menu. Checkable, so the button itself says whether they are shown.
@@ -987,9 +994,7 @@ function _branch_body(app)
             part("button", "ov_rebase", { label: "Rebase" }),
             part("button", "ov_promote", { label: "Promote" }),
             part("button", "ov_discard", { label: "Discard" }) ]),
-        part("source", "ov_editor",
-             { language: "gBASIC", line_numbers: true, visible: false,
-               theme: studio_style.qt_source_theme(app.model.settings.theme) }),
+        part("source", "ov_editor", studio_shell_qt._overlay_editor_options(app)),
         ' Where Compare prints and a conflict is spelled out.
         part("memo", "ov_diff", { read_only: true }) ])
 end function
@@ -1134,9 +1139,23 @@ end function
 ' otherwise wrap a light editor. A PLAIN editor takes the theme too (gBASIC
 ' db8c3ad, asked for by Studio): before that, a `theme` with no `language` was
 ' refused, and a .txt in a dark Studio was the one light pane.
+function _overlay_editor_options(app)
+    opts = { line_numbers: true, visible: false }
+    if studio_ui.ui_can(app, "highlighting") then
+        opts.language = "gBASIC"
+        opts.theme = studio_style.qt_source_theme(app.model.settings.theme)
+    end if
+    return opts
+end function
+
 function _editor_options(app, doc_id)
-    opts = { line_numbers: true, marks: true,
-             theme: studio_style.editor_theme(app) }
+    opts = { line_numbers: true, marks: true }
+    ' A source's `language:` and `theme:` belong to the `highlighting` group:
+    ' on a backend without it, a plain editor is the editor.
+    if not studio_ui.ui_can(app, "highlighting") then
+        return opts
+    end if
+    opts.theme = studio_style.editor_theme(app)
     doc = studio_docs.doc_by_id(app.dm, doc_id)
     lang = ""
     if doc != nothing then

@@ -16,12 +16,12 @@ schema windows, and the lesson's notes).
 
 | group | Studio uses it for | withheld, Studio | the way forward |
 |---|---|---|---|
-| `highlighting` | every editor's `language:` and `theme:` (10 sites) | **does not start**: the overlay editor's `language:` is refused at window build | Declare `language:`/`theme:` only when `ui.can`; a plain editor otherwise. Small. |
+| `highlighting` | every editor's `language:` and `theme:` (10 sites) | **does not start**: the overlay editor's `language:` is refused at window build | **DONE (2026-11-18)**: `language:`/`theme:` are declared only when `ui.can`; a plain editor otherwise. |
 | `docking` | the whole main window: Files left, Console bottom, five panes right, and the saved layout (12 sites) | **does not start**: the `docks` is refused | The biggest item. Either Whisker gets docking, or Studio has a second layout (splits and tabs, the shape it had before §0.30) chosen by `ui.can`. Worth deciding with the Whisker work rather than guessing now. |
 | `stylesheet` | nothing -- Studio writes no QSS -- except CLEARING a theme, `ui.theme("")` | **does not start** on the default theme | **Settled by gBASIC (2026-11-18), before the 0.12.0 tag**: `ui.theme("")` is every backend's and clears; only non-empty text needs `stylesheet`. Nothing for Studio to guard. |
-| `figures` | `ui.capture` in `shoot` and the MCP `capture` tool | starts and runs; only a capture would refuse, by name | Already right: figures are a Linux, Qt thing (fonts pinned through fontconfig). `shoot` could check `ui.can` and say so before building anything. |
-| `notebook` | results and prose under their sections (`ui.blocks`, `ui.fold`), the `block` event on every editor, the lesson's notes (22 sites) | **does not start**: `on <editor>.block` is refused | Small: `qt_blocks_probe` (which matches an error's WORDING) becomes `ui.can("notebook")`, and the block handler is attached only then. The results stay in their panes, as on an older gBASIC. |
-| `icons` | the toolbar's five `SP_` standard pixmaps in the light theme (18 sites) | **does not start**: `SP_DialogSaveButton` is refused | Studio already ships SVG icons for the dark theme; a light set, used whenever `ui.can("icons")` is false (an icon that is a FILE is every backend's). Small. |
+| `figures` | `ui.capture` in `shoot` and the MCP `capture` tool | starts and runs; only a capture would refuse, by name | **DONE (2026-11-18)**: `shoot` refuses before reading its script or building anything (exit 2, nothing written), and the `capture` step refuses by name. |
+| `notebook` | results and prose under their sections (`ui.blocks`, `ui.fold`), the `block` event on every editor, the lesson's notes (22 sites) | **does not start**: `on <editor>.block` is refused | **DONE (2026-11-18)**: `qt_blocks_probe` is `ui.can("notebook")` (it matched an error's WORDING, and answered yes for a backend with the verb and not the group); no `block` handler, results stay in their panes. |
+| `icons` | the toolbar's five `SP_` standard pixmaps in the light theme (18 sites) | **does not start**: `SP_DialogSaveButton` is refused | **DONE (2026-11-18)**: the toolbar declares no icon NAME without the group, and the light theme wears Studio's dark-stroked `*-light.svg` files, which already existed for the print theme. Looked at: it reads as the platform's would. |
 | `windows` | New Project, the table grid, Insert SQL, Schema -- each a second window (92 sites, mostly the windows' own code) | starts; **each second window is refused** when opened | A real design question for a browser backend: the four become pages of the main window, or dialogs Whisker draws inside it. Decide with the Whisker work. |
 | `file_dialogs` | nothing | -- | Studio has no file chooser; names come from the header field. |
 
@@ -47,8 +47,12 @@ schema windows, and the lesson's notes).
 gBASIC recorded Whisker's requirements for 0.13.0 from this list: a source
 editor with highlighting, blocks between lines and folds, a tree, and an
 asking table. Docking and second windows stay open until Whisker work starts.
-Studio's own guards (highlighting, notebook, icons, figures) come after the
-0.12.0 tag, each with a tier run under `GBASIC_UI_WITHHOLD`.
+Studio's own guards (highlighting, notebook, icons, figures) are DONE against
+the 0.12.0 release: `studio_ui.ui_can` carries the answers asked once at
+launch, the shell decides by them, and `qtview_lean` runs Studio on Qt with
+all four withheld -- it opens a file, runs a section, changes theme -- while
+`shoot_lean` checks `shoot` refuses cleanly. Docking and second windows are
+what is left, and they are design.
 
 ## Not measured
 

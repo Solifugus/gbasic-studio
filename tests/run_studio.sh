@@ -1175,6 +1175,26 @@ fi
         fi
     }
 
+    # STUDIO ON A SMALLER BACKEND (gBASIC 0.12.0's capability groups): Qt
+    # with the four groups Studio guards withheld, which is what a second
+    # backend without them would meet. Each, withheld before the guards,
+    # stopped Studio before its window was built (docs/whisker_readiness.md).
+    # And `shoot` with no `figures` refuses before reading its script or
+    # building anything.
+    qh="$tmproot/qtview_lean"; qp="$tmproot/qtview_lean_proj"
+    rm -rf "$qh" "$qp"; mkdir -p "$qh"; mkproj_ui "$qp"
+    export GBASIC_UI_WITHHOLD="highlighting notebook icons figures"
+    qt_mode_tier qtview_lean lean "$qh" "$qp" "a plain editor, file icons, results in the panes, no figures"
+    unset GBASIC_UI_WITHHOLD
+    sl="$tmproot/shoot_lean"; rm -rf "$sl"; mkdir -p "$sl"
+    rc=0
+    got=$(GBASIC_UI_WITHHOLD=figures timeout 60 ./studio shoot tests/shots/figure.shot "$sl" 2>&1 >/dev/null) || rc=$?
+    if [ "$rc" = 2 ] && printf '%s' "$got" | grep -q 'draws no figures' && [ -z "$(ls -A "$sl")" ]; then
+        printf 'PASS shoot_lean (no figures: refused before anything was built or written)\n'
+    else
+        printf 'rc=%s\n%s\n' "$rc" "$got"; ls -A "$sl"; fail "shoot_lean (a backend without figures was not refused cleanly)"
+    fi
+
     # INSERT SQL… under Qt (STU-15): the GTK `ui_gui_snippet` script, against
     # the same fixture. No database: nothing is run.
     qh="$tmproot/qtview_snippet"; qp="$tmproot/qtview_snippet_proj"
