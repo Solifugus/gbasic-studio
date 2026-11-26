@@ -103,7 +103,7 @@ directory with `GBASIC_PATH=lib`.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 222 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 223 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 30 cases, headless AND offline (scripted transport)
 ```
 
@@ -3422,11 +3422,15 @@ the kind strings `source_outline` reports, measured — and `shape`
 (2026-11-26, gBASIC's shapes increment 1). **The lists are keyed on the
 OUTLINE'S kind, not the AST's**, which the `shape` request showed: gBASIC's
 pre-registration set gained `AST_STMT_SHAPE`, but on 694b9a32 `source_outline`
-reports a shape as an unnamed `statement`, so a file with a shape outside
-`program` is folded into one statements section and does not run in Studio at
-all. Asked upstream; `sessions_hoist_shape` SKIPs (probed) until the outline
-names it, then runs that very file. A new declaration kind needs BOTH halves:
-gBASIC's outline naming it, and these two lists. `sessions_hoist_gsql`
+reported a shape as an unnamed `statement`, so a file with a shape outside
+`program` was folded into one statements section and did not run in Studio at
+all. Asked upstream; gBASIC 7019f28e names it (`shape`, with its name), and
+`sessions_hoist_shape` runs a shape below `end program` WITH A METHOD -- which
+the outline reports as a nested `function` and which must stay inside its
+shape rather than become a section of its own. Measured red with `shape`
+taken out of `_hoistable_kind`: `undefined variable: account`. A new
+declaration kind needs BOTH halves: gBASIC's outline naming it, and these two
+lists. `sessions_hoist_gsql`
 runs a body naming a `database` and three `sql` blocks declared below `end
 program`, probed for a G-SQL build and skipped without one. Red without the
 change, measured on ONE pinned binary: `undefined variable: mk` with the old

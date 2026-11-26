@@ -105,10 +105,12 @@ function hoist_gsql_src(db)
   return "program main(args)\n  load gsql\n  z = gsql.exec(mk)\n  z = gsql.exec(add)\n  for each r in cheap\n    print r.name\n  end for\nend program\n\ndatabase shop( file: " + quote(db) + ", create: true )\n\nsql mk on shop\n  create table t (name text, p int)\nend sql\n\nsql add on shop\n  insert into t values ('pen', 2), ('book', 9)\nend sql\n\nsql cheap on shop\n  select name, p from t where p < 5\nend sql\n"
 end function
 
-' A `shape` (gBASIC 694b9a32, shapes increment 1) BELOW `end program` and
-' made with `new` in the body -- which only runs if it is hoisted.
+' A `shape` (gBASIC shapes, outline kind since 7019f28e) BELOW `end program`,
+' made with `new` in the body -- which only runs if it is hoisted -- and
+' carrying a METHOD, which the outline reports as a nested `function`: it must
+' stay inside its shape, not become a section hoisted on its own.
 function hoist_shape_src()
-  return "program main(args)\n  p = new point with { x: 3 }\n  print p.x + p.y\nend program\n\nshape point\n  x:number = 0\n  y:number = 4\nend shape\n"
+  return "program main(args)\n  a = new account with { owner: \"Ann\" }\n  print a.deposit(5)\n  print a.owner\nend program\n\nshape account\n  owner:text = \"unnamed\"\n  balance:number = 10\n  function deposit(amount)\n    this.balance = this.balance + amount\n    return this.balance\n  end function\nend shape\n"
 end function
 
 ' Output on BOTH sides of the N-1/N boundary, so a successful separation has
