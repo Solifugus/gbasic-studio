@@ -164,7 +164,8 @@ library studio_table
     ' run made them in -- see `sort_rows`.
     function _empty_source()
         return { kind: "none", cols: [], n: 0, known: 0, sampled: false,
-                 lines: [], rows: [], cache: {}, decodes: 0, path: "", stamp: "" }
+                 rows: [], decodes: 0, reads: 0, path: "", stamp: "",
+                 offsets: [], size: 0, blocks: {}, order: [] }
     end function
 
     ' The rows Studio already has, straight off the capture. No file, no re-run,
@@ -188,36 +189,64 @@ library studio_table
         return src
     end function
 
-    ' An export file: a header line, then one encoded row per line. Only the
-    ' header is decoded here — the rows are strings until someone looks at one.
-    function from_export(text, path)
+    ' How many rows one read of an export brings in, and how many such blocks a
+    ' source keeps. Together they bound what a grid holds: 8 x 256 rows of
+    ' text, whatever the table's size -- the user's rule (2026-11-26) that a
+    ' display never pulls an enormous dataset into memory at once.
+    function export_block()
+        return 256
+    end function
+
+    function block_cache()
+        return 8
+    end function
+
+    ' AN EXPORT ON DISK, OPENED WITHOUT READING IT. One streamed pass (`for
+    ' each line in f`, which holds only the longest line) reads the header and
+    ' notes the BYTE offset of every `export_block()`-th row; rows are then read
+    ' a block at a time with `read_at` when a grid asks for them. The offsets are
+    ' bytes, summed with `byte_count`, never `len`, which counts codepoints. The
+    ' export is Studio's own file, written with "\n" line ends.
+    '
+    ' It used to `read` the whole file and split it: rows were decoded lazily,
+    ' but every byte of a million-row export sat in memory.
+    function from_export_file(path)
         src = studio_table._empty_source()
-        if text = "" then
+        f{file} = path
+        if not exists(f) then
             return src
         end if
-        lines = split(text, "\n")
-        if count(lines) = 0 then
-            return src
-        end if
-        h = try_decode(lines[0])
-        if not h.ok then
-            return src
-        end if
-        head = h.value
-        if not is_record(head) then
-            return src
-        end if
-        if not has(head, "cols") then
-            return src
-        end if
-        body = []
-        i = 1
-        while i < count(lines)
-            if lines[i] != "" then
-                body = append(body, lines[i])
+        k = studio_table.export_block()
+        offsets = []
+        pos = 0
+        known = 0
+        head = nothing
+        for each line, at in f
+            if at = 0 then
+                h = try_decode(line)
+                if not h.ok then
+                    return src
+                end if
+                head = h.value
+                if not is_record(head) then
+                    return src
+                end if
+                if not has(head, "cols") then
+                    return src
+                end if
+            else
+                if line != "" then
+                    if known - floor(known / k) * k = 0 then
+                        offsets = append(offsets, pos)
+                    end if
+                    known = known + 1
+                end if
             end if
-            i = i + 1
-        end while
+            pos = pos + byte_count(line) + 1
+        end for
+        if head = nothing then
+            return src
+        end if
         src.kind = "export"
         src.path = path
         if has(head, "stamp") then
@@ -226,11 +255,29 @@ library studio_table
             end if
         end if
         src.cols = head.cols
-        src.lines = body
         src.n = head.n
-        src.known = count(body)
+        src.known = known
         src.sampled = src.known < src.n
+        src.offsets = offsets
+        src.size = pos
         return src
+    end function
+
+    ' Block `b`'s rows as text, read from disk.
+    function _read_block(src, b)
+        start = src.offsets[b]
+        upto = src.size
+        if b + 1 < count(src.offsets) then
+            upto = src.offsets[b + 1]
+        end if
+        f{file} = src.path
+        out = []
+        for each line in split(read_at(f, start, upto - start), "\n")
+            if line != "" then
+                out = append(out, line)
+            end if
+        end for
+        return out
     end function
 
     ' ---- lazy row access ---------------------------------------------------
@@ -253,12 +300,37 @@ library studio_table
         if src.kind = "preview" then
             return { src: src, row: src.rows[i] }
         end if
-        key = string(i)
-        hit = src.cache[key]
+        k = studio_table.export_block()
+        b = floor(i / k)
+        bkey = string(b)
+        blk = src.blocks[bkey]
+        if is_unknown(blk) or blk = nothing then
+            ' A block not held: read it, and let the oldest go if that makes
+            ' more than `block_cache()`. Scrolling reads ahead a block at a time.
+            blk = { lines: studio_table._read_block(src, b), rows: {} }
+            src.reads = src.reads + 1
+            src.order = append(src.order, bkey)
+            if count(src.order) > studio_table.block_cache() then
+                src.blocks[src.order[0]] = nothing
+                keep = []
+                j = 1
+                while j < count(src.order)
+                    keep = append(keep, src.order[j])
+                    j = j + 1
+                end while
+                src.order = keep
+            end if
+        end if
+        key = string(i - b * k)
+        hit = blk.rows[key]
         if not is_unknown(hit) then
             return { src: src, row: hit }
         end if
-        r = try_decode(src.lines[i])
+        text = ""
+        if i - b * k < count(blk.lines) then
+            text = blk.lines[i - b * k]
+        end if
+        r = try_decode(text)
         row = []
         if r.ok then
             if is_array(r.value) then
@@ -270,7 +342,8 @@ library studio_table
                 row = append(row, "")
             end for
         end if
-        src.cache[key] = row
+        blk.rows[key] = row
+        src.blocks[bkey] = blk
         src.decodes = src.decodes + 1
         return { src: src, row: row }
     end function
@@ -496,7 +569,7 @@ library studio_table
         if not exists(f) then
             return studio_table._empty_source()
         end if
-        return studio_table.from_export(read(f), path)
+        return studio_table.from_export_file(path)
     end function
 
     ' The export for a variable, but only if it is an export of THIS run's code on

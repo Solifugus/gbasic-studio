@@ -1754,6 +1754,20 @@ theme's failure, one row down the Settings menu.
   tried and goes red: plausible text under the wrong heading is exactly what a
   grid gets wrong silently.
 
+- **AN EXPORT IS READ IN WINDOWS, NOT LOADED (2026-11-26).** "Fetch all rows"
+  writes up to `export_cap()` rows to a file, and Studio used to `read` it
+  whole and split it -- rows decoded lazily, but every byte in memory.
+  `studio_table.from_export_file` streams the file ONCE (`for each line in
+  f`), noting the BYTE offset (`byte_count`, never `len`) of every
+  `export_block()`-th row (256); a row is then read with gBASIC's `read_at`
+  in its block, and at most `block_cache()` (8) blocks are held. Measured on a
+  1,000,000-row, 37 MB export opened and read at row 900,000: 197 MB peak
+  before, 33 MB after (most of it the interpreter), for 0.6 s more of
+  indexing. A grid scrolling three screens and back read ONE block for 200
+  row views (`table_model`). Rows far apart cost a read each when revisited:
+  the price of memory that does not grow with the table. The user's design
+  for the rest -- an editor grid that asks for rows, wide/tall, sizing,
+  alignment -- waits on gBASIC (asked 2026-11-26).
 - **NO SORTING IN STUDIO (removed 2026-11-26, the user's design).** The
   grid had a Sort by choice and a Descending check over a permutation of
   every row (`sort_rows`, capped at 100,000). The user's rule: sorting belongs

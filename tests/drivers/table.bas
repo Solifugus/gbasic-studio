@@ -119,20 +119,21 @@ program main(args)
   if mode = "export" then
     persist.ensure_dir(home)
     path = write_export(home + "/rows.export", 1200, 1200)
-    f{file} = path
-    src = studio_table.from_export(read(f), path)
+    src = studio_table.from_export_file(path)
     show(studio_table.summary(src))
     print ""
-    print "-- reading the file decoded NO rows: they are strings until asked for"
+    print "-- opening the file decoded NO rows and read none: it was indexed, not loaded"
+    print "  blocks read: " + src.reads + ", index entries: " + count(src.offsets) + " (one per " + studio_table.export_block() + " rows)"
     r = studio_table.cell(src, 700, 1)
     print "  [700][1] = " + r.text + "   decoded: " + r.src.decodes
     r = studio_table.cell(r.src, 700, 2)
     print "  [700][2] = " + r.text + "   decoded: " + r.src.decodes + " (cached; the row was not decoded twice)"
     r = studio_table.cell(r.src, 3, 0)
     print "  [3][0] = " + r.text + "     decoded: " + r.src.decodes
+    print "  blocks read from disk: " + r.src.reads + " (row 700's, then row 3's)"
     print ""
     print "-- a capped export knows it is capped"
-    capped = studio_table.from_export(read(f), path)
+    capped = studio_table.from_export_file(path)
     capped.n = 900000
     capped.sampled = true
     print "caption: " + studio_table.caption("customers", capped)
@@ -140,7 +141,7 @@ program main(args)
     print "-- a corrupt line is a blank row, not a dead grid"
     bad{file} = home + "/bad.export"
     write(bad, "{\"cols\":[\"a\",\"b\"],\"n\":2,\"rows\":2}\n[\"ok\",\"fine\"]\nnot json\n")
-    bsrc = studio_table.from_export(read(bad), home + "/bad.export")
+    bsrc = studio_table.from_export_file(home + "/bad.export")
     r = studio_table.cell(bsrc, 0, 0)
     print "  [0][0] = \"" + r.text + "\""
     r = studio_table.cell(r.src, 1, 0)
@@ -149,7 +150,7 @@ program main(args)
     print "-- a file that is not an export at all yields an empty source"
     junk{file} = home + "/junk.export"
     write(junk, "hello\n")
-    print "  kind: " + studio_table.from_export(read(junk), home + "/junk.export").kind
+    print "  kind: " + studio_table.from_export_file(home + "/junk.export").kind
     print ""
     print "-- and a missing export is the normal state: nobody has fetched yet"
     print "  kind: " + studio_table.read_export(home, "/proj/a.bas", "customers").kind
@@ -162,9 +163,8 @@ program main(args)
     persist.ensure_dir(home)
     n = 50000
     path = write_export(home + "/big.export", n, n)
-    f{file} = path
-    src = studio_table.from_export(read(f), path)
-    print "a " + src.n + "-row table, " + src.decodes + " rows decoded by opening it"
+    src = studio_table.from_export_file(path)
+    print "a " + src.n + "-row table, " + src.decodes + " rows decoded and " + src.reads + " blocks read by opening it"
     print ""
     ' THE GRID ASKS FOR A CELL AT A TIME (a Qt `table to ask`), so what this
     ' asserts is Studio's half: a row is decoded when a cell of it is asked
@@ -183,14 +183,24 @@ program main(args)
     print "  rows decoded: " + src.decodes
     print "  id sum:       " + total
     print "  table size:   " + src.n + " rows, of which " + (src.n - src.decodes) + " were never touched"
+    print "  blocks read:  " + src.reads + ", blocks held now: " + count(src.order) + " (never more than " + studio_table.block_cache() + ")"
     print ""
-    print "-- scrolling back over the same rows costs nothing"
-    k = 0
-    while k < 300
-      r = studio_table.cell(src, k * 166, 1)
-      src = r.src
-      k = k + 1
-    end while
-    print "  rows decoded after a second pass: " + src.decodes
+    ' WHAT A GRID DOES: scroll a screenful, then the next, then come back.
+    ' Rows near each other share a block, so one read serves a screenful and
+    ' the next screenful is usually already held; coming back to rows still
+    ' held reads nothing. Rows FAR apart cost a read each when revisited --
+    ' that is the price of memory that does not grow with the table.
+    print "-- a grid's scroll: 3 screens of 40 rows down from row 20000, then back up"
+    before = src.reads
+    for each top in [20000, 20040, 20080, 20040, 20000]
+      i = top
+      while i < top + 40
+        r = studio_table.cell(src, i, 0)
+        src = r.src
+        i = i + 1
+      end while
+    end for
+    print "  blocks read for 200 row views: " + (src.reads - before)
+    print "  blocks held: " + count(src.order)
   end if
 end program

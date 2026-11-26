@@ -4,10 +4,12 @@ source: export
   sampled: false
   decoded so far: 0
 
--- reading the file decoded NO rows: they are strings until asked for
+-- opening the file decoded NO rows and read none: it was indexed, not loaded
+  blocks read: 0, index entries: 5 (one per 256 rows)
   [700][1] = row 700   decoded: 1
   [700][2] = 1050   decoded: 1 (cached; the row was not decoded twice)
   [3][0] = 3     decoded: 2
+  blocks read from disk: 2 (row 700's, then row 3's)
 
 -- a capped export knows it is capped
 caption: customers: 1200 of 900000 rows (sampled — the run that made them has ended)

@@ -1,10 +1,12 @@
-a 50000-row table, 0 rows decoded by opening it
+a 50000-row table, 0 rows decoded and 0 blocks read by opening it
 
 -- a row is decoded when a cell of it is asked for, and not before.
    300 rows spread across the table:
   rows decoded: 300
   id sum:       7445100
   table size:   50000 rows, of which 49700 were never touched
+  blocks read:  194, blocks held now: 8 (never more than 8)
 
--- scrolling back over the same rows costs nothing
-  rows decoded after a second pass: 300
+-- a grid's scroll: 3 screens of 40 rows down from row 20000, then back up
+  blocks read for 200 row views: 1
+  blocks held: 8
