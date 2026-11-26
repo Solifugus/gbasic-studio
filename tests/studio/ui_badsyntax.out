@@ -1,11 +1,11 @@
 == opened from cold: there are no sections because there is no parse ==
 strip:   section: (this file does not parse)
 heading: Errors (1)
-errors:  <error 8:8  syntax error, unexpected THEN>
+errors:  <error 8:8  syntax error, unexpected `then`>
 marks:   lines=7 signature=7
          section marks= (none: there are no sections)
 -> Run with the caret inside add(): no-parse
-   status: this file does not parse — error 8:8  syntax error, unexpected THEN
+   status: this file does not parse — error 8:8  syntax error, unexpected `then`
 == the marks MOVE with the error and go when it is fixed ==
 moved:   lines=2 signature=2
 fixed:   lines= signature=<>
@@ -20,7 +20,7 @@ sections retained=1 valid=false
    status: will not run it — the document does not parse; fix the errors first
 heading: Errors (2)
 errors:  <refused: the document does not parse; fix the errors first
-error 2:8  syntax error, unexpected THEN>
+error 2:8  syntax error, unexpected `then`>
 == REOPENED broken: restored anchors have no position, and no mark ==
 sections restored=1 placed=0 valid=false
 section marks= (none: nothing says where they are)

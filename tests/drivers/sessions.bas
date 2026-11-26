@@ -105,6 +105,12 @@ function hoist_gsql_src(db)
   return "program main(args)\n  load gsql\n  z = gsql.exec(mk)\n  z = gsql.exec(add)\n  for each r in cheap\n    print r.name\n  end for\nend program\n\ndatabase shop( file: " + quote(db) + ", create: true )\n\nsql mk on shop\n  create table t (name text, p int)\nend sql\n\nsql add on shop\n  insert into t values ('pen', 2), ('book', 9)\nend sql\n\nsql cheap on shop\n  select name, p from t where p < 5\nend sql\n"
 end function
 
+' A `shape` (gBASIC 694b9a32, shapes increment 1) BELOW `end program` and
+' made with `new` in the body -- which only runs if it is hoisted.
+function hoist_shape_src()
+  return "program main(args)\n  p = new point with { x: 3 }\n  print p.x + p.y\nend program\n\nshape point\n  x:number = 0\n  y:number = 4\nend shape\n"
+end function
+
 ' Output on BOTH sides of the N-1/N boundary, so a successful separation has
 ' something to separate.
 function split_src()
@@ -568,6 +574,25 @@ program main(args)
     sess = studio_session.create("doc-1", scratch)
     first = secs.sections[0]
     sess = run_and_show("a body naming a database and sql blocks declared below it", sess, secs, src, first.id)
+    print "hoisted=" + count(sess.hoisted)
+    for each h in sess.hoisted
+      print "hoist " + h.kind + " " + h.name
+    end for
+  end if
+
+  if mode = "hoist_shape" then
+    ' A shape is pre-registered like a function (gBASIC's pre-registration
+    ' set gained AST_STMT_SHAPE, 2026-11-26), so a body naming one declared
+    ' below it must find it hoisted.
+    src = hoist_shape_src()
+    secs = sections_for(src)
+    print "sections=" + count(secs.sections)
+    for each s in secs.sections
+      print "  " + s.kind + " " + string(s.name)
+    end for
+    sess = studio_session.create("doc-1", scratch)
+    first = secs.sections[0]
+    sess = run_and_show("a body making a shape declared below it", sess, secs, src, first.id)
     print "hoisted=" + count(sess.hoisted)
     for each h in sess.hoisted
       print "hoist " + h.kind + " " + h.name

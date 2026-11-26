@@ -66,4 +66,4 @@
   parses:        false
   error marks:   [3]
   section marks: [1]
-  errors pane:   error 3:5  syntax error, unexpected PROGRAM, expecting RPAREN
+  errors pane:   error 3:5  syntax error, unexpected `program`, expecting `)`

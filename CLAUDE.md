@@ -3418,7 +3418,15 @@ kind; anything else is folded into a `statements` section, which is never
 hoisted. So `server` sat in `_hoistable_kind` from PLAT-WEB-5 on and was never
 once hoisted, and `window` (gBASIC, 2026-10-17) was missed from both. Both
 lists now carry `server`, `window`, `database` and `sql` (G-SQL, 2026-10-30) —
-the kind strings `source_outline` reports, measured. `sessions_hoist_gsql`
+the kind strings `source_outline` reports, measured — and `shape`
+(2026-11-26, gBASIC's shapes increment 1). **The lists are keyed on the
+OUTLINE'S kind, not the AST's**, which the `shape` request showed: gBASIC's
+pre-registration set gained `AST_STMT_SHAPE`, but on 694b9a32 `source_outline`
+reports a shape as an unnamed `statement`, so a file with a shape outside
+`program` is folded into one statements section and does not run in Studio at
+all. Asked upstream; `sessions_hoist_shape` SKIPs (probed) until the outline
+names it, then runs that very file. A new declaration kind needs BOTH halves:
+gBASIC's outline naming it, and these two lists. `sessions_hoist_gsql`
 runs a body naming a `database` and three `sql` blocks declared below `end
 program`, probed for a G-SQL build and skipped without one. Red without the
 change, measured on ONE pinned binary: `undefined variable: mk` with the old

@@ -801,6 +801,15 @@ library studio_session
         if kind = "sql" then
             return true
         end if
+        ' A `shape` joined gBASIC's set on 2026-11-26 (shapes increment 1): a
+        ' shape sits beside `program main` and is made inside it, and its
+        ' defaults are literals, so registering one runs no user code. It
+        ' needs `source_outline` to report the kind -- on 694b9a32 a shape is
+        ' an unnamed `statement` (asked upstream; `sessions_hoist_shape`
+        ' SKIPs until it is named).
+        if kind = "shape" then
+            return true
+        end if
         return false
     end function
 

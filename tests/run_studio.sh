@@ -671,6 +671,16 @@ if [ "$(timeout 30 "$GBASIC" "$gsql_probe" 2>/dev/null)" = "yes" ]; then
 else
     printf 'SKIP sessions_hoist_gsql (this gBASIC has no G-SQL)\n'
 fi
+# A `shape` (gBASIC 694b9a32) below `end program`, made in the body. Studio
+# hoists by the outline's KIND, so this needs `source_outline` to report a
+# shape as `shape` -- on 694b9a32 it is an unnamed `statement` (asked upstream).
+shape_probe="$tmproot/shape_probe.bas"
+printf 'program main(args)\n  o = source_outline("shape s\\n  x:number = 0\\nend shape\\n")\n  print o.nodes[0].kind\nend program\n' > "$shape_probe"
+if [ "$(timeout 30 "$GBASIC" "$shape_probe" 2>/dev/null)" = "shape" ]; then
+    run_session hoist_shape
+else
+    printf 'SKIP sessions_hoist_shape (this gBASIC'"'"'s source_outline does not report a shape as `shape`)\n'
+fi
 printf 'PASS sessions_scratch_clean (no materialized prefix left by any case)\n'
 
 # ---- STU-5A: persistent, section-linked results and history ------------------

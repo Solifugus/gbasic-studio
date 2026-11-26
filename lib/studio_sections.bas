@@ -129,6 +129,9 @@ library studio_sections
         if kind = "sql" then
             return true
         end if
+        if kind = "shape" then
+            return true
+        end if
         return false
     end function
 
