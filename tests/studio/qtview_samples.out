@@ -23,7 +23,7 @@ Open Samples: samples-opened, on top: 01_sections.bas
 == 02_tables.bas
   the pane offers: sales: 1200 rows | summary: 4 rows
   sales: 50 of 1200 rows (sampled — the run that made them has ended)
-  most units first: 50
+  in the order the run made them: 1
 == 03_errors.bas
   Errors (1): target [sec-3] 23:32  undefined function: count_of -- no function, library function or builtin of that name is in scope at this call (has_builtin("count_of") asks without raising)
   the failing line in the file: 23

@@ -7,8 +7,8 @@
 '   1. Put the cursor anywhere in this file and press Run Section.
 '   2. Open the Tables tab. It offers `sales` and `summary`.
 '   3. Click `sales`. A window opens with the first 50 rows: the run kept a
-'      SAMPLE, and the caption says so. Sort by any column with the controls
-'      at the top.
+'      SAMPLE, and the caption says so. The rows are in the order the program
+'      made them -- to see them in another order, sort them in the code.
 '   4. Press "Fetch all rows" in the Tables pane. That runs the section again
 '      and keeps every row; click `sales` again to see all 1,200.
 

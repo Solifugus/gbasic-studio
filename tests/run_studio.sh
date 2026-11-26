@@ -351,7 +351,7 @@ run_table() { # mode
         fail "table_$mode (output diff)"
     fi
 }
-for m in tier preview export sort; do
+for m in tier preview export; do
     run_table "$m"
 done
 run_table model

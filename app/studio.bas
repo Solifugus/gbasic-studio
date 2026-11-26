@@ -571,8 +571,6 @@ function qt_open_grid(caption, src)
     w = studio_shell_qt.table_window(caption, studio_table.caption_note(src), src.cols,
                                      studio_table.numeric_columns(src))
     if count(src.cols) > 0 then
-        w = qt_on(w, "grid_sort", "changed", qt_grid_sort)
-        w = qt_on(w, "grid_desc", "changed", qt_grid_sort)
     end if
     G.tablewin = w
     z = ui.open(G.tablewin)
@@ -586,7 +584,6 @@ function qt_open_grid(caption, src)
         ' The choice's list is DATA (the columns), so it is filled after the
         ' open -- and inside the guard, because filling it is a change too.
         G.redrawing = true
-        z = ui.options(G.tablewin, "grid_sort", studio_shell_qt.sort_choices(src.cols))
         G.redrawing = false
         ' HOW MANY ROWS, which is the one thing a `to ask` table is told rather
         ' than asks: `known` is what the source can actually show -- the
@@ -600,32 +597,6 @@ function qt_open_grid(caption, src)
         z = ui.invoke(G.tablewin, studio_shell_qt.part_grid(), "fit_columns")
     end if
     return nothing
-end function
-
-' SORT BY a column, or back to the run's order. `studio_table.sort_rows`
-' decides; a refusal is written in the note rather than leaving a half-sorted
-' grid, and the order is left as it was.
-function qt_grid_sort()
-    if G.redrawing then
-        return nothing
-    end if
-    pick = ui.read(G.tablewin, "grid_sort", "index")
-    desc = ui.read(G.tablewin, "grid_desc", "checked")
-    if pick <= 0 then
-        G.table_src = studio_table.unsorted(G.table_src)
-        z = ui.set(G.tablewin, "grid_note", "text", studio_table.caption_note(G.table_src))
-    else
-        r = studio_table.sort_rows(G.table_src, pick - 1, desc)
-        G.table_src = r.src
-        if not r.ok then
-            z = ui.set(G.tablewin, "grid_note", "text", r.why)
-            return nothing
-        end if
-        z = ui.set(G.tablewin, "grid_note", "text", studio_table.caption_note(G.table_src))
-    end if
-    ' "The data changed": resetting the count is how an asking table is told,
-    ' and Qt asks again for what is in view.
-    return ui.rows(G.tablewin, studio_shell_qt.part_grid(), G.table_src.known)
 end function
 
 ' THE GRID'S CELL FUNCTION, resolved BY NAME (`studio_shell_qt.grid_cell_fn`)
@@ -3022,9 +2993,7 @@ program main(args)
         print "  the pane offers: " + join(qt_table_offers(win), " | ")
         z = ui.select(win, studio_shell_qt.part_tables(), 0)
         print "  " + ui.read(G.tablewin, "grid_caption", "text")
-        z = ui.set(G.tablewin, "grid_desc", "checked", true)
-        z = ui.write(G.tablewin, "grid_sort", "units")
-        print "  most units first: " + ui.cell(G.tablewin, studio_shell_qt.part_grid(), 0, "c3")
+        print "  in the order the run made them: " + ui.cell(G.tablewin, studio_shell_qt.part_grid(), 0, "c3")
         z = ui.close(G.tablewin)
 
         print "== 03_errors.bas"
@@ -3594,16 +3563,6 @@ program main(args)
         print "  finished: " + went
         z = ui.select(win, studio_shell_qt.part_tables(), 0)
         print "  reopened: " + G.last_action
-        z = qt_tables_report()
-
-        print "-- Sort by score, descending, through the window's own controls --"
-        tw = G.tablewin
-        print "  offered: " + join(qt_choice_items(tw, "grid_sort"), " | ")
-        z = ui.set(tw, "grid_desc", "checked", true)
-        z = ui.write(tw, "grid_sort", "score")
-        z = qt_tables_report()
-        print "-- and back to the order the run made them --"
-        z = ui.write(tw, "grid_sort", studio_shell_qt.sort_choices([])[0])
         z = qt_tables_report()
 
         print "-- the nothing-to-offer row opens nothing --"

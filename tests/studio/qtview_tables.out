@@ -23,23 +23,6 @@
   aligned: right | left | right
   first:   0 | row 0 | 0
   last:    1199 | row 1199 | 1798.5
--- Sort by score, descending, through the window's own controls --
-  offered: (the order the run made them) | id | name | score
-  caption: rows: 1200 rows
-  note:    []
-  rows:    1200
-  columns: id, name, score
-  aligned: right | left | right
-  first:   1199 | row 1199 | 1798.5
-  last:    0 | row 0 | 0
--- and back to the order the run made them --
-  caption: rows: 1200 rows
-  note:    []
-  rows:    1200
-  columns: id, name, score
-  aligned: right | left | right
-  first:   0 | row 0 | 0
-  last:    1199 | row 1199 | 1798.5
 -- the nothing-to-offer row opens nothing --
   the pane offers: (nothing tabular in the latest run)
   action:  no-table

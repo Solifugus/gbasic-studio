@@ -584,14 +584,10 @@ function table_window(caption, note, cols, numeric)
     ' What a SAMPLE means and where the rest is -- empty for a whole table.
     body = append(body, part("text", "grid_note", { label: note, wrap: true }))
     if count(fields) > 0 then
-        ' SORTING IS STUDIO'S (see `studio_table.sort_rows`): gBASIC turns
-        ' header-click sorting off on an asking table, so the order is chosen
-        ' here and the grid is told the data changed.
-        body = append(body, box("row", { margin: 0, spacing: u }, [
-            part("text", "grid_sort_label", { label: "Sort by" }),
-            part("choice", "grid_sort", {}),
-            part("check", "grid_desc", { label: "Descending" }),
-            bare("stretch") ]))
+        ' NO SORT CONTROLS, on the user's design (2026-11-26): the grid shows
+        ' rows in the order the program made them, and sorting belongs to the
+        ' code that builds the dataset -- a display that sorted would have to
+        ' hold every row, which a windowed grid exists not to do.
         body = append(body, { kind: "container", word: "table",
                               name: studio_shell_qt.part_grid(),
                               direction: "ask",
@@ -603,15 +599,6 @@ function table_window(caption, note, cols, numeric)
     return { kind: "window", name: studio_shell_qt.table_window_name(),
              options: { title: "gBASIC Studio — table", width: 900, height: 600 },
              items: [ box("column", { margin: u, spacing: u }, body) ] }
-end function
-
-' What the Sort by choice offers: the run's own order first, then every column.
-function sort_choices(cols)
-    out = [ "(the order the run made them)" ]
-    for each c in cols
-        out = append(out, string(c))
-    end for
-    return out
 end function
 
 ' ---- STU-15: the snippet window ---------------------------------------------

@@ -103,7 +103,7 @@ directory with `GBASIC_PATH=lib`.
 ## Tests
 
 ```sh
-tests/run_studio.sh            # 223 cases, headless; honours GBASIC / GBASIC_STDLIB
+tests/run_studio.sh            # 222 cases, headless; honours GBASIC / GBASIC_STDLIB
 tests/run_studio_agent.sh      # 30 cases, headless AND offline (scripted transport)
 ```
 
@@ -1754,19 +1754,16 @@ theme's failure, one row down the Settings menu.
   tried and goes red: plausible text under the wrong heading is exactly what a
   grid gets wrong silently.
 
-- **SORTING IS STUDIO'S, and the grid is told the data changed.** gBASIC turns
-  header-click sorting off on an asking table (a sorted VIEW would make a row
-  index mean another record), so the window has a Sort by choice and a
-  Descending check; `studio_table.sort_rows` builds a permutation on the source
-  that `row_at` reads through, using gBASIC's native, STABLE `sort(rows, { by,
-  descending })`, and `qt.rows` resets the model. Capped at `sort_limit()`
-  (100,000 rows) and refused by name past it.
-- **CELLS ARE TEXT, SO NUMBERS HAD TO BE RECOVERED.** A capture and an export
-  both carry each cell as its bounded display string, and the first sort put
-  999 above 1798.5 -- measured in the tier, descending by score. A column whose
-  every non-empty cell reads as a number now sorts numerically
-  (`_is_number_text`, a checked parse rather than a caught `number()`); one
-  stray word keeps the whole column text; empty cells sort LAST either way.
+- **NO SORTING IN STUDIO (removed 2026-11-26, the user's design).** The
+  grid had a Sort by choice and a Descending check over a permutation of
+  every row (`sort_rows`, capped at 100,000). The user's rule: sorting belongs
+  to the code that BUILDS the dataset, and a display that sorts must hold
+  every row -- the opposite of windowing over data too large to load. Rows
+  are shown in the order the program made them. (A business application may
+  well want sort, but done with the application, paged, never by holding the
+  whole set.) `_is_number_text` stayed: it is how `numeric_columns` decides
+  which columns to right-align -- cells are TEXT, so numbers had to be
+  recovered (the sort once put 999 above 1798.5).
 - **Columns are sized to their contents** (`qt.invoke(... "resizeColumnsToContents")`,
   which Qt measures over the rows in view, so it costs a screenful), and a
   table wider than the window scrolls sideways -- the asking table's scrollbar

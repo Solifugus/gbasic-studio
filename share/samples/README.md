@@ -9,7 +9,7 @@ the point.
 | File | What it shows |
 |---|---|
 | `01_sections.bas` | How Studio splits a file into sections and runs one at a time |
-| `02_tables.bas` | The Tables pane: a sample of the rows, the whole table, sorting |
+| `02_tables.bas` | The Tables pane: a sample of the rows, and the whole table |
 | `03_errors.bas` | Where an error is reported — runtime and syntax — and that it is your line |
 | `04_records.bas` | What a run leaves behind, in the Results pane |
 | `05_branches.bas` | Trying a different value on a branch without editing the file |
